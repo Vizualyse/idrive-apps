@@ -14,6 +14,8 @@
  * native/cluster-render/js/cluster_render_client.js into one directory and run
  * it as root or a member of group tm_oap_app:
  *   node gauge.js [--target map|hud|panel] [--seconds N] [--socket PATH]
+ *   --band TOP-BOTTOM keeps to that part of the target's height, dial and
+ *   readout side by side (default on hud: 0.25-0.65); --no-band for the full area.
  */
 'use strict';
 
@@ -31,6 +33,7 @@ const APP = 'vizualyse_gauge';
 const SIZES = { panel: [1920, 720], map: [1088, 480], hud: [800, 480] };
 const SWEEP = 120;          /* the needle runs from -SWEEP (0 %) to +SWEEP (100 %) degrees */
 const CELLS = 16;           /* characters in the readout */
+const HUD_BAND = [0.25, 0.65];   /* the HUD's default band: clear of its clipped top and its speed */
 
 /* ---- the reading --------------------------------------------------------- */
 
@@ -149,6 +152,27 @@ function needle(w, l) {
     });
 }
 
+/* ---- layout -------------------------------------------------------------- */
+
+/* Where the dial and readout go. Without a band: the dial centred a little
+ * above the middle, the readout under it (the cluster's map area, all of
+ * which is visible). With a band [top, bottom] (fractions of the height):
+ * both fit inside it side by side, the readout right of the dial, which keeps
+ * them clear of the parts of a target that are not visible or hold native
+ * content (the HUD's speed at the bottom). */
+function layout(W, H, band) {
+    if (!band) {
+        const R = Math.round(H * 0.36), cx = Math.round(W / 2), cy = Math.round(H * 0.42);
+        const th = Math.round(H * 0.1), tw = Math.round(th * CELLS / 2);
+        return { R: R, cx: cx, cy: cy, th: th, tw: tw, tx: Math.round((W - tw) / 2), ty: Math.min(H - th - 8, cy + R + 10) };
+    }
+    const top = Math.round(H * band[0]), bottom = Math.round(H * band[1]);
+    const R = Math.floor((bottom - top) / 2 * 0.95), cy = Math.round((top + bottom) / 2);
+    const th = Math.round(R * 0.4), tw = Math.round(th * CELLS / 2), gap = Math.round(R * 0.2);
+    const left = Math.round((W - (2 * R + gap + tw)) / 2);
+    return { R: R, cx: left + R, cy: cy, th: th, tw: tw, tx: left + 2 * R + gap, ty: cy - Math.round(th / 2) };
+}
+
 /* ---- main ---------------------------------------------------------------- */
 
 function parse(argv) {
@@ -157,10 +181,18 @@ function parse(argv) {
         if (argv[i] === '--socket') a.socket = argv[++i];
         else if (argv[i] === '--target') a.target = argv[++i];
         else if (argv[i] === '--seconds') a.seconds = Number(argv[++i]);
+        else if (argv[i] === '--band') a.band = String(argv[++i]).split('-').map(Number);
+        else if (argv[i] === '--no-band') a.band = false;
         else { a.bad = argv[i]; }
     }
-    if (a.bad || !SIZES[a.target] || !(a.seconds > 0)) {
-        console.error('usage: node gauge.js [--target map|hud|panel] [--seconds N] [--socket PATH]');
+    /* The HUD's visible area is smaller than its 800x480 target and its
+     * native speed sits at the bottom: keep to the band between them. */
+    if (a.band === undefined) a.band = a.target === 'hud' ? HUD_BAND : null;
+    if (a.band === false) a.band = null;
+    const badBand = a.band && !(a.band.length === 2 && a.band[0] >= 0 && a.band[1] <= 1 && a.band[1] - a.band[0] >= 0.1);
+    if (a.bad || badBand || !SIZES[a.target] || !(a.seconds > 0)) {
+        console.error('usage: node gauge.js [--target map|hud|panel] [--seconds N] [--band TOP-BOTTOM | --no-band] [--socket PATH]\n' +
+            '  --band 0.25-0.65 keeps to that part of the height (the default on hud)');
         process.exit(2);
     }
     return a;
@@ -178,8 +210,10 @@ function main() {
     cr.on('target', (t, state, holder, reason) => log('target ' + t + ' ' + state + (reason ? ': ' + reason : '')));
     cr.on('refused', (op, ref, reason) => log('refused ' + op + ' ' + ref + (reason ? ': ' + reason : '')));
 
-    /* The dial and needle, centred a little above the middle. */
-    const R = Math.round(H * 0.36), cx = Math.round(W / 2), cy = Math.round(H * 0.42);
+    const L = layout(W, H, args.band);
+    const R = L.R, cx = L.cx, cy = L.cy;
+    log('layout: dial r ' + R + ' at ' + cx + ',' + cy + '; readout ' + L.tw + 'x' + L.th + ' at ' + L.tx + ',' + L.ty +
+        (args.band ? '; band ' + args.band.join('-') + ' of the height' : ''));
     const nw = 2 * Math.max(4, Math.round(R * 0.04)), nl = Math.round(R * 0.84);
     const face = cr.image({ target: target, x: cx - R, y: cy - R, w: 2 * R, h: 2 * R });
     cr.pixels(face, null, dial(R));
@@ -187,12 +221,9 @@ function main() {
         px: nw / 2, py: nl - nw / 2, sampling: 'bilinear', rotate: -SWEEP });
     cr.pixels(hand, null, needle(nw, nl));
 
-    /* The readout under the dial. */
-    const th = Math.round(H * 0.1), tw = Math.round(th * CELLS / 2);
     const atlas = cr.asset({ target: target, format: 'r8', w: 512, h: 32, sampling: 'bilinear' });
     cr.pixels(atlas, null, font());
-    const text = cr.effect({ target: target, klass: 'overlay', x: Math.round((W - tw) / 2),
-        y: Math.min(H - th - 8, cy + R + 10), w: tw, h: th, fs: TEXT_FS });
+    const text = cr.effect({ target: target, klass: 'overlay', x: L.tx, y: L.ty, w: L.tw, h: L.th, fs: TEXT_FS });
     cr.bind(text, 'u_font', atlas);
 
     const tick = () => {

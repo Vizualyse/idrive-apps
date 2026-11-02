@@ -24,5 +24,11 @@ ssh root@<mgu-ip> 'cd /tmp && node gauge.js --target map --seconds 60'
 head-up display (800x480), `panel` the whole cluster (1920x720). It ends after
 `--seconds` (default 60) or on Ctrl-C, and its layers are removed with it.
 
+On the HUD the visible area is smaller than its 800x480 target (the top is
+clipped) and the car's own speed sits at the bottom, so `--target hud` keeps
+the dial and readout side by side in the band from 25 % to 65 % of the height.
+`--band TOP-BOTTOM` (e.g. `--band 0.3-0.6`) picks another band on any target,
+`--no-band` uses the full area.
+
 Keep content off the speedometer, warnings and check-control areas, and keep
 anything animated off the HUD while driving.
