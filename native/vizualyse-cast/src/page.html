@@ -33,13 +33,37 @@
   .err { color:var(--bad); font-size:14px; margin-top:6px; word-break:break-word; }
   .small { color:var(--dim); font-size:13px; }
   a { color:var(--accent); }
+  .seg3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .seg3 button { padding:10px 6px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; }
+  .seg3 button.on { border-color:var(--accent); background:rgba(47,129,247,.15); }
+  .pv { position:relative; margin-top:12px; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1920/720; }
+  .pv img { width:100%; height:100%; display:block; object-fit:fill; }
+  .pv canvas { position:absolute; inset:0; width:100%; height:100%; }
+  .hide { display:none !important; }
+  .link { background:none; border:0; color:var(--accent); font-size:14px; padding:6px 0; }
 </style>
 </head>
 <body>
 <h1>Cast to iDrive</h1>
 <div class="sub" id="sub">Connecting…</div>
 
-<div class="card">
+<div class="card" id="srcCard">
+  <label class="t">Source</label>
+  <div class="seg" id="sources">
+    <button data-src="url">Stream URL</button>
+    <button data-src="screen">Central screen</button>
+  </div>
+</div>
+
+<div class="card hide" id="screenCard">
+  <label class="t">What goes to the cluster</label>
+  <div class="seg3" id="crops"></div>
+  <div class="pv" id="pv"><img id="shot" alt=""><canvas id="box"></canvas></div>
+  <button class="link" id="refresh">Refresh preview</button>
+  <div class="small">The preview is the central screen now; the outlines are what is sent. Open CarPlay (Google Maps) on the central screen first.</div>
+</div>
+
+<div class="card" id="urlCard">
   <label class="t" for="url">Stream URL</label>
   <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
          placeholder="https://… (file, HLS .m3u8, rtsp://…)">
@@ -48,8 +72,8 @@
 <div class="card">
   <label class="t">Video output</label>
   <div class="seg" id="outputs"></div>
-  <div class="row"><span>Sound through the speakers</span><input id="audio" type="checkbox" checked></div>
-  <div class="row"><span>Volume <span id="volv">60</span>%</span><input id="vol" type="range" min="0" max="150" value="60"></div>
+  <div class="row" id="audioRow"><span>Sound through the speakers</span><input id="audio" type="checkbox" checked></div>
+  <div class="row" id="volRow"><span>Volume <span id="volv">60</span>%</span><input id="vol" type="range" min="0" max="150" value="60"></div>
 </div>
 
 <div class="go">
@@ -71,13 +95,15 @@
 (function () {
   var token = new URLSearchParams(location.search).get('t') || '';
   var $ = function (id) { return document.getElementById(id); };
-  var output = 'map', built = false;
+  var output = 'map', built = false, source = 'url', crop = 'carplay', crops = [], screenSize = { W: 1920, H: 720 }, lastOutputs = [];
 
   function get(k, d) { try { return localStorage.getItem('cast.' + k) || d; } catch (e) { return d; } }
   function put(k, v) { try { localStorage.setItem('cast.' + k, v); } catch (e) {} }
 
   $('url').value = get('url', '');
   output = get('output', 'map');
+  source = get('source', 'url');
+  crop = get('crop', 'carplay');
   $('vol').value = get('volume', '60'); $('volv').textContent = $('vol').value;
   $('audio').checked = get('audio', '1') === '1';
 
@@ -89,6 +115,8 @@
 
   function buildOutputs(list) {
     var box = $('outputs'); box.innerHTML = '';
+    if (source === 'screen') list = list.filter(function (o) { return o.id === 'map' || o.id === 'hud'; });
+    if (!list.some(function (o) { return o.id === output; }) && list.length) { output = list[0].id; }
     list.forEach(function (o) {
       var b = document.createElement('button'); b.textContent = o.title; b.dataset.id = o.id;
       b.onclick = function () { output = o.id; put('output', o.id); mark(); };
@@ -98,8 +126,56 @@
   }
   function mark() { Array.prototype.forEach.call($('outputs').children, function (b) { b.classList.toggle('on', b.dataset.id === output); }); }
 
+  function setSource(src) {
+    source = src; put('source', src);
+    Array.prototype.forEach.call($('sources').children, function (b) { b.classList.toggle('on', b.dataset.src === src); });
+    $('urlCard').classList.toggle('hide', src === 'screen');
+    $('screenCard').classList.toggle('hide', src !== 'screen');
+    $('audioRow').classList.toggle('hide', src === 'screen');
+    $('volRow').classList.toggle('hide', src === 'screen');
+    buildOutputs(lastOutputs);
+    if (src === 'screen' && !$('shot').src) refreshShot();
+  }
+  Array.prototype.forEach.call($('sources').children, function (b) { b.onclick = function () { setSource(b.dataset.src); }; });
+
+  function buildCrops(list) {
+    crops = list; var box = $('crops'); box.innerHTML = '';
+    list.forEach(function (c) {
+      var b = document.createElement('button'); b.textContent = c.title.replace(' (stacked)', ''); b.dataset.id = c.id;
+      b.onclick = function () { crop = c.id; put('crop', c.id); markCrop(); drawBoxes(); };
+      box.appendChild(b);
+    });
+    markCrop(); drawBoxes();
+  }
+  function markCrop() { Array.prototype.forEach.call($('crops').children, function (b) { b.classList.toggle('on', b.dataset.id === crop); }); }
+  function drawBoxes() {
+    var cv = $('box'), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    var g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height);
+    var c = crops.filter(function (x) { return x.id === crop; })[0]; if (!c) return;
+    var kx = cv.width / screenSize.W, ky = cv.height / screenSize.H;
+    (c.stack || [c]).forEach(function (q, i) {
+      g.fillStyle = 'rgba(47,129,247,.18)'; g.strokeStyle = '#2f81f7'; g.lineWidth = 2 * dpr;
+      g.fillRect(q.x * kx, q.y * ky, q.w * kx, q.h * ky); g.strokeRect(q.x * kx, q.y * ky, q.w * kx, q.h * ky);
+      if (c.stack) { g.fillStyle = '#fff'; g.font = (12 * dpr) + 'px sans-serif'; g.fillText(String(i + 1), q.x * kx + 5 * dpr, q.y * ky + 15 * dpr); }
+    });
+  }
+  function refreshShot() {
+    $('refresh').textContent = 'Taking a snapshot…';
+    var img = $('shot');
+    img.onload = function () { $('refresh').textContent = 'Refresh preview'; drawBoxes(); };
+    img.onerror = function () { $('refresh').textContent = 'No preview (refresh)'; };
+    img.src = '/api/screen.jpg?t=' + encodeURIComponent(token) + '&n=' + Date.now();
+  }
+  $('refresh').onclick = refreshShot;
+  window.addEventListener('resize', drawBoxes);
+
   function show(s) {
-    if (!built && s.outputs) buildOutputs(s.outputs);
+    if (s.outputs) lastOutputs = s.outputs;
+    if (s.outputs && !$('outputs').children.length) buildOutputs(s.outputs);
+    if (s.screenSize) screenSize = s.screenSize;
+    if (s.crops && !crops.length) buildCrops(s.crops);
+    $('srcCard').classList.toggle('hide', !s.screen);
     $('sub').textContent = 'Uplink ' + s.uplink + ' · renderer ' + s.render;
     $('dot').className = 'dot ' + s.state;
     var names = {}; (s.outputs || []).forEach(function (o) { names[o.id] = o.title; });
@@ -119,14 +195,22 @@
   $('audio').onchange = function () { put('audio', this.checked ? '1' : '0'); };
   $('qr').onchange = function () { api('/api/qr', { show: this.checked }).then(show); };
   $('play').onclick = function () {
-    var url = $('url').value.trim(); if (!url) { $('url').focus(); return; }
-    put('url', url); $('play').disabled = true; $('err').textContent = '';
-    api('/api/play', { url: url, output: output, audio: $('audio').checked, volume: Number($('vol').value) })
+    var body;
+    if (source === 'screen') {
+      body = { source: 'screen', crop: crop, output: output };
+    } else {
+      var url = $('url').value.trim(); if (!url) { $('url').focus(); return; }
+      put('url', url);
+      body = { url: url, output: output, audio: $('audio').checked, volume: Number($('vol').value) };
+    }
+    $('play').disabled = true; $('err').textContent = '';
+    api('/api/play', body)
       .then(show).catch(function (e) { $('err').textContent = e.message; })
       .then(function () { $('play').disabled = false; });
   };
   $('stop').onclick = function () { api('/api/stop', {}).then(show); };
 
+  setSource(source);
   poll(); setInterval(poll, 1500);
 })();
 </script>

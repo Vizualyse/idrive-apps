@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "vizualyse_cast",
-  "version": "0.1.0",
-  "tree": "vizualyse_cast@0.1.0",
+  "version": "0.2.0",
+  "tree": "vizualyse_cast@0.2.0",
   "modules": [
     "src/vizualyse_cast.js",
     "src/cast_control.js",

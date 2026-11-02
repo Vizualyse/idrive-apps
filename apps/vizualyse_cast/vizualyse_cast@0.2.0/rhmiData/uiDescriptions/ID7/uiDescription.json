@@ -210,7 +210,73 @@
           "rows": [
             {
               "Text": {
-                "value": "QR code on the cluster: on",
+                "value": "QR code on the cluster: off",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "35": {
+          "type": "button",
+          "name": "castEnable",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Cast to cluster: on",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "36": {
+          "type": "button",
+          "name": "castMirrorMap",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Mirror Google Maps on the cluster",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "37": {
+          "type": "button",
+          "name": "castMirrorHud",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Mirror Google Maps on the HUD",
                 "type": "Text"
               }
             }

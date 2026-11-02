@@ -137,8 +137,8 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'castQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['castConsole', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
-    console.log('ok   page: 5 buttons, a QR graphic, xml and uiDescription agree');
+    assert.deepStrictEqual(buttons, ['castConsole', 'castEnable', 'castHud', 'castMap', 'castMirrorHud', 'castMirrorMap', 'castQrToggle', 'castStop']);
+    console.log('ok   page: 8 buttons, a QR graphic, xml and uiDescription agree');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -174,16 +174,44 @@ async function main() {
     await until('qr sent', () => received.some((c) => c.cmd === 'qr' && c.show === false));
     console.log('ok   playing: "' + S.text + '"; Play last on this screen, Stop and the QR toggle send replay, stop, qr off');
 
+    st = Object.assign({}, st, { screen: true });
+    control.broadcast();
+    await until('mirror enabled', () => byName.castMirrorMap.enabled === true && byName.castMirrorHud.enabled === true);
+    await sleep(450);
+    byName.castMirrorMap.emit('action');
+    await until('mirror map sent', () => received.some((c) => c.cmd === 'mirror' && c.crop === 'gmaps' && c.output === 'map'));
+    byName.castMirrorHud.emit('action');
+    await until('mirror hud sent', () => received.some((c) => c.cmd === 'mirror' && c.crop === 'gmapsHud' && c.output === 'hud'));
+    assert.strictEqual(byName.castEnable.text, 'Cast to cluster: on');
+    byName.castEnable.emit('action');
+    await until('disable sent', () => received.some((c) => c.cmd === 'disable'));
+    st = Object.assign({}, st, { enabled: false, state: 'idle' });
+    control.broadcast();
+    await until('off status', () => /^Off/.test(S.text || ''));
+    assert.strictEqual(byName.castEnable.text, 'Cast to cluster: off');
+    assert.strictEqual(byName.castQr.visible, false, 'no QR while off');
+    assert.strictEqual(byName.castMirrorMap.enabled, false);
+    assert.strictEqual(byName.castMap.enabled, false);
+    await sleep(450);
+    byName.castEnable.emit('action');
+    await until('enable sent', () => received.some((c) => c.cmd === 'enable'));
+    st = Object.assign({}, st, { enabled: true, state: 'playing' });
+    control.broadcast();
+    await until('back on', () => /^Playing/.test(S.text || '') && byName.castQr.visible === true);
+    console.log('ok   Mirror Google Maps sends gmaps/map and gmapsHud/hud; on/off sends disable and enable, off hides the QR and disables the rest');
+
     st = Object.assign({}, st, { qr: false, outputs: OUTPUTS.filter((o) => o.id !== 'console') });
     control.broadcast();
     await until('console hidden', () => byName.castConsole.visible === false);
     assert(/: off$/.test(byName.castQrToggle.text));
     console.log('ok   without mgu-render the console button hides; toggle reads "' + byName.castQrToggle.text + '"');
 
+    const qrBefore = byName.castQr.graphic.value;
     st = Object.assign({}, st, { link: LINK2 });
     control.broadcast();
-    await until('new QR', () => byName.castQr.graphic.value !== qr1);
-    await until('old QR released', () => destroyed.indexOf(qr1) >= 0 && !fs.existsSync(qr1));
+    await until('new QR', () => byName.castQr.graphic.value !== qrBefore && byName.castLink.text === LINK2);
+    await until('old QR released', () => destroyed.indexOf(qrBefore) >= 0 && !fs.existsSync(qrBefore));
+    assert(destroyed.indexOf(qr1) >= 0 && !fs.existsSync(qr1), 'the first QR was released when it was replaced');
     assert.strictEqual(byName.castLink.text, LINK2);
     console.log('ok   a new link: new QR file, the old handle released and its file removed');
 

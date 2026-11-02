@@ -5,8 +5,9 @@
  * /dev/shm/vizualyse-cast/ctl.sock, a Unix stream socket (group tm_oap_app),
  * newline-delimited JSON. The tool sends {"ev":"status", ...} on connect,
  * after every command and once a second; the app sends {"cmd":"stop"},
- * {"cmd":"replay","output":"map"|"hud"|"console"|"none"} and
- * {"cmd":"qr","show":true|false}. Connected while the page is visible,
+ * {"cmd":"replay","output":"map"|"hud"|"console"|"none"},
+ * {"cmd":"mirror","crop":"gmaps"|"gmapsHud"|...,"output":"map"|"hud"},
+ * {"cmd":"enable"}, {"cmd":"disable"} and {"cmd":"qr","show":true|false}. Connected while the page is visible,
  * retried once a second; the tool keeps running without it.
  */
 'use strict';
@@ -77,10 +78,15 @@ class CastControl extends EventEmitter {
     }
 
     stop() { return this._send({ cmd: 'stop' }); }
+    enable() { return this._send({ cmd: 'enable' }); }
+    disable() { return this._send({ cmd: 'disable' }); }
+    mirror(crop, output) { return this._send({ cmd: 'mirror', crop: crop, output: output }); }
     replay(output) { return this._send({ cmd: 'replay', output: output }); }
     setQr(show) { return this._send({ cmd: 'qr', show: !!show }); }
 
     connected() { return !!this.status; }
+    enabled() { return !(this.status && this.status.enabled === false); }
+    canMirror() { return !!(this.status && this.status.screen && this.enabled()); }
     link() { return (this.status && this.status.link) || ''; }
     canReplay() { return !!(this.status && this.status.canReplay); }
     playing() { return !!(this.status && this.status.state === 'playing'); }
@@ -90,6 +96,7 @@ class CastControl extends EventEmitter {
     statusText() {
         const s = this.status;
         if (!s) return 'Cast service not running — install Cast to cluster in the Store';
+        if (s.enabled === false) return 'Off — turn Cast to cluster on to use it';
         const where = TITLES[s.output] || s.output || '';
         if (s.state === 'playing') return 'Playing on ' + where + (s.audio ? ', with sound' : '') + ' — ' + (s.seconds || 0) + ' s';
         if (s.state === 'error') return 'Error: ' + (s.error || 'the stream failed');

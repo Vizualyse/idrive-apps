@@ -4,10 +4,34 @@ A tech demo for the iDrive 7 head unit: play a stream URL from your phone on
 the instrument cluster or the HUD, with its sound through the speakers.
 
 1. The head unit is on your phone's hotspot (mgu-uplink).
-2. While idle, the cluster shows a QR code: scan it with the phone.
-3. On the page: paste a URL (a file, HLS `.m3u8`, `rtsp://`, `rtmp://`),
-   pick **Cluster map**, **HUD**, **Media console** or **Audio only**, sound
-   on or off and the volume, then **Play**.
+2. Open **Cast** (the iDrive app, apps/vizualyse_cast) and scan its QR code
+   with the phone. The cluster can show the QR code while idle too (off by
+   default: with navigation up the cluster's direction list covers it).
+3. On the page, either a **Stream URL** (a file, HLS `.m3u8`, `rtsp://`,
+   `rtmp://`) to **Cluster map**, **HUD**, **Media console** or **Audio only**,
+   with sound on or off and the volume; or the **Central screen**, mirrored to
+   the cluster map or the HUD. Then **Play**.
+
+**Cast to cluster: on / off** on the iDrive page turns the whole service off
+(nothing plays, no QR code, the phone page closed) and is kept across restarts.
+
+## Mirroring the central screen
+
+BMW's own `winston-grabber` encodes the central screen (`center`, 1920x720)
+in hardware at half size and sends MPEG-TS to `udp://127.0.0.1:8482`; ffmpeg
+reads it with no buffering, cuts out a layout and scales it for the target.
+
+| Layout | What goes out |
+|---|---|
+| CarPlay map | the CarPlay screen right of its dock, at the cluster map's 2.27:1 |
+| Whole screen | everything, letterboxed |
+| Google Maps (stacked) | CarPlay with Google Maps: the direction banner, the map around the car and the arrival / time / distance readouts, stacked top to bottom (the cluster map) |
+| Google Maps (HUD) | the banner over the readouts on the left, the map on the right (the HUD's band) |
+
+A layout is columns side by side at one height, each a stack of regions at
+one width (`CROPS` in server.js, in screen pixels). The page's preview is a
+snapshot of the central screen (`/api/screen.jpg`) with the regions outlined.
+It mirrors what the central screen shows: open CarPlay first.
 
 ## How it works
 
@@ -18,7 +42,9 @@ the instrument cluster or the HUD, with its sound through the speakers.
 | `ffmpeg` | root | static build, reads the stream through the proxy and writes I420 frames (stdout) and S16LE 48 kHz stereo (fd 3) |
 | `pcm_play.py` | root, mgu-python | plays the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` source |
 | `console_out.js` | root | the media console output: frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_cast` (MGVF, 3 slots), drawn by an mgu-render client in layer mode in the screen's app area |
-| `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start, removed at stop and by the tool's `deactivate` |
+| `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start (while on), removed at stop, when turned off and by the tool's `deactivate` |
+| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, mirror, enable, disable, the cluster QR code |
+| `winston-grabber` | root | the head unit's own screen grabber, for the central-screen source |
 
 Frame sizes keep within cluster-render's 5500 KB/s upload ceiling:
 512x288 at 15 fps on the map, 480x270 at 15 fps on the HUD, there in the band between its clipped top and the

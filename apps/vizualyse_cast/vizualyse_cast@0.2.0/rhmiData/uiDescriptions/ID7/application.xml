@@ -26,7 +26,19 @@
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
             </component>
+            <component id="35" type="button" widget="LT_Button_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="30" type="button" widget="LT_Button_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="36" type="button" widget="LT_Button_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="37" type="button" widget="LT_Button_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="3"/>
             </component>

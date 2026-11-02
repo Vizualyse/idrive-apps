@@ -40,6 +40,98 @@ const PYTHON = '/var/opt/mgu-python/current/bin/python3';
 const LEASE = '/run/mgu-uplink/lease.json';
 const UPLINK_STATUS = '/run/mgu-uplink/status.json';
 
+/* The central screen as a source: BMW's winston-grabber encodes it in
+ * hardware (h264_msdk) at half size and sends MPEG-TS to a local UDP port,
+ * which ffmpeg crops and scales like any other stream. */
+const GRABBER = '/usr/bin/winston-grabber';
+const SCREEN_PORT = PORT + 2;
+const SCREEN = { W: 1920, H: 720 };
+const GRAB = { w: 960, h: 360, fps: 15 };
+/* Crops of the central screen, in its own 1920x720 pixels; carplay is the
+ * part right of CarPlay's dock at the cluster map's 2.27:1 (the phone page's
+ * preview shows where it falls). */
+const CROPS = {
+    carplay: { x: 288, y: 0, w: 1632, h: 720, title: 'CarPlay map' },
+    full: { x: 0, y: 0, w: 1920, h: 720, title: 'Whole screen' },
+    /* Google Maps in CarPlay (dock on the right). Its parts, in screen pixels:
+     * the direction banner, the arrival / time / distance readouts, and the
+     * map around the car. A layout is columns side by side at one height,
+     * each a stack of regions at one width. */
+    gmaps: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (stacked)', columns: [[
+        { x: 1112, y: 12, w: 650, h: 186 },
+        { x: 230, y: 160, w: 650, h: 500 },
+        { x: 1112, y: 580, w: 650, h: 128 },
+    ]] },
+    /* For the HUD's wide band: the banner over the readouts on the left, the
+     * map (a wider, lower cut around the car) on the right. */
+    gmapsHud: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (HUD)', columns: [[
+        { x: 1112, y: 12, w: 650, h: 186 },
+        { x: 1112, y: 580, w: 650, h: 128 },
+    ], [
+        { x: 180, y: 350, w: 750, h: 310 },
+    ]] },
+};
+
+/* A layout's geometry fitted into W x H at `fill` of the room (the renderer
+ * scales the layer up the rest of the way, keeping the upload small): the
+ * frame { w, h } and each column's width and its regions' heights, all even.
+ * Columns are first set to one height, each column's regions to one width. */
+function layoutSize(columns, W, H, fill) {
+    const nat = columns.map((col) => {
+        const cw = Math.max.apply(null, col.map((r) => r.w));
+        return { cw: cw, ch: col.reduce((n, r) => n + r.h * cw / r.w, 0) };
+    });
+    const hn = Math.max.apply(null, nat.map((c) => c.ch));
+    const widths = nat.map((c) => c.cw * hn / c.ch), wn = widths.reduce((a, b) => a + b, 0);
+    const k = Math.min(W * fill / wn, H * fill / hn), h = even(hn * k);
+    const cols = columns.map((col, j) => {
+        const w = even(widths[j] * k), sum = col.reduce((n, r) => n + r.h * w / r.w, 0);
+        return { w: w, heights: col.map((r) => even(r.h * w / r.w * h / sum)) };
+    });
+    return { w: cols.reduce((n, c) => n + c.w, 0), h: h, cols: cols };
+}
+
+/* The filter graph of a layout: each region cropped from the half-size grab
+ * (k: grab pixels a screen pixel) and scaled into its place, each column
+ * stacked, the columns side by side, at the frame's exact size. */
+function layoutGraph(columns, geo, k, fps) {
+    const parts = [], all = [];
+    columns.forEach((col, j) => col.forEach((r, i) => all.push({ r: r, j: j, i: i })));
+    parts.push('[0:v]split=' + all.length + all.map((a, n) => '[i' + n + ']').join(''));
+    all.forEach((a, n) => {
+        const r = a.r;
+        parts.push('[i' + n + ']crop=' + even(r.w * k) + ':' + even(r.h * k) + ':' + even(r.x * k) + ':' + even(r.y * k) +
+            ',scale=' + geo.cols[a.j].w + ':' + geo.cols[a.j].heights[a.i] + ':flags=bicubic[r' + a.j + '_' + a.i + ']');
+    });
+    columns.forEach((col, j) => {
+        const ins = col.map((r, i) => '[r' + j + '_' + i + ']').join('');
+        parts.push(ins + (col.length > 1 ? 'vstack=inputs=' + col.length + ',' : '') + 'scale=' + geo.cols[j].w + ':' + geo.h + '[c' + j + ']');
+    });
+    const cols = columns.map((c, j) => '[c' + j + ']').join('');
+    parts.push(cols + (columns.length > 1 ? 'hstack=inputs=' + columns.length + ',' : '') +
+        'scale=' + geo.w + ':' + geo.h + ',fps=' + fps + ',format=yuv420p[v]');
+    return parts.join(';');
+}
+
+/* The mirror's frame sizes: the cluster map at its own 2.27:1, the HUD as before. */
+const MIRROR_SIZES = { map: { w: 544, h: 240 }, hud: { w: 480, h: 270 } };
+const GRAB_ENV = Object.assign({}, process.env, { XDG_RUNTIME_DIR: '/run/wayland' });
+
+function even(n) { return Math.max(0, Math.round(n / 2) * 2); }
+
+/* A crop from the page or the app: a preset name, or x, y, w, h within the
+ * screen (at least 64x36); null when it is neither. */
+function normCrop(c) {
+    if (!c) return Object.assign({ preset: 'carplay' }, CROPS.carplay);
+    if (typeof c === 'string' || (c.preset && CROPS[c.preset] && c.x === undefined)) {
+        const k = typeof c === 'string' ? c : c.preset;
+        return CROPS[k] ? Object.assign({ preset: k }, CROPS[k]) : null;
+    }
+    const x = even(Number(c.x)), y = even(Number(c.y)), w = even(Number(c.w)), h = even(Number(c.h));
+    if (![x, y, w, h].every(isFinite) || w < 64 || h < 36 || x + w > SCREEN.W || y + h > SCREEN.H) return null;
+    return { preset: 'custom', x: x, y: y, w: w, h: h, title: 'Custom ' + w + 'x' + h + '+' + x + '+' + y };
+}
+
 /* Each output: the target, the frame size sent and its rate (within the
  * renderer's 5500 KB/s upload ceiling), and the part of the target used. */
 const OUTPUTS = {
@@ -86,7 +178,16 @@ function redact(u) {
 
 const TOKEN = token();
 const cr = new ClusterRender('vizualyse_cast');
-let qrLayer = null, qrUrl = null, qrWanted = true;
+
+/* Settings kept across restarts in STATE_DIR/settings.json: the service on
+ * or off, and the QR code on the cluster (off by default: with navigation up
+ * the cluster draws its direction list over it; the iDrive page shows it). */
+const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
+const settings = Object.assign({ enabled: true, clusterQr: false }, readJson(SETTINGS_FILE) || {});
+function saveSettings() {
+    try { mkdirp(STATE_DIR); fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings) + '\n', { mode: 0o600 }); } catch (e) { log('settings: ' + e.message); }
+}
+let qrLayer = null, qrUrl = null, qrWanted = settings.clusterQr;
 
 function link() { const ip = uplinkIp(); return ip ? 'http://' + ip + ':' + PORT + '/?t=' + TOKEN : null; }
 
@@ -115,7 +216,7 @@ function qrPixels(text, target) {
 function updateQr() {
     /* Shown until the video's first frame: the area is never left empty in
      * between, which would hand it back to the cluster's own map. */
-    const url = link(), show = qrWanted && (!player || !player.frames) && !!url;
+    const url = link(), show = settings.enabled && qrWanted && (!player || !player.frames) && !!url;
     if (url && url !== qrUrl) {
         if (qrLayer) cr.drop(qrLayer);
         const q = qrPixels(url, 300), W = 1088, H = 480;
@@ -174,6 +275,7 @@ let player = null;      /* { ff, py, opts, video, started, frames, lastErr[] } *
 const consoleVideo = new consoleOut.ConsoleVideo(log);
 let last = { state: 'idle' };
 let lastPlay = null;    /* the last play's options (with its full URL): the app's Play last */
+let lastCrop = null;    /* the last central-screen crop: the app's Mirror */
 
 function o0(p) { return OUTPUTS[p.opts.output] || {}; }
 
@@ -185,6 +287,7 @@ function stopPlayer(why) {
     try { p.ff.kill('SIGTERM'); } catch (e) { /* gone */ }
     setTimeout(() => { try { p.ff.kill('SIGKILL'); } catch (e) { /* gone */ } }, 3000);
     if (p.py) try { p.py.kill('SIGTERM'); } catch (e) { /* gone */ }
+    if (p.grab) try { p.grab.kill('SIGTERM'); } catch (e) { /* gone */ }
     if (p.video) cr.drop(p.video);
     if (o0(p).console) consoleVideo.stop();
     log('play: stopped (' + why + ') after ' + p.frames + ' frames');
@@ -195,16 +298,36 @@ function stopPlayer(why) {
 function play(opts) {
     stopPlayer('replaced');
     lastPlay = opts;
-    const o = OUTPUTS[opts.output];
+    const screen = opts.source === 'screen';
+    if (screen) lastCrop = opts.crop;
+    let o = screen ? Object.assign({}, OUTPUTS[opts.output], MIRROR_SIZES[opts.output]) : OUTPUTS[opts.output];
+    const columns = screen && opts.crop.columns;
+    let geo = null;
+    if (columns) {
+        const area = o.band ? { W: o.W, H: Math.round(o.H * (o.band[1] - o.band[0])) } : { W: o.W, H: o.H };
+        geo = layoutSize(columns, area.W, area.H, 0.8);
+        o = Object.assign({}, o, { w: geo.w, h: geo.h });
+    }
     const wantVideo = opts.output !== 'none';
-    const isHttp = /^https?:/i.test(opts.url);
+    const isHttp = !screen && /^https?:/i.test(opts.url);
 
     const args = ['-nostdin', '-hide_banner', '-loglevel', 'warning', '-threads', '3'];
-    if (opts.realtime) args.push('-re');
-    if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
-    args.push('-i', opts.url);
-    if (wantVideo) {
-        args.push('-map', '0:v:0', '-vf',
+    let crop = '';
+    if (screen) {
+        /* live: no -re, as little buffering as ffmpeg allows */
+        const k = GRAB.w / SCREEN.W, c = opts.crop;
+        crop = 'crop=' + even(c.w * k) + ':' + even(c.h * k) + ':' + even(c.x * k) + ':' + even(c.y * k) + ',';
+        args.push('-fflags', 'nobuffer', '-flags', 'low_delay', '-probesize', '500000', '-analyzeduration', '500000',
+            '-f', 'mpegts', '-i', 'udp://127.0.0.1:' + SCREEN_PORT + '?overrun_nonfatal=1&fifo_size=65536');
+    } else {
+        if (opts.realtime) args.push('-re');
+        if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
+        args.push('-i', opts.url);
+    }
+    if (wantVideo && columns) {
+        args.push('-filter_complex', layoutGraph(columns, geo, GRAB.w / SCREEN.W, o.fps), '-map', '[v]', '-f', 'rawvideo', 'pipe:1');
+    } else if (wantVideo) {
+        args.push('-map', '0:v:0', '-vf', crop +
             'scale=' + o.w + ':' + o.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
             'pad=' + o.w + ':' + o.h + ':-1:-1,fps=' + o.fps + ',format=yuv420p',
             '-f', 'rawvideo', 'pipe:1');
@@ -219,6 +342,24 @@ function play(opts) {
     const p = { ff: ff, py: null, opts: opts, video: null, started: Date.now(), frames: 0, lastErr: [] };
     player = p;
     log('play: ' + opts.shown + ' on ' + opts.output + (opts.audio ? ' with audio at ' + opts.volume + '%' : ' without audio'));
+    if (screen) {
+        /* the grabber after ffmpeg listens, so its first keyframe is not lost */
+        setTimeout(() => {
+            if (player !== p) return;
+            const g = spawn(GRABBER, ['-s', 'center', '-g', GRAB.w + 'x' + GRAB.h, '-f', String(GRAB.fps),
+                '-p', 'h264_msdk(gop=' + GRAB.fps + '), mpegts, udp', 'udp://127.0.0.1:' + SCREEN_PORT],
+            { env: GRAB_ENV, stdio: ['ignore', 'ignore', 'pipe'] });
+            p.grab = g;
+            g.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
+                p.lastErr.push('grabber: ' + l.trim());
+                log('grabber: ' + l.trim());
+            }));
+            g.on('error', (e) => { p.lastErr.push('grabber: ' + e.message); try { ff.kill('SIGTERM'); } catch (x) { /* gone */ } });
+            g.on('exit', (code, sig) => {
+                if (player === p) { log('play: the grabber ended (' + (sig || code) + ')'); try { ff.kill('SIGTERM'); } catch (e) { /* gone */ } }
+            });
+        }, 400);
+    }
 
     ff.stderr.on('data', (d) => {
         String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
@@ -273,6 +414,7 @@ function play(opts) {
             return play(Object.assign({}, opts, { audio: false }));
         }
         player = null;
+        if (p.grab) try { p.grab.kill('SIGTERM'); } catch (e) { /* gone */ }
         if (p.py) try { p.py.stdin.end(); } catch (e) { /* gone */ }
         if (p.video) cr.drop(p.video);
         if (o.console) consoleVideo.stop();
@@ -288,8 +430,13 @@ function status() {
         ? { state: 'playing', url: player.opts.shown, output: player.opts.output, audio: player.opts.audio, volume: player.opts.volume,
             frames: player.frames, seconds: Math.round((Date.now() - player.started) / 1000) }
         : last;
-    return Object.assign({ uplink: up.state || 'unknown', render: cr.ready ? 'connected' : 'not connected', qr: qrWanted,
-        link: link(), canReplay: !!lastPlay,
+    return Object.assign({ enabled: settings.enabled, uplink: up.state || 'unknown', render: cr.ready ? 'connected' : 'not connected', qr: qrWanted,
+        link: link(), canReplay: !!lastPlay, screen: fs.existsSync(GRABBER),
+        source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
+        crop: (player && player.opts.crop) || lastCrop || Object.assign({ preset: 'carplay' }, CROPS.carplay),
+        crops: Object.keys(CROPS).map((k) => ({ id: k, title: CROPS[k].title, x: CROPS[k].x, y: CROPS[k].y, w: CROPS[k].w, h: CROPS[k].h,
+            stack: CROPS[k].columns ? [].concat.apply([], CROPS[k].columns) : null })),
+        screenSize: SCREEN,
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -316,13 +463,25 @@ function authorised(req, u) {
 
 const web = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
-    if (!authorised(req, u)) return send(res, 403, 'text/plain', 'Scan the QR code on the cluster to open this page.\n');
+    if (!authorised(req, u)) return send(res, 403, 'text/plain', 'Scan the QR code on the iDrive Cast page to open this page.\n');
+    if (!settings.enabled) return send(res, 503, 'text/plain', 'Cast to cluster is off: turn it on on the iDrive Cast page.\n');
     if (req.method === 'GET' && u.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', PAGE);
     if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, status());
+    if (req.method === 'GET' && u.pathname === '/api/screen.jpg') {
+        return snapshot((err, jpg) => (err ? json(res, 503, { error: 'no snapshot: ' + err.message }) : send(res, 200, 'image/jpeg', jpg)));
+    }
     if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
 
     readBody(req, (err, b) => {
         if (err) return json(res, 400, { error: 'bad JSON' });
+        if (u.pathname === '/api/play' && b.source === 'screen') {
+            const output = b.output === 'hud' ? 'hud' : 'map';
+            const c = normCrop(b.crop);
+            if (!c) return json(res, 400, { error: 'the crop must lie within the ' + SCREEN.W + 'x' + SCREEN.H + ' screen, at least 64x36' });
+            if (!fs.existsSync(GRABBER)) return json(res, 400, { error: 'this head unit has no ' + GRABBER });
+            play(mirrorOpts(c, output));
+            return json(res, 200, status());
+        }
         if (u.pathname === '/api/play') {
             let url;
             try { url = new URL(String(b.url || '')); } catch (e) { return json(res, 400, { error: 'not a URL' }); }
@@ -335,21 +494,71 @@ const web = http.createServer((req, res) => {
             return json(res, 200, status());
         }
         if (u.pathname === '/api/stop') { stopPlayer('stopped from the phone'); return json(res, 200, status()); }
-        if (u.pathname === '/api/qr') { qrWanted = !!b.show; updateQr(); return json(res, 200, status()); }
+        if (u.pathname === '/api/qr') { setQr(!!b.show); return json(res, 200, status()); }
         json(res, 404, { error: 'not found' });
     });
 });
 
 /* ---- start and stop ------------------------------------------------------ */
 
+function mirrorOpts(crop, output) {
+    return { source: 'screen', crop: crop, shown: 'Central screen (' + crop.title + ')', output: output, audio: false, volume: 0, realtime: false };
+}
+
+/* One JPEG of the central screen, for the page's crop preview; requests that
+ * arrive while one is taken share it. */
+let snapWaiters = null;
+function snapshot(cb) {
+    if (snapWaiters) { snapWaiters.push(cb); return; }
+    snapWaiters = [cb];
+    const f = '/tmp/vizualyse-cast-snap-' + process.pid + '.jpg';
+    const done = (err, jpg) => { const w = snapWaiters; snapWaiters = null; w.forEach((fn) => fn(err, jpg)); };
+    try { fs.unlinkSync(f); } catch (e) { /* none */ }
+    const g = spawn(GRABBER, ['-s', 'center', '-n', '1', f], { env: GRAB_ENV, stdio: 'ignore' });
+    const t = setTimeout(() => { try { g.kill('SIGKILL'); } catch (e) { /* gone */ } }, 6000);
+    g.on('error', (e) => { clearTimeout(t); done(e); });
+    g.on('exit', () => {
+        clearTimeout(t);
+        fs.readFile(f, (err, jpg) => { try { fs.unlinkSync(f); } catch (e) { /* none */ } done(err, jpg); });
+    });
+}
+
 /* The iDrive app's commands over the control socket: null, or why not. */
+function setQr(show) { qrWanted = show; settings.clusterQr = show; saveSettings(); updateQr(); }
+
+/* On: the phone page reachable (its firewall rule), the QR code as set.
+ * Off: nothing plays, no QR code, the page closed. */
+function setEnabled(on) {
+    settings.enabled = on;
+    saveSettings();
+    if (on) {
+        try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); }
+    } else {
+        stopPlayer('turned off');
+        try { log('firewall: removed ' + firewall.remove() + ' rule(s)'); } catch (e) { log('firewall: ' + e.message); }
+    }
+    log('cast: ' + (on ? 'on' : 'off'));
+    updateQr();
+}
+
 function command(c) {
+    if (c.cmd === 'enable') { setEnabled(true); return null; }
+    if (c.cmd === 'disable') { setEnabled(false); return null; }
+    if (!settings.enabled) return 'Cast to cluster is off';
+    if (c.cmd === 'mirror') {
+        if (!fs.existsSync(GRABBER)) return 'this head unit has no screen grabber';
+        const crop = c.crop ? normCrop(c.crop) : (lastCrop || Object.assign({ preset: 'carplay' }, CROPS.carplay));
+        if (!crop) return 'unknown layout';
+        play(mirrorOpts(crop, c.output === 'hud' ? 'hud' : 'map'));
+        return null;
+    }
     if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }
-    if (c.cmd === 'qr') { qrWanted = !!c.show; updateQr(); return null; }
+    if (c.cmd === 'qr') { setQr(!!c.show); return null; }
     if (c.cmd === 'replay') {
         if (!lastPlay) return 'nothing played yet: start a stream from the phone first';
         const output = OUTPUTS[c.output] ? c.output : lastPlay.output;
         if (output === 'console' && !consoleOut.available()) return 'the media console needs mgu-render';
+        if (lastPlay.source === 'screen' && (output === 'console' || output === 'none')) return 'the central screen goes to the cluster map or the HUD';
         play(Object.assign({}, lastPlay, { output: output, audio: lastPlay.audio || output === 'none' }));
         return null;
     }
@@ -381,7 +590,11 @@ cr.on('layer', (ref, state, reason) => log('render: layer ' + ref + (ref === qrL
 cr.on('target', (t, state, holder, reason) => log('render: target ' + t + ' ' + state + (holder && holder !== 'none' ? ' (holder ' + holder + ')' : '') + (reason ? ': ' + reason : '')));
 cr.on('refused', (op, ref, reason) => log('render: refused ' + op + ' ' + ref + (reason ? ': ' + reason : '')));
 
-try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); }
+if (settings.enabled) {
+    try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); }
+} else {
+    log('cast: off (turn it on on the iDrive Cast page)');
+}
 startProxy();
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
 control = startControl({ status: status, command: command, log: log });
