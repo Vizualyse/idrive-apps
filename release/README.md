@@ -33,9 +33,10 @@ publishes the catalog when only that changed.
 
 | Entry | Fields |
 |---|---|
-| `cluster-render` (tool) | `requires: {"mgu-deploy": "0.4.0"}`, `uninstallable`, `mguHmi: ["ID7"]` (`native/cluster-render/component.json`) |
-| `waze-on-cluster` (tool) | `requires: {"mgu-deploy": "0.7.0", "cluster-render": …}`, `uninstallable`, `mguHmi: ["ID7"]` (`native/waze-on-cluster/component.json`) |
-| `robertn_waze_cluster` (app) | `build: "unit"`, `requires: {"waze-on-cluster": …}`, `uninstallable`, `mguHmi: ["ID7"]` (`apps/robertn_waze_cluster/release.json`) |
+| `vizualyse-cast` (tool) | `requires: {"mgu-deploy": "0.7.0", "cluster-render": …, "mgu-python": …, "mgu-uplink": …}`, `internet` with uid 12999, `uninstallable`, `mguHmi: ["ID7"]` (`native/vizualyse-cast/component.json`) |
+| `vizualyse_cast` (app) | `build: "unit"`, `requires: {"vizualyse-cast": …}`, `uninstallable`, `mguHmi: ["ID7"]` (`apps/vizualyse_cast/release.json`) |
+
+New app ids start with `vizualyse_` (`APP_ID_PREFIX` in release.js).
 
 The catalog is not signed: the Store fetches it over HTTPS and checks each
 artifact's size and sha256 against it.
@@ -44,11 +45,10 @@ artifact's size and sha256 against it.
 or by hand (Actions, Release, with the component ids or none for all), from
 `main`, with the workflow's `GITHUB_TOKEN` (`contents: write`). It publishes
 whether this repository is private or public
-(`MGU_PUBLISH_VISIBILITY=any`). `.github/workflows/test.yml` runs every
-test on each push to main and builds every component twice from a clean
-export, on two runners, comparing the artifacts as `check` does; a pull
-request runs the tests and the double build of the components it changes.
+(`MGU_PUBLISH_VISIBILITY=any`). `.github/workflows/test.yml` runs the tests,
+a Node 8 syntax check and `check` on each push to main and pull request.
 
 ## License
 
-GPL-3.0-or-later (`LICENSE` at the repository root).
+GPL-3.0-or-later (`LICENSE` at the repository root). The release tooling is
+Robert Nisipeanu's, from [idrive-apps](https://github.com/robertnisipeanu/idrive-apps).

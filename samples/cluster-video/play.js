@@ -22,7 +22,7 @@ const path = require('path');
 
 function loadClient() {
     const here = path.join(__dirname, 'cluster_render_client.js');
-    const repo = path.join(__dirname, '..', '..', 'native', 'cluster-render', 'js', 'cluster_render_client.js');
+    const repo = path.join(__dirname, '..', '..', 'native', 'vizualyse-cast', 'src', 'cluster_render_client.js');
     return require(fs.existsSync(here) ? here : repo);
 }
 const { ClusterRender, DEFAULT_PATH } = loadClient();

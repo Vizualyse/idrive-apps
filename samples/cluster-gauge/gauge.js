@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan; glyph and dial drawing adapted from
-// native/cluster-render/js/showcase.js, Copyright (C) 2026 Robert Nisipeanu.
+// robertnisipeanu/idrive-apps native/cluster-render/js/showcase.js, Copyright (C) 2026 Robert Nisipeanu.
 /**
- * A sample cluster/HUD app through cluster-render (native/cluster-render/PROTOCOL.md):
+ * A sample cluster/HUD app through cluster-render (robertnisipeanu/idrive-apps, native/cluster-render/PROTOCOL.md):
  * a needle gauge showing the head unit's CPU load, and a digital readout
  * "HH:MM  CPU  NN" under it. The data is the unit's own /proc/stat, so it
  * needs no vehicle API; swap readValue() for your own source.
@@ -11,7 +11,7 @@
  * go with it.
  *
  * On the unit (Node 8): copy this file and
- * native/cluster-render/js/cluster_render_client.js into one directory and run
+ * native/vizualyse-cast/src/cluster_render_client.js into one directory and run
  * it as root or a member of group tm_oap_app:
  *   node gauge.js [--target map|hud|panel] [--seconds N] [--socket PATH]
  *   --band TOP-BOTTOM keeps to that part of the target's height, dial and
@@ -24,7 +24,7 @@ const path = require('path');
 
 function loadClient() {
     const here = path.join(__dirname, 'cluster_render_client.js');
-    const repo = path.join(__dirname, '..', '..', 'native', 'cluster-render', 'js', 'cluster_render_client.js');
+    const repo = path.join(__dirname, '..', '..', 'native', 'vizualyse-cast', 'src', 'cluster_render_client.js');
     return require(fs.existsSync(here) ? here : repo);
 }
 const { ClusterRender, DEFAULT_PATH } = loadClient();

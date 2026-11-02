@@ -1,46 +1,53 @@
-# idrive-apps
+# Cast to cluster
 
-Tools and apps for the iDrive 7 head unit (MGU) of a BMW, installed from the
-[mgu Store](https://github.com/robertnisipeanu/mgu-store).
+Cast to cluster for the BMW iDrive 7 head unit (MGU): a stream URL from your
+phone, or a part of the central screen (CarPlay, Google Maps), on the
+instrument cluster, the HUD or the media console, with its sound through the
+speakers. Installed from the [mgu Store](https://github.com/robertnisipeanu/mgu-store).
+
+A tech demo, built and tested on a bench head unit.
 
 | Path | |
 |---|---|
-| [`native/cluster-render`](native/cluster-render) | the cluster renderer: one service that draws every app's layers on the instrument cluster and the HUD, on iDrive 7 and iDrive 8 |
-| [`native/waze-on-cluster`](native/waze-on-cluster) | the CarPlay map (Waze, Apple Maps or Google Maps) on the instrument cluster, drawn through cluster-render |
-| [`apps/robertn_waze_cluster`](apps/robertn_waze_cluster) | the iDrive app for it: Enable map, Disable map, status |
-| [`native/vizualyse-cast`](native/vizualyse-cast) | Cast to cluster: a stream URL from the phone on the cluster map, the HUD or the media console, with its sound through the speakers (static ffmpeg, cluster-render, mgu-render) |
-| [`apps/vizualyse_cast`](apps/vizualyse_cast) | its iDrive app: the phone link and QR code, status, Stop, Play last on the cluster, the HUD or this screen |
+| [`native/vizualyse-cast`](native/vizualyse-cast) | **Cast to cluster**, the tool: the phone page, a static ffmpeg, the central-screen mirror (BMW's winston-grabber) with Google Maps layouts, the uplink proxy, the cluster and HUD through cluster-render, the media console through mgu-render, sound through SmartXbar |
+| [`apps/vizualyse_cast`](apps/vizualyse_cast) | **Cast**, its iDrive app: the phone link and QR code, on/off, Stop, Mirror Google Maps on the cluster or the HUD, Play last on the cluster, the HUD or this screen |
 | [`samples`](samples) | cluster-render samples: a CPU gauge and clock, raw video and sound from files |
 | [`release`](release) | builds and publishes the Store catalog |
 | `tools` | `oap_pack.js`, `oap_link.js`: pack the app |
 
 ## Install
 
-In the Store, add the GitHub source `robertnisipeanu/idrive-apps` and install
-**Waze on cluster**. The Store installs what it requires first: `mgu-deploy`
-0.7.0 from mgu-store, then `cluster-render` and the Waze tool from here. One
-head-unit start activates the CarPlay patch. The Store removes them again:
-the app, then the tool, then the renderer.
+In the Store, add the GitHub source `Vizualyse/idrive-apps` on the
+**Releases** channel and install **Cast**; the Store installs **Cast to
+cluster** first. It requires, from their own sources: `mgu-deploy`,
+`mgu-python` and `mgu-uplink` (mgu-store) and `cluster-render`
+([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps));
+the media console needs `mgu-render` (mgu-store).
 
-## Build
+## Build and test
 
 ```sh
-make -C native/cluster-render test test-x86 target    # host tests; the unit's toolchain and binary (Docker)
-make -C native/waze-on-cluster test test-x86 target
-node apps/robertn_waze_cluster/tools/test_control.js
-node apps/robertn_waze_cluster/tools/test_page.js
+node apps/vizualyse_cast/tools/test_page.js   # the page against a fake HMI and the tool's real control socket
 node release/test/release_test.js
-node release/release.js check                         # reproducible artifacts
+node release/release.js check                 # two clean builds, compared byte for byte
 ```
 
 Each folder's README has the details; [`release/README.md`](release/README.md)
 covers versions, the catalog and publishing.
 
+## Credits
+
+The release tooling (`release/`, `tools/`, `.github/workflows/release.yml`)
+and the structure of the iDrive app come from Robert Nisipeanu's
+[idrive-apps](https://github.com/robertnisipeanu/idrive-apps) (GPL-3.0-or-later),
+where this repository started as a fork. Cast to cluster draws through his
+cluster-render, whose client `native/vizualyse-cast/src/cluster_render_client.js`
+is copied here.
+
 ## License
 
 GPL-3.0-or-later ([`LICENSE`](LICENSE)), unless a file's SPDX header says
-otherwise. What apps compile in or copy from cluster-render, its `include/`,
-`client/`, `kit/`, `js/cluster_render_client.js` and `PROTOCOL.md`, is
-MPL-2.0 ([`LICENSES/MPL-2.0.txt`](LICENSES/MPL-2.0.txt)). Third-party files
-keep their own licenses: the RAMSES and vsomeip interfaces in cluster-render
-(MPL-2.0), the Intel Media SDK headers in waze-on-cluster (MIT).
+otherwise: `cluster_render_client.js` is MPL-2.0
+([`LICENSES/MPL-2.0.txt`](LICENSES/MPL-2.0.txt)); `qrcode.js` is Kazuhiko
+Arase's QR Code Generator (MIT); the bundled ffmpeg is John Van Sickle's
+static build (GPLv3, its licence ships beside it).

@@ -11,10 +11,10 @@
  * `uninstallable` to the catalog, as mgu-store's `deploy/hu artifact`; a malformed
  * `requires` or `mguHmi` is refused; the build tree takes each submodule at
  * the commit HEAD records, and refuses one its checkout lacks; and this
- * repository's Waze chain is
- * declared: the app (for iDrive 7) requires waze-on-cluster, which requires
- * cluster-render and a deploy tool that runs install hooks, and has both
- * hooks; the app, the tool and the renderer are removable.
+ * repository's Cast chain is declared: the app (for iDrive 7) requires
+ * vizualyse-cast, which requires a hook-running deploy tool, cluster-render,
+ * mgu-python and mgu-uplink, routes its internet uid through the uplink and
+ * removes its firewall rule on removal; both are removable.
  *
  *   node release/test/release_test.js
  */
@@ -144,46 +144,33 @@ test('the build tree holds a submodule at its recorded commit; one its checkout 
     assert.throws(() => exportHead(main), /git archive 1{40} in third_party\/lib failed/);
 });
 
-test('the Waze chain: app -> waze-on-cluster -> cluster-render and a hook-running deploy tool', () => {
+test('the Cast chain: app -> vizualyse-cast -> the deploy tool, cluster-render, mgu-python and mgu-uplink', () => {
     const all = components();
     const byId = (id) => all.find((c) => c.id === id);
-    const app = byId('robertn_waze_cluster');
-    const tool = byId('waze-on-cluster');
-    const renderer = byId('cluster-render');
-    assert.ok(app && tool && renderer, 'all three are releasable');
+    const app = byId('vizualyse_cast');
+    const tool = byId('vizualyse-cast');
+    assert.ok(app && tool, 'both are releasable');
     assert.deepStrictEqual(app.mguHmi, ['ID7']);
-    assert.deepStrictEqual(Object.keys(app.requires), ['waze-on-cluster']);
-    assert.ok(catalog.compareVersions(tool.version, app.requires['waze-on-cluster']) >= 0,
+    assert.deepStrictEqual(Object.keys(app.requires), ['vizualyse-cast']);
+    assert.ok(catalog.compareVersions(tool.version, app.requires['vizualyse-cast']) >= 0,
         'the tool meets the app\'s requirement');
-    assert.deepStrictEqual(Object.keys(tool.requires), ['mgu-deploy', 'cluster-render'], 'the deploy tool installs first');
-    assert.strictEqual(tool.requires['mgu-deploy'], '0.7.0');
-    assert.ok(catalog.compareVersions(renderer.version, tool.requires['cluster-render']) >= 0,
-        'the renderer released beside it meets the tool\'s minimum');
-    assert.deepStrictEqual(renderer.requires, { 'mgu-deploy': '0.4.0' });
+    assert.deepStrictEqual(Object.keys(tool.requires), ['mgu-deploy', 'cluster-render', 'mgu-python', 'mgu-uplink'],
+        'the deploy tool installs first');
     assert.deepStrictEqual(tool.mguHmi, ['ID7']);
-    const c = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'native', 'waze-on-cluster', 'component.json'), 'utf8'));
-    assert.deepStrictEqual(c.activate, ['node', 'patchd.js', 'activate']);
-    assert.deepStrictEqual(c.deactivate, ['node', 'patchd.js', 'deactivate']);
-    assert.ok(c.files.some((f) => f.path === 'patchd.js'), 'the hook ships');
-    // recmgr: a CarPlay crash and the boot step's timeout do not reboot the unit;
-    // neither is started or restarted by the deploy tool
-    assert.ok(c.recmgr.includes('carplay') && c.recmgr.includes('waze-on-cluster-boot'));
-    assert.ok(!c.restart.some((u) => /^(carplay|waze-on-cluster-boot)\.service$/.test(u)));
-    // the shutdown record's drop-in and carplay's, removed with the tool;
-    // patchd restarts carplay only once systemd loaded the latter where the
-    // deploy tool writes it
-    assert.deepStrictEqual(c.dropins.map((d) => [d.unit, d.name]),
-        [['var-opt-ro.service', '50-waze-on-cluster.conf'], ['carplay.service', '50-waze-on-cluster.conf']]);
-    const woc = path.join(__dirname, '..', '..', 'native', 'waze-on-cluster');
-    c.dropins.forEach((d) => assert.ok(fs.existsSync(path.join(woc, d.from)), d.from));
-    assert.ok(/^SuccessExitStatus=SIGKILL$/m.test(fs.readFileSync(path.join(woc, c.dropins[1].from), 'utf8')));
-    assert.ok(fs.readFileSync(path.join(woc, 'patch', 'patchd.js'), 'utf8')
-        .includes(`'/etc/systemd/system/${c.dropins[1].unit}.d/${c.dropins[1].name}'`));
-    assert.deepStrictEqual(renderer.mguHmi, ['ID7', 'ID8'], 'the renderer serves iDrive 8 too');
-    // the Store removes the app, then the tool, then the renderer
+    const c = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'native', 'vizualyse-cast', 'component.json'), 'utf8'));
+    // the proxy's uid gets the uplink; root never does
+    assert.strictEqual(c.internet, true);
+    assert.deepStrictEqual(c.uids, [12999]);
+    // the in-memory firewall rule goes with the tool
+    assert.deepStrictEqual(c.deactivate, ['node', 'firewall.js', 'remove']);
+    assert.ok(c.files.some((f) => f.path === 'firewall.js'), 'the hook ships');
+    // ffmpeg is fetched at build, pinned, and executable on the unit
+    assert.deepStrictEqual(c.build, ['node', 'tools/fetch_ffmpeg.js']);
+    assert.ok(c.files.some((f) => f.path === 'ffmpeg' && f.mode === '0755'));
+    assert.ok(c.files.some((f) => f.path === 'ffmpeg-GPLv3.txt'), 'ffmpeg\'s licence ships with it');
+    assert.deepStrictEqual(c.recmgr, ['vizualyse-cast']);
     assert.strictEqual(app.uninstallable, true);
     assert.strictEqual(tool.uninstallable, true);
-    assert.strictEqual(renderer.uninstallable, true);
 });
 
 let failed = 0;

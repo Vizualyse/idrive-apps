@@ -1,7 +1,7 @@
 # cluster-gauge sample
 
 A minimal app drawing on the iDrive 7 instrument cluster or HUD through
-[`cluster-render`](../../native/cluster-render): a needle gauge with the head
+[`cluster-render`](https://github.com/robertnisipeanu/idrive-apps/tree/main/native/cluster-render): a needle gauge with the head
 unit's CPU load and a digital readout `HH:MM  CPU  NN` under it.
 
 It uses three layer kinds: two **image** layers (the dial and the needle,
@@ -16,7 +16,7 @@ Requires the Cluster renderer tool installed from the Store. With the car
 parked, ignition on:
 
 ```sh
-scp gauge.js ../../native/cluster-render/js/cluster_render_client.js root@<mgu-ip>:/tmp/
+scp gauge.js ../../native/vizualyse-cast/src/cluster_render_client.js root@<mgu-ip>:/tmp/
 ssh root@<mgu-ip> 'cd /tmp && node gauge.js --target map --seconds 60'
 ```
 
