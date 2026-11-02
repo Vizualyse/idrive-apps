@@ -49,7 +49,8 @@ const GRABBER = '/usr/bin/winston-grabber';
 const SCREEN_PORT = PORT + 2, SCREEN_PORTS = 8;
 let screenSeq = 0;
 const SCREEN = { W: 1920, H: 720 };
-const GRAB = { w: 960, h: 360, fps: 15 };
+/* full size: the sharpest picture; the grabber runs at the mirror's own frame rate */
+const GRAB = { w: 1920, h: 720, fps: 15 };
 /* Crops of the central screen, in its own 1920x720 pixels; carplay is the
  * part right of CarPlay's dock at the cluster map's 2.27:1 (the phone page's
  * preview shows where it falls). */
@@ -60,54 +61,94 @@ const CROPS = {
      * the direction banner, the arrival / time / distance readouts, and the
      * map around the car. A layout is columns side by side at one height,
      * each a stack of regions at one width. */
-    gmaps: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (stacked)', columns: [[
-        { x: 1112, y: 12, w: 650, h: 186 },
-        { x: 230, y: 160, w: 650, h: 500 },
-        { x: 1112, y: 580, w: 650, h: 128 },
-    ]] },
+    /* For the cluster map: the map around the car fills the frame, the
+     * direction card and the readouts card along the top, clear of the car,
+     * which Google Maps draws low. */
+    gmaps: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (cluster)', overlay: {
+        /* the clean map (right of Google's buttons, left of its cards), down to
+         * the screen's bottom so the street-name card under the car shows */
+        base: { x: 125, y: 339, w: 985, h: 381 },
+        /* both cards one height (`hf` of the frame's), each its own shape,
+         * side by side as a pair centred on the top (`slot` 1 then 2), a
+         * little below the edge */
+        top: { x: 1112, y: 4, w: 650, h: 202, hf: 0.19, slot: 1 },
+        bottom: { x: 1112, y: 576, w: 650, h: 140, hf: 0.19, slot: 2 },
+    } },
     /* For the HUD's wide band: the banner over the readouts on the left, the
      * map (a wider, lower cut around the car) on the right. */
     gmapsHud: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (HUD)', columns: [[
-        { x: 1112, y: 12, w: 650, h: 186 },
-        { x: 1112, y: 580, w: 650, h: 128 },
+        { x: 1112, y: 4, w: 650, h: 202 },
+        { x: 1112, y: 576, w: 650, h: 140 },
     ], [
-        { x: 180, y: 350, w: 750, h: 310 },
+        { x: 120, y: 300, w: 960, h: 390 },
     ]] },
 };
 
 /* A layout's geometry fitted into W x H at `fill` of the room (the renderer
  * scales the layer up the rest of the way, keeping the upload small): the
- * frame { w, h } and each column's width and its regions' heights, all even.
- * Columns are first set to one height, each column's regions to one width. */
+ * frame { w, h }, each column's width and each region's size, all even, the
+ * frame a multiple of 4 wide. Columns share one height; a region is `wf` of
+ * its column's width (default 1), centred. */
 function layoutSize(columns, W, H, fill) {
-    const nat = columns.map((col) => {
-        const cw = Math.max.apply(null, col.map((r) => r.w));
-        return { cw: cw, ch: col.reduce((n, r) => n + r.h * cw / r.w, 0) };
-    });
-    const hn = Math.max.apply(null, nat.map((c) => c.ch));
-    const widths = nat.map((c) => c.cw * hn / c.ch), wn = widths.reduce((a, b) => a + b, 0);
-    const k = Math.min(W * fill / wn, H * fill / hn), h = even(hn * k);
-    const ws = widths.map((x) => even(x * k)), total = ws.reduce((a, b) => a + b, 0);
-    /* the frame a multiple of 4 wide: the last column gives up the rest */
+    const hu = columns.map((col) => col.reduce((n, r) => n + r.h * (r.wf || 1) / r.w, 0));
+    const inv = hu.reduce((n, x) => n + 1 / x, 0);
+    const h = even(Math.min(H * fill, W * fill / inv));
+    const ws = hu.map((x) => even(h / x)), total = ws.reduce((m, n) => m + n, 0);
     ws[ws.length - 1] -= total - four(total);
-    const cols = columns.map((col, j) => {
-        const w = ws[j], sum = col.reduce((n, r) => n + r.h * w / r.w, 0);
-        return { w: w, heights: col.map((r) => even(r.h * w / r.w * h / sum)) };
-    });
-    return { w: ws.reduce((a, b) => a + b, 0), h: h, cols: cols };
+    const cols = columns.map((col, j) => ({
+        w: ws[j],
+        regions: col.map((r) => { const rw = even(ws[j] * (r.wf || 1)); return { w: rw, h: even(r.h * rw / r.w) }; }),
+    }));
+    return { w: ws.reduce((m, n) => m + n, 0), h: h, cols: cols };
+}
+
+/* An overlay's frame: the target area's own shape at `fill` (upload), the
+ * base cut to that shape around its centre (within the screen), the cards
+ * their width fraction of the frame. */
+function overlaySize(ov, W, H, fill) {
+    const w = four(W * fill), h = even(H * fill), aspect = w / h, b = ov.base;
+    let bw = b.w, bh = Math.round(b.w / aspect);
+    if (bh > b.h) { bh = b.h; bw = Math.round(b.h * aspect); }
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const base = { x: Math.max(0, Math.round(cx - bw / 2)), y: Math.max(0, Math.min(SCREEN.H - bh, Math.round(cy - bh / 2))), w: bw, h: bh };
+    const card = (r) => {
+        if (r.box) { const cw = even(w * r.box[0]); return { r: r, w: cw, h: even(cw / r.box[1]) }; }
+        if (r.hf) { const ch = even(h * r.hf); return { r: r, h: ch, w: even(r.w * ch / r.h) }; }
+        const cw = even(w * r.wf); return { r: r, w: cw, h: even(r.h * cw / r.w) };
+    };
+    return { w: w, h: h, base: base, top: card(ov.top), bottom: card(ov.bottom) };
+}
+
+function overlayGraph(geo, k, fps, look) {
+    /* x: slots 1 and 2 side by side, the pair centred with a gap; else a side or centred */
+    const gap = even(geo.w * 0.02), pair = geo.top.w + gap + geo.bottom.w, left = Math.round((geo.w - pair) / 2);
+    const ax = (r) => (r.slot === 1 ? String(left) : r.slot === 2 ? String(left + geo.top.w + gap)
+        : r.align === 'left' ? '0' : r.align === 'right' ? 'W-w' : '(W-w)/2');
+    const top = even(geo.h * 0.03), line = top + Math.max(geo.top.h, geo.bottom.h) / 2;
+    const ay = (r) => (r.slot ? String(Math.round(line - (r === geo.top.r ? geo.top.h : geo.bottom.h) / 2))
+        : r.at === 'top' ? String(top) : r === geo.top.r ? '0' : 'H-h');
+    const cut = (r) => 'crop=' + even(r.w * k) + ':' + even(r.h * k) + ':' + even(r.x * k) + ':' + even(r.y * k);
+    return ['[0:v]split=3[b][t][u]',
+        '[b]' + cut(geo.base) + ',scale=' + geo.w + ':' + geo.h + ':flags=bicubic[m]',
+        '[t]' + cut(geo.top.r) + ',scale=' + geo.top.w + ':' + geo.top.h + ':flags=bicubic[tc]',
+        '[u]' + cut(geo.bottom.r) + ',scale=' + geo.bottom.w + ':' + geo.bottom.h + ':flags=bicubic[bc]',
+        '[m][tc]overlay=' + ax(geo.top.r) + ':' + ay(geo.top.r) + '[m1]',
+        '[m1][bc]overlay=' + ax(geo.bottom.r) + ':' + ay(geo.bottom.r) + ',fps=' + fps + (look ? ',' + look : '') + ',format=yuv420p[v]'].join(';');
 }
 
 /* The filter graph of a layout: each region cropped from the half-size grab
- * (k: grab pixels a screen pixel) and scaled into its place, each column
- * stacked, the columns side by side, at the frame's exact size. */
-function layoutGraph(columns, geo, k, fps) {
+ * (k: grab pixels a screen pixel), scaled to its size and centred on black
+ * in its column's width, each column stacked, the columns side by side, at
+ * the frame's exact size. */
+function layoutGraph(columns, geo, k, fps, look) {
     const parts = [], all = [];
     columns.forEach((col, j) => col.forEach((r, i) => all.push({ r: r, j: j, i: i })));
     parts.push('[0:v]split=' + all.length + all.map((a, n) => '[i' + n + ']').join(''));
     all.forEach((a, n) => {
-        const r = a.r;
+        const r = a.r, cw = geo.cols[a.j].w, g = geo.cols[a.j].regions[a.i];
         parts.push('[i' + n + ']crop=' + even(r.w * k) + ':' + even(r.h * k) + ':' + even(r.x * k) + ':' + even(r.y * k) +
-            ',scale=' + geo.cols[a.j].w + ':' + geo.cols[a.j].heights[a.i] + ':flags=bicubic[r' + a.j + '_' + a.i + ']');
+            ',scale=' + g.w + ':' + g.h + ':flags=bicubic' + (g.w < cw ? ',pad=' + cw + ':' + g.h + ':(ow-iw)/2:0:black' : '') +
+            '[r' + a.j + '_' + a.i + ']');
     });
     columns.forEach((col, j) => {
         const ins = col.map((r, i) => '[r' + j + '_' + i + ']').join('');
@@ -115,12 +156,15 @@ function layoutGraph(columns, geo, k, fps) {
     });
     const cols = columns.map((c, j) => '[c' + j + ']').join('');
     parts.push(cols + (columns.length > 1 ? 'hstack=inputs=' + columns.length + ',' : '') +
-        'scale=' + geo.w + ':' + geo.h + ',fps=' + fps + ',format=yuv420p[v]');
+        'scale=' + geo.w + ':' + geo.h + ',fps=' + fps + (look ? ',' + look : '') + ',format=yuv420p[v]');
     return parts.join(';');
 }
 
 /* The mirror's frame sizes: the cluster map at its own 2.27:1, the HUD as before. */
 const MIRROR_SIZES = { map: { w: 544, h: 240 }, hud: { w: 480, h: 270 } };
+/* On the cluster map the gauge surround fades the top and the bottom: a
+ * mirror keeps to y 72-440 of its 480 (waze-on-cluster's safe area). */
+const MIRROR_BANDS = { map: [0.08, 0.96] };
 const GRAB_ENV = Object.assign({}, process.env, { XDG_RUNTIME_DIR: '/run/wayland' });
 
 function even(n) { return Math.max(0, Math.round(n / 2) * 2); }
@@ -144,7 +188,9 @@ function normCrop(c) {
  * renderer's 5500 KB/s upload ceiling), and the part of the target used. */
 const OUTPUTS = {
     map: { target: 'map', W: 1088, H: 480, w: 512, h: 288, fps: 15, band: null, title: 'Cluster map' },
-    hud: { target: 'hud', W: 800, H: 480, w: 480, h: 270, fps: 15, band: [0.25, 0.65], title: 'HUD' },
+    /* band: the part of the height the HUD shows clear of its clipped top and
+     * the speed; xband: the part of the width its optics show. */
+    hud: { target: 'hud', W: 800, H: 480, w: 480, h: 270, fps: 15, band: [0.25, 0.65], xband: [0.17, 0.83], title: 'HUD' },
     /* The central display through mgu-render: a frame file, not cluster-render's upload budget. */
     console: { console: true, w: 640, h: 360, fps: 15, title: 'Media console' },
     none: { title: 'Audio only' },
@@ -256,10 +302,16 @@ function atlas(i420, w, h, out) {
 
 /* The largest rect of w:h inside the output's area (or band), centred. */
 function placement(o) {
-    const top = o.band ? Math.round(o.H * o.band[0]) : 0;
-    const areaH = o.band ? Math.round(o.H * (o.band[1] - o.band[0])) : o.H;
-    const s = Math.min(o.W / o.w, areaH / o.h), dw = Math.round(o.w * s), dh = Math.round(o.h * s);
-    return { x: Math.round((o.W - dw) / 2), y: top + Math.round((areaH - dh) / 2), w: dw, h: dh };
+    const a = area(o);
+    const s = Math.min(a.W / o.w, a.H / o.h), dw = Math.round(o.w * s), dh = Math.round(o.h * s);
+    return { x: a.x + Math.round((a.W - dw) / 2), y: a.y + Math.round((a.H - dh) / 2), w: dw, h: dh };
+}
+
+/* The part of a target that is shown: its bands, or all of it. */
+function area(o) {
+    const x = o.xband ? Math.round(o.W * o.xband[0]) : 0, y = o.band ? Math.round(o.H * o.band[0]) : 0;
+    return { x: x, y: y, W: o.xband ? Math.round(o.W * (o.xband[1] - o.xband[0])) : o.W,
+        H: o.band ? Math.round(o.H * (o.band[1] - o.band[0])) : o.H };
 }
 
 /* ---- the proxy ----------------------------------------------------------- */
@@ -308,13 +360,19 @@ function play(opts) {
     lastPlay = opts;
     const screen = opts.source === 'screen';
     if (screen) lastCrop = opts.crop;
-    let o = screen ? Object.assign({}, OUTPUTS[opts.output], MIRROR_SIZES[opts.output]) : OUTPUTS[opts.output];
-    const columns = screen && opts.crop.columns;
+    let o = screen ? Object.assign({}, OUTPUTS[opts.output], MIRROR_SIZES[opts.output],
+        MIRROR_BANDS[opts.output] ? { band: MIRROR_BANDS[opts.output] } : {}) : OUTPUTS[opts.output];
+    const columns = screen && opts.crop.columns, ov = screen && opts.crop.overlay;
     let geo = null;
     if (columns) {
-        const area = o.band ? { W: o.W, H: Math.round(o.H * (o.band[1] - o.band[0])) } : { W: o.W, H: o.H };
-        geo = layoutSize(columns, area.W, area.H, 0.8);
+        const a = area(o);
+        geo = layoutSize(columns, a.W, a.H, 0.8);
         o = Object.assign({}, o, { w: geo.w, h: geo.h });
+    } else if (ov) {
+        /* nearly the whole area at 8 fps: sharp, inside the upload ceiling */
+        const a = area(o);
+        geo = overlaySize(ov, a.W, a.H, 0.97);
+        o = Object.assign({}, o, { w: geo.w, h: geo.h, fps: 8 });
     }
     if (o.w) o = Object.assign({}, o, { w: four(o.w), h: even(o.h) });
     const wantVideo = opts.output !== 'none';
@@ -334,12 +392,14 @@ function play(opts) {
         if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
         args.push('-i', opts.url);
     }
-    if (wantVideo && columns) {
-        args.push('-filter_complex', layoutGraph(columns, geo, GRAB.w / SCREEN.W, o.fps), '-map', '[v]', '-f', 'rawvideo', 'pipe:1');
+    if (wantVideo && ov) {
+        args.push('-filter_complex', overlayGraph(geo, GRAB.w / SCREEN.W, o.fps, o.look), '-map', '[v]', '-f', 'rawvideo', 'pipe:1');
+    } else if (wantVideo && columns) {
+        args.push('-filter_complex', layoutGraph(columns, geo, GRAB.w / SCREEN.W, o.fps, o.look), '-map', '[v]', '-f', 'rawvideo', 'pipe:1');
     } else if (wantVideo) {
         args.push('-map', '0:v:0', '-vf', crop +
             'scale=' + o.w + ':' + o.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
-            'pad=' + o.w + ':' + o.h + ':-1:-1,fps=' + o.fps + ',format=yuv420p',
+            'pad=' + o.w + ':' + o.h + ':-1:-1,fps=' + o.fps + (o.look ? ',' + o.look : '') + ',format=yuv420p',
             '-f', 'rawvideo', 'pipe:1');
     }
     if (opts.audio) {
@@ -356,8 +416,8 @@ function play(opts) {
         /* the grabber after ffmpeg listens, so its first keyframe is not lost */
         setTimeout(() => {
             if (player !== p) return;
-            const g = spawn(GRABBER, ['-s', 'center', '-g', GRAB.w + 'x' + GRAB.h, '-f', String(GRAB.fps),
-                '-p', 'h264_msdk(gop=' + GRAB.fps + '), mpegts, udp', 'udp://127.0.0.1:' + port],
+            const g = spawn(GRABBER, ['-s', 'center', '-g', GRAB.w + 'x' + GRAB.h, '-f', String(o.fps),
+                '-p', 'h264_msdk(gop=' + o.fps + '), mpegts, udp', 'udp://127.0.0.1:' + port],
             { env: GRAB_ENV, stdio: ['ignore', 'ignore', 'pipe'] });
             p.grab = g;
             g.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
@@ -445,7 +505,8 @@ function status() {
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         crop: (player && player.opts.crop) || lastCrop || Object.assign({ preset: 'carplay' }, CROPS.carplay),
         crops: Object.keys(CROPS).map((k) => ({ id: k, title: CROPS[k].title, x: CROPS[k].x, y: CROPS[k].y, w: CROPS[k].w, h: CROPS[k].h,
-            stack: CROPS[k].columns ? [].concat.apply([], CROPS[k].columns) : null })),
+            stack: CROPS[k].columns ? [].concat.apply([], CROPS[k].columns)
+                : CROPS[k].overlay ? [CROPS[k].overlay.top, CROPS[k].overlay.base, CROPS[k].overlay.bottom] : null })),
         screenSize: SCREEN,
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }

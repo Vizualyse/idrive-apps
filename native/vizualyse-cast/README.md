@@ -18,18 +18,23 @@ the instrument cluster or the HUD, with its sound through the speakers.
 ## Mirroring the central screen
 
 BMW's own `winston-grabber` encodes the central screen (`center`, 1920x720)
-in hardware at half size and sends MPEG-TS to `udp://127.0.0.1:8482`; ffmpeg
-reads it with no buffering, cuts out a layout and scales it for the target.
+in hardware at full size, at the mirror's frame rate, and sends MPEG-TS to a
+local UDP port (each mirror the next of 8482-8489, so one never waits for the
+one it replaces); ffmpeg reads it with no buffering, cuts out a layout and
+scales it for the target.
 
 | Layout | What goes out |
 |---|---|
 | CarPlay map | the CarPlay screen right of its dock, at the cluster map's 2.27:1 |
 | Whole screen | everything, letterboxed |
-| Google Maps (stacked) | CarPlay with Google Maps: the direction banner, the map around the car and the arrival / time / distance readouts, stacked top to bottom (the cluster map) |
-| Google Maps (HUD) | the banner over the readouts on the left, the map on the right (the HUD's band) |
+| Google Maps (cluster) | CarPlay with Google Maps, for the cluster map: the clean map around the car (right of Google's buttons, left of its cards, down to the street-name card under the car) fills the frame; the direction card and the arrival / time / distance card ride on it, one height, side by side, centred along the top. Nearly full size (1052x410) at 8 fps, inside cluster-render's 5500 KB/s |
+| Google Maps (HUD) | the direction card over the readouts on the left, the map on the right, inside the HUD's visible band (25-65 % of its height, 17-83 % of its width), at 15 fps |
 
-A layout is columns side by side at one height, each a stack of regions at
-one width (`CROPS` in server.js, in screen pixels). The page's preview is a
+A layout is either an overlay (a base region filling the frame, cards on
+it) or columns side by side at one height, each a stack of regions (`CROPS`
+in server.js, in screen pixels). Every frame is a multiple of 4 wide, as
+cluster-render requires of a video layer. On the cluster map a mirror keeps
+to 8-96 % of the height, clear of the gauge surround's fade. The page's preview is a
 snapshot of the central screen (`/api/screen.jpg`) with the regions outlined.
 It mirrors what the central screen shows: open CarPlay first.
 
