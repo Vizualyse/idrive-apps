@@ -44,7 +44,10 @@ const UPLINK_STATUS = '/run/mgu-uplink/status.json';
  * hardware (h264_msdk) at half size and sends MPEG-TS to a local UDP port,
  * which ffmpeg crops and scales like any other stream. */
 const GRABBER = '/usr/bin/winston-grabber';
-const SCREEN_PORT = PORT + 2;
+/* Each mirror takes the next of 8 local UDP ports: a new one never waits for
+ * the one it replaces to let go of its port. */
+const SCREEN_PORT = PORT + 2, SCREEN_PORTS = 8;
+let screenSeq = 0;
 const SCREEN = { W: 1920, H: 720 };
 const GRAB = { w: 960, h: 360, fps: 15 };
 /* Crops of the central screen, in its own 1920x720 pixels; carplay is the
@@ -84,11 +87,14 @@ function layoutSize(columns, W, H, fill) {
     const hn = Math.max.apply(null, nat.map((c) => c.ch));
     const widths = nat.map((c) => c.cw * hn / c.ch), wn = widths.reduce((a, b) => a + b, 0);
     const k = Math.min(W * fill / wn, H * fill / hn), h = even(hn * k);
+    const ws = widths.map((x) => even(x * k)), total = ws.reduce((a, b) => a + b, 0);
+    /* the frame a multiple of 4 wide: the last column gives up the rest */
+    ws[ws.length - 1] -= total - four(total);
     const cols = columns.map((col, j) => {
-        const w = even(widths[j] * k), sum = col.reduce((n, r) => n + r.h * w / r.w, 0);
+        const w = ws[j], sum = col.reduce((n, r) => n + r.h * w / r.w, 0);
         return { w: w, heights: col.map((r) => even(r.h * w / r.w * h / sum)) };
     });
-    return { w: cols.reduce((n, c) => n + c.w, 0), h: h, cols: cols };
+    return { w: ws.reduce((a, b) => a + b, 0), h: h, cols: cols };
 }
 
 /* The filter graph of a layout: each region cropped from the half-size grab
@@ -118,6 +124,8 @@ const MIRROR_SIZES = { map: { w: 544, h: 240 }, hud: { w: 480, h: 270 } };
 const GRAB_ENV = Object.assign({}, process.env, { XDG_RUNTIME_DIR: '/run/wayland' });
 
 function even(n) { return Math.max(0, Math.round(n / 2) * 2); }
+/* cluster-render takes a video at most this wide a multiple of 4. */
+function four(n) { return Math.max(4, Math.floor(n / 4) * 4); }
 
 /* A crop from the page or the app: a preset name, or x, y, w, h within the
  * screen (at least 64x36); null when it is neither. */
@@ -308,8 +316,10 @@ function play(opts) {
         geo = layoutSize(columns, area.W, area.H, 0.8);
         o = Object.assign({}, o, { w: geo.w, h: geo.h });
     }
+    if (o.w) o = Object.assign({}, o, { w: four(o.w), h: even(o.h) });
     const wantVideo = opts.output !== 'none';
     const isHttp = !screen && /^https?:/i.test(opts.url);
+    const port = SCREEN_PORT + (screenSeq++ % SCREEN_PORTS);
 
     const args = ['-nostdin', '-hide_banner', '-loglevel', 'warning', '-threads', '3'];
     let crop = '';
@@ -318,7 +328,7 @@ function play(opts) {
         const k = GRAB.w / SCREEN.W, c = opts.crop;
         crop = 'crop=' + even(c.w * k) + ':' + even(c.h * k) + ':' + even(c.x * k) + ':' + even(c.y * k) + ',';
         args.push('-fflags', 'nobuffer', '-flags', 'low_delay', '-probesize', '500000', '-analyzeduration', '500000',
-            '-f', 'mpegts', '-i', 'udp://127.0.0.1:' + SCREEN_PORT + '?overrun_nonfatal=1&fifo_size=65536');
+            '-f', 'mpegts', '-i', 'udp://127.0.0.1:' + port + '?overrun_nonfatal=1&fifo_size=65536');
     } else {
         if (opts.realtime) args.push('-re');
         if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
@@ -347,7 +357,7 @@ function play(opts) {
         setTimeout(() => {
             if (player !== p) return;
             const g = spawn(GRABBER, ['-s', 'center', '-g', GRAB.w + 'x' + GRAB.h, '-f', String(GRAB.fps),
-                '-p', 'h264_msdk(gop=' + GRAB.fps + '), mpegts, udp', 'udp://127.0.0.1:' + SCREEN_PORT],
+                '-p', 'h264_msdk(gop=' + GRAB.fps + '), mpegts, udp', 'udp://127.0.0.1:' + port],
             { env: GRAB_ENV, stdio: ['ignore', 'ignore', 'pipe'] });
             p.grab = g;
             g.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
