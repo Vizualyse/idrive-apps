@@ -1,0 +1,390 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Yousaf Khan
+/**
+ * vizualyse-cast: plays a stream URL on the iDrive 7 instrument cluster or HUD,
+ * with its sound through the car's speakers, controlled from a phone page.
+ *
+ * - A web page on the uplink's Wi-Fi address (the phone's hotspot), port
+ *   8480, behind a token; the cluster shows its link as a QR code while idle.
+ * - ffmpeg (bundled, static) reads the stream through proxy.js, which runs as
+ *   the tool's internet uid; mgu-uplink routes only that uid through the
+ *   phone. ffmpeg writes I420 frames (stdout) and S16LE 48 kHz audio (fd 3).
+ * - Frames go to cluster-render as a video layer; audio to pcm_play.py
+ *   (mgu-python), which plays it into SmartXbar's CarPlayMain source.
+ *
+ *   node server.js     (root: the render socket, ALSA, nftables)
+ */
+'use strict';
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
+const { URL } = require('url');
+const qrcode = require('./qrcode.js');
+const firewall = require('./firewall.js');
+const { ClusterRender } = require('./cluster_render_client.js');
+const consoleOut = require('./console_out.js');
+const { startControl } = require('./control.js');
+
+const HERE = __dirname;
+const STATE_DIR = process.env.CAST_STATE || '/var/opt/vizualyse-cast/state';
+const PORT = Number(process.env.CAST_PORT) || 8480;
+const PROXY_PORT = PORT + 1;
+const INTERNET_UID = 12999;
+const IFNAME = 'wlan0';
+const FFMPEG = path.join(HERE, 'ffmpeg');
+const PYTHON = '/var/opt/mgu-python/current/bin/python3';
+const LEASE = '/run/mgu-uplink/lease.json';
+const UPLINK_STATUS = '/run/mgu-uplink/status.json';
+
+/* Each output: the target, the frame size sent and its rate (within the
+ * renderer's 5500 KB/s upload ceiling), and the part of the target used. */
+const OUTPUTS = {
+    map: { target: 'map', W: 1088, H: 480, w: 512, h: 288, fps: 15, band: null, title: 'Cluster map' },
+    hud: { target: 'hud', W: 800, H: 480, w: 480, h: 270, fps: 15, band: [0.25, 0.65], title: 'HUD' },
+    /* The central display through mgu-render: a frame file, not cluster-render's upload budget. */
+    console: { console: true, w: 640, h: 360, fps: 15, title: 'Media console' },
+    none: { title: 'Audio only' },
+};
+
+const log = (s) => console.log(new Date().toISOString() + ' ' + s);
+
+/* ---- small helpers ------------------------------------------------------- */
+
+function mkdirp(d) { if (!fs.existsSync(d)) { mkdirp(path.dirname(d)); fs.mkdirSync(d, 0o700); } }
+
+function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return null; } }
+
+/* The token in the QR link: kept across restarts, so a saved link works. */
+function token() {
+    const f = path.join(STATE_DIR, 'token');
+    try { const t = fs.readFileSync(f, 'utf8').trim(); if (/^[0-9a-f]{16}$/.test(t)) return t; } catch (e) { /* new */ }
+    const t = crypto.randomBytes(8).toString('hex');
+    mkdirp(STATE_DIR);
+    fs.writeFileSync(f, t + '\n', { mode: 0o600 });
+    return t;
+}
+
+/* The head unit's address on the phone's hotspot, or null. */
+function uplinkIp() {
+    const l = readJson(LEASE);
+    if (l && l.ip) return l.ip;
+    const ifs = os.networkInterfaces()[IFNAME] || [];
+    const v4 = ifs.filter((a) => a.family === 'IPv4' && !a.internal)[0];
+    return v4 ? v4.address : null;
+}
+
+/* A URL without its query or credentials, for logs and status. */
+function redact(u) {
+    try { const x = new URL(u); return x.protocol + '//' + x.host + x.pathname + (x.search ? '?…' : ''); } catch (e) { return '(invalid)'; }
+}
+
+/* ---- the cluster: QR code and video layer -------------------------------- */
+
+const TOKEN = token();
+const cr = new ClusterRender('vizualyse_cast');
+let qrLayer = null, qrUrl = null, qrWanted = true;
+
+function link() { const ip = uplinkIp(); return ip ? 'http://' + ip + ':' + PORT + '/?t=' + TOKEN : null; }
+
+/* RGBA pixels of the QR code of `text`, black on white with a 4-module quiet
+ * zone, `px` pixels a module: { px, size }. */
+function qrPixels(text, target) {
+    const q = qrcode(0, 'M');
+    q.addData(text);
+    q.make();
+    const n = q.getModuleCount(), m = Math.max(2, Math.floor(target / (n + 8))), size = (n + 8) * m;
+    const buf = Buffer.alloc(size * size * 4, 255);
+    for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+            if (!q.isDark(r, c)) continue;
+            for (let y = (r + 4) * m; y < (r + 5) * m; y++) {
+                const row = y * size * 4;
+                for (let x = (c + 4) * m; x < (c + 5) * m; x++) buf.fill(0, row + x * 4, row + x * 4 + 3);
+            }
+        }
+    }
+    return { px: buf, size: size };
+}
+
+/* The QR code on the cluster's map area while idle and wanted. A content
+ * layer: an overlay alone never takes the area from the cluster's own map. */
+function updateQr() {
+    /* Shown until the video's first frame: the area is never left empty in
+     * between, which would hand it back to the cluster's own map. */
+    const url = link(), show = qrWanted && (!player || !player.frames) && !!url;
+    if (url && url !== qrUrl) {
+        if (qrLayer) cr.drop(qrLayer);
+        const q = qrPixels(url, 300), W = 1088, H = 480;
+        /* contend: take the centre from the stock map (cluster-render's
+         * take-over), as the Waze map does; without it the layer waits for a
+         * free slot, which in Map view never comes. */
+        qrLayer = cr.image({ target: 'map', contend: true, x: Math.round((W - q.size) / 2), y: Math.round((H - q.size) / 2),
+            w: q.size, h: q.size, iw: q.size, ih: q.size, visible: show });
+        cr.pixels(qrLayer, null, q.px);
+        qrUrl = url;
+        log('qr: ' + url.replace(TOKEN, '<token>') + ' (' + q.size + ' px)');
+    } else if (qrLayer) {
+        cr.set(qrLayer, { visible: show });
+    }
+}
+
+/* I420 to the renderer's 4:2:0 atlas: the Y plane, then each chroma row as
+ * its U half followed by its V half. */
+function atlas(i420, w, h, out) {
+    const ySize = w * h, cw = w / 2, ch = h / 2, cSize = cw * ch;
+    i420.copy(out, 0, 0, ySize);
+    for (let y = 0; y < ch; y++) {
+        const row = ySize + y * w;
+        i420.copy(out, row, ySize + y * cw, ySize + (y + 1) * cw);
+        i420.copy(out, row + cw, ySize + cSize + y * cw, ySize + cSize + (y + 1) * cw);
+    }
+    return out;
+}
+
+/* The largest rect of w:h inside the output's area (or band), centred. */
+function placement(o) {
+    const top = o.band ? Math.round(o.H * o.band[0]) : 0;
+    const areaH = o.band ? Math.round(o.H * (o.band[1] - o.band[0])) : o.H;
+    const s = Math.min(o.W / o.w, areaH / o.h), dw = Math.round(o.w * s), dh = Math.round(o.h * s);
+    return { x: Math.round((o.W - dw) / 2), y: top + Math.round((areaH - dh) / 2), w: dw, h: dh };
+}
+
+/* ---- the proxy ----------------------------------------------------------- */
+
+let proxy = null;
+function startProxy() {
+    proxy = spawn(process.execPath, [path.join(HERE, 'proxy.js'), String(PROXY_PORT)],
+        { uid: INTERNET_UID, gid: INTERNET_UID, stdio: ['ignore', 'pipe', 'pipe'] });
+    proxy.stdout.on('data', (d) => process.stdout.write(d));
+    proxy.stderr.on('data', (d) => process.stderr.write(d));
+    proxy.on('exit', (code, sig) => {
+        log('proxy: exited (' + (sig || code) + ')');
+        proxy = null;
+        if (!stopping) setTimeout(startProxy, 2000);
+    });
+}
+
+/* ---- playback ------------------------------------------------------------ */
+
+let player = null;      /* { ff, py, opts, video, started, frames, lastErr[] } */
+const consoleVideo = new consoleOut.ConsoleVideo(log);
+let last = { state: 'idle' };
+let lastPlay = null;    /* the last play's options (with its full URL): the app's Play last */
+
+function o0(p) { return OUTPUTS[p.opts.output] || {}; }
+
+function stopPlayer(why) {
+    const p = player;
+    if (!p) return;
+    player = null;
+    p.stopped = why;
+    try { p.ff.kill('SIGTERM'); } catch (e) { /* gone */ }
+    setTimeout(() => { try { p.ff.kill('SIGKILL'); } catch (e) { /* gone */ } }, 3000);
+    if (p.py) try { p.py.kill('SIGTERM'); } catch (e) { /* gone */ }
+    if (p.video) cr.drop(p.video);
+    if (o0(p).console) consoleVideo.stop();
+    log('play: stopped (' + why + ') after ' + p.frames + ' frames');
+    last = { state: 'idle', note: why, url: p.opts.shown, output: p.opts.output, frames: p.frames };
+    updateQr();
+}
+
+function play(opts) {
+    stopPlayer('replaced');
+    lastPlay = opts;
+    const o = OUTPUTS[opts.output];
+    const wantVideo = opts.output !== 'none';
+    const isHttp = /^https?:/i.test(opts.url);
+
+    const args = ['-nostdin', '-hide_banner', '-loglevel', 'warning', '-threads', '3'];
+    if (opts.realtime) args.push('-re');
+    if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
+    args.push('-i', opts.url);
+    if (wantVideo) {
+        args.push('-map', '0:v:0', '-vf',
+            'scale=' + o.w + ':' + o.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
+            'pad=' + o.w + ':' + o.h + ':-1:-1,fps=' + o.fps + ',format=yuv420p',
+            '-f', 'rawvideo', 'pipe:1');
+    }
+    if (opts.audio) {
+        args.push('-map', '0:a:0', '-af', 'volume=' + (opts.volume / 100).toFixed(2), '-ac', '2', '-ar', '48000',
+            '-f', 's16le', 'pipe:3');
+    }
+
+    const env = Object.assign({}, process.env, { http_proxy: 'http://127.0.0.1:' + PROXY_PORT, https_proxy: 'http://127.0.0.1:' + PROXY_PORT });
+    const ff = spawn(FFMPEG, args, { env: env, stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
+    const p = { ff: ff, py: null, opts: opts, video: null, started: Date.now(), frames: 0, lastErr: [] };
+    player = p;
+    log('play: ' + opts.shown + ' on ' + opts.output + (opts.audio ? ' with audio at ' + opts.volume + '%' : ' without audio'));
+
+    ff.stderr.on('data', (d) => {
+        String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
+            p.lastErr.push(l.trim());
+            if (p.lastErr.length > 6) p.lastErr.shift();
+            log('ffmpeg: ' + l.trim());
+        });
+    });
+
+    if (wantVideo) {
+        const size = o.w * o.h * 3 / 2, out = Buffer.alloc(size);
+        const r = o.console ? null : placement(o);
+        if (o.console) consoleVideo.start(o.w, o.h, o.fps);
+        /* prewarm: ask for the slot before the first frame (ffmpeg takes a
+         * second or two to start); contend: take it from the stock content. */
+        if (!o.console) p.video = cr.video({ target: o.target, z: 1, contend: true, prewarm: true, x: r.x, y: r.y, w: r.w, h: r.h, vw: o.w, vh: o.h, fps: o.fps });
+        let parts = [], have = 0;
+        ff.stdout.on('data', (d) => {
+            parts.push(d);
+            have += d.length;
+            while (have >= size) {
+                const all = parts.length === 1 ? parts[0] : Buffer.concat(parts, have);
+                if (o.console) { consoleVideo.frame(all.slice(0, size)); ++p.frames; }
+                else cr.frame(p.video, atlas(all.slice(0, size), o.w, o.h, out), ++p.frames);
+                if (p.frames === 1) { log('play: first frame'); updateQr(); }
+                parts = have > size ? [all.slice(size)] : [];
+                have -= size;
+            }
+        });
+    } else {
+        ff.stdout.resume();
+    }
+
+    if (opts.audio) {
+        const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--file', '-'], { stdio: ['pipe', 'pipe', 'pipe'] });
+        p.py = py;
+        ff.stdio[3].pipe(py.stdin);
+        py.stdin.on('error', () => { /* python gone: ffmpeg's write fails and it ends */ });
+        py.stdout.on('data', (d) => log(String(d).trim()));
+        py.stderr.on('data', (d) => { const l = String(d).trim(); p.lastErr.push(l); log(l); });
+    } else {
+        ff.stdio[3].resume();
+    }
+
+    updateQr();
+    ff.on('exit', (code, sig) => {
+        if (player !== p) return;     /* stopped or replaced */
+        const ok = code === 0;
+        log('play: ffmpeg ended (' + (sig || code) + ')');
+        if (!ok && opts.audio && !p.frames && p.lastErr.some((l) => /matches no streams|does not contain any stream/i.test(l))) {
+            log('play: the stream has no audio; again without it');
+            return play(Object.assign({}, opts, { audio: false }));
+        }
+        player = null;
+        if (p.py) try { p.py.stdin.end(); } catch (e) { /* gone */ }
+        if (p.video) cr.drop(p.video);
+        if (o.console) consoleVideo.stop();
+        last = { state: ok ? 'ended' : 'error', url: opts.shown, output: opts.output, frames: p.frames,
+            error: ok ? null : (p.lastErr.slice(-3).join(' | ') || 'ffmpeg exited ' + (sig || code)) };
+        updateQr();
+    });
+}
+
+function status() {
+    const up = readJson(UPLINK_STATUS) || {};
+    const s = player
+        ? { state: 'playing', url: player.opts.shown, output: player.opts.output, audio: player.opts.audio, volume: player.opts.volume,
+            frames: player.frames, seconds: Math.round((Date.now() - player.started) / 1000) }
+        : last;
+    return Object.assign({ uplink: up.state || 'unknown', render: cr.ready ? 'connected' : 'not connected', qr: qrWanted,
+        link: link(), canReplay: !!lastPlay,
+        outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
+}
+
+/* ---- the web page -------------------------------------------------------- */
+
+const PAGE = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
+
+function send(res, code, type, body) {
+    res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.end(body);
+}
+function json(res, code, obj) { send(res, code, 'application/json', JSON.stringify(obj)); }
+
+function readBody(req, cb) {
+    let b = '';
+    req.on('data', (d) => { b += d; if (b.length > 16384) req.destroy(); });
+    req.on('end', () => { try { cb(null, b ? JSON.parse(b) : {}); } catch (e) { cb(e); } });
+}
+
+function authorised(req, u) {
+    const t = req.headers['x-cast-token'] || u.searchParams.get('t') || '';
+    return t.length === TOKEN.length && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(TOKEN));
+}
+
+const web = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://x');
+    if (!authorised(req, u)) return send(res, 403, 'text/plain', 'Scan the QR code on the cluster to open this page.\n');
+    if (req.method === 'GET' && u.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', PAGE);
+    if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, status());
+    if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
+
+    readBody(req, (err, b) => {
+        if (err) return json(res, 400, { error: 'bad JSON' });
+        if (u.pathname === '/api/play') {
+            let url;
+            try { url = new URL(String(b.url || '')); } catch (e) { return json(res, 400, { error: 'not a URL' }); }
+            if (!/^(https?|rtsp|rtmp):$/.test(url.protocol)) return json(res, 400, { error: 'http(s), rtsp or rtmp only' });
+            const output = OUTPUTS[b.output] ? b.output : 'map';
+            const audio = b.audio !== false;
+            if (output === 'none' && !audio) return json(res, 400, { error: 'nothing to play: no video output and no audio' });
+            const volume = Math.max(0, Math.min(150, Math.round(Number(b.volume) || 60)));
+            play({ url: url.href, shown: redact(url.href), output: output, audio: audio, volume: volume, realtime: b.realtime !== false });
+            return json(res, 200, status());
+        }
+        if (u.pathname === '/api/stop') { stopPlayer('stopped from the phone'); return json(res, 200, status()); }
+        if (u.pathname === '/api/qr') { qrWanted = !!b.show; updateQr(); return json(res, 200, status()); }
+        json(res, 404, { error: 'not found' });
+    });
+});
+
+/* ---- start and stop ------------------------------------------------------ */
+
+/* The iDrive app's commands over the control socket: null, or why not. */
+function command(c) {
+    if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }
+    if (c.cmd === 'qr') { qrWanted = !!c.show; updateQr(); return null; }
+    if (c.cmd === 'replay') {
+        if (!lastPlay) return 'nothing played yet: start a stream from the phone first';
+        const output = OUTPUTS[c.output] ? c.output : lastPlay.output;
+        if (output === 'console' && !consoleOut.available()) return 'the media console needs mgu-render';
+        play(Object.assign({}, lastPlay, { output: output, audio: lastPlay.audio || output === 'none' }));
+        return null;
+    }
+    return 'unknown command';
+}
+
+let control = null;
+let stopping = false;
+function shutdown(sig) {
+    if (stopping) return;
+    stopping = true;
+    log('stopping (' + sig + ')');
+    stopPlayer('shutting down');
+    consoleVideo.stop();
+    try { log('firewall: removed ' + firewall.remove() + ' rule(s)'); } catch (e) { log('firewall: ' + e.message); }
+    if (proxy) proxy.kill('SIGTERM');
+    if (control) control.close();
+    cr.close();
+    web.close();
+    setTimeout(() => process.exit(0), 500);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+cr.on('ready', () => { log('render: connected (' + cr.backend + ')'); updateQr(); });
+cr.on('disconnected', () => log('render: disconnected'));
+cr.on('layer', (ref, state, reason) => log('render: layer ' + ref + (ref === qrLayer ? ' (qr)' : player && ref === player.video ? ' (video)' : '') +
+    ' ' + state + (reason ? ': ' + reason : '')));
+cr.on('target', (t, state, holder, reason) => log('render: target ' + t + ' ' + state + (holder && holder !== 'none' ? ' (holder ' + holder + ')' : '') + (reason ? ': ' + reason : '')));
+cr.on('refused', (op, ref, reason) => log('render: refused ' + op + ' ' + ref + (reason ? ': ' + reason : '')));
+
+try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); }
+startProxy();
+web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
+control = startControl({ status: status, command: command, log: log });
+cr.connect();
+/* The address changes with the hotspot: keep the QR code current. */
+setInterval(updateQr, 5000);

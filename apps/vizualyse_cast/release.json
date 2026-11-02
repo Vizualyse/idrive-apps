@@ -1,0 +1,1 @@
+{ "build": "node tools/build.js", "requires": { "vizualyse-cast": "0.1.0" }, "uninstallable": true, "mguHmi": ["ID7"] }

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>Cast to iDrive</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --line:#30363d; --text:#e6edf3; --dim:#8b949e; --accent:#2f81f7; --ok:#3fb950; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 -apple-system, system-ui, sans-serif;
+         padding:max(16px, env(safe-area-inset-top)) 16px 32px; }
+  h1 { font-size:22px; margin:4px 0 2px; }
+  .sub { color:var(--dim); font-size:14px; margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  label.t { display:block; font-size:13px; color:var(--dim); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+  input[type=url] { width:100%; font-size:16px; padding:12px; border-radius:10px; border:1px solid var(--line);
+                    background:var(--bg); color:var(--text); }
+  .seg { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .seg button { padding:12px 8px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:15px; }
+  .seg button.on { border-color:var(--accent); background:rgba(47,129,247,.15); }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+  input[type=range] { width:60%; accent-color:var(--accent); }
+  input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
+  .go { display:grid; grid-template-columns:2fr 1fr; gap:10px; }
+  .go button { padding:15px; border:0; border-radius:12px; font-size:17px; font-weight:600; color:#fff; }
+  #play { background:var(--accent); } #stop { background:#30363d; }
+  button:disabled { opacity:.5; }
+  .st { display:flex; align-items:center; gap:10px; font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--dim); flex:none; }
+  .dot.playing { background:var(--ok); } .dot.error { background:var(--bad); }
+  .meta { color:var(--dim); font-size:14px; margin-top:6px; word-break:break-all; }
+  .err { color:var(--bad); font-size:14px; margin-top:6px; word-break:break-word; }
+  .small { color:var(--dim); font-size:13px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<h1>Cast to iDrive</h1>
+<div class="sub" id="sub">Connecting…</div>
+
+<div class="card">
+  <label class="t" for="url">Stream URL</label>
+  <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+         placeholder="https://… (file, HLS .m3u8, rtsp://…)">
+</div>
+
+<div class="card">
+  <label class="t">Video output</label>
+  <div class="seg" id="outputs"></div>
+  <div class="row"><span>Sound through the speakers</span><input id="audio" type="checkbox" checked></div>
+  <div class="row"><span>Volume <span id="volv">60</span>%</span><input id="vol" type="range" min="0" max="150" value="60"></div>
+</div>
+
+<div class="go">
+  <button id="play">Play</button>
+  <button id="stop">Stop</button>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="st"><span class="dot" id="dot"></span><span id="state">—</span></div>
+  <div class="meta" id="meta"></div>
+  <div class="err" id="err"></div>
+</div>
+
+<div class="row small">
+  <span>QR code on the cluster while idle</span><input id="qr" type="checkbox" checked>
+</div>
+
+<script>
+(function () {
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var $ = function (id) { return document.getElementById(id); };
+  var output = 'map', built = false;
+
+  function get(k, d) { try { return localStorage.getItem('cast.' + k) || d; } catch (e) { return d; } }
+  function put(k, v) { try { localStorage.setItem('cast.' + k, v); } catch (e) {} }
+
+  $('url').value = get('url', '');
+  output = get('output', 'map');
+  $('vol').value = get('volume', '60'); $('volv').textContent = $('vol').value;
+  $('audio').checked = get('audio', '1') === '1';
+
+  function api(p, body) {
+    return fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Cast-Token': token, 'Content-Type': 'application/json' },
+                      body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  }
+
+  function buildOutputs(list) {
+    var box = $('outputs'); box.innerHTML = '';
+    list.forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o.title; b.dataset.id = o.id;
+      b.onclick = function () { output = o.id; put('output', o.id); mark(); };
+      box.appendChild(b);
+    });
+    built = true; mark();
+  }
+  function mark() { Array.prototype.forEach.call($('outputs').children, function (b) { b.classList.toggle('on', b.dataset.id === output); }); }
+
+  function show(s) {
+    if (!built && s.outputs) buildOutputs(s.outputs);
+    $('sub').textContent = 'Uplink ' + s.uplink + ' · renderer ' + s.render;
+    $('dot').className = 'dot ' + s.state;
+    var names = {}; (s.outputs || []).forEach(function (o) { names[o.id] = o.title; });
+    $('state').textContent = { playing: 'Playing', idle: 'Idle', ended: 'Ended', error: 'Error' }[s.state] || s.state;
+    var m = [];
+    if (s.url) m.push(s.url);
+    if (s.output) m.push(names[s.output] + (s.state === 'playing' ? (s.audio ? ', sound ' + s.volume + '%' : ', no sound') : ''));
+    if (s.state === 'playing') m.push(s.frames + ' frames · ' + s.seconds + ' s');
+    $('meta').textContent = m.join(' · ');
+    $('err').textContent = s.error || '';
+    $('qr').checked = !!s.qr;
+  }
+
+  function poll() { api('/api/status').then(show).catch(function (e) { $('sub').textContent = 'Not reachable: ' + e.message; }); }
+
+  $('vol').oninput = function () { $('volv').textContent = this.value; put('volume', this.value); };
+  $('audio').onchange = function () { put('audio', this.checked ? '1' : '0'); };
+  $('qr').onchange = function () { api('/api/qr', { show: this.checked }).then(show); };
+  $('play').onclick = function () {
+    var url = $('url').value.trim(); if (!url) { $('url').focus(); return; }
+    put('url', url); $('play').disabled = true; $('err').textContent = '';
+    api('/api/play', { url: url, output: output, audio: $('audio').checked, volume: Number($('vol').value) })
+      .then(show).catch(function (e) { $('err').textContent = e.message; })
+      .then(function () { $('play').disabled = false; });
+  };
+  $('stop').onclick = function () { api('/api/stop', {}).then(show); };
+
+  poll(); setInterval(poll, 1500);
+})();
+</script>
+</body>
+</html>

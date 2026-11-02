@@ -1,0 +1,111 @@
+{
+  "id": "vizualyse-cast",
+  "kind": "tool",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "title": "Cast to cluster",
+  "description": "Plays a stream URL from your phone on the instrument cluster, the HUD or the media console, with its sound through the speakers: scan the QR code, paste a URL, pick where it goes",
+  "requires": {
+    "mgu-deploy": "0.7.0",
+    "cluster-render": "0.3.3",
+    "mgu-python": "1.0.0",
+    "mgu-uplink": "0.7.0"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "internet": true,
+  "uids": [
+    12999
+  ],
+  "deactivate": [
+    "node",
+    "firewall.js",
+    "remove"
+  ],
+  "build": [
+    "node",
+    "tools/fetch_ffmpeg.js"
+  ],
+  "files": [
+    {
+      "path": "server.js",
+      "from": "src/server.js",
+      "mode": "0644"
+    },
+    {
+      "path": "proxy.js",
+      "from": "src/proxy.js",
+      "mode": "0644"
+    },
+    {
+      "path": "firewall.js",
+      "from": "src/firewall.js",
+      "mode": "0644"
+    },
+    {
+      "path": "console_out.js",
+      "from": "src/console_out.js",
+      "mode": "0644"
+    },
+    {
+      "path": "control.js",
+      "from": "src/control.js",
+      "mode": "0644"
+    },
+    {
+      "path": "page.html",
+      "from": "src/page.html",
+      "mode": "0644"
+    },
+    {
+      "path": "pcm_play.py",
+      "from": "src/pcm_play.py",
+      "mode": "0644"
+    },
+    {
+      "path": "qrcode.js",
+      "from": "src/qrcode.js",
+      "mode": "0644"
+    },
+    {
+      "path": "cluster_render_client.js",
+      "from": "src/cluster_render_client.js",
+      "mode": "0644"
+    },
+    {
+      "path": "ffmpeg",
+      "from": "build/ffmpeg",
+      "mode": "0755"
+    },
+    {
+      "path": "ffmpeg-GPLv3.txt",
+      "from": "build/ffmpeg-GPLv3.txt",
+      "mode": "0644"
+    },
+    {
+      "path": "LICENSE",
+      "from": "LICENSE",
+      "mode": "0644"
+    }
+  ],
+  "units": [
+    {
+      "name": "vizualyse-cast.service",
+      "from": "systemd/vizualyse-cast.service"
+    }
+  ],
+  "enable": [
+    {
+      "unit": "vizualyse-cast.service",
+      "target": "multi-user.target"
+    }
+  ],
+  "recmgr": [
+    "vizualyse-cast"
+  ],
+  "restart": [
+    "vizualyse-cast.service"
+  ]
+}

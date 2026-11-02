@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "id": "vizualyse_cast",
+  "version": "0.1.0",
+  "tree": "vizualyse_cast@0.1.0",
+  "modules": [
+    "src/vizualyse_cast.js",
+    "src/cast_control.js",
+    "src/qr_png.js",
+    "src/qrcode.js"
+  ],
+  "sdk": [
+    "oap-sdk/src/core/OnlineApp.js",
+    "oap-sdk/src/logging/logging"
+  ]
+}

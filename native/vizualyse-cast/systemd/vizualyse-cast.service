@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+[Unit]
+Description=vizualyse-cast: a stream URL from the phone on the cluster or HUD, its sound through the speakers
+RequiresMountsFor=/var/opt
+After=cluster-render.service mgu-uplink.service
+Wants=cluster-render.service
+
+[Service]
+# Root: the render socket, ALSA and the one nftables rule for the phone page.
+# The network side (proxy.js) runs as the tool's internet uid 12999.
+ExecStart=/usr/bin/node /var/opt/vizualyse-cast/current/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
