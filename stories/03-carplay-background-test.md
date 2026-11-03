@@ -13,8 +13,27 @@ decides whether 06 is worth doing.
 A recorder on the unit logs every second: rx bytes of every network
 interface and `carplay`'s CPU ticks (`/proc/<pid>/stat` fields 14+15), and
 every 5 s a quarter-size screenshot (`winston-grabber -s center -g 480x180
--n 1`). The script was written and is in this conversation's history; it
-writes to `/tmp/samp/`.
+-n 1`), into `/tmp/samp/`:
+
+```sh
+#!/bin/sh
+# 150 s: each second the per-interface rx bytes and carplay CPU ticks; every 5 s a quarter-size screenshot.
+export XDG_RUNTIME_DIR=/run/wayland
+mkdir -p /tmp/samp
+P=$(pidof carplay)
+i=0
+while [ $i -lt 150 ]; do
+  t=$(date +%s)
+  cpu=$(awk '{print $14+$15}' /proc/$P/stat 2>/dev/null)
+  nets=""; for n in /sys/class/net/*; do nets="$nets $(basename $n)=$(cat $n/statistics/rx_bytes)"; done
+  echo "$t cpu=$cpu$nets" >> /tmp/samp/log.txt
+  if [ $((i % 5)) -eq 0 ]; then winston-grabber -s center -g 480x180 -n 1 /tmp/samp/shot_$(printf %03d $i).jpg >/dev/null 2>&1 & fi
+  i=$((i+1)); sleep 1
+done
+echo done >> /tmp/samp/log.txt
+```
+
+Run it detached (`nohup sh run.sh &`) so it outlives the SSH session.
 
 1. CarPlay with Google Maps navigating on the central screen.
 2. Start the recorder.
