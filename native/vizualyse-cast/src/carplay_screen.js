@@ -36,16 +36,17 @@ const MODES = ['off', 'alt'];
 /* What the phone is asked to draw for each target, and what the tool sends
  * on to cluster-render. The phone draws at `display`; ffmpeg scales to `w` x
  * `h` at `fps`, inside cluster-render's ~5500 KB/s upload (I420: w*h*1.5*fps):
- *   map: the cluster centre's visible band, 864x480 of its 1088x480 (`xband`);
- *        648x360 at 12 fps = 4.2 MB/s, scaled up by the renderer;
+ *   map: the cluster centre's visible band, 912x480 of its 1088x480 (`xband`);
+ *        684x360 at 12 fps = 4.4 MB/s, scaled up by the renderer;
  *   hud: the HUD's visible band (17-83 % of 800 by 25-65 % of 480 = 528x192);
  *        the phone draws twice that, sent at the band's own size, 15 fps. */
 const TARGETS = {
     /* map: calibrated on the car (2026-11-04): the cluster's soft vignette hides
-     * the outer ~130 px each side of the 1088 target, so the phone draws 864x480,
-     * placed at x 112-976: its edges fade out, nothing of it is cut off (only the
+     * the outer ~130 px each side of the 1088 target, so the phone draws 912x480,
+     * placed at x 88-1000 (widened from 864 on request: 24 px each side reach into
+     * the fade): its edges fade out, nothing of it is cut off (only the
      * vignette's rounded top corners). */
-    map: { display: { w: 864, h: 480, fps: 30 }, w: 648, h: 360, fps: 12, xband: [112 / 1088, 976 / 1088] },
+    map: { display: { w: 912, h: 480, fps: 30 }, w: 684, h: 360, fps: 12, xband: [88 / 1088, 1000 / 1088] },
     hud: { display: { w: 1056, h: 384, fps: 30 }, w: 528, h: 192, fps: 15 },
 };
 

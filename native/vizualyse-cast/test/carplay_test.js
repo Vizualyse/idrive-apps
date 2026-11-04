@@ -114,12 +114,12 @@ function unit() {
     s = cp.state(fakeRun({ armed: true, mode: 'alt', port: 6222 }));
     ok('the sink port from its env file', s.port === 6222);
 
-    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '864x480@30' } });
+    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '912x480@30' } });
     let d = cp.wantDisplay('map', run);
-    ok('map: asks for 864x480@30, already what the phone has', d.wanted === '864x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '864x480@30\n');
+    ok('map: asks for 912x480@30, already what the phone has', d.wanted === '912x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '912x480@30\n');
     const map = cp.TARGETS.map;
-    ok('map: placed at x 112-976 of the 1088 target (the calibrated band), the frame its shape',
-        Math.round(1088 * map.xband[0]) === 112 && Math.round(1088 * map.xband[1]) === 976 && map.w / map.h === 864 / 480 && map.display.w % 8 === 0);
+    ok('map: placed at x 88-1000 of the 1088 target (the calibrated band), the frame its shape',
+        Math.round(1088 * map.xband[0]) === 88 && Math.round(1088 * map.xband[1]) === 1000 && map.w / map.h === 912 / 480 && map.display.w % 8 === 0);
     d = cp.wantDisplay('hud', run);
     ok('hud: asks for 1056x384@30, pending until the phone reconnects', d.wanted === '1056x384@30' && d.pending && cp.state(run).wanted === '1056x384@30');
     ok('no hook111 run directory: nothing written', cp.wantDisplay('map', path.join(run, 'nope')) === null);
@@ -170,9 +170,9 @@ async function throughFfmpeg(cp, target, stream, port) {
 }
 
 async function streams(cp) {
-    const cluster = makeStream(864, 480, 3), wide = makeStream(1088, 480, 3), hudSize = makeStream(1056, 384, 3);
+    const cluster = makeStream(912, 480, 3), wide = makeStream(1088, 480, 3), hudSize = makeStream(1056, 384, 3);
     let r = await throughFfmpeg(cp, 'map', cluster, 46201);
-    ok('map: an 864x480 stream -> ' + r.frames + ' whole 648x360 frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
+    ok('map: a 912x480 stream -> ' + r.frames + ' whole 684x360 frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
     r = await throughFfmpeg(cp, 'map', wide, 46204);
     ok('map while the phone is still on 1088x480: scaled to fit (' + r.frames + ' frames)', r.whole && r.frames >= 30 && r.code === 0);
     r = await throughFfmpeg(cp, 'hud', hudSize, 46202);
@@ -244,7 +244,7 @@ async function server(cluster) {
         r = await post(PORT, '/api/play', token, { source: 'carplay', output: 'map' });
         st = r.code === 200 && JSON.parse(r.body);
         ok('play the second screen in mode alt: playing on the cluster map', st && st.state === 'playing' && st.output === 'map' && st.source === 'carplay');
-        ok('it asked hook111 for the cluster size', fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '864x480@30');
+        ok('it asked hook111 for the cluster size', fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '912x480@30');
         const s = await connectWhenListening(6111, 50);
         s.end(fs.readFileSync(cluster));
         let frames = 0;

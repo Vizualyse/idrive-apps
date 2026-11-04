@@ -24,6 +24,18 @@ workflow (Actions > Release, the component ids).
 - [ ] **Open protocol questions:** what `viewAreas`, `showUI` and
   `primaryInputDevice` should contain; whether the phone keeps streaming 111
   while CarPlay isn't on the main screen.
+- [ ] **The session drops every ~40 s while the iDrive shows its own screen.**
+  Seen on the car (2026-11-04, hook111 0.1.0, mode alt): with 111 the only
+  stream (no 110 main screen, no 102 audio) the phone starts a new session every
+  39-40 s (same `sessionCorrelationUUID`, new `sessionUUID`, no TEARDOWN: the
+  connection just ends); the cluster stalls ~3.5 s each time. It stopped as soon
+  as 110 was set up; the first session died ~28 s after its last stock stream
+  (102) ended. No refusals, no fallback, `carplay` not restarted. Guess: the
+  session's idle / keep-alive tracking (`_ControlIdleStateTransition`
+  `0x17c0e0`; the phone sends `keepAliveLowPower`) doesn't count screen B, so
+  the session is taken as idle and times out. To do: on the car, whether CarPlay
+  audio with the iDrive screen also keeps it up; in the harness, what ends an
+  idle session and whether screen B can count as an active stream.
 - [ ] **On the car:**
   - whether the shutdown mark is written at a real switch-off (one ignition
     cycle, disabled);
