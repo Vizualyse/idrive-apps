@@ -98,10 +98,12 @@ const TOKEN = token();
 const cr = new ClusterRender('vizualyse_cast');
 
 /* Settings kept across restarts in STATE_DIR/settings.json: the service on
- * or off, and the QR code on the cluster (off by default: with navigation up
- * the cluster draws its direction list over it; the iDrive page shows it). */
+ * or off, the QR code on the cluster (off by default: with navigation up
+ * the cluster draws its direction list over it; the iDrive page shows it),
+ * and the CarPlay cluster view (carplay_screen.VIEWS). */
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, clusterQr: false }, readJson(SETTINGS_FILE) || {});
+const settings = Object.assign({ enabled: true, clusterQr: false, carplayView: 'cluster' }, readJson(SETTINGS_FILE) || {});
+if (carplay.VIEWS.indexOf(settings.carplayView) < 0) settings.carplayView = 'cluster';
 function saveSettings() {
     try { mkdirp(STATE_DIR); fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings) + '\n', { mode: 0o600 }); } catch (e) { log('settings: ' + e.message); }
 }
@@ -350,7 +352,7 @@ function status() {
         link: link(), canReplay: !!lastPlay,
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
-            display: c.display, wanted: c.wanted, switch: carplaySwitch() },
+            display: c.display, wanted: c.wanted, switch: carplaySwitch(), view: carplayView(c) },
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -400,6 +402,10 @@ const web = http.createServer((req, res) => {
             play({ url: url.href, shown: redact(url.href), output: output, audio: audio, volume: volume, realtime: b.realtime !== false });
             return json(res, 200, status());
         }
+        if (u.pathname === '/api/carplay-view') {
+            const why = setCarplayView(b.view);
+            return why ? json(res, 400, { error: why }) : json(res, 200, status());
+        }
         if (u.pathname === '/api/hook111') {
             const why = setCarplayMode(b.mode);
             return why ? json(res, 400, { error: why }) : json(res, 200, status());
@@ -437,6 +443,27 @@ function setCarplayMode(mode) {
     return null;
 }
 
+/* The CarPlay cluster view (its style): kept in the settings and written to
+ * hook111's run directory, now and whenever that appears (it is made at each
+ * start by hook111's arm step). The phone gets it at its next connection.
+ * { wanted, title, offered, pending } for the pages. */
+function syncView() {
+    try { return carplay.wantView(settings.carplayView); } catch (e) { log('carplay: view: ' + e.message); return null; }
+}
+function carplayView(c) {
+    const wanted = settings.carplayView;
+    return { wanted: wanted, title: carplay.VIEW_TITLES[wanted], offered: c.view,
+        pending: c.view && c.view !== wanted ? 'from the phone\'s next connection' : null };
+}
+function setCarplayView(view) {
+    if (carplay.VIEWS.indexOf(view) < 0) return 'view is ' + carplay.VIEWS.join(', ');
+    settings.carplayView = view;
+    saveSettings();
+    const r = syncView();
+    log('carplay: view ' + view + ' saved' + (r ? (r.pending ? ', from the phone\'s next connection' : '') : ', from the next start (hook111 is not armed this start)'));
+    return null;
+}
+
 /* The iDrive app's commands over the control socket: null, or why not. */
 function setQr(show) { qrWanted = show; settings.clusterQr = show; saveSettings(); updateQr(); }
 
@@ -459,6 +486,7 @@ function command(c) {
     if (c.cmd === 'enable') { setEnabled(true); return null; }
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (c.cmd === 'hook111') return setCarplayMode(c.mode);
+    if (c.cmd === 'carplayView') return setCarplayView(c.view);
     if (!settings.enabled) return 'Cast to cluster is off';
     if (c.cmd === 'carplay') return playCarplay(c.output);
     if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }
@@ -511,5 +539,7 @@ startProxy();
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
 control = startControl({ status: status, command: command, log: log });
 cr.connect();
-/* The address changes with the hotspot: keep the QR code current. */
-setInterval(updateQr, 5000);
+/* The address changes with the hotspot: keep the QR code current. hook111's
+ * run directory can appear after this tool starts: keep its view current. */
+syncView();
+setInterval(() => { updateQr(); syncView(); }, 5000);

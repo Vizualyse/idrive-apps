@@ -8,7 +8,8 @@
  * One LT_State_Wide page: the status; the phone page's link as a QR code
  * (LT_Label_1Graphic_Scalable, a PNG in /dev/shm the HMI can read) and as
  * text; Cast to cluster on or off; Stop; the CarPlay second screen on or
- * off (hook111's mode, now and for later starts); the CarPlay map (CarPlay's own
+ * off (hook111's mode, now and for later starts); its cluster view (map and
+ * directions, map only, directions only); the CarPlay map (CarPlay's own
  * second screen, through hook111) on the cluster or on the HUD;
  * Play last on the cluster map / the HUD / this screen, which replay the
  * last stream the phone started (its URL stays in the tool); and the QR code
@@ -31,7 +32,7 @@ const STATE_NAME = 'ST_OnlineApps_VizualyseCast';
 const N = {
     status: 'castStatus', qr: 'castQr', link: 'castLink', hint: 'castHint', stop: 'castStop',
     map: 'castMap', hud: 'castHud', console: 'castConsole', qrToggle: 'castQrToggle', info: 'castInfo',
-    enable: 'castEnable', carplayOn: 'castCarplayOn', carplayMap: 'castCarplayMap', carplayHud: 'castCarplayHud',
+    enable: 'castEnable', carplayOn: 'castCarplayOn', carplayView: 'castCarplayView', carplayMap: 'castCarplayMap', carplayHud: 'castCarplayHud',
 };
 const PRESS_DEDUPE_MS = 400;
 const ROW_CHARS = 90;
@@ -125,6 +126,7 @@ class CastApp extends OnlineApp {
         this._bind(N.stop, () => this._control.stop());
         this._bind(N.enable, () => (this._control.enabled() ? this._control.disable() : this._control.enable()));
         this._bind(N.carplayOn, () => this._control.setCarplayOn(!this._control.carplaySwitch().on));
+        this._bind(N.carplayView, () => this._control.nextCarplayView());
         this._bind(N.carplayMap, () => this._control.carplay('map'));
         this._bind(N.carplayHud, () => this._control.carplay('hud'));
         this._bind(N.map, () => this._control.replay('map'));
@@ -266,6 +268,8 @@ class CastApp extends OnlineApp {
         this._setEnabled(N.stop, on && c.playing());
         this._write(N.carplayOn, c.switchText());
         this._setEnabled(N.carplayOn, up && c.carplaySwitch().installed);
+        this._write(N.carplayView, c.viewText());
+        this._setEnabled(N.carplayView, up && c.carplaySwitch().installed);
         this._setEnabled(N.carplayMap, on && c.canCarplay());
         this._setEnabled(N.carplayHud, on && c.canCarplay());
         ['map', 'hud', 'console'].forEach((k) => {

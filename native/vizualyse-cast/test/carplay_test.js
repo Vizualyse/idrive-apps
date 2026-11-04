@@ -114,16 +114,29 @@ function unit() {
     s = cp.state(fakeRun({ armed: true, mode: 'alt', port: 6222 }));
     ok('the sink port from its env file', s.port === 6222);
 
-    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '912x480@30' } });
+    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '936x480@30' } });
     let d = cp.wantDisplay('map', run);
-    ok('map: asks for 912x480@30, already what the phone has', d.wanted === '912x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '912x480@30\n');
+    ok('map: asks for 936x480@30, already what the phone has', d.wanted === '936x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '936x480@30\n');
     const map = cp.TARGETS.map;
-    ok('map: placed at x 88-1000 of the 1088 target (the calibrated band), the frame its shape',
-        Math.round(1088 * map.xband[0]) === 88 && Math.round(1088 * map.xband[1]) === 1000 && map.w / map.h === 912 / 480 && map.display.w % 8 === 0);
+    ok('map: placed at x 76-1012 of the 1088 target (the calibrated band), the frame its shape (within 1 %)',
+        Math.round(1088 * map.xband[0]) === 76 && Math.round(1088 * map.xband[1]) === 1012 && Math.abs(map.w / map.h - 936 / 480) < 0.01 && map.display.w % 8 === 0);
     d = cp.wantDisplay('hud', run);
     ok('hud: asks for 1056x384@30, pending until the phone reconnects', d.wanted === '1056x384@30' && d.pending && cp.state(run).wanted === '1056x384@30');
     ok('no hook111 run directory: nothing written', cp.wantDisplay('map', path.join(run, 'nope')) === null);
     ok('an unknown target: nothing written', cp.wantDisplay('console', run) === null);
+
+    /* the cluster view (style) */
+    const vrun = fakeRun({ armed: true, mode: 'alt', status: { view: 'default' } });
+    let v = cp.wantView('card', vrun);
+    ok('view card: written for hook111, pending (the phone was offered the default, the cluster view)',
+        v.wanted === 'card' && v.pending && fs.readFileSync(path.join(vrun, 'view'), 'utf8') === 'card\n' && cp.state(vrun).viewWanted === 'card');
+    v = cp.wantView('cluster', vrun);
+    ok('view cluster: what the phone has (default = cluster), not pending', v.wanted === 'cluster' && !v.pending && cp.state(vrun).view === 'cluster');
+    let vthrew = null;
+    try { cp.wantView('maps:/car/instrumentcluster/map', vrun); } catch (e) { vthrew = e.message; }
+    ok('view: only cluster, map or card (a URL refused, the file kept)', !!vthrew && fs.readFileSync(path.join(vrun, 'view'), 'utf8') === 'cluster\n');
+    ok('view: no hook111 run directory, nothing written', cp.wantView('map', path.join(vrun, 'nope')) === null);
+    ok('view: titles for the pages', cp.VIEWS.every((k) => typeof cp.VIEW_TITLES[k] === 'string'));
 
     ['map', 'hud'].forEach((t) => {
         const T = cp.TARGETS[t], kbs = T.w * T.h * 1.5 * T.fps / 1024;
@@ -170,9 +183,9 @@ async function throughFfmpeg(cp, target, stream, port) {
 }
 
 async function streams(cp) {
-    const cluster = makeStream(912, 480, 3), wide = makeStream(1088, 480, 3), hudSize = makeStream(1056, 384, 3);
+    const cluster = makeStream(936, 480, 3), wide = makeStream(1088, 480, 3), hudSize = makeStream(1056, 384, 3);
     let r = await throughFfmpeg(cp, 'map', cluster, 46201);
-    ok('map: a 912x480 stream -> ' + r.frames + ' whole 684x360 frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
+    ok('map: a 936x480 stream -> ' + r.frames + ' whole 704x360 frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
     r = await throughFfmpeg(cp, 'map', wide, 46204);
     ok('map while the phone is still on 1088x480: scaled to fit (' + r.frames + ' frames)', r.whole && r.frames >= 30 && r.code === 0);
     r = await throughFfmpeg(cp, 'hud', hudSize, 46202);
@@ -235,6 +248,27 @@ async function server(cluster) {
         ok('control socket, carplay while not ready: an error', c0.some((l) => l.ev === 'error' && /not available/.test(l.error)));
 
         ok('status: the switch, installed and off', st.carplay.switch && st.carplay.switch.installed === true && st.carplay.switch.on === false);
+
+        ok('status: the cluster view, map and directions by default, written for hook111 at start',
+            st.carplay.view && st.carplay.view.wanted === 'cluster' && st.carplay.view.title === 'map and directions' &&
+            fs.readFileSync(path.join(run, 'view'), 'utf8') === 'cluster\n');
+        r = await post(PORT, '/api/carplay-view', token, { view: 'card' });
+        st = r.code === 200 && JSON.parse(r.body);
+        ok('the phone page sets the view: card, written and saved', st && st.carplay.view.wanted === 'card' &&
+            fs.readFileSync(path.join(run, 'view'), 'utf8') === 'card\n' && JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayView === 'card');
+        fs.writeFileSync(path.join(run, 'log', 'status'), 'view=default\n');
+        st = JSON.parse((await get(PORT, '/api/status', token)).body);
+        ok('... pending while the phone was last offered another view', st.carplay.view.pending === 'from the phone\'s next connection');
+        r = await post(PORT, '/api/carplay-view', token, { view: 'wide' });
+        ok('the phone page: an unknown view refused', r.code === 400 && /cluster, map, card/.test(JSON.parse(r.body).error));
+        const cv = await ctl(sock, { cmd: 'carplayView', view: 'map' });
+        await sleep(200);
+        ok('control socket, carplayView map: no error, written', !cv.some((l) => l.ev === 'error') && fs.readFileSync(path.join(run, 'view'), 'utf8') === 'map\n');
+        fs.unlinkSync(path.join(run, 'view'));
+        let rewritten = false;
+        for (let i = 0; i < 70 && !rewritten; i++) { await sleep(100); rewritten = fs.existsSync(path.join(run, 'view')); }
+        ok('the view file comes back when hook111\'s run directory loses it (a new start)', rewritten && fs.readFileSync(path.join(run, 'view'), 'utf8') === 'map\n');
+        fs.writeFileSync(path.join(run, 'log', 'status'), '');
         r = await post(PORT, '/api/hook111', token, { mode: 'full' });
         ok('the phone page: mode full refused', r.code === 400 && /off or alt/.test(JSON.parse(r.body).error));
         r = await post(PORT, '/api/hook111', token, { mode: 'alt' });
@@ -244,7 +278,7 @@ async function server(cluster) {
         r = await post(PORT, '/api/play', token, { source: 'carplay', output: 'map' });
         st = r.code === 200 && JSON.parse(r.body);
         ok('play the second screen in mode alt: playing on the cluster map', st && st.state === 'playing' && st.output === 'map' && st.source === 'carplay');
-        ok('it asked hook111 for the cluster size', fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '912x480@30');
+        ok('it asked hook111 for the cluster size', fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '936x480@30');
         const s = await connectWhenListening(6111, 50);
         s.end(fs.readFileSync(cluster));
         let frames = 0;

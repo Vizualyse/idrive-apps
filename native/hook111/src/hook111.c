@@ -424,6 +424,38 @@ static void display_now(int *w, int *h, int *fps) {
     if (W < 320 || W > 1920 || W % 8 || H < 160 || H > 1080 || H % 2 || F < 1 || F > 60) return;
     *w = W; *h = H; *fps = F;
 }
+/* ---- the second display's view (its style) ----
+ * Which of the phone's cluster views /info names as initialURL: "cluster"
+ * (maps:/car/instrumentcluster, the map with the turn card in a corner),
+ * "map" (.../map, the map alone) or "card" (.../instructioncard, the turn card
+ * alone), from hook111_view_file, read at every /info like the size. Missing
+ * or anything else: the configured initialURL. Whether the phone follows
+ * initialURL is untested on the car (the main screen's showUI, the other way
+ * to ask, cost the main screen). */
+static const struct { const char *name, *url; } views[] = {
+    { "cluster", "maps:/car/instrumentcluster" },
+    { "map", "maps:/car/instrumentcluster/map" },
+    { "card", "maps:/car/instrumentcluster/instructioncard" } };
+static char view_path[256];
+static char offered_view[16];        /* the view of the last /info record, for the status */
+void hook111_view_file(const char *path) {
+    view_path[0] = 0;
+    if (path && strlen(path) < sizeof view_path) strcpy(view_path, path);
+}
+static const char *view_now(const char **name) {
+    *name = "";
+    if (!view_path[0]) return disp.initial_url;
+    char b[16] = ""; int fd = open(view_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return disp.initial_url;
+    ssize_t n = read(fd, b, sizeof b - 1); close(fd);
+    if (n <= 0) return disp.initial_url;
+    b[n] = 0;
+    if (n > 0 && b[n - 1] == '\n') b[n - 1] = 0;
+    for (unsigned i = 0; i < sizeof views / sizeof *views; i++)
+        if (!strcmp(b, views[i].name)) { *name = views[i].name; return views[i].url; }
+    return disp.initial_url;
+}
+
 static int mode_now(void) { return read_mode(); }
 int hook111_fell_back(void) { return fallback; }
 
@@ -447,6 +479,7 @@ static void status_now(int force) {
     if (!f) return;
     volatile struct hook111_stats *x = &hook111_stats;
     if (offered_display[0]) fprintf(f, "display=%s\n", offered_display);
+    if (offered_view[0]) fprintf(f, "view=%s\n", offered_view);
     fprintf(f, "time_s=%lld\nmode=%s\nfell_back=%d\nrefusals=%d\n", now / 1000000000LL, mode_now() == 2 ? "full" : mode_now() == 1 ? "alt" : "off", hook111_fell_back(), x->refusals);
     fprintf(f, "setups_111=%d\naccepted=%d\npump_done=%d\npump_rc=%d\nscreen_b=%s\n", x->setups_111, x->accepted, x->pump_done, x->pump_rc, current_b ? "up" : "none");
     fprintf(f, "b_avcc=%d\nb_avcc_bytes=%d\nb_starts=%d\nb_stops=%d\nb_frames=%d\nb_frame_bytes=%lld\n", x->b_avcc, x->b_avcc_bytes, x->b_starts, x->b_stops, x->b_frames, (long long)x->b_frame_bytes);
@@ -664,7 +697,9 @@ static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
     n = CFNumI64((int64_t)disp.height_mm * h / disp.height_px); CFDictSet(d, K_HMM, n); CFRelease(n);
     n = CFNumI64(fps);   CFDictSet(d, K_MAXFPS, n); CFRelease(n);
     n = CFNumI64(disp.features);  CFDictSet(d, K_FEATURES, n); CFRelease(n);
-    k = CFStr("initialURL"); s = CFStr(disp.initial_url); CFDictSet(d, k, s); CFRelease(s); CFRelease(k);
+    const char *vname, *vurl = view_now(&vname);
+    snprintf(offered_view, sizeof offered_view, "%s", vname[0] ? vname : "default");
+    k = CFStr("initialURL"); s = CFStr(vurl); CFDictSet(d, k, s); CFRelease(s); CFRelease(k);
     CF urls = CFArrayCreate();
     for (int i = 0; i < 3 && disp.suggest_urls[i]; i++) { s = CFStr(disp.suggest_urls[i]); CFArrayAppend(urls, s); CFRelease(s); }
     k = CFStr("altScreenSuggestUIURLs"); CFDictSet(d, k, urls); CFRelease(k); CFRelease(urls);

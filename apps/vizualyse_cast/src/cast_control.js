@@ -8,6 +8,7 @@
  * {"cmd":"replay","output":"map"|"hud"|"console"|"none"},
  * {"cmd":"carplay","output":"map"|"hud"} (the CarPlay second screen),
  * {"cmd":"hook111","mode":"off"|"alt"} (the second screen's switch),
+ * {"cmd":"carplayView","view":"cluster"|"map"|"card"} (its cluster view),
  * {"cmd":"enable"}, {"cmd":"disable"} and {"cmd":"qr","show":true|false}. Connected while the page is visible,
  * retried once a second; the tool keeps running without it.
  */
@@ -83,6 +84,11 @@ class CastControl extends EventEmitter {
     disable() { return this._send({ cmd: 'disable' }); }
     carplay(output) { return this._send({ cmd: 'carplay', output: output }); }
     setCarplayOn(on) { return this._send({ cmd: 'hook111', mode: on ? 'alt' : 'off' }); }
+    /* the next cluster view: map and directions -> map only -> directions only -> ... */
+    nextCarplayView() {
+        const order = ['cluster', 'map', 'card'], cur = this.carplayView().wanted;
+        return this._send({ cmd: 'carplayView', view: order[(order.indexOf(cur) + 1) % order.length] });
+    }
     replay(output) { return this._send({ cmd: 'replay', output: output }); }
     setQr(show) { return this._send({ cmd: 'qr', show: !!show }); }
 
@@ -97,6 +103,13 @@ class CastControl extends EventEmitter {
         const w = this.carplaySwitch();
         if (!w.installed) return 'CarPlay second screen: hook111 not installed';
         return 'CarPlay second screen: ' + (w.on ? 'on' : 'off') + (w.pending ? ' (' + w.pending + ')' : '');
+    }
+    /* the cluster view: { wanted, title, offered, pending } */
+    carplayView() { return (this.status && this.status.carplay && this.status.carplay.view) || { wanted: 'cluster', title: null, pending: null }; }
+    viewText() {
+        const v = this.carplayView();
+        if (!this.status || !v.title) return 'CarPlay cluster view: —';
+        return 'CarPlay cluster view: ' + v.title + (v.pending ? ' (' + v.pending + ')' : '');
     }
     link() { return (this.status && this.status.link) || ''; }
     canReplay() { return !!(this.status && this.status.canReplay); }

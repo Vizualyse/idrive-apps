@@ -51,6 +51,8 @@
 <div class="card hide" id="carplayCard">
   <label class="t">CarPlay second screen</label>
   <div class="row"><span>On <span class="small" id="cpPending"></span></span><input id="cpOn" type="checkbox"></div>
+  <div class="row"><span>Cluster view <span class="small" id="cpViewPending"></span></span>
+    <select id="cpView"><option value="cluster">Map and directions</option><option value="map">Map only</option><option value="card">Directions only</option></select></div>
   <div class="small" id="cpState">—</div>
   <div class="small">CarPlay's own cluster view (Google Maps or Apple Maps), next to the main CarPlay screen. The phone draws it at the size of the chosen output from its next connection; until then it is scaled to fit.</div>
 </div>
@@ -146,6 +148,10 @@
     $('cpOn').disabled = !sw.installed;
     $('cpOn').checked = !!sw.on;
     $('cpPending').textContent = !sw.installed ? '(hook111 is not installed)' : sw.pending ? '(' + sw.pending + ')' : '';
+    var vw = (s.carplay && s.carplay.view) || {};
+    $('cpView').disabled = !sw.installed;
+    if (vw.wanted && document.activeElement !== $('cpView')) $('cpView').value = vw.wanted;
+    $('cpViewPending').textContent = vw.pending ? '(' + vw.pending + ')' : '';
     $('sub').textContent = 'Uplink ' + s.uplink + ' · renderer ' + s.render;
     $('dot').className = 'dot ' + s.state;
     var names = {}; (s.outputs || []).forEach(function (o) { names[o.id] = o.title; });
@@ -184,6 +190,13 @@
     api('/api/hook111', { mode: box.checked ? 'alt' : 'off' })
       .then(show).catch(function (e) { $('err').textContent = e.message; box.checked = !box.checked; })
       .then(function () { box.disabled = false; });
+  };
+  $('cpView').onchange = function () {
+    var sel = this;
+    sel.disabled = true;
+    api('/api/carplay-view', { view: sel.value })
+      .then(show).catch(function (e) { $('err').textContent = e.message; })
+      .then(function () { sel.disabled = false; });
   };
   $('stop').onclick = function () { api('/api/stop', {}).then(show); };
 

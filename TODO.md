@@ -21,6 +21,18 @@ workflow (Actions > Release, the component ids).
   offered (`display=` in its status). `setup_b.c`: 57 checks.
 - [ ] **On the car:** whether the phone draws the HUD size it is offered
   (1056x384), and how the cluster view looks at that shape.
+- [x] **The cluster view (style), a switch** (hook111 0.1.2, vizualyse-cast
+  0.3.4, vizualyse_cast 0.3.2). Map and directions / map only / directions
+  only. It goes into `/info`'s `initialURL` (`maps:/car/instrumentcluster`,
+  `…/map`, `…/instructioncard`) from `/run/hook111/view`, read at each
+  `/info`; `view=` in the status. `setup_b.c`: 76 checks.
+- [ ] **On the car:** whether the phone follows `initialURL`. Pick "directions
+  only" and reconnect the phone. If the cluster view doesn't change, try
+  `showUI {url, uuid}` from the bench (`send.plist`) while the main screen is
+  up. Expect it may cost the main screen, as the `suggestUI` answer did.
+- [x] **The cluster map 24 px wider** (vizualyse-cast 0.3.4): 936x480 at x
+  76-1012, sent at 704x360 (the width a multiple of 4: 1 px padding each
+  side), ~4.5 MB/s.
 - [ ] **Open protocol questions:** what `viewAreas`, `showUI` and
   `primaryInputDevice` should contain; whether the phone keeps streaming 111
   while CarPlay isn't on the main screen.
@@ -40,7 +52,7 @@ workflow (Actions > Release, the component ids).
     now counts screen B as a screen in the idle transition (findings, "The
     session's idle state"). `setup_b.c`: 69 checks, including the car's
     sequence; the new checks fail with the wrapper disabled.
-  - [ ] **On the car (0.1.1):** with 111 up, let the iDrive show its own
+  - [ ] **On the car (0.1.1, shipping in 0.1.2):** with 111 up, let the iDrive show its own
     screen for several minutes. Expect `sessionUUID` unchanged,
     `idle_held` > 0 and `idle_rc=0` in the status, and no cluster stall.
     Also check that the main screen still comes back.

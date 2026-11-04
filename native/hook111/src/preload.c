@@ -63,6 +63,8 @@ static void try_install(const char *why) {
             hook111_mode_file(mf ? mf : "/run/hook111/mode");   /* read at every SETUP; missing: off */
             const char *df = getenv("HOOK111_DISPLAY_FILE");
             hook111_display_file(df ? df : "/run/hook111/display");   /* the size per target, from vizualyse-cast */
+            const char *vf = getenv("HOOK111_VIEW_FILE");
+            hook111_view_file(vf ? vf : "/run/hook111/view");          /* the view (style), from vizualyse-cast */
             int rc = hook111_install(b, sink_annexb(&sink_state, (uint16_t)port), &display);
             state = rc == 0 ? 1 : -1;
             fprintf(stderr, "[hook111] %s: %s (stream 111 on %d, sink 127.0.0.1:%d, mode now %s)\n", why,

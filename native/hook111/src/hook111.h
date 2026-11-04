@@ -52,6 +52,10 @@ void hook111_mode_file(const char *path);
 /* The second display's size file ("WxH@fps", e.g. 1056x384@30), read at
  * every /info; not called, missing or invalid: the configured display. */
 void hook111_display_file(const char *path);
+/* The second display's view file (contents cluster | map | card: the phone's
+ * cluster view named as initialURL), read at every /info; not called,
+ * missing or anything else: the configured initialURL. */
+void hook111_view_file(const char *path);
 /* 0 off, 1 alt, 2 full, as it applies now; whether it fell back to off. */
 int hook111_mode(void);
 int hook111_fell_back(void);

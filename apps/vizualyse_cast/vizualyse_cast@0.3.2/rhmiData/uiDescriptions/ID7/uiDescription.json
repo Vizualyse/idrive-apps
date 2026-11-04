@@ -304,6 +304,28 @@
             }
           ]
         },
+        "39": {
+          "type": "button",
+          "name": "castCarplayView",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay cluster view: map and directions",
+                "type": "Text"
+              }
+            }
+          ]
+        },
         "40": {
           "type": "label",
           "name": "castInfo",

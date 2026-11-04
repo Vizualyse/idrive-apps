@@ -668,6 +668,45 @@ int main(int argc, char **argv) {
         CHECK("not a multiple of 8, odd, fps out of range, too wide, trailing junk, garbage, empty: the configured display", all_default);
         unlink(dfile);
         hook111_display_file(NULL);
+
+        /* the view (style): /run/hook111/view, cluster | map | card -> initialURL */
+        char vfile[640]; snprintf(vfile, sizeof vfile, "%s.view", logdir);
+        hook111_view_file(vfile);
+        CF iu = CFStr("initialURL"), url;
+        #define VIEW_URL() (r = REC1(), url = r ? CFDictGetTyped(r, iu, CFStrTypeID(), &e) : NULL, url)
+        #define URL_IS(u) ({ CF _w = CFStr(u); int _eq = VIEW_URL() && CFEqual(url, _w); CFRelease(_w); _eq; })
+        CHECK("view file configured but missing: the configured initialURL", URL_IS("maps:/car/instrumentcluster"));
+        set_mode(vfile, "card\n");
+        CHECK("view card: initialURL .../instructioncard (the turn card alone)", URL_IS("maps:/car/instrumentcluster/instructioncard"));
+        set_mode(vfile, "map");
+        CHECK("view map: initialURL .../map", URL_IS("maps:/car/instrumentcluster/map"));
+        {
+            CF us = r ? CFDictGetTyped(r, CFStr("altScreenSuggestUIURLs"), CFArrayTypeID(), &e) : NULL;
+            CHECK("view map: the three suggestUI URLs unchanged", us && CFArrayCount(us) == 3);
+        }
+        status_now(1);
+        {
+            char stp[700], sl[256]; snprintf(stp, sizeof stp, "%s/status", logdir);
+            FILE *sf = fopen(stp, "r"); int said = 0;
+            while (sf && fgets(sl, sizeof sl, sf)) if (!strcmp(sl, "view=map\n")) said = 1;
+            if (sf) fclose(sf);
+            CHECK("the status says which view was offered (view=map)", said);
+        }
+        set_mode(vfile, "cluster");
+        CHECK("view cluster: initialURL maps:/car/instrumentcluster", URL_IS("maps:/car/instrumentcluster"));
+        static const char *badv[] = { "cards", "Card", "card x", "", "maps:/car/instrumentcluster/map" };
+        int vdef = 1;
+        for (unsigned i = 0; i < sizeof badv / sizeof *badv; i++) {
+            set_mode(vfile, "card"); (void)VIEW_URL();
+            set_mode(vfile, badv[i]);
+            if (!URL_IS("maps:/car/instrumentcluster")) { vdef = 0; printf("  view not refused: \"%s\"\n", badv[i]); }
+        }
+        CHECK("view: anything else (a near miss, a URL, empty) gives the configured initialURL", vdef);
+        #undef VIEW_URL
+        #undef URL_IS
+        CFRelease(iu);
+        unlink(vfile);
+        hook111_view_file(NULL);
     }
     /* ---------- modes, and the fallback when the phone refuses ---------- */
     {

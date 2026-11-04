@@ -138,8 +138,8 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'castQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castCarplayOn', 'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
-    console.log('ok   page: 9 buttons, a QR graphic, xml and uiDescription agree');
+    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castCarplayOn', 'castCarplayView', 'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
+    console.log('ok   page: 10 buttons, a QR graphic, xml and uiDescription agree');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -192,6 +192,20 @@ async function main() {
     byName.castCarplayOn.emit('action');
     await until('hook111 off sent', () => received.some((c) => c.cmd === 'hook111' && c.mode === 'off'));
     console.log('ok   the switch: disabled without hook111; on / off sends hook111 alt / off; shows when it applies');
+
+    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { view: { wanted: 'cluster', title: 'map and directions', offered: 'cluster', pending: null } }) });
+    control.broadcast();
+    await until('view shown', () => byName.castCarplayView.enabled === true && byName.castCarplayView.text === 'CarPlay cluster view: map and directions');
+    await sleep(450);
+    byName.castCarplayView.emit('action');
+    await until('view map sent', () => received.some((c) => c.cmd === 'carplayView' && c.view === 'map'));
+    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { view: { wanted: 'card', title: 'directions only', offered: 'cluster', pending: 'from the phone\'s next connection' } }) });
+    control.broadcast();
+    await until('view card, pending', () => byName.castCarplayView.text === 'CarPlay cluster view: directions only (from the phone\'s next connection)');
+    await sleep(450);
+    byName.castCarplayView.emit('action');
+    await until('view cluster sent (it wraps round)', () => received.some((c) => c.cmd === 'carplayView' && c.view === 'cluster'));
+    console.log('ok   the cluster view: shows the view and when it applies; each press sends the next (map and directions -> map only -> directions only -> ...)');
     st = Object.assign({}, st, { carplay: { armed: true, ready: true, mode: 'alt', switch: { installed: true, on: true, pending: null } } });
     control.broadcast();
     await until('carplay enabled', () => byName.castCarplayMap.enabled === true && byName.castCarplayHud.enabled === true);

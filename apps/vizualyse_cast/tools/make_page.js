@@ -15,6 +15,7 @@ const C = [
     [35, 'button', 'LT_Button_1Row', 'castEnable', 3, 'Cast to cluster: on'],
     [30, 'button', 'LT_Button_1Row', 'castStop', 3, 'Stop'],
     [38, 'button', 'LT_Button_1Row', 'castCarplayOn', 3, 'CarPlay second screen: off'],
+    [39, 'button', 'LT_Button_1Row', 'castCarplayView', 3, 'CarPlay cluster view: map and directions'],
     [36, 'button', 'LT_Button_1Row', 'castCarplayMap', 3, 'CarPlay map on the cluster'],
     [37, 'button', 'LT_Button_1Row', 'castCarplayHud', 3, 'CarPlay map on the HUD'],
     [31, 'button', 'LT_Button_1Row', 'castMap', 3, 'Play last on the cluster map'],

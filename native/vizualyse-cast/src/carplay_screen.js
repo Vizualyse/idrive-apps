@@ -14,6 +14,8 @@
  *   log/status   key=value lines: screen_b, b_frames, display, fell_back, ...
  *   display      written here: the size the phone should draw at (WxH@fps),
  *                read by the hook at the phone's next connection
+ *   view         written here: which of the phone's cluster views it is asked
+ *                to show (cluster | map | card), read the same way
  *
  * Node 8 (the head unit's): no optional chaining, no object spread.
  */
@@ -32,21 +34,28 @@ const DEFAULT_PORT = 6111;
  * offers the second screen). Not full: with viewAreas the phone refused every
  * session on the car. */
 const MODES = ['off', 'alt'];
+/* The cluster views (the style) the phone is asked for, as hook111 names them
+ * in /info's initialURL: cluster = the map with the directions card, map = the
+ * map alone, card = the directions card alone. Whether the phone follows it
+ * is not yet seen on the car. */
+const VIEWS = ['cluster', 'map', 'card'];
+const VIEW_TITLES = { cluster: 'map and directions', map: 'map only', card: 'directions only' };
 
 /* What the phone is asked to draw for each target, and what the tool sends
  * on to cluster-render. The phone draws at `display`; ffmpeg scales to `w` x
  * `h` at `fps`, inside cluster-render's ~5500 KB/s upload (I420: w*h*1.5*fps):
- *   map: the cluster centre's visible band, 912x480 of its 1088x480 (`xband`);
- *        684x360 at 12 fps = 4.4 MB/s, scaled up by the renderer;
+ *   map: the cluster centre's visible band, 936x480 of its 1088x480 (`xband`);
+ *        704x360 at 12 fps = 4.6 MB/s (the width a multiple of 4: 1 px padding
+ *        each side, in the fade), scaled up by the renderer;
  *   hud: the HUD's visible band (17-83 % of 800 by 25-65 % of 480 = 528x192);
  *        the phone draws twice that, sent at the band's own size, 15 fps. */
 const TARGETS = {
     /* map: calibrated on the car (2026-11-04): the cluster's soft vignette hides
-     * the outer ~130 px each side of the 1088 target, so the phone draws 912x480,
-     * placed at x 88-1000 (widened from 864 on request: 24 px each side reach into
+     * the outer ~130 px each side of the 1088 target, so the phone draws 936x480,
+     * placed at x 76-1012 (widened from 864 on request, 24 then 12 px each side, into
      * the fade): its edges fade out, nothing of it is cut off (only the
      * vignette's rounded top corners). */
-    map: { display: { w: 912, h: 480, fps: 30 }, w: 684, h: 360, fps: 12, xband: [88 / 1088, 1000 / 1088] },
+    map: { display: { w: 936, h: 480, fps: 30 }, w: 704, h: 360, fps: 12, xband: [76 / 1088, 1012 / 1088] },
     hud: { display: { w: 1056, h: 384, fps: 30 }, w: 528, h: 192, fps: 15 },
 };
 
@@ -122,6 +131,8 @@ function state(run) {
         frames: Number(st.b_frames) || 0,
         display: st.display || null,                       /* what the phone was last offered */
         wanted: (readText(path.join(run, 'display')) || '').trim() || null,
+        view: st.view === 'default' ? 'cluster' : st.view || null,   /* the view last offered */
+        viewWanted: (readText(path.join(run, 'view')) || '').trim() || null,
     };
 }
 
@@ -141,6 +152,24 @@ function wantDisplay(output, run) {
     }
     const cur = state(run).display;
     return { wanted: want, pending: !!cur && cur !== want };
+}
+
+/* Ask for a cluster view: the hook offers it at the phone's next connection.
+ * Returns { wanted, pending } (pending: the phone was last offered another),
+ * or null when hook111's run directory isn't there (not armed this start).
+ * Throws on a view that isn't one of VIEWS. */
+function wantView(view, run) {
+    run = run || RUN;
+    if (VIEWS.indexOf(view) < 0) throw new Error('view is ' + VIEWS.join(', '));
+    if (!fs.existsSync(run)) return null;
+    const f = path.join(run, 'view');
+    if ((readText(f) || '').trim() !== view) {
+        const tmp = f + '.tmp.' + process.pid;
+        fs.writeFileSync(tmp, view + '\n', { mode: 0o644 });
+        fs.renameSync(tmp, f);
+    }
+    const cur = state(run).view;
+    return { wanted: view, pending: !!cur && cur !== view };
 }
 
 /* ffmpeg's input: listen for the hook's sink, read raw H.264 starting at
@@ -175,4 +204,4 @@ function switchState(o) {
     return { installed: true, on: saved === 'alt', saved: saved, pending: pending };
 }
 
-module.exports = { TARGETS, RUN, VAR, ARM, MODES, DEFAULT_PORT, state, savedMode, setMode, switchState, wantDisplay, inputArgs, outputArgs, readKv, displayText };
+module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, DEFAULT_PORT, state, savedMode, setMode, switchState, wantDisplay, wantView, inputArgs, outputArgs, readKv, displayText };

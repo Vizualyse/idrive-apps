@@ -28,7 +28,7 @@ ffmpeg listens again.
 
 | Output | The phone draws | Sent to cluster-render |
 |---|---|---|
-| Cluster map | 912x480, placed at x 88-1000 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side; the map reaches 24 px into it for a wider picture) | 684x360 at 12 fps, scaled up by the renderer |
+| Cluster map | 936x480, placed at x 76-1012 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side; the map reaches 36 px into it for a wider picture) | 704x360 at 12 fps (1 px padding each side), scaled up by the renderer |
 | HUD | 1056x384 (the shape of the HUD's visible band) | 528x192 at 15 fps, in the band (17-83 % of the width, 25-65 % of the height) |
 
 **The switch** (the iDrive page and the phone page, "CarPlay second screen:
@@ -45,6 +45,15 @@ The tool writes the wanted size to `/run/hook111/display`; the phone gets it
 at its next connection, and until then the stream is scaled to fit. The page
 and the iDrive page show whether hook111 is ready, and why not.
 
+**The cluster view** (the style; "CarPlay cluster view" on both pages) is one
+of map and directions (`cluster`, the default), map only (`map`) or
+directions only (`card`). It is kept in the tool's settings and written to
+`/run/hook111/view`, rewritten every 5 s in case that directory is new. hook111
+names the view to the phone as `initialURL` at its next connection. The
+commands are `{"cmd":"carplayView","view":…}` on the control socket and
+`POST /api/carplay-view` from the phone page. Experimental: whether the phone
+follows `initialURL` hasn't been seen on the car.
+
 The central-screen mirror (BMW's `winston-grabber` and the Google Maps
 layouts) was removed in 0.3.0.
 
@@ -58,8 +67,8 @@ layouts) was removed in 0.3.0.
 | `pcm_play.py` | root, mgu-python | plays the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` source |
 | `console_out.js` | root | the media console output: frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_cast` (MGVF, 3 slots), drawn by an mgu-render client in layer mode in the screen's app area |
 | `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start (while on), removed at stop, when turned off and by the tool's `deactivate` |
-| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, enable, disable, the cluster QR code |
-| `carplay_screen.js` | root | the CarPlay second screen: hook111's state, the size to ask for, ffmpeg's arguments |
+| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, hook111, carplayView, enable, disable, the cluster QR code |
+| `carplay_screen.js` | root | the CarPlay second screen: hook111's state, the size and the cluster view to ask for, ffmpeg's arguments |
 
 Frame sizes keep within cluster-render's 5500 KB/s upload ceiling: for a
 stream URL 512x288 at 15 fps on the map and 480x270 at 15 fps on the HUD,

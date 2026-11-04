@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- CarPlay cluster view: map and directions / map only / directions only.
+  Each press picks the next. The phone is asked for that view from its next
+  connection. Experimental: whether the phone follows it hasn't been seen on
+  the car yet.
+- Requires vizualyse-cast 0.3.4.
+
 ## 0.3.1
 
 - CarPlay second screen: on / off. Sets hook111's mode (alt or off) for this
