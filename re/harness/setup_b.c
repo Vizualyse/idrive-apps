@@ -1,0 +1,461 @@
+/*
+ * setup_b: hook111 driven through the unit's real libNmeCarPlay.so, off the car
+ * (re/run.sh harness-setup). Two tests:
+ *
+ *  SETUP  A SETUP request {streams:[{type:111, streamConnectionID}], features:[...]}
+ *         goes in through the library's own AirPlayReceiverSessionSetup entry
+ *         (patched to hook111). The response must carry {type:111, dataPort}
+ *         and enabledFeatures [altScreen, viewAreas]. A "phone" then connects
+ *         to that dataPort, derives the stream key itself (AirPlayStreamKey/IV:
+ *         SHA-512 of the label + connection ID + the session key), and sends
+ *         an AVCC config and AES-CTR frames: the sink must get them intact.
+ *  /info  The library's own AirPlayServerCopyProperty("displays"), fed one
+ *         display by a fake Cinemo configuration, must return the stock record
+ *         plus hook111's second one.
+ *
+ * The session object holds only what the 110 path reads (+0x10 server with
+ * its timeout at +0xac, +0x100 address family, +0x288 session key); no
+ * pairing session, so the AES-CTR key path is the one exercised.
+ */
+#include "hook111.c"
+#include "annexb.c"
+#include "sink_annexb.c"   /* built here so it stays in step with hook111.h */
+#include <arpa/inet.h>
+#include <dlfcn.h>
+#include <netinet/in.h>
+#include <openssl/evp.h>
+#include <openssl/kdf.h>
+#include <openssl/sha.h>
+#include <sys/socket.h>
+#include <time.h>
+#include <strings.h>
+
+#include <signal.h>
+#include <ucontext.h>
+
+static int fail;
+
+/* On a crash: the faulting address, RIP, and every stack word that points into
+ * the library's text, all as Ghidra addresses (a poor man's backtrace). */
+static void on_segv(int sig, siginfo_t *si, void *uc_) {
+    ucontext_t *uc = uc_;
+    uintptr_t rip = (uintptr_t)uc->uc_mcontext.gregs[REG_RIP], rsp = (uintptr_t)uc->uc_mcontext.gregs[REG_RSP];
+    uintptr_t lo = base, hi = base + 0x2a0000;
+    #define G(x) ((x) >= lo && (x) < hi ? (unsigned long)((x) - base + 0x100000) : 0ul)
+    fprintf(stderr, "*** signal %d at %p, rip %#lx (ghidra %#lx)\n", sig, si->si_addr, (unsigned long)rip, G(rip));
+    for (int i = 0; i < 160; i++) {   /* the top frames only: past the stack top faults */
+        uintptr_t w = ((uintptr_t *)rsp)[i];
+        if (G(w)) fprintf(stderr, "    [rsp+%#x] %#lx\n", i * 8, G(w));
+    }
+    _exit(139);
+}
+#define CHECK(name, cond) do { int _c = (cond); printf("%s %s\n", _c ? "ok  " : "FAIL", name); if (!_c) fail = 1; } while (0)
+
+/* ---- test sink ---- */
+static const unsigned char AVCC[] = { 0x01, 0x64, 0x00, 0x1f, 0xff, 0xe1, 0x00, 0x04, 0x67, 0x64, 0x00, 0x1f, 0x01, 0x00, 0x02, 0x68, 0xeb };
+static unsigned char got_avcc[64]; static size_t got_avcc_n;
+static int got_start, got_stop, got_frames, bad_frames;
+static unsigned char *want[16]; static size_t want_n[16];
+static void s_avcc(const uint8_t *p, size_t n) { if (n <= sizeof got_avcc) { memcpy(got_avcc, p, n); got_avcc_n = n; } }
+static void s_start(void) { got_start++; }
+static void s_stop(void) { got_stop++; }
+static void s_frame(const uint8_t *p, size_t n, uint64_t ts) {
+    (void)ts;
+    int i = got_frames++;
+    if (i >= 16 || n != want_n[i] || memcmp(p, want[i], n)) bad_frames++;
+}
+static const struct hook111_sink test_sink = { s_avcc, s_start, s_stop, s_frame };
+static const struct hook111_display test_disp = {
+    "b7e6c5a0-0000-4000-8000-000000000111", 1088, 480, 200, 88, 30, 2,
+    "maps:/car/instrumentcluster",
+    { "maps:/car/instrumentcluster", "maps:/car/instrumentcluster/map", "maps:/car/instrumentcluster/instructioncard" },
+    6031 };
+
+/* ---- the phone ---- */
+static void derive(const char *label, uint64_t cid, const unsigned char sk[16], unsigned char out[16]) {
+    char s[64]; unsigned char h[64];
+    int n = snprintf(s, sizeof s, "%s%llu", label, (unsigned long long)cid);
+    SHA512_CTX c; SHA512_Init(&c); SHA512_Update(&c, s, (size_t)n); SHA512_Update(&c, sk, 16); SHA512_Final(h, &c);
+    memcpy(out, h, 16);
+}
+static void hdr(unsigned char h[128], uint32_t size, uint8_t op, uint64_t ts) {
+    memset(h, 0, 128); memcpy(h, &size, 4); h[4] = op; memcpy(h + 8, &ts, 8);
+    float w = 1088, hh = 480; if (op == 1) { memcpy(h + 0x10, &w, 4); memcpy(h + 0x14, &hh, 4); }
+}
+static void send_all(int fd, const void *p, size_t n) { const char *c = p; while (n) { ssize_t k = send(fd, c, n, MSG_NOSIGNAL); if (k <= 0) return; c += k; n -= (size_t)k; } }
+
+static int phone_hold(int port, uint64_t cid, const unsigned char sk[16], int frames, int hold) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+    if (connect(fd, (struct sockaddr *)&a, sizeof a) != 0) { perror("phone connect"); return -1; }
+    unsigned char key[16], iv[16], h[128];
+    derive("AirPlayStreamKey", cid, sk, key);
+    derive("AirPlayStreamIV", cid, sk, iv);
+    hdr(h, sizeof AVCC, 1, 0); send_all(fd, h, 128); send_all(fd, AVCC, sizeof AVCC);
+    EVP_CIPHER_CTX *e = EVP_CIPHER_CTX_new();
+    EVP_EncryptInit_ex(e, EVP_aes_128_ctr(), NULL, key, iv);
+    for (int i = 0; i < frames; i++) {
+        size_t n = 4 + 29 + (size_t)i * 77;
+        unsigned char *p = malloc(n), *w = malloc(n); int ol;
+        uint32_t nal = (uint32_t)(n - 4);
+        p[0] = nal >> 24; p[1] = nal >> 16; p[2] = nal >> 8; p[3] = nal;
+        for (size_t k = 4; k < n; k++) p[k] = (unsigned char)(k * 13 + i);
+        want[i] = p; want_n[i] = n;
+        EVP_EncryptUpdate(e, w, &ol, p, (int)n);
+        hdr(h, (uint32_t)n, 0, 1000ull * (uint64_t)(i + 1)); send_all(fd, h, 128); send_all(fd, w, n);
+        free(w);
+    }
+    EVP_CIPHER_CTX_free(e);
+    if (hold) { char c; while (recv(fd, &c, 1, 0) > 0) {} }   /* until the receiver closes */
+    else usleep(200000);
+    shutdown(fd, SHUT_RDWR); close(fd);
+    return 0;
+}
+static int phone(int port, uint64_t cid, const unsigned char sk[16], int frames) { return phone_hold(port, cid, sk, frames, 0); }
+
+/* the pair-verify path: the phone derives the stream key from the pairing's
+ * shared secret (HKDF-SHA512, salt "DataStream-Salt<connID>", info
+ * "DataStream-Output-Encryption-Key") and sends ChaCha20-Poly1305 frames */
+static int phone_chacha(int port, uint64_t cid, const unsigned char secret[32], int frames) {
+    unsigned char key[32]; size_t kl = 32; char salt[64];
+    int sn = snprintf(salt, sizeof salt, "DataStream-Salt%llu", (unsigned long long)cid);
+    EVP_PKEY_CTX *k = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    EVP_PKEY_derive_init(k);
+    EVP_PKEY_CTX_set_hkdf_md(k, EVP_sha512());
+    EVP_PKEY_CTX_set1_hkdf_salt(k, (unsigned char *)salt, sn);
+    EVP_PKEY_CTX_set1_hkdf_key(k, secret, 32);
+    EVP_PKEY_CTX_add1_hkdf_info(k, (unsigned char *)"DataStream-Output-Encryption-Key", 32);
+    int ok = EVP_PKEY_derive(k, key, &kl) == 1;
+    EVP_PKEY_CTX_free(k);
+    if (!ok) return -1;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+    if (connect(fd, (struct sockaddr *)&a, sizeof a) != 0) { perror("phone connect"); return -1; }
+    unsigned char h[128];
+    hdr(h, sizeof AVCC, 1, 0); send_all(fd, h, 128); send_all(fd, AVCC, sizeof AVCC);
+    for (int i = 0; i < frames; i++) {
+        size_t n = 4 + 41 + (size_t)i * 63;
+        unsigned char *p = malloc(n), *w = malloc(n + 16); int ol;
+        uint32_t nal = (uint32_t)(n - 4);
+        p[0] = nal >> 24; p[1] = nal >> 16; p[2] = nal >> 8; p[3] = nal;
+        for (size_t q = 4; q < n; q++) p[q] = (unsigned char)(q * 5 + i);
+        want[i] = p; want_n[i] = n;
+        unsigned char nonce[12] = {0}; uint64_t ctr = (uint64_t)i; memcpy(nonce + 4, &ctr, 8);
+        hdr(h, (uint32_t)(n + 16), 0, 1000ull * (uint64_t)(i + 1));
+        EVP_CIPHER_CTX *c = EVP_CIPHER_CTX_new();
+        EVP_EncryptInit_ex(c, EVP_chacha20_poly1305(), NULL, NULL, NULL);
+        EVP_CIPHER_CTX_ctrl(c, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL);
+        EVP_EncryptInit_ex(c, NULL, NULL, key, nonce);
+        EVP_EncryptUpdate(c, NULL, &ol, h, 128);
+        EVP_EncryptUpdate(c, w, &ol, p, (int)n);
+        EVP_EncryptFinal_ex(c, w + ol, &ol);
+        EVP_CIPHER_CTX_ctrl(c, EVP_CTRL_AEAD_GET_TAG, 16, w + n);
+        EVP_CIPHER_CTX_free(c);
+        send_all(fd, h, 128); send_all(fd, w, n + 16);
+        free(w);
+    }
+    memset(key, 0, sizeof key);
+    usleep(200000);
+    shutdown(fd, SHUT_RDWR); close(fd);
+    return 0;
+}
+
+/* the phone's end of the events connection: one HTTP-style request
+ * (request line, headers, Content-Length body), answered 200 */
+static int read_request(int fd, char *line, size_t nline, unsigned char **body, size_t *nbody, char *ctype, size_t nctype) {
+    char buf[8192]; size_t n = 0; char *end = NULL;
+    struct timeval tv = { 3, 0 }; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    while (!(end = memmem(buf, n, "\r\n\r\n", 4))) {
+        if (n == sizeof buf) return -1;
+        ssize_t k = recv(fd, buf + n, sizeof buf - n, 0);
+        if (k <= 0) return -1;
+        n += (size_t)k;
+    }
+    size_t hl = (size_t)(end - buf) + 4;
+    char *eol = memmem(buf, hl, "\r\n", 2);
+    snprintf(line, nline, "%.*s", (int)(eol - buf), buf);
+    size_t clen = 0; char cseq[32] = "";
+    for (char *h = eol + 2; h < end; ) {
+        char *e = memmem(h, (size_t)(end + 2 - h), "\r\n", 2);
+        if (!strncasecmp(h, "Content-Length:", 15)) clen = strtoul(h + 15, NULL, 10);
+        if (!strncasecmp(h, "Content-Type:", 13)) snprintf(ctype, nctype, "%.*s", (int)(e - h - 14), h + 14);
+        if (!strncasecmp(h, "CSeq:", 5)) snprintf(cseq, sizeof cseq, "%.*s", (int)(e - h - 6), h + 6);
+        h = e + 2;
+    }
+    *body = malloc(clen + 1); *nbody = clen;
+    size_t have = n - hl < clen ? n - hl : clen;
+    memcpy(*body, buf + hl, have);
+    while (have < clen) { ssize_t k = recv(fd, *body + have, clen - have, 0); if (k <= 0) return -1; have += (size_t)k; }
+    char ok[128];
+    int m = snprintf(ok, sizeof ok, "RTSP/1.0 200 OK\r\nCSeq: %s\r\nContent-Length: 0\r\n\r\n", cseq[0] ? cseq : "0");
+    send_all(fd, ok, (size_t)m);
+    return 0;
+}
+
+static void sink_reset(void) {
+    got_avcc_n = 0; got_start = got_stop = got_frames = bad_frames = 0;
+    for (int i = 0; i < 16; i++) { free(want[i]); want[i] = NULL; }
+}
+struct phone_args { int port; uint64_t cid; const unsigned char *sk; int frames; };
+static void *phone_thread(void *a_) { struct phone_args *a = a_; phone_hold(a->port, a->cid, a->sk, a->frames, 1); return NULL; }
+static double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (double)t.tv_sec + t.tv_nsec / 1e9; }
+static int port_free(int port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0), one = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port) };
+    int ok = bind(fd, (struct sockaddr *)&a, sizeof a) == 0;
+    close(fd);
+    return ok;
+}
+
+/* ---- a fake Cinemo configuration with one "displays" item ---- */
+/* the caller's stack buffer in the list builder (0x10c050): exactly 0x48 bytes,
+ * its stack canary right after (local_88 .. local_48) */
+struct item { char name[40]; int type; int pad0; uint32_t id; int pad1; uint32_t arg; int pad2; uint64_t len; };
+_Static_assert(sizeof(struct item) == 0x48, "config item layout");
+static const char *DISPLAY_URL =
+    "?uuid=11111111-2222-3333-4444-555555555555&widthPixels=1280&heightPixels=480"
+    "&widthPhysical=300&heightPhysical=112&maxFPS=60&features=2&primaryInputDevice=1";
+static long p_noop(void *t) { (void)t; return 0; }
+static unsigned long p_count(void *t) { (void)t; return 1; }
+static int p_get(void *t, unsigned long idx, struct item *it) {
+    (void)t;
+    if (idx != 1) return -1;
+    memset(it, 0, sizeof *it);
+    strcpy(it->name, "displays"); it->type = 1; it->id = 1; it->len = strlen(DISPLAY_URL) + 1;
+    return 0;
+}
+static int p_read(void *t, void *buf, uint32_t id, int z, unsigned long len) {
+    (void)t; (void)z;
+    if (id != 1 || !buf) return -1;
+    memcpy(buf, DISPLAY_URL, len < strlen(DISPLAY_URL) + 1 ? len : strlen(DISPLAY_URL) + 1);
+    return 0;
+}
+static void *vtable[16];
+static struct { void **vt; } provider = { vtable };
+
+static void dump_display(CF d, const char *label) {
+    static const struct { const char *n; uintptr_t k; } keys[] = {
+        {"widthPixels", 0x1a0af4}, {"heightPixels", 0x1a0ac8}, {"widthPhysical", 0x1a0b08},
+        {"heightPhysical", 0x1a0add}, {"maxFPS", 0x1a0ab9}, {"features", 0x1a0aa8}, {"primaryInputDevice", 0x1a0b1e} };
+    printf("  %s:", label);
+    for (unsigned i = 0; i < sizeof keys / sizeof *keys; i++) {
+        int e = 0; int64_t v = CFDictGetI64(d, AT(keys[i].k), &e);
+        if (!e) printf(" %s=%lld", keys[i].n, (long long)v);
+    }
+    printf("\n");
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) { fprintf(stderr, "usage: %s <libNmeCarPlay.so>\n", argv[0]); return 2; }
+    setvbuf(stdout, NULL, _IONBF, 0);
+    if (!dlopen(argv[1], RTLD_NOW | RTLD_GLOBAL)) { fprintf(stderr, "dlopen: %s\n", dlerror()); return 2; }
+    uintptr_t b = hook111_find();
+    CHECK("library is the expected build", b != 0);
+    if (!b) return 1;
+    CHECK("hook installs (all prologues as expected)", hook111_install(b, &test_sink, &test_disp) == 0);
+    struct sigaction sa = { .sa_sigaction = on_segv, .sa_flags = SA_SIGINFO };
+    sigaction(SIGSEGV, &sa, NULL); sigaction(SIGBUS, &sa, NULL);
+    sigaction(SIGALRM, &sa, NULL);   /* the watchdog: a hang dumps the same way */
+    alarm(60);
+
+    /* ---------- SETUP ---------- */
+    unsigned char *server = calloc(1, 0x200);
+    *(int *)(server + 0xac) = 5;                       /* screen timeout, seconds */
+    unsigned char *session = calloc(1, 0x1d00);
+    *(void **)(session + 0x10) = server;
+    *(uint16_t *)(session + 0x100) = AF_INET;
+    unsigned char sk[16];
+    for (int i = 0; i < 16; i++) sk[i] = (unsigned char)(0x5a ^ (i * 11));
+    memcpy(session + 0x288, sk, 16);
+    /* what the session constructor (0x17e0f0) sets: no sockets yet, +0x490 = 1.
+     * With fd 0 at +0x1b68 the idle transition (0x17c0e0) thinks keep-alive is
+     * running and walks the null +0x18. */
+    *(uint16_t *)(session + 0x490) = 1;
+    static const int fds32[] = { 0x488, 0x1b68, 0x1b70, 0x1adc, 0x1b20, 0x1b50, 0x1cd8 };
+    for (unsigned i = 0; i < sizeof fds32 / sizeof *fds32; i++) *(int *)(session + fds32[i]) = -1;
+    *(int64_t *)(session + 0x4c0) = -1;
+    *(int64_t *)(session + 0xdd8) = -1;
+    /* Cinemo's platform object (setUpStreams, 0x173a30 / 0x172ba0): with no
+     * audio stream in the request it is only read, and zero means "none" */
+    *(void **)(session + 0x20) = calloc(1, 0x200);
+
+    const uint64_t cid = 6644744161078495396ull;       /* the size the phone uses */
+    CF req = CFDictCreate(), streams = CFArrayCreate(), st = CFDictCreate(), feats = CFArrayCreate(), s;
+    CFDictSetI64(st, K_TYPE, 111);
+    CFDictSetI64(st, K_CONNID, (int64_t)cid);
+    CFArrayAppend(streams, st);
+    CFDictSet(req, K_STREAMS, streams);
+    const char *offered[] = { "uiContext", "viewAreas", "altScreen", "hevc" };
+    for (int i = 0; i < 4; i++) { s = CFStr(offered[i]); CFArrayAppend(feats, s); CFRelease(s); }
+    CFDictSet(req, K_FEATURES, feats);
+
+    CF resp = NULL;
+    int rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);   /* the library's own entry */
+    CHECK("SETUP returns 0", rc == 0);
+    CHECK("SETUP produced a response", resp != NULL);
+    int err = 0, port = 0;
+    CF rs = resp ? CFDictGetTyped(resp, K_STREAMS, CFArrayTypeID(), &err) : NULL;
+    if (rs && CFArrayCount(rs) > 0) {
+        CF e0 = CFArrayAt(rs, 0);
+        int64_t t = CFDictGetI64(e0, K_TYPE, &err);
+        port = (int)CFDictGetI64(e0, K_DATAPORT, &err);
+        printf("  response streams[0]: type=%lld dataPort=%d\n", (long long)t, port);
+        CHECK("response stream is type 111", t == 111);
+    } else CHECK("response has a streams entry", 0);
+    CHECK("dataPort is the requested one (6031)", port == 6031);
+    CF ef = resp ? CFDictGetTyped(resp, CFStr("enabledFeatures"), CFArrayTypeID(), &err) : NULL;
+    int has_alt = 0, has_va = 0, n_ef = ef ? CFArrayCount(ef) : 0;
+    if (ef) { has_alt = CFArrayIndexOf(ef, CFStr("altScreen")) >= 0; has_va = CFArrayIndexOf(ef, CFStr("viewAreas")) >= 0; }
+    CHECK("enabledFeatures = [altScreen, viewAreas]", n_ef == 2 && has_alt && has_va);
+
+    if (port > 0) phone(port, cid, sk, 10);
+    for (int i = 0; i < 100 && !hook111_stats.pump_done; i++) usleep(50000);
+    printf("  screen B: accepted=%d pump rc=%d\n", hook111_stats.accepted, hook111_stats.pump_rc);
+    CHECK("phone connection accepted on the dataPort", hook111_stats.accepted == 1);
+    CHECK("sink got the AVCC", got_avcc_n == sizeof AVCC && !memcmp(got_avcc, AVCC, sizeof AVCC));
+    CHECK("sink got 10/10 frames, byte-exact (key derived from streamConnectionID)", got_frames == 10 && bad_frames == 0);
+    CHECK("stream started and stopped", got_start == 1 && got_stop == 1);
+
+    /* ---------- lifecycle: repeat SETUP, TEARDOWN {111}, full TEARDOWN ---------- */
+    void (*teardown)(void *, CF, int, void *) = FN(void (*)(void *, CF, int, void *), 0x17e840);  /* the library's own entry */
+    CF req111 = CFDictCreate(), streams111 = CFArrayCreate(), st111 = CFDictCreate();
+    CFDictSetI64(st111, K_TYPE, 111);
+    CFArrayAppend(streams111, st111);
+    CFDictSet(req111, K_STREAMS, streams111);
+
+    /* 1. a repeat SETUP while the first screen B still exists (its stream ended) */
+    sink_reset();
+    const uint64_t cid2 = 1234567890123ull;
+    CFDictSetI64(st, K_CONNID, (int64_t)cid2);
+    resp = NULL;
+    rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);
+    port = 0;
+    rs = resp ? CFDictGetTyped(resp, K_STREAMS, CFArrayTypeID(), &err) : NULL;
+    if (rs && CFArrayCount(rs) > 0) port = (int)CFDictGetI64(CFArrayAt(rs, 0), K_DATAPORT, &err);
+    CHECK("repeat SETUP: the old screen B torn down first", hook111_stats.teardowns == 1);
+    CHECK("repeat SETUP: port 6031 again (old listener closed)", rc == 0 && port == 6031);
+
+    /* 2. TEARDOWN {streams:[{type:111}]} mid-stream, the phone holding the connection */
+    pthread_t pt;
+    struct phone_args pa = { port, cid2, sk, 5 };
+    pthread_create(&pt, NULL, phone_thread, &pa);
+    for (int i = 0; i < 100 && got_frames < 5; i++) usleep(20000);
+    CHECK("second stream: 5/5 frames byte-exact (new key)", got_frames == 5 && bad_frames == 0);
+    double t0 = now_s();
+    teardown(session, req111, 0, NULL);
+    double dt = now_s() - t0;
+    pthread_join(pt, NULL);
+    printf("  TEARDOWN {111} mid-stream took %.3f s\n", dt);
+    CHECK("TEARDOWN {111}: screen B down, promptly", hook111_stats.teardowns == 2 && dt < 1.0);
+    CHECK("TEARDOWN {111}: sink stopped, phone's connection closed", got_stop == 1);
+    CHECK("TEARDOWN {111}: port 6031 free", port_free(6031));
+
+    /* 3. full TEARDOWN (the connection closing) while screen B waits in accept */
+    sink_reset();
+    CFDictSetI64(st, K_CONNID, (int64_t)cid);
+    resp = NULL;
+    rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);
+    CHECK("third SETUP returns 0", rc == 0 && hook111_stats.setups_111 == 3);
+    t0 = now_s();
+    teardown(session, NULL, 0, NULL);
+    dt = now_s() - t0;
+    printf("  full TEARDOWN, screen B in accept, took %.3f s\n", dt);
+    CHECK("full TEARDOWN: screen B down without waiting out accept", hook111_stats.teardowns == 3 && dt < 1.0);
+    CHECK("full TEARDOWN: port 6031 free", port_free(6031));
+
+    /* 4. the pair-verify key path: a PairingSession at session+0x498 as
+     * 0x15b260 reads it (+0x48 type 3 = verify server, +0x60 state 5 = done,
+     * +0x1ba the 32-byte shared secret) */
+    sink_reset();
+    unsigned char *pairing = calloc(1, 0x400), secret[32];
+    for (int i = 0; i < 32; i++) secret[i] = (unsigned char)(0xa5 ^ (i * 29));
+    *(int *)(pairing + 0x48) = 3; pairing[0x60] = 5; memcpy(pairing + 0x1ba, secret, 32);
+    *(void **)(session + 0x498) = pairing;
+    const uint64_t cid3 = 9988776655443322110ull;
+    CFDictSetI64(st, K_CONNID, (int64_t)cid3);
+    resp = NULL; port = 0;
+    rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);
+    rs = resp ? CFDictGetTyped(resp, K_STREAMS, CFArrayTypeID(), &err) : NULL;
+    if (rs && CFArrayCount(rs) > 0) port = (int)CFDictGetI64(CFArrayAt(rs, 0), K_DATAPORT, &err);
+    CHECK("pair-verify SETUP: 111 on 6031", rc == 0 && port == 6031);
+    if (port > 0) phone_chacha(port, cid3, secret, 8);
+    for (int i = 0; i < 100 && !hook111_stats.pump_done; i++) usleep(20000);
+    printf("  pair-verify: frames %d, bad %d, pump rc %d\n", got_frames, bad_frames, hook111_stats.pump_rc);
+    CHECK("pair-verify: AVCC + 8/8 ChaCha20-Poly1305 frames byte-exact (HKDF key from connID)",
+          got_avcc_n == sizeof AVCC && got_frames == 8 && bad_frames == 0);
+    teardown(session, req111, 0, NULL);
+    CHECK("pair-verify: torn down", hook111_stats.teardowns == 4);
+    *(void **)(session + 0x498) = NULL;   /* ours, not a CF object: keep it from the stock teardown */
+
+    /* 5. suggestUI from the phone -> showUI back on the events connection.
+     * The events side as the constructor (0x17e0f0) and _ControlStart (0x17ec00)
+     * set it up: queues at +8 and +0x468, a timer at +0x480, then an HTTP
+     * client on the accepted events socket at +0x470 (here a socketpair), +0x466 */
+    void *(*queue_create)(const char *, void *) = FN(void *(*)(const char *, void *), 0x148110);
+    void *evq = queue_create("AirPlayReceiverSessionEventQueue", NULL);
+    *(void **)(session + 0x468) = evq;
+    if (!*(void **)(session + 8)) *(void **)(session + 8) = queue_create("hook111-test-session", NULL);
+    *(void **)(session + 0x480) = FN(void *(*)(int, long, long, void *), 0x146240)(2, 0, 0, evq);
+    CHECK("showUI before the events connection: refused (-6709)", hook111_send_command(session, "showUI", NULL) == -6709);
+    int sv[2];
+    socketpair(AF_UNIX, SOCK_STREAM, 0, sv);
+    rc = FN(int (*)(void *, int), 0x14a040)(session + 0x470, sv[0]);
+    FN(void (*)(void *, void *), 0x14a1b0)(*(void **)(session + 0x470), evq);
+    FN(void (*)(void *), 0x14a230)(*(void **)(session + 0x470));
+    *(char *)(session + 0x466) = 1;
+    CHECK("events connection up (library HTTP client)", rc == 0 && *(void **)(session + 0x470));
+    CF sparams = CFDictCreate(), surl = CFStr("maps:/car/instrumentcluster/map"), sresp = NULL;
+    CFDictSet(sparams, K_URL, surl);
+    CF scmd = CFStr("suggestUI");
+    rc = FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, scmd, NULL, sparams, &sresp);   /* as /command does */
+    CHECK("suggestUI accepted (0)", rc == 0 && hook111_stats.suggest_ui == 1);
+    char line[256] = "", ctype[128] = ""; unsigned char *body = NULL; size_t nbody = 0;
+    int got = read_request(sv[1], line, sizeof line, &body, &nbody, ctype, sizeof ctype);
+    printf("  phone got: \"%s\", %s, %zu bytes\n", line, ctype, nbody);
+    CHECK("phone got POST /command, a binary plist", got == 0 && !strncmp(line, "POST /command", 13) && !strcmp(ctype, "application/x-apple-binary-plist"));
+    int perr2 = 0;
+    CF cmd = got == 0 ? FN(CF (*)(const void *, size_t, int *), 0x13a550)(body, nbody, &perr2) : NULL;
+    CF ctyp = cmd ? CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err) : NULL;
+    CF cpar = cmd ? CFDictGetTyped(cmd, K_PARAMS, CFDictTypeID(), &err) : NULL;
+    CF showui = CFStr("showUI"), uuid = CFStr(test_disp.uuid);
+    CHECK("command is showUI", ctyp && CFEqual(ctyp, showui));
+    CHECK("showUI params: the suggested url and screen B's uuid",
+          cpar && CFEqual(CFDictGetTyped(cpar, K_URL, CFStrTypeID(), &err), surl) && CFEqual(CFDictGetTyped(cpar, K_UUID, CFStrTypeID(), &err), uuid));
+    /* forceKeyFrame for screen B, rate-limited */
+    resp = NULL;
+    rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);
+    int kr1 = hook111_request_keyframe(), kr2 = hook111_request_keyframe();
+    free(body); body = NULL;
+    got = read_request(sv[1], line, sizeof line, &body, &nbody, ctype, sizeof ctype);
+    cmd = got == 0 ? FN(CF (*)(const void *, size_t, int *), 0x13a550)(body, nbody, &perr2) : NULL;
+    ctyp = cmd ? CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err) : NULL;
+    CF fkf = CFStr("forceKeyFrame");
+    CHECK("keyframe request: forceKeyFrame reaches the phone", rc == 0 && kr1 == 0 && ctyp && CFEqual(ctyp, fkf));
+    CHECK("keyframe request: a second within the second is refused", kr2 == -6721 && hook111_stats.keyframe_requests == 1);
+    teardown(session, req111, 0, NULL);
+    CHECK("other commands still reach the stock code", FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, CFStr("noSuchCommand"), NULL, NULL, &sresp) != 0);
+
+    /* ---------- /info ---------- */
+    for (int i = 0; i < 16; i++) vtable[i] = (void *)p_noop;
+    vtable[0x28 / 8] = (void *)p_count; vtable[0x30 / 8] = (void *)p_get; vtable[0x40 / 8] = (void *)p_read;
+    unsigned char *cfg = calloc(1, 0x1000);
+    pthread_mutex_init((pthread_mutex_t *)(cfg + 0x8e8), NULL);
+    *(void **)(cfg + 0x818) = &provider;
+    int perr = 0;
+    CF displays = FN(CF (*)(void *, CF, void *, int *, void *), 0x10d270)(NULL, K_DISPLAYS, NULL, &perr, cfg);
+    int nd = displays && CFTypeOf(displays) == CFArrayTypeID() ? CFArrayCount(displays) : -1;
+    printf("  /info displays: %d record(s), err %d\n", nd, perr);
+    if (nd >= 1) dump_display(CFArrayAt(displays, 0), "[0] stock, from the configuration");
+    if (nd >= 2) dump_display(CFArrayAt(displays, 1), "[1] hook111");
+    CHECK("/info displays has the stock record and hook111's", nd == 2);
+    if (nd == 2) {
+        CF d1 = CFArrayAt(displays, 1);
+        int e = 0;
+        CHECK("second record: 1088x480, features 2", CFDictGetI64(d1, K_WPX, &e) == 1088 && CFDictGetI64(d1, K_HPX, &e) == 480 && CFDictGetI64(d1, K_FEATURES, &e) == 2 && !e);
+        CF urls = CFDictGetTyped(d1, CFStr("altScreenSuggestUIURLs"), CFArrayTypeID(), &e);
+        CHECK("second record: 3 altScreenSuggestUIURLs", urls && CFArrayCount(urls) == 3);
+    }
+    printf("%s\n", fail ? "FAIL" : "PASS");
+    return fail;
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=hook111: mark this start healthy once carplay has run 60 s with the hook
+RequiresMountsFor=/var/opt
+After=hook111-arm.service carplay.service
+
+[Service]
+Type=simple
+# Reads systemctl and /proc/<carplay>/maps once a second, writes its state
+# once, and exits (at the latest after 15 min). Never touches carplay.
+ExecStart=-/bin/sh /var/opt/hook111/current/hook111-arm.sh health
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,180 @@
+/* annexb: see annexb.h */
+#include "annexb.h"
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <time.h>
+#include <unistd.h>
+
+#ifdef ANNEXB_PROFILE   /* test builds only: where a call's time goes */
+#include <time.h>
+double annexb_prof[4];  /* connect, grow, copy, send (seconds, last call) */
+static double prof_now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (double)t.tv_sec + t.tv_nsec / 1e9; }
+#define PROF(i, stmt) do { double _t = prof_now(); stmt; annexb_prof[i] = prof_now() - _t; } while (0)
+#else
+#define PROF(i, stmt) do { stmt; } while (0)
+#endif
+
+#define BUSY_LIMIT 30   /* frames dropped behind one unsent tail before the consumer is given up */
+/* A non-blocking connect on loopback runs the handshake in the caller's kernel
+ * context: under 1 ms normally, but 29 ms was seen once (WSL2) on a reconnect
+ * while the old connection drained. So at most one attempt per interval. */
+#define RETRY_NS 500000000LL
+/* The send buffer bounds the latency: loopback auto-tunes it to megabytes,
+ * i.e. seconds of stale map queued for the cluster. A few frames' worth, then
+ * frames drop instead (the kernel doubles this value). */
+#define SNDBUF (256 * 1024)
+
+static long long mono_ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (long long)t.tv_sec * 1000000000LL + t.tv_nsec; }
+
+static const uint8_t START[4] = { 0, 0, 0, 1 };
+
+void annexb_init(struct annexb *a, uint16_t port) {
+    memset(a, 0, sizeof *a);
+    a->port = port; a->fd = -1; a->need_idr = 1;
+}
+
+static void drop_conn(struct annexb *a) {
+    if (a->fd >= 0) close(a->fd);
+    a->fd = -1; a->pend_n = 0; a->busy_frames = 0; a->need_idr = 1;
+}
+
+void annexb_close(struct annexb *a) {
+    drop_conn(a);
+    free(a->hdr); free(a->out); free(a->pend);
+    a->hdr = a->out = a->pend = NULL; a->hdr_n = a->out_cap = a->pend_cap = 0;
+}
+
+void annexb_reset(struct annexb *a) { a->need_idr = 1; }
+
+static int grow(uint8_t **b, size_t *cap, size_t need) {
+    if (need <= *cap) return 0;
+    size_t c = *cap ? *cap : 4096;
+    while (c < need) c *= 2;
+    uint8_t *n = realloc(*b, c);
+    if (!n) return -1;
+    *b = n; *cap = c;
+    return 0;
+}
+
+int annexb_avcc(struct annexb *a, const uint8_t *p, size_t n) {
+    free(a->hdr); a->hdr = NULL; a->hdr_n = 0; a->nal_len_size = 0; a->need_idr = 1;
+    if (n < 7 || p[0] != 1) goto bad;
+    int len_size = (p[4] & 3) + 1;
+    if (len_size == 3) goto bad;
+    size_t cap = 0, i = 5;
+    uint8_t *h = NULL; size_t hn = 0;
+    for (int set = 0; set < 2; set++) {           /* SPS, then PPS */
+        if (i >= n) { free(h); goto bad; }
+        unsigned count = set == 0 ? (p[i] & 0x1f) : p[i];
+        i++;
+        for (unsigned k = 0; k < count; k++) {
+            if (i + 2 > n) { free(h); goto bad; }
+            size_t l = ((size_t)p[i] << 8) | p[i + 1];
+            i += 2;
+            if (l == 0 || i + l > n || grow(&h, &cap, hn + 4 + l)) { free(h); goto bad; }
+            memcpy(h + hn, START, 4); memcpy(h + hn + 4, p + i, l);
+            hn += 4 + l; i += l;
+        }
+    }
+    if (hn == 0) { free(h); goto bad; }
+    a->hdr = h; a->hdr_n = hn; a->nal_len_size = len_size;
+    return 0;
+bad:
+    a->st.bad_input++;
+    return -1;
+}
+
+static int try_connect(struct annexb *a) {
+    long long now = mono_ns();
+    if (a->next_try && now < a->next_try) return -1;
+    a->next_try = now + RETRY_NS;
+    int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (fd < 0) return -1;
+    struct sockaddr_in sa = { .sin_family = AF_INET, .sin_port = htons(a->port), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+    /* loopback: a non-blocking connect either succeeds at once, is refused at
+     * once, or is in progress for the time the kernel takes; never wait */
+    if (connect(fd, (struct sockaddr *)&sa, sizeof sa) != 0 && errno != EINPROGRESS) { close(fd); return -1; }
+    int one = 1, sb = SNDBUF;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sb, sizeof sb);
+    a->fd = fd; a->live = 0;   /* counted in connects once a byte goes through */
+    return 0;
+}
+
+/* send what it takes now; the rest becomes the pending tail */
+static int send_some(struct annexb *a, const uint8_t *p, size_t n) {
+    size_t off = 0;
+    while (off < n) {
+        ssize_t k = send(a->fd, p + off, n - off, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (k > 0) { off += (size_t)k; a->st.bytes_out += (unsigned long)k; if (!a->live) { a->live = 1; a->st.connects++; } continue; }
+        if (k < 0 && errno == EINTR) continue;
+        if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN)) break;  /* ENOTCONN: connect in progress */
+        drop_conn(a);                              /* EPIPE, ECONNRESET, refused, ... */
+        return -1;
+    }
+    if (off < n) {
+        if (grow(&a->pend, &a->pend_cap, n - off)) { drop_conn(a); return -1; }
+        memmove(a->pend, p + off, n - off);       /* p may be a->pend itself */
+        a->pend_n = n - off;
+    } else a->pend_n = 0;
+    return 0;
+}
+
+int annexb_frame(struct annexb *a, const uint8_t *p, size_t n) {
+    a->st.frames_in++;
+    if (!a->nal_len_size) { a->st.dropped++; return 0; }       /* no config yet */
+    /* walk the NAL units: bounds, and whether this is an IDR */
+    int idr = 0; size_t i = 0, nals = 0, payload = 0;
+    while (i < n) {
+        if (i + (size_t)a->nal_len_size > n) goto bad;
+        size_t l = 0;
+        for (int k = 0; k < a->nal_len_size; k++) l = (l << 8) | p[i + k];
+        i += (size_t)a->nal_len_size;
+        if (l == 0 || l > n - i) goto bad;
+        if ((p[i] & 0x1f) == 5) idr = 1;
+        nals++; payload += l; i += l;
+    }
+    if (nals == 0) goto bad;
+
+    /* a tail from the last frame first: the stream must stay whole */
+    if (a->fd >= 0 && a->pend_n) {
+        if (send_some(a, a->pend, a->pend_n) == 0 && a->pend_n) {
+            a->need_idr = 1; a->st.dropped++;
+            if (++a->busy_frames >= BUSY_LIMIT) drop_conn(a);   /* the consumer has stopped reading */
+            return 0;
+        }
+        a->busy_frames = 0;
+    }
+    int conn_rc = 0;
+    if (a->fd < 0) PROF(0, conn_rc = try_connect(a));
+    if (a->fd < 0 || conn_rc != 0) { a->st.dropped++; return 0; }
+    if (a->need_idr && !idr) { a->st.dropped++; a->want_keyframe = 1; return 0; }
+
+    size_t total = (idr ? a->hdr_n : 0) + payload + 4 * nals, o = 0;
+    int grow_rc;
+    PROF(1, grow_rc = grow(&a->out, &a->out_cap, total));
+    if (grow_rc) { a->st.dropped++; return 0; }
+    if (idr) { memcpy(a->out, a->hdr, a->hdr_n); o = a->hdr_n; }
+    for (i = 0; i < n; ) {
+        size_t l = 0;
+        for (int k = 0; k < a->nal_len_size; k++) l = (l << 8) | p[i + k];
+        i += (size_t)a->nal_len_size;
+        memcpy(a->out + o, START, 4); memcpy(a->out + o + 4, p + i, l);
+        o += 4 + l; i += l;
+    }
+    int send_rc;
+    PROF(3, send_rc = send_some(a, a->out, o));
+    if (send_rc != 0) { a->st.dropped++; return 0; }
+    a->need_idr = 0;
+    a->st.frames_out++;
+    return 1;
+bad:
+    a->st.bad_input++;
+    return -1;
+}

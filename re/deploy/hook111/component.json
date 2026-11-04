@@ -1,0 +1,30 @@
+{
+  "id": "hook111",
+  "kind": "tool",
+  "version": "0.0.1",
+  "title": "CarPlay cluster map (stream 111)",
+  "description": "DRAFT, not tested on a car: preloads a hook into carplay 20.40.2 that adds CarPlay's alternate screen (stream 111) and sends it as H.264 to 127.0.0.1:6111. Armed per start; off after two failed starts.",
+  "requires": {
+    "mgu-deploy": "0.7.0"
+  },
+  "uninstallable": true,
+  "mguHmi": ["ID7"],
+  "build": ["sh", "build.sh"],
+  "files": [
+    { "path": "libhook111.so", "from": "build/libhook111.so", "mode": "0644" },
+    { "path": "hook111-arm.sh", "from": "hook111-arm.sh", "mode": "0755" }
+  ],
+  "units": [
+    { "name": "hook111-arm.service", "from": "systemd/hook111-arm.service" },
+    { "name": "hook111-health.service", "from": "systemd/hook111-health.service" }
+  ],
+  "enable": [
+    { "unit": "hook111-arm.service", "target": "multi-user.target" },
+    { "unit": "hook111-health.service", "target": "multi-user.target" }
+  ],
+  "dropins": [
+    { "unit": "carplay.service", "name": "50-hook111.conf", "from": "systemd/carplay.service.d/50-hook111.conf" },
+    { "unit": "var-opt-ro.service", "name": "50-hook111.conf", "from": "systemd/var-opt-ro.service.d/50-hook111.conf" }
+  ],
+  "recmgr": ["hook111-arm", "hook111-health"]
+}

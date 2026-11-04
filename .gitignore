@@ -3,6 +3,10 @@ node_modules/
 
 # builds: native/*/build/, the app's packages, release.js output
 native/*/build/
+re/deploy/*/build/
 *.tgz
 release/out/
 release/published/
+
+# reverse engineering: results hold BMW/Cinemo-derived data
+re/out/

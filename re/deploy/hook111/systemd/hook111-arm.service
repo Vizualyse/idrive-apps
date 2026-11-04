@@ -1,0 +1,21 @@
+[Unit]
+Description=hook111: arm the CarPlay alternate-screen hook for this start, or leave carplay stock
+RequiresMountsFor=/var/opt
+After=local-fs.target
+# carplay.service (WantedBy=late.target, after multi-user.target) starts once
+# this has finished, failed or timed out; it does not require it.
+Before=carplay.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Reads its state on /var/opt, hashes libNmeCarPlay.so (under a second) and
+# writes /run/hook111/env or not. Every systemctl call is bounded (5 s); the
+# script always exits 0, and it is in recmgr's lists.
+ExecStart=-/bin/sh /var/opt/hook111/current/hook111-arm.sh boot
+TimeoutStartSec=20
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -43,11 +43,13 @@ line says otherwise.
   2020) support **one screen only**: one screen stream, no alternate display,
   none of Apple's `viewArea` / `safeArea` / `displayFeatures`. The CarPlay
   cluster map (Waze on cluster) needs the 2022 stack (22.28.3 proven
-  upstream). Patching the old binary cannot add it: the engine has no
-  second stream to enable.
-- Updating just `carplay` or just `libNmeCarPlay` is not enough: `carplay`
-  loads about 90 libraries, many version-tagged to this firmware
-  (SOME/IP interface libraries, the Cinemo set).
+  upstream, where the second display exists but is gated). Patching the old
+  binary cannot ungate it: the engine has no second stream to enable.
+- Swapping the 2022 `carplay` / `libNmeCarPlay` onto this firmware is
+  **untested**. The open question is its dependencies: `carplay` loads about
+  90 libraries, many version-tagged to this firmware (SOME/IP interface
+  libraries, the Cinemo set). Not yet checked which of them actually differ
+  in ABI.
 - CarPlay does negotiate `turn_by_turn`: route guidance reaches the car (the
   cluster's own direction list during navigation comes from it).
 - Over the air: no update was offered for this unit. A dealer (ISTA) or

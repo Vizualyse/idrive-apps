@@ -1,0 +1,5 @@
+# Shell scripts and what is installed on the head unit run under Linux
+# (busybox ash on the unit, sh in the build containers): LF, whatever
+# core.autocrlf says.
+*.sh text eol=lf
+re/deploy/** text eol=lf
