@@ -416,20 +416,15 @@ int main(int argc, char **argv) {
     CF sparams = CFDictCreate(), surl = CFStr("maps:/car/instrumentcluster/map"), sresp = NULL;
     CFDictSet(sparams, K_URL, surl);
     CF scmd = CFStr("suggestUI");
+    int sent_before = hook111_stats.commands_sent;
     rc = FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, scmd, NULL, sparams, &sresp);   /* as /command does */
     CHECK("suggestUI accepted (0)", rc == 0 && hook111_stats.suggest_ui == 1);
     char line[256] = "", ctype[128] = ""; unsigned char *body = NULL; size_t nbody = 0;
-    int got = read_request(sv[1], line, sizeof line, &body, &nbody, ctype, sizeof ctype);
-    printf("  phone got: \"%s\", %s, %zu bytes\n", line, ctype, nbody);
-    CHECK("phone got POST /command, a binary plist", got == 0 && !strncmp(line, "POST /command", 13) && !strcmp(ctype, "application/x-apple-binary-plist"));
+    int got = read_request(sv[1], line, sizeof line, &body, &nbody, ctype, sizeof ctype);   /* waits 3 s */
+    CHECK("suggestUI: nothing sent back (on the car a showUI cost the main screen)", got != 0 && hook111_stats.commands_sent == sent_before);
     int perr2 = 0;
-    CF cmd = got == 0 ? FN(CF (*)(const void *, size_t, int *), 0x13a550)(body, nbody, &perr2) : NULL;
-    CF ctyp = cmd ? CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err) : NULL;
-    CF cpar = cmd ? CFDictGetTyped(cmd, K_PARAMS, CFDictTypeID(), &err) : NULL;
-    CF showui = CFStr("showUI"), uuid = CFStr(test_disp.uuid);
-    CHECK("command is showUI", ctyp && CFEqual(ctyp, showui));
-    CHECK("showUI params: the suggested url and screen B's uuid",
-          cpar && CFEqual(CFDictGetTyped(cpar, K_URL, CFStrTypeID(), &err), surl) && CFEqual(CFDictGetTyped(cpar, K_UUID, CFStrTypeID(), &err), uuid));
+    CF cmd = NULL, ctyp = NULL, cpar = NULL;
+    (void)surl;
     /* forceKeyFrame for screen B, rate-limited */
     resp = NULL;
     rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);

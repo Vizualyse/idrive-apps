@@ -550,23 +550,13 @@ int hook111_request_keyframe(void) {
     return rc;
 }
 
-/* suggestUI -> showUI. UNVERIFIED key names: the 2020 library has neither
- * command; "url" is requestUI's key (0x1b835c), and the display is named by
- * the uuid it has in /info, under the key the display record uses. Change
- * here once a phone's suggestUI has been seen (STATUS.md item 4). */
-#define SHOWUI_URL_KEY  K_URL
-#define SHOWUI_UUID_KEY K_UUID
-static int answer_suggest_ui(void *session, CF params) {
-    int err = 0;
-    CF url = params && CFTypeOf(params) == CFDictTypeID() ? CFDictGetTyped(params, K_URL, CFStrTypeID(), &err) : NULL;
-    CF p = CFDictCreate(), s;
-    if (url) CFDictSet(p, SHOWUI_URL_KEY, url);
-    else { s = CFStr(disp.initial_url); CFDictSet(p, SHOWUI_URL_KEY, s); CFRelease(s); }
-    s = CFStr(disp.uuid); CFDictSet(p, SHOWUI_UUID_KEY, s); CFRelease(s);
-    int rc = hook111_send_command(session, "showUI", p);
-    CFRelease(p);
-    return rc;
-}
+/* suggestUI is accepted and logged, and NOT answered. On the unit
+ * (2026-11-04, iOS 26.7.1) the phone sent suggestUI {urls: []}; the hook's
+ * guessed answer, showUI {url: maps:/car/instrumentcluster, uuid: <screen B>},
+ * made it hand the main screen back to the car within 4 s (modesChanged
+ * screen -> entity 2, TEARDOWN 110) and let the session die after about 39 s,
+ * session after session. Stream 111 runs without either. A showUI can still
+ * be tried from the bench (send.plist). */
 
 /* AirPlayReceiverSessionControl(session, flags, command, qualifier, params, &response):
  * /command from the phone lands here (_requestProcessCommand 0x1775a0); what the
@@ -581,9 +571,7 @@ static int my_control(void *session, int flags, CF cmd, CF qual, CF params, CF *
     CFRelease(su);
     if (!ours || read_mode() == MODE_OFF) return orig_control(session, flags, cmd, qual, params, resp);
     hook111_stats.suggest_ui++;
-    int rc = answer_suggest_ui(session, params);
-    if (rc) fprintf(stderr, "[hook111] showUI failed: %d\n", rc);
-    return 0;   /* a suggestion: accepted either way */
+    return 0;   /* a suggestion: accepted, nothing sent (see above) */
 }
 
 static CF (*orig_copyprop)(void *, CF, void *, int *, void *);

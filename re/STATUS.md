@@ -209,9 +209,9 @@ Nothing else on the unit was changed. Everything else was read-only.
    - the cloned HID device for `primaryInputDevice`;
    - the shape of the stream-111 SETUP response (stock-style, or the request
      cloned with `streamID`);
-   - **new:** what `suggestUI` carries, and the keys `showUI` wants (the hook
-     sends `url` + `uuid`; one `#define` each in `hook111.c`). The phone
-     hasn't sent a `suggestUI` yet: streaming started without one;
+   - **new:** what `suggestUI` means (it came as `{urls: []}`), and what `showUI` should be (the hook
+     no longer answers: its guess, `url` + `uuid`, cost the main screen). The phone
+     sent it from 0.0.5's test on; streaming doesn't need it;
    - ~~whether `forceKeyFrame` needs the stream named~~: it does,
      `{uuid: <display uuid>}` (§6.9);
    - `viewAreas`: offering it (mode `full`) made the phone refuse every
@@ -312,6 +312,19 @@ Nothing else on the unit was changed. Everything else was read-only.
      pending connect (`poll` + `SO_ERROR`, drop after 1 s), and asks the phone
      for a keyframe only once a consumer is really connected. annexb_test has
      a case for exactly that; 22 checks.
+
+   **0.0.5 on the car:** a fresh consumer on 6111 got the stream with no
+   help. The sink reconnected at 0.11 s, sent one `forceKeyFrame {uuid}`, and
+   the data started at 0.19 s. But the phone now sent `suggestUI {urls: []}`
+   (the first time), and the hook's guessed answer, `showUI {url, uuid}`,
+   made it hand the main screen back to the car within 4 s:
+   - `modesChanged` screen → entity 2, then TEARDOWN of 110;
+   - then sessions of about 39 s, each with `suggestUI` → `showUI`, and no
+     main screen;
+   - the one session without that exchange got the main screen back.
+
+   0.0.6 accepts `suggestUI` and logs it, but sends nothing. A `showUI` can
+   still be tried from the bench.
 
    Next: the consumer. vizualyse-cast's ffmpeg → cluster-render path, reading
    `tcp://127.0.0.1:6111?listen`, onto the `map` target.
