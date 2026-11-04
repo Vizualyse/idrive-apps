@@ -1,365 +1,146 @@
-# CarPlay second screen on the iDrive 7 MGU: progress report
+# CarPlay second screen on the iDrive 7 MGU: status
 
-Status as of 2026-11-04. Details and addresses: [findings-20.40.2.md](findings-20.40.2.md).
-How to run everything: [README.md](README.md). Prior work by others: [references.md](references.md).
+Status as of 2026-11-04. Addresses and how each finding was established:
+[findings-20.40.2.md](findings-20.40.2.md). How to run everything:
+[README.md](README.md). Prior work by others: [references.md](references.md).
+What's next: [`../TODO.md`](../TODO.md).
 
 ## The goal
 
-Get CarPlay's instrument-cluster map (AirPlay screen stream 111, the "alternate
-screen") onto this head unit. The unit runs `carplay` 20.40.2 with Cinemo's
-`libNmeCarPlay.so`, which only supports the main screen. Every patch or piece of
-reverse engineering must be testable off the car first.
+CarPlay's instrument-cluster map (AirPlay screen stream 111, the "alternate
+screen") on this head unit, which runs `carplay` 20.40.2 with Cinemo's
+`libNmeCarPlay.so`. That library only supports the main screen. Every patch
+or piece of reverse engineering must be testable off the car first.
 
----
+## Where it stands
 
-## 1. Questions answered
+**It works.** `hook111` 0.0.6, preloaded into the stock 2020 `carplay`, gets
+the phone to stream its cluster view (Google Maps, 1088x480 H.264) next to the
+main CarPlay screen, and hands it out on `127.0.0.1:6111`. Confirmed on the
+car with navigation running; the main screen kept working and `carplay` never
+restarted.
 
-| Question | Answer | Evidence |
+**It is not on the car now.** The hand-installed copy was removed on
+2026-11-04; nothing of it is left on the unit (the `carplay` that was running
+then keeps it in memory until its next start). How it goes back on (mgu-deploy
+from the Store, or by hand) is undecided. It stays out of `native/` until then:
+`release.js` publishes every `native/` tool on a full release.
+
+Nothing consumes the stream yet. The next step is vizualyse-cast reading
+`6111` instead of grabbing the central screen (TODO.md).
+
+## What's in `re/`
+
+| File | Purpose | Tests |
 |---|---|---|
-| Can the 2020 library just be patched to switch the second screen on? | **No.** The code isn't there. SETUP accepts screen type 110 only; type 111 is logged as `Unsupported stream type`. None of the alternate-screen keys exist (`altScreen`, `viewAreas`, `safeArea`, `suggestUI`, `showUI`). | Ghidra, findings-20.40.2.md |
-| Is swapping in the 2022 stack a proven failure? | **No, it's untested.** The line in `Learnings.md` was an inference and has been corrected. | git history: no experiment |
-| What software is the car on? | `BMW MGU I_21w12.2-1-4` (built 2021-03-23). `carplay` and the Cinemo files date from 30 Sep 2020. | `/etc/os-release` on the unit |
-| Can the 2022 binaries be obtained? | Not found publicly. "11/2022.60" isn't documented anywhere; bmw.com/update serves older head units only (the NHTSA bulletin says ID7 MGU is not covered). The realistic source is the upstream owners of 22.28.3 units. | web research |
-| Do other makers use Cinemo with easier-to-get firmware? | None confirmed. It matters less now: Cinemo wraps **Apple's own AirPlay receiver code (`AirPlay/320.17.6`)**, the same code base as Harman's in the Audi project. | survey + Ghidra |
-| Is the Audi MHI2-altScreen work relevant? | **Yes, very.** Same Apple code underneath, and our 110 SETUP path follows the steps they documented in the same order. The difference: Harman's build exports the function names, Cinemo's doesn't (35 exports), so we recover them from log strings. | references.md |
-| Can a second screen object run alongside the first? | **Yes, structurally.** A screen is a self-contained allocation (`calloc 0x358` plus its own mutex). The single-screen limit is just one set of fields in the session. | `0x185440` and its methods |
-| Where do frames go? | ScreenStream → Cinemo's one video sink per session (`ctx + 0x20`). They can be redirected per context by replacing four small ScreenStream functions. | decompile + harness |
-| Which port can the second listener use? | **6031 is already open** (IPv4, `wlan_bridge`), along with 5000/5001/6030/7000. The main screen asks for 6030. IPv6 has no CarPlay ports, so CarPlay here runs on IPv4. | live `nft list ruleset` |
+| `pull_unit.sh`, `unit/facts.sh` | Read-only pull from the unit (takes `SSH_KEY`). Never stops or restarts `carplay`. | |
+| `docker/Dockerfile` | Analysis image `idrive-re:ghidra-12.1.4` (Ghidra checksum verified, JDK 21, binutils, pyelftools, gcc). | |
+| `survey.py` | Each binary's identity and loading, where the second-screen keywords appear; the swap check for another firmware's binaries. | `test/selftest.sh`: 12 |
+| `ghidra/*.java` | Keyword and 110/111 export, Apple function names from log strings (345), decompiling. | |
+| `harness/Dockerfile` | Ubuntu 18.04 image matching the unit's glibc 2.27 and OpenSSL 1.1 (`ffmpeg.Dockerfile` adds ffmpeg, tests only). | |
+| `harness/screen_b.c` | A second screen object inside the real library (`aes`, `chacha`, `chacha-tamper`). | pass |
+| `harness/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the bench channel. | `setup_b.c`: 35 |
+| `harness/annexb.c`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocks, reconnects, resumes at an IDR. | `annexb_test.c`: 22 |
+| `harness/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. | `preload_test.c`: 23 |
+| `deploy/hook111/` | Arm step (busybox ash), units, drop-ins, `component.json` (mgu-deploy, untested), `bench/make_command.py`. | `test/arm_test.sh`: 34 |
 
----
+Data pulled from the unit stays outside the repository, in
+`../idrive-rootfs/20.40.2/` (`facts.txt`, `rootfs.tar`, `nft-ruleset.txt`)
+and the docker volume `idrive-rootfs-20.40.2`.
 
-## 2. What was built (all off-car, in `re/`)
+Build: `node release/tool_artifact.js re/deploy/hook111 --out <dir>` gives
+`hook111@<version>.tgz`, byte-identical across builds. The library needs
+nothing newer than GLIBC_2.17 and exports only `dlopen` and
+`hook111_preload_state`.
 
-**Data pulled from the unit, read-only, stored outside the repo in `../idrive-rootfs/20.40.2/`:**
+## What the car showed (2026-11-04)
 
-- `facts.txt`: versions, mounts, hashes of `carplay` and every Cinemo library,
-  the running `carplay`'s command line, environment, loaded libraries and
-  listening sockets.
-- `rootfs.tar` (1.5 GB), unpacked into the docker volume `idrive-rootfs-20.40.2`.
-- `nft-ruleset.txt`: the live firewall rules.
+Phone: iPhone16,2, iOS 26.7.1, AirPlay `sourceVersion` 960.13.1. Wireless
+CarPlay.
 
-**Tooling:**
+| Version | Change | On the car |
+|---|---|---|
+| 0.0.1 | First install, disabled | A stock boot with it installed: no preload, arm step `not armed: disabled`. |
+| 0.0.2 | Armed; watcher records a crash at once | The phone refused every session: it read `/info`, then a full TEARDOWN, "connection failed" every 10 s. We had answered `enabledFeatures [altScreen, viewAreas]`. |
+| 0.0.3 | Mode file (`off` / `alt` / `full`), fallback to `off` after 3 refusals | `off`: stock behaviour. `alt` (`altScreen` only): the phone set up stream 111 and connected to 6031, but no frame reached the sink. |
+| 0.0.4 | Status file, bench channel, cap for noisy commands | **The stream, end to end.** About 16 fps, 6063 frames in 6 minutes. Captured from 6111: 1088x480 H.264 High, 0 decode errors. |
+| 0.0.5 | Keyframe requests name the display; the sink reconnects | A fresh consumer got the stream in 0.19 s. But the hook's answer to `suggestUI` cost the main screen. |
+| 0.0.6 | `suggestUI` logged, not answered | Main screen and cluster stream both fine, with navigation running. |
 
-| File | Purpose |
-|---|---|
-| `pull_unit.sh`, `unit/facts.sh` | Read-only pull (takes `SSH_KEY`). Never stops or restarts `carplay`. |
-| `docker/Dockerfile` | Analysis image `idrive-re:ghidra-12.1.4` (Ghidra checksum verified, JDK 21, binutils, pyelftools, gcc). |
-| `survey.py` | Each binary's identity and how it loads (missing libraries, undefined versioned symbols), plus where the second-screen keywords appear. Also checks another firmware's binaries against this unit's root file system (the swap check). |
-| `ghidra/ExportAltScreen.java` | Keyword → referencing functions, including Cinemo's encoded string constants (8-byte header `56 07 01 00 ff ff ff 7f`). Flags functions using both 110 and 111. Lists every function. |
-| `ghidra/ExportLogNames.java` | Apple function names recovered from log strings (345 mapped). |
-| `ghidra/Decompile.java`, `DecompileAll.java` | Decompiles chosen functions (`s:<addr>` reads strings), or all 1,857 functions into one greppable file. |
-| `run.sh` | Wrappers: `build`, `extract`, `survey`, `ghidra`, `decompile`, `decompile-all`, `harness`, `harness-setup`, `harness-preload`, `harness-annexb`, `deploy-test`, `selftest`. |
-| `test/selftest.sh` | Synthetic binaries, no BMW bytes. 12 checks, all pass. |
-| `harness/Dockerfile` | Ubuntu 18.04 image matching the unit's glibc 2.27 and OpenSSL 1.1. `ffmpeg.Dockerfile` adds Ubuntu's ffmpeg, for tests only. |
-| `harness/screen_b.c` | Runs a second screen inside the real library. **Passes.** |
-| `harness/hook111.c` / `.h` | The hook as it would run in `carplay`: SETUP, TEARDOWN, `/info`, session commands, frames. **Passes.** |
-| `harness/setup_b.c` | Drives `hook111` through the library's own SETUP, TEARDOWN, `/info` and session-control entries. **35 checks pass.** |
-| `harness/annexb.c` / `.h`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocking; asks for a keyframe when needed. `annexb_test.c`: **18 checks pass**, and ffmpeg decodes a real x264 stream sent through it. |
-| `harness/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. `preload_test.c` / `stub_loader.c`: **23 checks pass** under the unit's loader. |
-| `deploy/hook111/` | Arm step (`hook111-arm.sh`, busybox ash), its units and drop-ins, a mgu-deploy `component.json` (draft). `test/arm_test.sh`: **34 checks pass** on the unit's busybox. |
+The capture shows a real location; it stays off the repository.
 
-**Documents:** `README.md` (steps), `references.md` (Audi work, our
-waze-on-cluster history, AirPlay references, corrected after the survey),
-`findings-20.40.2.md` (every address and finding, with how it was established).
+## Protocol facts learned on the car
 
----
+- **`altScreen` alone is enough.** SETUP answers `enabledFeatures
+  [altScreen]`, `/info` carries a second display record (1088x480,
+  `features=2`, its own `uuid`). No `suggestUI` / `showUI` exchange is needed
+  to stream.
+- **`viewAreas` breaks it.** Offering it (mode `full`) without the records the
+  phone expects made it refuse every session.
+- **The stream-111 SETUP:** `{type:111, uuid:<our display's uuid>,
+  latencyMs:75, streamConnectionID}`, answered `{type:111, dataPort:6031}`.
+  The phone sends AVCC (39 bytes), then frames.
+- **Keyframes must name the display.** The stock `forceKeyFrame` (no params)
+  never brought an IDR on 111 (167 requests); `forceKeyFrame {uuid}` brings
+  one within 0.5 s.
+- **`suggestUI {urls: []}` must not be answered with a guess.** `showUI {url,
+  uuid}` made the phone hand the main screen back to the car (`modesChanged`
+  screen → entity 2, TEARDOWN of 110), then repeat ~39 s sessions without
+  it.
+- **Noisy commands.** `iAPSendMessage` arrives hundreds of times in minutes;
+  it filled the first plist log.
+- **The shutdown mark is not written at `systemctl reboot`.** Hence the
+  `hook111-health` watcher, which records a failed run the moment it ends.
+  Whether the mark is written at a real switch-off is not yet known.
+- **The unit's journal is volatile** and had rotated within 5 minutes; the
+  state file and plist log are the record. sshd's host keys are new at every
+  boot.
 
-## 3. What the harnesses established
+## Open questions
 
-`re/run.sh harness 20.40.2 <mode>` runs a second screen object inside the
-**unit's real `libNmeCarPlay.so`**, under the unit's own loader and libraries,
-after checking the build-id. A thread plays the phone.
+- What `viewAreas` / `safeArea`, `showUI` and `primaryInputDevice` should
+  contain.
+- Whether the phone keeps streaming 111 while CarPlay isn't on the main
+  screen.
+- Whether the shutdown mark is written at a real switch-off.
+- Long-run stability, and wired CarPlay as well as wireless.
+- In parallel: the 22.28.3 `carplay` and Cinemo files from the upstream owners,
+  to diff against 20.40.2 and see what Cinemo added.
 
-| Mode | Result |
-|---|---|
-| `aes` | Pass: AVCC and 12/12 frames decrypted byte-exact into our sink; Cinemo's sink never touched. |
-| `chacha` | Pass: the same through ChaCha20-Poly1305 (the pair-verify path real wireless CarPlay uses). |
-| `chacha-tamper` | Pass: the corrupted frame and **every later frame** are rejected, because the nonce only advances on frames that authenticate. One error on stream 111 is fatal, so the stream must be torn down and set up again. |
+## Before the next armed boot
 
-**Wire format confirmed:**
+- `getcap /usr/bin/carplay` is empty (`carplay` runs as `cia_13002`; file
+  capabilities would make glibc ignore the preload).
+- `cia_13002` can read `/var/opt/hook111/current/libhook111.so`.
+- Nothing else uses 127.0.0.1:6111.
+- Install disabled (`hook111-arm.sh disable`), then `enable` and reboot. Never
+  restart `carplay` by hand.
+- Set the mode with `hook111-arm.sh mode alt`; check with `hook111-arm.sh
+  status` and `/run/hook111/log/status`.
 
-- 128-byte header: u32 size, u8 opcode (0 frame, 1 config), u8 flags at +6,
-  u64 timestamp at +8, float width/height at +0x10/+0x14.
-- Config (AVCC) messages aren't encrypted.
-- ChaCha20-Poly1305 per RFC 7539: nonce = 4 zero bytes + an 8-byte
-  little-endian frame counter; AAD = the header, with its size field counting
-  the tag.
-- AES-128-CTR with a 128-bit big-endian counter.
-
-**From the Audi project's logs and hook strings (not yet verified on our unit):**
-
-- SETUP must answer `enabledFeatures: [altScreen, viewAreas]`.
-- `/info` gets a second display record cloned from the first: new `uuid`,
-  cluster size, `maxFPS`, `features=2`, `initialURL`,
-  `altScreenSuggestUIURLs`, `viewAreas` / `initialViewArea`, and a
-  `primaryInputDevice` pointing at a cloned HID device.
-
-`re/run.sh harness-setup 20.40.2` runs `hook111` as installed in `carplay`
-(trampolines, so stock code still runs) through the library's own SETUP
-(`0x180670`) and `/info` (`0x10d270`) entries. **Pass, 3/3 runs:**
-
-- SETUP with `{type:111, streamConnectionID}` returns 0, and the response has
-  `{type:111, dataPort:6031}` and `enabledFeatures [altScreen, viewAreas]`.
-  The stock code still logs and skips 111, in both the session layer and
-  Cinemo's `_SetUpStreams`.
-- The phone connects to 6031, derives the key itself from
-  `streamConnectionID` (AirPlayStreamKey/IV), and sends AVCC + 10 AES-CTR
-  frames. All 10 reach the sink byte-exact; start and stop are each seen once.
-- `/info` `displays` returns the stock record from the configuration, plus
-  hook111's (1088x480, `features=2`, 3 `altScreenSuggestUIURLs`).
-
-Added on 2026-11-04, the same harness:
-
-- **Lifecycle.** A repeat SETUP replaces screen B (6031 again). `TEARDOWN
-  {111}` mid-stream takes 1 ms, through the stock quit (`User quit event
-  received`). A full TEARDOWN while screen B still waits in accept takes
-  10 ms, not the 10 s accept timeout. The port is free after each.
-- **Pair-verify key path.** A PairingSession at `session+0x498` (type 3,
-  state 5, secret at `+0x1ba`): the phone derives the key with HKDF-SHA512
-  (`DataStream-Salt<connID>`, `DataStream-Output-Encryption-Key`) and sends
-  8 ChaCha20-Poly1305 frames. All 8 arrive byte-exact.
-- **Session commands.** The phone's `suggestUI` (through
-  `AirPlayReceiverSessionControl`, as `/command` delivers it) is answered with
-  `showUI` (url, uuid). The phone gets it as a binary-plist `POST /command` on
-  the events connection, as the library sends `requestUI`. `forceKeyFrame`
-  goes the same way, at most once a second. Other commands still reach the
-  stock code.
-
-`re/run.sh harness-annexb`: the sink on its own, plus a real stream. It never
-blocks (worst call 0.6 ms; with a reconnect, under 1 ms after rate-limiting),
-never cuts a NAL unit, and resumes only at an IDR, with SPS/PPS before it.
-A 1088x480 x264 stream went to a reader at 60 % of its rate: 250 of 300 frames
-dropped, and ffmpeg decoded all 50 that were sent, with no errors.
-
-`re/run.sh harness-preload 20.40.2`: `libhook111.so` preloaded after the
-unit's own `libschedconfig.so.1`, under the unit's loader. It installs right
-after a library's `dlopen` of `libNmeCarPlay.so`, as Cinemo's
-`libNmeBaseClasses.so` loads it. It refuses another build under that name and
-does nothing when off. Other `dlopen`s are untouched.
-
-`re/run.sh deploy-test 20.40.2`: the arm step on the unit's busybox and libc,
-over simulated boots: crashes at load, crashes after it was healthy, lost
-power, clean shutdowns, a changed library, a missing preload, a hanging
-`systemctl`, bad config, a corrupt state file, a state file that can't be
-saved.
-
----
-
-## 4. Changes made on the car
-
-**Port 22 fix.**
-
-- **Cause:** the MGU-SSH tool's firewall keeper checked for
-  `tcp dport 22 accept`, but `nft` prints `tcp dport ssh accept`. It inserted a
-  duplicate rule every 15 seconds, and its `status` and `remove` commands had
-  the same mismatch.
-- **Fixed in** `Downloads/MGU-SSH/sshd-always-on.sh` (original kept as
-  `.orig`). It now matches both spellings, and the keeper deletes extra copies.
-- **Tested off-car first** against a fake `nft` (9/9 checks), then installed
-  with the tool's own `install`.
-- **Result:** 641 duplicates per chain down to one each, holding across keeper
-  cycles, and `/` remounted read-only afterwards.
-
-Nothing else on the unit was changed. Everything else was read-only.
-
----
-
-## 5. Corrections along the way
-
-- **The 2022 swap is untested**, not a proven failure. It had been stated as fact.
-- **The Audi approach does transfer.** It was first judged not to, before the
-  survey showed the shared Apple code.
-- **bmw.com/update doesn't serve the iDrive 7 MGU.** It had been implied it might.
-- **`FUN_00166c40` was a false positive** for 110/111: it's a hash function.
-- **Harness bugs caught and fixed:** an AES init mix-up and a string-escaping
-  slip in the harness code.
-- **Two blocks by a safety classifier** (2026-11-03): once while working on the
-  SETUP harness crash, and once during a commit attempt. No reason was given,
-  neither was retried, and nothing was committed.
-- **The SETUP harness crash was the harness, not the hook** (2026-11-03): see §6.2.
-- **Found by the 2026-11-04 tests, fixed before anything reached a car:**
-  - screen B was never torn down (thread detached, objects leaked), and it
-    would have outlived the session clock it reads;
-  - the library's accept helper can't be woken: after `shutdown()` it spins
-    forever, so screen B has its own accept;
-  - the arm step never armed when there was no config file (a shell exit
-    status);
-  - `run.sh harness-annexb` reported PASS over a failed check (a lost exit
-    status in a pipe).
-
----
-
-## 6. Left to do, in order
-
-1. **Commit.** Everything under `re/` passes its tests.
-2. ~~**Finish the SETUP and `/info` harness.**~~ Done 2026-11-03 (§3). The
-   crash was the harness, not the hook: the fake session lacked what the
-   constructor `0x17e0f0` sets (fds at -1, `+0x490 = 1`) and Cinemo's
-   platform object at `+0x20`; then the fake configuration item was the
-   wrong size (0x48 bytes) and overwrote the stack canary. Still not covered
-   by it: a SETUP that mixes 111 with 110 or audio streams (that takes the
-   non-idle path, with timing negotiation), the pair-verify key path (item 5),
-   and `primaryInputDevice` / `viewAreas` in the second record (item 4).
-3. ~~**Unread pieces.**~~ Done 2026-11-04. The `+0x10` callback is dead in
-   this build (written once, never read). Teardown is wired for screen B
-   (findings, "Screen B's life").
-4. **Unknowns that may need the phone:**
-   - the exact `viewAreas` / `safeArea` structure;
-   - whether `/info` needs a top-level `altScreen` marker;
-   - the cloned HID device for `primaryInputDevice`;
-   - the shape of the stream-111 SETUP response (stock-style, or the request
-     cloned with `streamID`);
-   - **new:** what `suggestUI` means (it came as `{urls: []}`), and what `showUI` should be (the hook
-     no longer answers: its guess, `url` + `uuid`, cost the main screen). The phone
-     sent it from 0.0.5's test on; streaming doesn't need it;
-   - ~~whether `forceKeyFrame` needs the stream named~~: it does,
-     `{uuid: <display uuid>}` (§6.9);
-   - `viewAreas`: offering it (mode `full`) made the phone refuse every
-     session; the structure it expects is still unknown.
-5. ~~**The pair-verify key path.**~~ Done 2026-11-04 (§3).
-6. **Session commands.** Done: the mechanism (`suggestUI` → `showUI`,
-   `hook111_send_command` for anything else), tested to the phone's socket.
-   Left: `updateViewArea` / `adjacentViewAreas` / `changeMapZoomLevel`
-   content, which waits on item 4.
-7. **Output sink.** Done, and proven on the car (§6.9): `sink_annexb.c` →
-   `127.0.0.1:6111`, 1088x480 H.264 that ffmpeg decodes. Left: the
-   consumer. vizualyse-cast's ffmpeg → cluster-render path with
-   `-f h264 -i tcp://127.0.0.1:6111?listen` as its input (`map` target, width
-   a multiple of 4, within 5500 KB/s).
-8. **Loading into `carplay`.** Built and tested off-car: `libhook111.so`, the
-   arm step, units, drop-ins (`deploy/hook111/`). Nothing on `/` changes: a
-   static drop-in reads `/run/hook111/env`, which only the arm step writes, so
-   every reboot starts stock until it arms again. Off after 2 failed starts.
-   A crash is caught two ways:
-   - the shutdown mark (a `var-opt-ro` drop-in);
-   - `hook111-health`, which watches `carplay` for the whole armed start and
-     writes `crashed=<boot>` the moment a run ends failed.
-
-   The watcher is needed because the mark was **not** written at a
-   `systemctl reboot` on the unit (2026-11-04). Whether it is written at a
-   normal switch-off is still to check (one ignition cycle, disabled).
-   Installed on the unit 2026-11-04 (0.0.1 to 0.0.4; first disabled). A stock
-   boot with it installed was checked: `carplay` without the preload, the
-   drop-in loaded, no `/run/hook111`, the arm step `not armed: disabled`.
-   Found there: sshd's host keys are in `/run/sshd`, new at every boot; and
-   the journal is volatile and had rotated within 5 minutes, so the state
-   file and the plist log are the record, not `journalctl`.
-   Built with the repo's packer:
-   `node release/tool_artifact.js re/deploy/hook111 --out <dir>` runs
-   `build.sh` (gcc in the glibc-2.27 image) and gives `hook111@<version>.tgz`,
-   byte-identical across two builds. The library needs nothing newer than
-   GLIBC_2.17, and exports only `dlopen` and `hook111_preload_state`. The
-   shipped `.so` passes the preload test. It stays out of `native/` on
-   purpose: `release.js` publishes every `native/` tool on a full release,
-   and this one hasn't run on a car.
-   For the first car runs, the hook writes every SETUP request and response,
-   phone command, TEARDOWN, `/info` displays and sent command as a binary
-   plist to `/run/hook111/log/<nnn>-<what>.bplist` (at most 500). The arm step
-   creates that directory, owned by `carplay`'s user. Pull the files and read
-   them with Python's `plistlib`.
-   Not done:
-   - an install by mgu-deploy, which also adds `hook111-arm` /
-     `hook111-health` to recmgr's lists;
-   - `systemd-analyze verify` of the units on the unit.
-9. **First car test**, with a phone (MFi authentication can't be emulated).
-   **First armed start, 2026-11-04 (0.0.2):** the hook installed in the real
-   `carplay` and the start was marked healthy, but the phone (iPhone16,2,
-   iOS 26.7.1, AirPlay `sourceVersion` 960.13.1) refused every session. Its
-   first SETUP (no streams) offers `altScreen` and `viewAreas`. We answered
-   `enabledFeatures [altScreen, viewAreas]`, it read `/info` (the stock display
-   plus ours), then sent a full TEARDOWN (`{}`). Every 10 s, "connection
-   failed" on the screen. Likely: `viewAreas` negotiated but no record carries
-   one; or the cluster record lacks `primaryInputDevice`. `carplay` never
-   crashed, so "healthy" didn't mean CarPlay worked. 0.0.3 adds:
-   - a mode read at every SETUP from `/run/hook111/mode` (`off` / `alt` /
-     `full`; `hook111-arm.sh mode <m>`, no reboot), default `off`;
-   - a fallback to `off` after 3 refused sessions in a row.
-   **Same day, 0.0.3:** with mode `off` CarPlay connected normally (the hook
-   in-process, answering as stock). With mode `alt` (`altScreen` only) the
-   phone accepted the second display, **set up stream 111 and connected to
-   6031**, and the main screen worked. But no frame reached the sink, and the
-   plist log had filled up with `iAPSendMessage` (212 in minutes) before that
-   SETUP. A working session's stream-110 SETUP carries `latencyMs`,
-   `streamConnectionID`, `type`, `uuid`. 0.0.4 adds:
-   - a status file (`/run/hook111/log/status`: screen B's counters and the
-     sink's);
-   - a separate cap for noisy commands;
-   - a bench channel (`send.plist`, made with `bench/make_command.py`) to send
-     any command without a rebuild.
-
-   **Same day, 0.0.4: the cluster stream works end to end, off a stock 2020
-   head unit.** Armed in mode `alt`, the phone connected normally, then:
-   - its stream-111 SETUP: `{type:111, uuid:<our cluster display's uuid>,
-     latencyMs:75, streamConnectionID}`, answered `{type:111, dataPort:6031}`;
-   - it connected to 6031 and streamed: AVCC (39 bytes), then about 16 fps,
-     decrypted by screen B's pump (6063 frames in about 6 minutes);
-   - no `suggestUI` / `showUI` was needed; `altScreen` and the second `/info`
-     record were enough;
-   - the stock `forceKeyFrame` (no params) never brought an IDR on 111 (167
-     requests). **`forceKeyFrame {uuid: <the display's uuid>}` (sent through
-     the bench channel) brought one within 0.5 s**;
-   - captured on the unit from `127.0.0.1:6111`: 2348 frames, 40.7 MB of
-     H.264 High, **1088x480** (exactly cluster-render's `map` target), 0
-     decode errors in ffmpeg. The picture is Google Maps' instrument-cluster
-     view: the map, the route, the car, the direction card. The capture shows
-     a real location, so it stays off the repository.
-
-   The main CarPlay screen worked throughout; `carplay` never restarted.
-   Found there, fixed in 0.0.5:
-   - the hook's own keyframe request now names the display (`{uuid}`);
-   - the sink kept a connect refused while nobody listened as a dead socket
-     for good (1880 frames dropped, never reconnected). It now checks each
-     pending connect (`poll` + `SO_ERROR`, drop after 1 s), and asks the phone
-     for a keyframe only once a consumer is really connected. annexb_test has
-     a case for exactly that; 22 checks.
-
-   **0.0.5 on the car:** a fresh consumer on 6111 got the stream with no
-   help. The sink reconnected at 0.11 s, sent one `forceKeyFrame {uuid}`, and
-   the data started at 0.19 s. But the phone now sent `suggestUI {urls: []}`
-   (the first time), and the hook's guessed answer, `showUI {url, uuid}`,
-   made it hand the main screen back to the car within 4 s:
-   - `modesChanged` screen → entity 2, then TEARDOWN of 110;
-   - then sessions of about 39 s, each with `suggestUI` → `showUI`, and no
-     main screen;
-   - the one session without that exchange got the main screen back.
-
-   0.0.6 accepts `suggestUI` and logs it, but sends nothing. A `showUI` can
-   still be tried from the bench.
-
-   Next: the consumer. vizualyse-cast's ffmpeg → cluster-render path, reading
-   `tcp://127.0.0.1:6111?listen`, onto the `map` target.
-
-   Before the first armed boot:
-   - check `getcap /usr/bin/carplay` is empty (`carplay` runs as `cia_13002`,
-     and file capabilities would make glibc ignore the preload);
-   - check that `cia_13002` can read `/var/opt/hook111/current/libhook111.so`;
-   - check nothing else on the unit uses 127.0.0.1:6111;
-   - start with `hook111-arm.sh disable`, then `enable` and reboot (never
-     restart `carplay`);
-   - watch `journalctl -u carplay` for `[hook111]`, and run
-     `hook111-arm.sh status`.
-10. **In parallel:** ask the upstream owners for the 22.28.3 `carplay` and
-    Cinemo files plus their I-step. Then run the survey's swap check, and diff
-    the two libraries in Ghidra to see exactly what Cinemo added for the second
-    screen.
-
----
-
-## 7. Risks to keep in mind
+## Risks
 
 - **Cluster take-over has broken the cluster before,** until a full car
-  restart (see `Learnings.md`). The first live tests should run with
-  navigation active or the cluster's central area off.
-- **A crash in the hook takes down `carplay`, and with it the head unit.** The
-  prologue and build-id checks refuse to install on anything unexpected. The
-  arm step limits a crash loop to two reboots, then `carplay` starts stock.
-  That holds only if the arm step and its `var-opt-ro` mark run as tested,
-  which hasn't been seen on the unit yet.
-- **A partial install.** `hook111_install` patches the four ScreenStream
-  functions before the three entries. If `mprotect` failed partway (an LSM
-  policy, say), the ScreenStream replacements would be live without the rest.
-  They behave like stock for every context but screen B's, so that should be
-  harmless, but it hasn't been tested.
-- **The phone may not request stream 111** even with everything advertised.
-  The Audi project hit exactly this ("advertised but phone never requests
-  stream 111") and solved it with `enabledFeatures` plus `features=2`.
+  restart (`Learnings.md`). Test with navigation running or the cluster's
+  central area off.
+- **A crash in the hook takes down `carplay`.** The prologue and build-id
+  checks refuse anything unexpected; the arm step goes stock after two failed
+  starts. That recovery has been tested off-car only.
+- **A partial install** (an `mprotect` failing partway) would leave the
+  ScreenStream replacements live without the rest. They behave like stock for
+  every other context, but this hasn't been tested.
+
+## Corrections along the way
+
+- The 2022 swap was stated as a proven failure; it is untested.
+- The Audi approach was first judged not to transfer; it does (same Apple
+  code underneath).
+- bmw.com/update doesn't serve the iDrive 7 MGU.
+- `FUN_00166c40` was a false positive for 110/111 (a hash function).
+- The SETUP harness crash was the harness, not the hook (a fake session
+  missing constructor state, a fake config item of the wrong size).
+- Found by off-car tests before anything reached the car: screen B never torn
+  down; the library's accept can't be woken; the arm step never armed without
+  a config file; `run.sh harness-annexb` passing over a failed check.
+- Found on the car: the `viewAreas` refusal, the keyframe `uuid`, the sink
+  never reconnecting after a refused connect, the `showUI` guess.

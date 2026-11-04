@@ -14,6 +14,9 @@ A tech demo, built and tested on a bench head unit.
 | [`samples`](samples) | cluster-render samples: a CPU gauge and clock, raw video and sound from files |
 | [`release`](release) | builds and publishes the Store catalog |
 | `tools` | `oap_pack.js`, `oap_link.js`: pack the app |
+| [`re`](re) | `hook111`: CarPlay's cluster map (stream 111) on the stock 2020 `carplay`, and the off-car reverse engineering behind it ([status](re/STATUS.md)) |
+
+What's next: [`TODO.md`](TODO.md). What we learned about the unit: [`Learnings.md`](Learnings.md).
 
 ## Install
 

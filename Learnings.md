@@ -11,7 +11,11 @@ line says otherwise.
   Node 8.16 for apps. The root filesystem is read-only; `/var/opt` is
   writable (9 GB free) and is where Store tools live.
 - The journal is in RAM (`/var/log` -> `volatile/log`): nothing survives a
-  restart. Anything you need after a crash has to be written to `/var/opt`.
+  restart, and it can rotate within minutes. Anything you need after a crash
+  has to be written to `/var/opt` (or `/run` for one boot).
+- The `var-opt-ro` shutdown hook did **not** run at a `systemctl reboot`.
+  Don't rely on a clean-shutdown mark alone to detect a crash; watch the
+  service instead. Whether it runs at a real switch-off is not yet checked.
 - The debug image regenerates its SSH host key at every boot: expect SSH's
   "host identification has changed" after each restart, and check the new
   fingerprint before accepting it.
@@ -20,6 +24,9 @@ line says otherwise.
   tools get it from the deploy tool's drop-in.
 - Firewall: nftables `ip filter input` ends in a drop. New ports from the
   phone's hotspot (`wlan0`) need a rule; an inserted rule is in memory only.
+- `nft` prints well-known ports by name (`tcp dport ssh`, not `22`). The
+  MGU-SSH firewall keeper matched the number, so it added a duplicate rule
+  every 15 s (641 per chain); fixed locally to match both spellings.
 
 ## Internet (mgu-uplink)
 
@@ -40,18 +47,27 @@ line says otherwise.
 ## CarPlay on this firmware
 
 - `/usr/bin/carplay` 20.40.2 and Cinemo's `libNmeCarPlay.so` (built Aug
-  2020) support **one screen only**: one screen stream, no alternate display,
-  none of Apple's `viewArea` / `safeArea` / `displayFeatures`. The CarPlay
-  cluster map (Waze on cluster) needs the 2022 stack (22.28.3 proven
-  upstream, where the second display exists but is gated). Patching the old
-  binary cannot ungate it: the engine has no second stream to enable.
+  2020) support **one screen only**: SETUP takes stream type 110 only, and
+  none of Apple's `altScreen` / `viewAreas` / `safeArea` keys exist. There is
+  no gate to flip.
+- **But the second screen can be added.** Cinemo wraps Apple's own AirPlay
+  receiver code (`AirPlay/320.17.6`), and a screen is a self-contained object,
+  so a hook can create a second one. `hook111` (`re/`), preloaded into the
+  stock `carplay`, gets the phone to stream its cluster view as stream 111:
+  Google Maps' cluster map, 1088x480 H.264 at about 16 fps, next to the main
+  screen. Details: [`re/STATUS.md`](re/STATUS.md).
+- What the phone (iOS 26.7.1) needs: `enabledFeatures [altScreen]` and a
+  second `/info` display record (`features=2`). Offering `viewAreas` without
+  the matching records makes it refuse every session. Keyframe requests for
+  111 must name the display (`forceKeyFrame {uuid}`). Answering `suggestUI`
+  with a guessed `showUI` makes it give up the main screen.
 - Swapping the 2022 `carplay` / `libNmeCarPlay` onto this firmware is
-  **untested**. The open question is its dependencies: `carplay` loads about
-  90 libraries, many version-tagged to this firmware (SOME/IP interface
-  libraries, the Cinemo set). Not yet checked which of them actually differ
-  in ABI.
+  **untested** (`carplay` loads about 90 libraries, many version-tagged to
+  this firmware).
 - CarPlay does negotiate `turn_by_turn`: route guidance reaches the car (the
   cluster's own direction list during navigation comes from it).
+- `carplay` runs as `cia_13002`. A crash in anything preloaded into it takes
+  CarPlay down; never restart it by hand, arm and reboot instead.
 - Over the air: no update was offered for this unit. A dealer (ISTA) or
   BMW AOS programming would replace the debug image (and root).
 
@@ -101,7 +117,8 @@ line says otherwise.
   (`--screen center`, 1920x720 @ 60 Hz) and encodes it in hardware
   (`h264_msdk`), to a file, JPEG, or MPEG-TS over UDP (`udp://` pipeline).
   That is the mirror: grab, then ffmpeg cuts out what goes to the cluster.
-  It mirrors what the screen shows, so CarPlay must be in front.
+  It mirrors what the screen shows, so CarPlay must be in front, and BMW's
+  pop-ups come along. The CarPlay second screen (above) replaces it.
 - Google Maps in CarPlay (dock on the right): the direction card at about
   x 1112-1762, y 4-206; the arrival / time / distance card at about y
   576-716; the clean map between Google's buttons (x < 125) and its cards
