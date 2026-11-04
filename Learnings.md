@@ -13,9 +13,11 @@ line says otherwise.
 - The journal is in RAM (`/var/log` -> `volatile/log`): nothing survives a
   restart, and it can rotate within minutes. Anything you need after a crash
   has to be written to `/var/opt` (or `/run` for one boot).
-- The `var-opt-ro` shutdown hook did **not** run at a `systemctl reboot`.
-  Don't rely on a clean-shutdown mark alone to detect a crash; watch the
-  service instead. Whether it runs at a real switch-off is not yet checked.
+- A `var-opt-ro` drop-in (run just before `/var/opt` goes read-only) was
+  missed at the first `systemctl reboot` after it was installed, and ran at
+  later ones. Don't rely on a clean-shutdown mark alone to detect a crash;
+  watch the service instead. Whether it runs at a real switch-off is not yet
+  checked.
 - The debug image regenerates its SSH host key at every boot: expect SSH's
   "host identification has changed" after each restart, and check the new
   fingerprint before accepting it.

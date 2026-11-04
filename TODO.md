@@ -35,7 +35,8 @@ workflow (Actions > Release, the component ids).
 - [ ] **Remove the central-screen mirror** (winston-grabber, the Google Maps
   layouts).
 - [ ] Update the app's buttons and the page tests.
-- [ ] Bump the versions (`vizualyse-cast` 0.2.1, `vizualyse_cast` 0.2.0).
+- [ ] Bump the versions, from `vizualyse-cast` 0.2.1 and `vizualyse_cast`
+  0.2.0 (the app's `requires` follows the tool's new version).
 
 ## Carried over
 

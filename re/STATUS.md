@@ -39,10 +39,10 @@ Nothing consumes the stream yet. The next step is vizualyse-cast reading
 | `ghidra/*.java` | Keyword and 110/111 export, Apple function names from log strings (345), decompiling. | |
 | `harness/Dockerfile` | Ubuntu 18.04 image matching the unit's glibc 2.27 and OpenSSL 1.1 (`ffmpeg.Dockerfile` adds ffmpeg, tests only). | |
 | `harness/screen_b.c` | A second screen object inside the real library (`aes`, `chacha`, `chacha-tamper`). | pass |
-| `harness/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the bench channel. | `setup_b.c`: 35 |
+| `harness/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the bench channel. | `setup_b.c`: 52 |
 | `harness/annexb.c`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocks, reconnects, resumes at an IDR. | `annexb_test.c`: 22 |
 | `harness/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. | `preload_test.c`: 23 |
-| `deploy/hook111/` | Arm step (busybox ash), units, drop-ins, `component.json` (mgu-deploy, untested), `bench/make_command.py`. | `test/arm_test.sh`: 34 |
+| `deploy/hook111/` | Arm step (busybox ash), units, drop-ins, `component.json` (mgu-deploy, untested), `bench/make_command.py`. | `test/arm_test.sh`: 48 |
 
 Data pulled from the unit stays outside the repository, in
 `../idrive-rootfs/20.40.2/` (`facts.txt`, `rootfs.tar`, `nft-ruleset.txt`)
@@ -89,7 +89,9 @@ The capture shows a real location; it stays off the repository.
   it.
 - **Noisy commands.** `iAPSendMessage` arrives hundreds of times in minutes;
   it filled the first plist log.
-- **The shutdown mark is not written at `systemctl reboot`.** Hence the
+- **The shutdown mark can't be relied on alone.** It was missing at the first
+  `systemctl reboot` after the install, and written at later ones (the 11:50
+  boot logged "healthy, carplay running at its shutdown"). Hence the
   `hook111-health` watcher, which records a failed run the moment it ends.
   Whether the mark is written at a real switch-off is not yet known.
 - **The unit's journal is volatile** and had rotated within 5 minutes; the
