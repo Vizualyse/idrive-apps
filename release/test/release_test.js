@@ -168,6 +168,7 @@ test('the Cast chain: app -> vizualyse-cast -> the deploy tool, cluster-render, 
     assert.deepStrictEqual(c.build, ['node', 'tools/fetch_ffmpeg.js']);
     assert.ok(c.files.some((f) => f.path === 'ffmpeg' && f.mode === '0755'));
     assert.ok(c.files.some((f) => f.path === 'ffmpeg-GPLv3.txt'), 'ffmpeg\'s licence ships with it');
+    assert.ok(c.files.some((f) => f.path === 'THIRD-PARTY.md'), 'the third-party notice ships with it');
     assert.deepStrictEqual(c.recmgr, ['vizualyse-cast']);
     assert.strictEqual(app.uninstallable, true);
     assert.strictEqual(tool.uninstallable, true);

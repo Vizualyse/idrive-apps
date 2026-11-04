@@ -90,6 +90,11 @@
       "mode": "0644"
     },
     {
+      "path": "THIRD-PARTY.md",
+      "from": "THIRD-PARTY.md",
+      "mode": "0644"
+    },
+    {
       "path": "LICENSE",
       "from": "LICENSE",
       "mode": "0644"

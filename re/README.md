@@ -12,6 +12,13 @@ emulator. Only a live phone session needs the car (MFi authentication).
 outside it (`../idrive-rootfs/`) and in docker volumes; results go to
 `re/out/` (git-ignored).
 
+Earlier commits (before `19d12ff`) held symbol lists for the unit's RAMSES
+and vsomeip libraries (`native/cluster-render/abi/*.symbols`,
+`native/cluster-render/dcsm/abi/libvsomeip3.so.3.symbols`). They are names
+and signatures only, with no code or data from the libraries, and were kept
+so that our code could link against the unit's own libraries
+(interoperability). They are no longer in the tree.
+
 ## Steps
 
 1. **Pull** (read-only on the unit; never stops or restarts `carplay`):

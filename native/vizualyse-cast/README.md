@@ -89,4 +89,5 @@ GPL-3.0-or-later (`LICENSE`). `cluster_render_client.js` is MPL-2.0
 (`LICENSES/MPL-2.0.txt`), Robert Nisipeanu's client for
 [cluster-render](https://github.com/robertnisipeanu/idrive-apps/tree/main/native/cluster-render). `qrcode.js` is Kazuhiko Arase's QR Code Generator,
 MIT. The bundled ffmpeg is John Van Sickle's static build, GPLv3
-(`ffmpeg-GPLv3.txt`; source at https://ffmpeg.org).
+(`ffmpeg-GPLv3.txt`). [THIRD-PARTY.md](THIRD-PARTY.md), shipped in the kit,
+names the exact build, its libraries and where their source is.
