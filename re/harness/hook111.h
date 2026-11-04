@@ -49,6 +49,9 @@ void hook111_log_to(const char *dir);
 /* The mode file (contents off | alt | full), read at every SETUP and /info.
  * Not called: full. Called with a path that does not exist: off. */
 void hook111_mode_file(const char *path);
+/* The second display's size file ("WxH@fps", e.g. 1056x384@30), read at
+ * every /info; not called, missing or invalid: the configured display. */
+void hook111_display_file(const char *path);
 /* 0 off, 1 alt, 2 full, as it applies now; whether it fell back to off. */
 int hook111_mode(void);
 int hook111_fell_back(void);

@@ -14,12 +14,12 @@ workflow (Actions > Release, the component ids).
   `release.js` then publishes it on every full release; `component.json`'s
   recmgr entries and `systemd-analyze verify` of the units are untested), or
   by hand as before. Checklist: re/STATUS.md, "Before the next armed boot".
-- [ ] **Display size per target (0.0.7).** The tool now writes the wanted size
-  to `/run/hook111/display` (`WxH@fps`: 1088x480@30 for the cluster,
-  1056x384@30 for the HUD); hook111 still advertises its fixed 1088x480. The
-  hook should read that file at each `/info` (validated) and report what it
-  offered in its status (`display=`). Until then the HUD gets the cluster's
-  stream scaled to fit.
+- [x] **Display size per target (0.0.7).** hook111 reads `/run/hook111/display`
+  (`WxH@fps`, written by vizualyse-cast: 1088x480@30 for the cluster map,
+  1056x384@30 for the HUD) at each `/info`, validated, and reports what it
+  offered (`display=` in its status). `setup_b.c`: 57 checks.
+- [ ] **On the car:** whether the phone draws the HUD size it is offered
+  (1056x384), and how the cluster view looks at that shape.
 - [ ] **Open protocol questions:** what `viewAreas`, `showUI` and
   `primaryInputDevice` should contain; whether the phone keeps streaming 111
   while CarPlay isn't on the main screen.

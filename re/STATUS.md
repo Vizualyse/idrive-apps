@@ -26,8 +26,12 @@ then keeps it in memory until its next start). How it goes back on (mgu-deploy
 from the Store, or by hand) is undecided. It stays out of `native/` until then:
 `release.js` publishes every `native/` tool on a full release.
 
-Nothing consumes the stream yet. The next step is vizualyse-cast reading
-`6111` instead of grabbing the central screen (TODO.md).
+The consumer exists off the car: vizualyse-cast 0.3.0's "CarPlay second
+screen" source reads `6111` for the cluster map or the HUD, and writes the
+size its target wants to `/run/hook111/display`. hook111 0.0.7 (not yet on a
+car) offers that size in `/info`: 1088x480@30 for the cluster map,
+1056x384@30 for the HUD, read at each connection and validated; it reports
+what it offered as `display=` in its status. Both are untested on the car.
 
 ## What's in `re/`
 
@@ -39,7 +43,7 @@ Nothing consumes the stream yet. The next step is vizualyse-cast reading
 | `ghidra/*.java` | Keyword and 110/111 export, Apple function names from log strings (345), decompiling. | |
 | `harness/Dockerfile` | Ubuntu 18.04 image matching the unit's glibc 2.27 and OpenSSL 1.1 (`ffmpeg.Dockerfile` adds ffmpeg, tests only). | |
 | `harness/screen_b.c` | A second screen object inside the real library (`aes`, `chacha`, `chacha-tamper`). | pass |
-| `harness/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the bench channel. | `setup_b.c`: 52 |
+| `harness/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the display-size file, the bench channel. | `setup_b.c`: 57 |
 | `harness/annexb.c`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocks, reconnects, resumes at an IDR. | `annexb_test.c`: 22 |
 | `harness/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. | `preload_test.c`: 23 |
 | `deploy/hook111/` | Arm step (busybox ash), units, drop-ins, `component.json` (mgu-deploy, untested), `bench/make_command.py`. | `test/arm_test.sh`: 48 |

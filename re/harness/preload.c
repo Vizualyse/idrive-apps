@@ -14,6 +14,8 @@
  *   HOOK111_SINK_PORT   127.0.0.1 port of the Annex-B consumer (default 6111)
  *   HOOK111_DATA_PORT   stream 111's listener (default 6031, open in the firewall)
  *   HOOK111_LOG_DIR     the plist log (default /run/hook111/log, used if it exists)
+ *   HOOK111_DISPLAY_FILE  the second display's size, WxH@fps, read at every /info
+ *                       (default /run/hook111/display, written by vizualyse-cast)
  *   HOOK111_MODE_FILE   off | alt | full, read at every SETUP and /info
  *                       (default /run/hook111/mode; missing: off). The arm step writes it.
  */
@@ -59,6 +61,8 @@ static void try_install(const char *why) {
             hook111_log_to(ld ? ld : "/run/hook111/log");   /* only if it exists: the arm step makes it */
             const char *mf = getenv("HOOK111_MODE_FILE");
             hook111_mode_file(mf ? mf : "/run/hook111/mode");   /* read at every SETUP; missing: off */
+            const char *df = getenv("HOOK111_DISPLAY_FILE");
+            hook111_display_file(df ? df : "/run/hook111/display");   /* the size per target, from vizualyse-cast */
             int rc = hook111_install(b, sink_annexb(&sink_state, (uint16_t)port), &display);
             state = rc == 0 ? 1 : -1;
             fprintf(stderr, "[hook111] %s: %s (stream 111 on %d, sink 127.0.0.1:%d, mode now %s)\n", why,

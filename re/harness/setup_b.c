@@ -502,6 +502,40 @@ int main(int argc, char **argv) {
         CF urls = CFDictGetTyped(d1, CFStr("altScreenSuggestUIURLs"), CFArrayTypeID(), &e);
         CHECK("second record: 3 altScreenSuggestUIURLs", urls && CFArrayCount(urls) == 3);
     }
+    /* ---------- the second display's size, per target (/run/hook111/display) ---------- */
+    {
+        char dfile[640]; snprintf(dfile, sizeof dfile, "%s.display", logdir);
+        hook111_display_file(dfile);
+        #define REC1() ({ int pe = 0; CF dd = FN(CF (*)(void *, CF, void *, int *, void *), 0x10d270)(NULL, K_DISPLAYS, NULL, &pe, cfg); \
+                          dd && CFTypeOf(dd) == CFArrayTypeID() && CFArrayCount(dd) == 2 ? CFArrayAt(dd, 1) : NULL; })
+        int e = 0;
+        CF r = REC1();
+        CHECK("display file configured but missing: the configured 1088x480", r && CFDictGetI64(r, K_WPX, &e) == 1088 && CFDictGetI64(r, K_HPX, &e) == 480);
+        set_mode(dfile, "1056x384@30\n");
+        r = REC1();
+        CHECK("1056x384@30 (the HUD): advertised, physical size at the same density (194x70 mm), maxFPS 30",
+              r && CFDictGetI64(r, K_WPX, &e) == 1056 && CFDictGetI64(r, K_HPX, &e) == 384 &&
+              CFDictGetI64(r, K_WMM, &e) == 200 * 1056 / 1088 && CFDictGetI64(r, K_HMM, &e) == 88 * 384 / 480 && CFDictGetI64(r, K_MAXFPS, &e) == 30 && !e);
+        status_now(1);
+        char stp[700], sl[256]; snprintf(stp, sizeof stp, "%s/status", logdir);
+        FILE *sf = fopen(stp, "r"); int said = 0;
+        while (sf && fgets(sl, sizeof sl, sf)) if (!strcmp(sl, "display=1056x384@30\n")) said = 1;
+        if (sf) fclose(sf);
+        CHECK("the status says what was offered (display=1056x384@30)", said);
+        set_mode(dfile, "1088x480@15");
+        r = REC1();
+        CHECK("1088x480@15: the cluster size at 15 fps", r && CFDictGetI64(r, K_WPX, &e) == 1088 && CFDictGetI64(r, K_MAXFPS, &e) == 15);
+        static const char *bad[] = { "1001x384@30", "1056x385@30", "1056x384@90", "4000x384@30", "1056x384@30x", "garbage", "" };
+        int all_default = 1;
+        for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
+            set_mode(dfile, bad[i]);
+            r = REC1();
+            if (!r || CFDictGetI64(r, K_WPX, &e) != 1088 || CFDictGetI64(r, K_HPX, &e) != 480 || CFDictGetI64(r, K_MAXFPS, &e) != 30) { all_default = 0; printf("  not refused: \"%s\"\n", bad[i]); }
+        }
+        CHECK("not a multiple of 8, odd, fps out of range, too wide, trailing junk, garbage, empty: the configured display", all_default);
+        unlink(dfile);
+        hook111_display_file(NULL);
+    }
     /* ---------- modes, and the fallback when the phone refuses ---------- */
     {
         /* the phone's first SETUP: no streams, the features it offers (as on the unit) */

@@ -118,6 +118,7 @@ static void *make_tramp(const unsigned char *code, size_t n, uintptr_t resume_gh
 }
 
 static void status_now(int force);   /* the status file, below */
+static char offered_display[32];     /* WxH@fps of the last /info record, for the status */
 
 /* ---- screen B: the second screen object and its thread ----
  * One at a time. Its life follows the stock screen's (_ScreenStart 0x17a480,
@@ -362,6 +363,33 @@ static int read_mode(void) {
     return MODE_OFF;
 }
 int hook111_mode(void) { return read_mode(); }
+
+/* ---- the second display's size, per target ----
+ * The phone draws the second screen at the size /info advertises, and reads
+ * /info at each connection. A consumer (vizualyse-cast) writes the size its
+ * target wants to hook111_display_file as "WxH@fps" (1088x480@30 for the
+ * cluster map, 1056x384@30 for the HUD); every /info takes it, if valid:
+ * 320-1920 wide in steps of 8, 160-1080 high and even, 1-60 fps. The physical
+ * size scales with it at the configured pixel density. Otherwise, or with no
+ * file, the configured display. */
+static char display_path[256];
+void hook111_display_file(const char *path) {
+    display_path[0] = 0;
+    if (path && strlen(path) < sizeof display_path) strcpy(display_path, path);
+}
+static void display_now(int *w, int *h, int *fps) {
+    *w = disp.width_px; *h = disp.height_px; *fps = disp.max_fps;
+    if (!display_path[0]) return;
+    char b[40] = ""; int fd = open(display_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    ssize_t n = read(fd, b, sizeof b - 1); close(fd);
+    if (n <= 0) return;
+    b[n] = 0;
+    int W, H, F; char end = 0;
+    if (sscanf(b, "%dx%d@%d%c", &W, &H, &F, &end) < 3 || (end && end != '\n')) return;
+    if (W < 320 || W > 1920 || W % 8 || H < 160 || H > 1080 || H % 2 || F < 1 || F > 60) return;
+    *w = W; *h = H; *fps = F;
+}
 static int mode_now(void) { return read_mode(); }
 int hook111_fell_back(void) { return fallback; }
 
@@ -384,6 +412,7 @@ static void status_now(int force) {
     FILE *f = fopen(q, "w");
     if (!f) return;
     volatile struct hook111_stats *x = &hook111_stats;
+    if (offered_display[0]) fprintf(f, "display=%s\n", offered_display);
     fprintf(f, "time_s=%lld\nmode=%s\nfell_back=%d\nrefusals=%d\n", now / 1000000000LL, mode_now() == 2 ? "full" : mode_now() == 1 ? "alt" : "off", hook111_fell_back(), x->refusals);
     fprintf(f, "setups_111=%d\naccepted=%d\npump_done=%d\npump_rc=%d\nscreen_b=%s\n", x->setups_111, x->accepted, x->pump_done, x->pump_rc, current_b ? "up" : "none");
     fprintf(f, "b_avcc=%d\nb_avcc_bytes=%d\nb_starts=%d\nb_stops=%d\nb_frames=%d\nb_frame_bytes=%lld\n", x->b_avcc, x->b_avcc_bytes, x->b_starts, x->b_stops, x->b_frames, (long long)x->b_frame_bytes);
@@ -579,14 +608,17 @@ static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
     CF v = orig_copyprop(a1, prop, a3, err, cfg);
     if (!v || !CFEqual(prop, K_DISPLAYS) || CFTypeOf(v) != CFArrayTypeID()) return v;
     if (read_mode() == MODE_OFF) { log_plist("info-displays", v); return v; }
+    int w, h, fps;
+    display_now(&w, &h, &fps);
+    snprintf(offered_display, sizeof offered_display, "%dx%d@%d", w, h, fps);
     CF d = CFDictCreate(), s, k;
     s = CFStr(disp.uuid); CFDictSet(d, K_UUID, s); CFRelease(s);
     CF n;
-    n = CFNumI64(disp.width_px);  CFDictSet(d, K_WPX, n); CFRelease(n);
-    n = CFNumI64(disp.height_px); CFDictSet(d, K_HPX, n); CFRelease(n);
-    n = CFNumI64(disp.width_mm);  CFDictSet(d, K_WMM, n); CFRelease(n);
-    n = CFNumI64(disp.height_mm); CFDictSet(d, K_HMM, n); CFRelease(n);
-    n = CFNumI64(disp.max_fps);   CFDictSet(d, K_MAXFPS, n); CFRelease(n);
+    n = CFNumI64(w);  CFDictSet(d, K_WPX, n); CFRelease(n);
+    n = CFNumI64(h); CFDictSet(d, K_HPX, n); CFRelease(n);
+    n = CFNumI64((int64_t)disp.width_mm * w / disp.width_px);  CFDictSet(d, K_WMM, n); CFRelease(n);    /* same density */
+    n = CFNumI64((int64_t)disp.height_mm * h / disp.height_px); CFDictSet(d, K_HMM, n); CFRelease(n);
+    n = CFNumI64(fps);   CFDictSet(d, K_MAXFPS, n); CFRelease(n);
     n = CFNumI64(disp.features);  CFDictSet(d, K_FEATURES, n); CFRelease(n);
     k = CFStr("initialURL"); s = CFStr(disp.initial_url); CFDictSet(d, k, s); CFRelease(s); CFRelease(k);
     CF urls = CFArrayCreate();
