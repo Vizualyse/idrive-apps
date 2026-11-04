@@ -30,6 +30,15 @@ workflow (Actions > Release, the component ids).
   only" and reconnect the phone. If the cluster view doesn't change, try
   `showUI {url, uuid}` from the bench (`send.plist`) while the main screen is
   up. Expect it may cost the main screen, as the `suggestUI` answer did.
+- [x] **Shape and vignette** (vizualyse-cast 0.3.5, vizualyse_cast 0.3.3):
+  the phone asked for the target's height x1.25 / x1.5 (map 936x600 /
+  936x720), squeezed back into the band by ffmpeg; our own light vignette
+  (`vignette=angle=PI/7`). Both switches are on the iDrive page and the phone
+  page.
+- [ ] **On the car:** whether a taller shape moves the directions card (it
+  sits top right at the wide shape; screenshots elsewhere show it top
+  centre), and whether the squeeze looks acceptable. If the card moves at
+  x1.5, try x1.25 for less squeeze.
 - [x] **The cluster map 24 px wider** (vizualyse-cast 0.3.4): 936x480 at x
   76-1012, sent at 704x360 (the width a multiple of 4: 1 px padding each
   side), ~4.5 MB/s.

@@ -138,8 +138,9 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'castQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castCarplayOn', 'castCarplayView', 'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
-    console.log('ok   page: 10 buttons, a QR graphic, xml and uiDescription agree');
+    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castCarplayOn', 'castCarplayShape', 'castCarplayView', 'castCarplayVignette',
+        'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
+    console.log('ok   page: 12 buttons, a QR graphic, xml and uiDescription agree');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -206,6 +207,25 @@ async function main() {
     byName.castCarplayView.emit('action');
     await until('view cluster sent (it wraps round)', () => received.some((c) => c.cmd === 'carplayView' && c.view === 'cluster'));
     console.log('ok   the cluster view: shows the view and when it applies; each press sends the next (map and directions -> map only -> directions only -> ...)');
+
+    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { shape: { wanted: 'wide', title: 'normal', pending: null }, vignette: false }) });
+    control.broadcast();
+    await until('shape and vignette shown', () => byName.castCarplayShape.enabled === true && byName.castCarplayShape.text === 'CarPlay shape: normal' &&
+        byName.castCarplayVignette.text === 'CarPlay vignette: off');
+    await sleep(450);
+    byName.castCarplayShape.emit('action');
+    await until('shape taller sent', () => received.some((c) => c.cmd === 'carplayShape' && c.shape === 'taller'));
+    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { shape: { wanted: 'tall', title: 'tall (x1.5)', pending: 'from the phone\'s next connection' }, vignette: true }) });
+    control.broadcast();
+    await until('shape tall, pending; vignette on', () => byName.castCarplayShape.text === 'CarPlay shape: tall (x1.5) (from the phone\'s next connection)' &&
+        byName.castCarplayVignette.text === 'CarPlay vignette: on');
+    await sleep(450);
+    byName.castCarplayShape.emit('action');
+    await until('shape wide sent (it wraps round)', () => received.some((c) => c.cmd === 'carplayShape' && c.shape === 'wide'));
+    await sleep(450);
+    byName.castCarplayVignette.emit('action');
+    await until('vignette off sent', () => received.some((c) => c.cmd === 'carplayVignette' && c.on === false));
+    console.log('ok   the shape and the vignette: shown, the shape steps normal -> taller -> tall, the vignette toggles');
     st = Object.assign({}, st, { carplay: { armed: true, ready: true, mode: 'alt', switch: { installed: true, on: true, pending: null } } });
     control.broadcast();
     await until('carplay enabled', () => byName.castCarplayMap.enabled === true && byName.castCarplayHud.enabled === true);

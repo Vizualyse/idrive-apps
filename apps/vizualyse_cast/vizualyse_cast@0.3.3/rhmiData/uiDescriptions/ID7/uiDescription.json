@@ -347,6 +347,50 @@
               }
             }
           ]
+        },
+        "41": {
+          "type": "button",
+          "name": "castCarplayShape",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay shape: normal",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "42": {
+          "type": "button",
+          "name": "castCarplayVignette",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay vignette: off",
+                "type": "Text"
+              }
+            }
+          ]
         }
       }
     }

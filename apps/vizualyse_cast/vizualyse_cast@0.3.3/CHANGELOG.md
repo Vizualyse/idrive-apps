@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3
+
+- CarPlay shape: normal / taller (x1.25) / tall (x1.5). The phone is asked
+  to draw that much taller, from its next connection, and the picture is
+  squeezed back into the cluster band. Experimental: to see whether the
+  phone moves the directions card for a taller screen.
+- CarPlay vignette: on / off. A light darkening towards the corners, added
+  by the Cast tool.
+- Requires vizualyse-cast 0.3.5.
+
 ## 0.3.2
 
 - CarPlay cluster view: map and directions / map only / directions only.

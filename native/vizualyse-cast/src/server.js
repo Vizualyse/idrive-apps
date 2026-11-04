@@ -102,8 +102,11 @@ const cr = new ClusterRender('vizualyse_cast');
  * the cluster draws its direction list over it; the iDrive page shows it),
  * and the CarPlay cluster view (carplay_screen.VIEWS). */
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, clusterQr: false, carplayView: 'cluster' }, readJson(SETTINGS_FILE) || {});
+const settings = Object.assign({ enabled: true, clusterQr: false, carplayView: 'cluster', carplayShape: 'wide', carplayVignette: false },
+    readJson(SETTINGS_FILE) || {});
 if (carplay.VIEWS.indexOf(settings.carplayView) < 0) settings.carplayView = 'cluster';
+if (!carplay.SHAPES[settings.carplayShape]) settings.carplayShape = 'wide';
+settings.carplayVignette = settings.carplayVignette === true;
 function saveSettings() {
     try { mkdirp(STATE_DIR); fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings) + '\n', { mode: 0o600 }); } catch (e) { log('settings: ' + e.message); }
 }
@@ -233,7 +236,7 @@ function play(opts) {
         const t = carplay.TARGETS[opts.output];
         o = Object.assign({}, o, { w: t.w, h: t.h, fps: t.fps }, t.xband ? { xband: t.xband } : {}, t.band ? { band: t.band } : {});
         try {
-            const d = carplay.wantDisplay(opts.output);
+            const d = carplay.wantDisplay(opts.output, undefined, settings.carplayShape);
             if (d) log('carplay: asking for ' + d.wanted + (d.pending ? ' (the phone is on another size until it reconnects: scaled)' : ''));
         } catch (e) { log('carplay: display: ' + e.message); }
     }
@@ -245,7 +248,7 @@ function play(opts) {
     if (cp) {
         /* live: no -re; the hook connects to this listener */
         args.push.apply(args, carplay.inputArgs(carplay.state().port));
-        args.push.apply(args, carplay.outputArgs(opts.output));
+        args.push.apply(args, carplay.outputArgs(opts.output, { shape: settings.carplayShape, vignette: settings.carplayVignette }));
     } else {
         if (opts.realtime) args.push('-re');
         if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
@@ -352,7 +355,10 @@ function status() {
         link: link(), canReplay: !!lastPlay,
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
-            display: c.display, wanted: c.wanted, switch: carplaySwitch(), view: carplayView(c) },
+            display: c.display, wanted: c.wanted, switch: carplaySwitch(), view: carplayView(c),
+            shape: { wanted: settings.carplayShape, title: carplay.SHAPE_TITLES[settings.carplayShape],
+                pending: c.wanted && c.display && c.wanted !== c.display ? 'from the phone\'s next connection' : null },
+            vignette: settings.carplayVignette },
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -400,6 +406,14 @@ const web = http.createServer((req, res) => {
             if (output === 'none' && !audio) return json(res, 400, { error: 'nothing to play: no video output and no audio' });
             const volume = Math.max(0, Math.min(150, Math.round(Number(b.volume) || 60)));
             play({ url: url.href, shown: redact(url.href), output: output, audio: audio, volume: volume, realtime: b.realtime !== false });
+            return json(res, 200, status());
+        }
+        if (u.pathname === '/api/carplay-shape') {
+            const why = setCarplayShape(b.shape);
+            return why ? json(res, 400, { error: why }) : json(res, 200, status());
+        }
+        if (u.pathname === '/api/carplay-vignette') {
+            setCarplayVignette(b.on === true);
             return json(res, 200, status());
         }
         if (u.pathname === '/api/carplay-view') {
@@ -464,6 +478,29 @@ function setCarplayView(view) {
     return null;
 }
 
+/* The CarPlay picture's shape (carplay_screen.SHAPES: the phone draws taller,
+ * ffmpeg squeezes it back) and our vignette. Both kept in the settings; a
+ * CarPlay second screen that is playing starts again with them (the shape's
+ * size reaches the phone at its next connection). null, or why not. */
+function restartCarplay(why) {
+    if (player && player.opts.source === 'carplay') { log('carplay: ' + why + ': starting again'); play(player.opts); }
+}
+function setCarplayShape(shape) {
+    if (!carplay.SHAPES[shape]) return 'shape is ' + Object.keys(carplay.SHAPES).join(', ');
+    settings.carplayShape = shape;
+    saveSettings();
+    log('carplay: shape ' + shape + ' saved');
+    restartCarplay('shape ' + shape);
+    return null;
+}
+function setCarplayVignette(on) {
+    settings.carplayVignette = !!on;
+    saveSettings();
+    log('carplay: vignette ' + (on ? 'on' : 'off') + ' saved');
+    restartCarplay('vignette ' + (on ? 'on' : 'off'));
+    return null;
+}
+
 /* The iDrive app's commands over the control socket: null, or why not. */
 function setQr(show) { qrWanted = show; settings.clusterQr = show; saveSettings(); updateQr(); }
 
@@ -487,6 +524,8 @@ function command(c) {
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (c.cmd === 'hook111') return setCarplayMode(c.mode);
     if (c.cmd === 'carplayView') return setCarplayView(c.view);
+    if (c.cmd === 'carplayShape') return setCarplayShape(c.shape);
+    if (c.cmd === 'carplayVignette') return setCarplayVignette(c.on === true);
     if (!settings.enabled) return 'Cast to cluster is off';
     if (c.cmd === 'carplay') return playCarplay(c.output);
     if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }

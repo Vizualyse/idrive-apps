@@ -9,6 +9,7 @@
  * {"cmd":"carplay","output":"map"|"hud"} (the CarPlay second screen),
  * {"cmd":"hook111","mode":"off"|"alt"} (the second screen's switch),
  * {"cmd":"carplayView","view":"cluster"|"map"|"card"} (its cluster view),
+ * {"cmd":"carplayShape","shape":"wide"|"taller"|"tall"}, {"cmd":"carplayVignette","on":…},
  * {"cmd":"enable"}, {"cmd":"disable"} and {"cmd":"qr","show":true|false}. Connected while the page is visible,
  * retried once a second; the tool keeps running without it.
  */
@@ -104,6 +105,20 @@ class CastControl extends EventEmitter {
         if (!w.installed) return 'CarPlay second screen: hook111 not installed';
         return 'CarPlay second screen: ' + (w.on ? 'on' : 'off') + (w.pending ? ' (' + w.pending + ')' : '');
     }
+    /* the next shape: normal -> taller -> tall -> ...; the vignette on / off */
+    nextCarplayShape() {
+        const order = ['wide', 'taller', 'tall'], cur = this.carplayShape().wanted;
+        return this._send({ cmd: 'carplayShape', shape: order[(order.indexOf(cur) + 1) % order.length] });
+    }
+    setCarplayVignette(on) { return this._send({ cmd: 'carplayVignette', on: !!on }); }
+    carplayShape() { return (this.status && this.status.carplay && this.status.carplay.shape) || { wanted: 'wide', title: null, pending: null }; }
+    carplayVignette() { return !!(this.status && this.status.carplay && this.status.carplay.vignette); }
+    shapeText() {
+        const s = this.carplayShape();
+        if (!this.status || !s.title) return 'CarPlay shape: —';
+        return 'CarPlay shape: ' + s.title + (s.pending ? ' (' + s.pending + ')' : '');
+    }
+    vignetteText() { return 'CarPlay vignette: ' + (this.status ? (this.carplayVignette() ? 'on' : 'off') : '—'); }
     /* the cluster view: { wanted, title, offered, pending } */
     carplayView() { return (this.status && this.status.carplay && this.status.carplay.view) || { wanted: 'cluster', title: null, pending: null }; }
     viewText() {

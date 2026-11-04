@@ -59,6 +59,26 @@ const TARGETS = {
     hud: { display: { w: 1056, h: 384, fps: 30 }, w: 528, h: 192, fps: 15 },
 };
 
+/* The shape the phone is asked to draw: the target's own (wide), or its
+ * height times 1.25 (taller) or 1.5 (tall), the same width. The phone lays its
+ * view out for that shape (where the directions card goes may change: on the
+ * car it sits top right at the wide shape); ffmpeg squeezes the picture back
+ * into the target's band by the same factor. */
+const SHAPES = { wide: 1, taller: 1.25, tall: 1.5 };
+const SHAPE_TITLES = { wide: 'normal', taller: 'taller (x1.25)', tall: 'tall (x1.5)' };
+/* Our own light vignette over the CarPlay picture: ffmpeg's vignette filter,
+ * darkening towards the corners (angle PI/7; its default PI/5 is heavier). */
+const VIGNETTE = 'vignette=angle=PI/7';
+
+/* What the phone should draw for a target in a shape: { w, h, fps }; the
+ * height even and at most 1080 (as hook111 accepts). */
+function displayFor(output, shape) {
+    const t = TARGETS[output];
+    if (!t) return null;
+    const m = SHAPES[shape] || 1;
+    return { w: t.display.w, h: Math.min(1080, Math.round(t.display.h * m / 2) * 2), fps: t.display.fps };
+}
+
 function readText(f) { try { return fs.readFileSync(f, 'utf8'); } catch (e) { return null; } }
 
 /* key=value lines (the hook's status file, its env file) */
@@ -140,11 +160,11 @@ function state(run) {
  * connection. Returns { wanted, pending } (pending: the phone is still on
  * another size, so the picture is scaled until it reconnects), or null when
  * hook111 isn't there to read it. */
-function wantDisplay(output, run) {
+function wantDisplay(output, run, shape) {
     run = run || RUN;
-    const t = TARGETS[output];
-    if (!t || !fs.existsSync(run)) return null;
-    const want = displayText(t.display), f = path.join(run, 'display');
+    const d = displayFor(output, shape);
+    if (!d || !fs.existsSync(run)) return null;
+    const want = displayText(d), f = path.join(run, 'display');
     if ((readText(f) || '').trim() !== want) {
         const tmp = f + '.tmp.' + process.pid;
         fs.writeFileSync(tmp, want + '\n', { mode: 0o644 });
@@ -182,12 +202,20 @@ function inputArgs(port) {
         '-f', 'h264', '-i', 'tcp://127.0.0.1:' + (port || DEFAULT_PORT) + '?listen=1'];
 }
 
-/* ffmpeg's video output for a target: whatever size the phone sends, fitted
- * into w x h (aspect kept, padded), at the target's rate, I420 on stdout. */
-function outputArgs(output) {
+/* ffmpeg's video output for a target, I420 on stdout at the target's rate.
+ * The wide shape: whatever size the phone sends, fitted into w x h (aspect
+ * kept, padded). A taller shape: scaled to exactly w x h, which squeezes the
+ * phone's taller picture back by its factor (while the phone is still on the
+ * wide size, it is that size's own shape: no squeeze). look: { shape,
+ * vignette }. */
+function outputArgs(output, look) {
+    look = look || {};
     const t = TARGETS[output];
-    return ['-map', '0:v:0', '-vf', 'scale=' + t.w + ':' + t.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
-        'pad=' + t.w + ':' + t.h + ':-1:-1,fps=' + t.fps + ',format=yuv420p', '-f', 'rawvideo', 'pipe:1'];
+    const scale = (SHAPES[look.shape] || 1) !== 1
+        ? 'scale=' + t.w + ':' + t.h + ':flags=bilinear,setsar=1'
+        : 'scale=' + t.w + ':' + t.h + ':force_original_aspect_ratio=decrease:flags=bilinear,pad=' + t.w + ':' + t.h + ':-1:-1';
+    return ['-map', '0:v:0', '-vf', scale + ',fps=' + t.fps + (look.vignette ? ',' + VIGNETTE : '') + ',format=yuv420p',
+        '-f', 'rawvideo', 'pipe:1'];
 }
 
 /* The switch's state for the pages: installed, on (the saved mode is alt),
@@ -204,4 +232,4 @@ function switchState(o) {
     return { installed: true, on: saved === 'alt', saved: saved, pending: pending };
 }
 
-module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, DEFAULT_PORT, state, savedMode, setMode, switchState, wantDisplay, wantView, inputArgs, outputArgs, readKv, displayText };
+module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, SHAPES, SHAPE_TITLES, VIGNETTE, DEFAULT_PORT, state, savedMode, setMode, switchState, displayFor, wantDisplay, wantView, inputArgs, outputArgs, readKv, displayText };

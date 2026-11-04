@@ -138,6 +138,21 @@ function unit() {
     ok('view: no hook111 run directory, nothing written', cp.wantView('map', path.join(vrun, 'nope')) === null);
     ok('view: titles for the pages', cp.VIEWS.every((k) => typeof cp.VIEW_TITLES[k] === 'string'));
 
+    /* the shape */
+    ok('shape: map normal 936x480, taller 936x600, tall 936x720; hud tall 1056x576',
+        cp.displayText(cp.displayFor('map', 'wide')) === '936x480@30' && cp.displayText(cp.displayFor('map', 'taller')) === '936x600@30' &&
+        cp.displayText(cp.displayFor('map', 'tall')) === '936x720@30' && cp.displayText(cp.displayFor('hud', 'tall')) === '1056x576@30');
+    ok('shape: an unknown shape is the normal one', cp.displayText(cp.displayFor('map', 'huge')) === '936x480@30');
+    const srun = fakeRun({ armed: true, mode: 'alt', status: { display: '936x480@30' } });
+    const sd = cp.wantDisplay('map', srun, 'tall');
+    ok('shape tall: asks hook111 for 936x720@30, pending until the phone reconnects', sd.wanted === '936x720@30' && sd.pending &&
+        fs.readFileSync(path.join(srun, 'display'), 'utf8') === '936x720@30\n');
+    const vfOf = (look) => { const a = cp.outputArgs('map', look); return a[a.indexOf('-vf') + 1]; };
+    ok('ffmpeg: normal fits and pads; a taller shape scales to exactly 704x360; the vignette only when asked',
+        /force_original_aspect_ratio=decrease/.test(vfOf({})) && /pad=704:360/.test(vfOf({})) && !/vignette/.test(vfOf({})) &&
+        /^scale=704:360:flags=bilinear,setsar=1,/.test(vfOf({ shape: 'tall' })) && !/pad=/.test(vfOf({ shape: 'tall' })) &&
+        /,vignette=angle=PI\/7,format=yuv420p$/.test(vfOf({ vignette: true })));
+
     ['map', 'hud'].forEach((t) => {
         const T = cp.TARGETS[t], kbs = T.w * T.h * 1.5 * T.fps / 1024;
         ok(t + ': ' + T.w + 'x' + T.h + ' at ' + T.fps + ' fps, a multiple of 4 wide, ' + Math.round(kbs) + ' KB/s (renderer: 5500)', T.w % 4 === 0 && T.h % 2 === 0 && kbs < 5500);
@@ -151,9 +166,9 @@ function unit() {
 }
 
 /* an x264 stream as the hook's sink sends it: Annex-B, SPS/PPS before the IDR */
-function makeStream(w, h, secs) {
+function makeStream(w, h, secs, src) {
     const f = path.join(tmpdir('h264-'), w + 'x' + h + '.h264');
-    execFileSync(FFMPEG, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=' + w + 'x' + h + ':rate=16', '-t', String(secs),
+    execFileSync(FFMPEG, ['-v', 'error', '-y', '-f', 'lavfi', '-i', (src ? src + ':' : 'testsrc=') + 'size=' + w + 'x' + h + ':rate=16', '-t', String(secs),
         '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast', '-x264-params', 'keyint=1000:repeat-headers=1', '-f', 'h264', f]);
     return f;
 }
@@ -170,16 +185,18 @@ function connectWhenListening(port, tries) {
 }
 
 /* ffmpeg with the tool's own arguments: the stream in, I420 frames out */
-async function throughFfmpeg(cp, target, stream, port) {
+async function throughFfmpeg(cp, target, stream, port, look) {
     const T = cp.TARGETS[target], size = T.w * T.h * 3 / 2;
-    const ff = spawn(FFMPEG, ['-nostdin', '-hide_banner', '-loglevel', 'error'].concat(cp.inputArgs(port), cp.outputArgs(target)), { stdio: ['ignore', 'pipe', 'pipe'] });
-    let bytes = 0, err = '';
-    ff.stdout.on('data', (b) => { bytes += b.length; });
+    const ff = spawn(FFMPEG, ['-nostdin', '-hide_banner', '-loglevel', 'error'].concat(cp.inputArgs(port), cp.outputArgs(target, look)), { stdio: ['ignore', 'pipe', 'pipe'] });
+    let bytes = 0, err = '', first = Buffer.alloc(0);
+    ff.stdout.on('data', (b) => { bytes += b.length; if (first.length < size) first = Buffer.concat([first, b]).slice(0, size); });
     ff.stderr.on('data', (b) => { err += b; });
     const sock = await connectWhenListening(port, 50);
     sock.end(fs.readFileSync(stream));
     const code = await new Promise((r) => ff.on('exit', r));
-    return { frames: bytes / size, whole: bytes % size === 0, code: code, err: err.trim() };
+    /* the first frame's luma (Y plane, w x h) */
+    const y = (x, yy) => first[yy * T.w + x];
+    return { frames: bytes / size, whole: bytes % size === 0, code: code, err: err.trim(), y: y };
 }
 
 async function streams(cp) {
@@ -190,6 +207,19 @@ async function streams(cp) {
     ok('map while the phone is still on 1088x480: scaled to fit (' + r.frames + ' frames)', r.whole && r.frames >= 30 && r.code === 0);
     r = await throughFfmpeg(cp, 'hud', hudSize, 46202);
     ok('hud: a 1056x384 stream -> ' + r.frames + ' whole 528x192 frames', r.whole && r.frames >= 40 && r.code === 0 && !r.err);
+    /* the shapes: the phone draws taller, ffmpeg squeezes it back */
+    const tall = makeStream(936, 720, 3);
+    r = await throughFfmpeg(cp, 'map', tall, 46205, { shape: 'tall' });
+    ok('map, tall: a 936x720 stream -> ' + r.frames + ' whole 704x360 frames (squeezed back, not padded), ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
+    r = await throughFfmpeg(cp, 'map', cluster, 46206, { shape: 'taller' });
+    ok('map, taller, while the phone is still on 936x480: whole frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
+    /* the vignette, on a white picture: the corners darker, the middle not */
+    const white = makeStream(936, 480, 2, 'color=c=white');
+    r = await throughFfmpeg(cp, 'map', white, 46207, { vignette: true });
+    const corner = r.y(2, 2), mid = r.y(352, 180);
+    const plain = await throughFfmpeg(cp, 'map', white, 46208, {});
+    ok('vignette: corners darker (Y ' + corner + ') than the middle (' + mid + '); without it, the corner ' + plain.y(2, 2),
+        r.whole && r.code === 0 && !r.err && corner < mid - 40 && mid > 200 && plain.y(2, 2) > 200);
     r = await throughFfmpeg(cp, 'hud', wide, 46203);
     ok('hud while the phone is still on 1088x480: scaled to fit (' + r.frames + ' frames)', r.whole && r.frames >= 40 && r.code === 0);
     return cluster;
@@ -290,6 +320,30 @@ async function server(cluster) {
         const back = await connectWhenListening(6111, 50);
         back.destroy();
         ok('... and takes the next connection', true);
+
+        /* the shape and the vignette while the second screen plays: it starts again with them */
+        const starts = () => logs.filter((l) => /play: CarPlay second screen on map/.test(l)).length;
+        let n0 = starts();
+        const cs = await ctl(sock, { cmd: 'carplayShape', shape: 'tall' });
+        let restarted = false;
+        for (let i = 0; i < 30 && !restarted; i++) { await sleep(100); restarted = starts() > n0; }
+        st = JSON.parse((await get(PORT, '/api/status', token)).body);
+        ok('control socket, carplayShape tall while playing: started again, asked hook111 for 936x720, saved',
+            !cs.some((l) => l.ev === 'error') && restarted && fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '936x720@30' &&
+            st.carplay.shape.wanted === 'tall' && st.carplay.shape.title === 'tall (x1.5)' &&
+            JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayShape === 'tall');
+        n0 = starts();
+        r = await post(PORT, '/api/carplay-vignette', token, { on: true });
+        restarted = false;
+        for (let i = 0; i < 30 && !restarted; i++) { await sleep(100); restarted = starts() > n0; }
+        st = JSON.parse((await get(PORT, '/api/status', token)).body);
+        ok('the phone page turns the vignette on while playing: started again, saved', r.code === 200 && restarted && st.carplay.vignette === true &&
+            JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayVignette === true);
+        r = await post(PORT, '/api/carplay-shape', token, { shape: 'square' });
+        ok('the phone page: an unknown shape refused', r.code === 400 && /wide, taller, tall/.test(JSON.parse(r.body).error));
+        await post(PORT, '/api/carplay-shape', token, { shape: 'wide' });
+        await post(PORT, '/api/carplay-vignette', token, { on: false });
+        await sleep(300);
 
         const c1 = await ctl(sock, { cmd: 'carplay', output: 'hud' });
         await sleep(300);

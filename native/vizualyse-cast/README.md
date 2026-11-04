@@ -54,6 +54,17 @@ commands are `{"cmd":"carplayView","view":…}` on the control socket and
 `POST /api/carplay-view` from the phone page. Experimental: whether the phone
 follows `initialURL` hasn't been seen on the car.
 
+**The shape** (`wide`, `taller` x1.25, `tall` x1.5): the phone is asked to
+draw the target's height times that (same width; the map's 936x480 becomes
+936x600 or 936x720), from its next connection, and ffmpeg scales the picture
+to exactly the band, squeezing it back. The point: the phone may lay its view
+out differently on a taller screen (the directions card sits top right at
+the wide shape). **The vignette**: ffmpeg's `vignette=angle=PI/7` on the
+CarPlay picture, darkening towards the corners (a white corner comes out
+about a third darker). Both are kept in the settings; a playing second screen
+starts again with a change. The commands are `carplayShape` / `carplayVignette`
+on the control socket and `POST /api/carplay-shape` / `/api/carplay-vignette`.
+
 The central-screen mirror (BMW's `winston-grabber` and the Google Maps
 layouts) was removed in 0.3.0.
 
