@@ -9,34 +9,34 @@ the instrument cluster or the HUD, with its sound through the speakers.
    default: with navigation up the cluster's direction list covers it).
 3. On the page, either a **Stream URL** (a file, HLS `.m3u8`, `rtsp://`,
    `rtmp://`) to **Cluster map**, **HUD**, **Media console** or **Audio only**,
-   with sound on or off and the volume; or the **Central screen**, mirrored to
+   with sound on or off and the volume; or the **CarPlay second screen** to
    the cluster map or the HUD. Then **Play**.
 
 **Cast to cluster: on / off** on the iDrive page turns the whole service off
 (nothing plays, no QR code, the phone page closed) and is kept across restarts.
 
-## Mirroring the central screen
+## The CarPlay second screen
 
-BMW's own `winston-grabber` encodes the central screen (`center`, 1920x720)
-in hardware at full size, at the mirror's frame rate, and sends MPEG-TS to a
-local UDP port (each mirror the next of 8482-8489, so one never waits for the
-one it replaces); ffmpeg reads it with no buffering, cuts out a layout and
-scales it for the target.
+CarPlay's own instrument-cluster view (Google Maps' or Apple Maps' cluster
+map), which the phone draws next to the main CarPlay screen. On this head
+unit's 2020 `carplay` it needs **hook111** (`re/` in this repository) armed
+for the current start, in mode `alt`. The hook hands the stream out as H.264
+to a consumer on `127.0.0.1:6111`; the tool's ffmpeg is that consumer
+(`carplay_screen.js`). It listens, the hook connects and asks the phone for a
+keyframe, and the picture follows in about 0.2 s. If the connection ends,
+ffmpeg listens again.
 
-| Layout | What goes out |
-|---|---|
-| CarPlay map | the CarPlay screen right of its dock, at the cluster map's 2.27:1 |
-| Whole screen | everything, letterboxed |
-| Google Maps (cluster) | CarPlay with Google Maps, for the cluster map: the clean map around the car (right of Google's buttons, left of its cards, down to the street-name card under the car) fills the frame; the direction card and the arrival / time / distance card ride on it, one height, side by side, centred along the top. Nearly full size (1052x410) at 8 fps, inside cluster-render's 5500 KB/s |
-| Google Maps (HUD) | the direction card over the readouts on the left, the map on the right, inside the HUD's visible band (25-65 % of its height, 17-83 % of its width), at 15 fps |
+| Output | The phone draws | Sent to cluster-render |
+|---|---|---|
+| Cluster map | 1088x480 (the `map` target) | 816x360 at 12 fps, scaled up by the renderer |
+| HUD | 1056x384 (the shape of the HUD's visible band) | 528x192 at 15 fps, in the band (17-83 % of the width, 25-65 % of the height) |
 
-A layout is either an overlay (a base region filling the frame, cards on
-it) or columns side by side at one height, each a stack of regions (`CROPS`
-in server.js, in screen pixels). Every frame is a multiple of 4 wide, as
-cluster-render requires of a video layer. On the cluster map a mirror keeps
-to 8-96 % of the height, clear of the gauge surround's fade. The page's preview is a
-snapshot of the central screen (`/api/screen.jpg`) with the regions outlined.
-It mirrors what the central screen shows: open CarPlay first.
+The tool writes the wanted size to `/run/hook111/display`; the phone gets it
+at its next connection, and until then the stream is scaled to fit. The page
+and the iDrive page show whether hook111 is ready, and why not.
+
+The central-screen mirror (BMW's `winston-grabber` and the Google Maps
+layouts) was removed in 0.3.0.
 
 ## How it works
 
@@ -48,13 +48,18 @@ It mirrors what the central screen shows: open CarPlay first.
 | `pcm_play.py` | root, mgu-python | plays the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` source |
 | `console_out.js` | root | the media console output: frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_cast` (MGVF, 3 slots), drawn by an mgu-render client in layer mode in the screen's app area |
 | `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start (while on), removed at stop, when turned off and by the tool's `deactivate` |
-| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, mirror, enable, disable, the cluster QR code |
-| `winston-grabber` | root | the head unit's own screen grabber, for the central-screen source |
+| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, enable, disable, the cluster QR code |
+| `carplay_screen.js` | root | the CarPlay second screen: hook111's state, the size to ask for, ffmpeg's arguments |
 
-Frame sizes keep within cluster-render's 5500 KB/s upload ceiling:
-512x288 at 15 fps on the map, 480x270 at 15 fps on the HUD, there in the band between its clipped top and the
-car's speed (25 % to 65 % of the height). ffmpeg decodes in software on the
-Atom A3960's four cores.
+Frame sizes keep within cluster-render's 5500 KB/s upload ceiling: for a
+stream URL 512x288 at 15 fps on the map and 480x270 at 15 fps on the HUD,
+there in the band between its clipped top and the car's speed (25 % to 65 %
+of the height); for the CarPlay second screen, the table above. ffmpeg
+decodes in software on the Atom A3960's four cores.
+
+`test/carplay_test.js` (Node 8, the kit's ffmpeg) checks the second-screen
+source off the car: a fake hook111, a real x264 stream through the tool's
+ffmpeg arguments, and server.js end to end.
 
 Sound reaches the speakers while the audio manager has `CarPlayMain`
 connected (CarPlay the source, or nothing else playing); the first play

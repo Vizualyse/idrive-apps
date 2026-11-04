@@ -6,7 +6,9 @@
  * tm_oap_app (the group of the renderers' sockets, which apps already use),
  * newline-delimited JSON. Every client gets {"ev":"status", ...} on connect,
  * after each command and once a second. Commands: {"cmd":"stop"},
- * {"cmd":"replay","output":...}, {"cmd":"qr","show":bool}; anything else is
+ * {"cmd":"replay","output":...}, {"cmd":"carplay","output":"map"|"hud"} (the
+ * CarPlay second screen), {"cmd":"enable"}, {"cmd":"disable"} and
+ * {"cmd":"qr","show":bool}; anything else, or a command that can't run, is
  * answered with {"ev":"error","error":...}.
  */
 'use strict';

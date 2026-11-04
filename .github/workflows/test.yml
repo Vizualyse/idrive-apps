@@ -37,5 +37,9 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine sh -c '
             for f in native/vizualyse-cast/src/*.js apps/vizualyse_cast/src/*.js samples/*/*.js; do node -c "$f" || exit 1; done'
+      - name: CarPlay second screen source (Node 8, the kit's ffmpeg)
+        run: |
+          node native/vizualyse-cast/tools/fetch_ffmpeg.js
+          docker run --rm -v "$PWD/native/vizualyse-cast:/t:ro" -w /t node:8.16.2-alpine node test/carplay_test.js
       - name: Reproducible builds
         run: node release/release.js check

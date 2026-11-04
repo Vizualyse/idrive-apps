@@ -137,7 +137,7 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'castQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['castConsole', 'castEnable', 'castHud', 'castMap', 'castMirrorHud', 'castMirrorMap', 'castQrToggle', 'castStop']);
+    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
     console.log('ok   page: 8 buttons, a QR graphic, xml and uiDescription agree');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
@@ -174,14 +174,15 @@ async function main() {
     await until('qr sent', () => received.some((c) => c.cmd === 'qr' && c.show === false));
     console.log('ok   playing: "' + S.text + '"; Play last on this screen, Stop and the QR toggle send replay, stop, qr off');
 
-    st = Object.assign({}, st, { screen: true });
+    assert.strictEqual(byName.castCarplayMap.enabled, false, 'no CarPlay second screen without hook111');
+    st = Object.assign({}, st, { carplay: { armed: true, ready: true, mode: 'alt' } });
     control.broadcast();
-    await until('mirror enabled', () => byName.castMirrorMap.enabled === true && byName.castMirrorHud.enabled === true);
+    await until('carplay enabled', () => byName.castCarplayMap.enabled === true && byName.castCarplayHud.enabled === true);
     await sleep(450);
-    byName.castMirrorMap.emit('action');
-    await until('mirror map sent', () => received.some((c) => c.cmd === 'mirror' && c.crop === 'gmaps' && c.output === 'map'));
-    byName.castMirrorHud.emit('action');
-    await until('mirror hud sent', () => received.some((c) => c.cmd === 'mirror' && c.crop === 'gmapsHud' && c.output === 'hud'));
+    byName.castCarplayMap.emit('action');
+    await until('carplay map sent', () => received.some((c) => c.cmd === 'carplay' && c.output === 'map'));
+    byName.castCarplayHud.emit('action');
+    await until('carplay hud sent', () => received.some((c) => c.cmd === 'carplay' && c.output === 'hud'));
     assert.strictEqual(byName.castEnable.text, 'Cast to cluster: on');
     byName.castEnable.emit('action');
     await until('disable sent', () => received.some((c) => c.cmd === 'disable'));
@@ -190,7 +191,7 @@ async function main() {
     await until('off status', () => /^Off/.test(S.text || ''));
     assert.strictEqual(byName.castEnable.text, 'Cast to cluster: off');
     assert.strictEqual(byName.castQr.visible, false, 'no QR while off');
-    assert.strictEqual(byName.castMirrorMap.enabled, false);
+    assert.strictEqual(byName.castCarplayMap.enabled, false);
     assert.strictEqual(byName.castMap.enabled, false);
     await sleep(450);
     byName.castEnable.emit('action');
@@ -198,7 +199,7 @@ async function main() {
     st = Object.assign({}, st, { enabled: true, state: 'playing' });
     control.broadcast();
     await until('back on', () => /^Playing/.test(S.text || '') && byName.castQr.visible === true);
-    console.log('ok   Mirror Google Maps sends gmaps/map and gmapsHud/hud; on/off sends disable and enable, off hides the QR and disables the rest');
+    console.log('ok   CarPlay map on the cluster / the HUD send carplay map / hud (only with hook111 ready); on/off sends disable and enable, off hides the QR and disables the rest');
 
     st = Object.assign({}, st, { qr: false, outputs: OUTPUTS.filter((o) => o.id !== 'console') });
     control.broadcast();

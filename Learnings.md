@@ -146,6 +146,11 @@ line says otherwise.
   CPU for these sizes (about 4-5 % for the mirror at 8 fps).
 - I420 to cluster-render's 4:2:0 atlas: the Y plane, then each chroma row as
   its U half followed by its V half.
+- Raw H.264 (`-f h264`, e.g. from a TCP listener) with **`-fflags nobuffer`**
+  gives **no frames at all** through an `fps` filter (ffmpeg 7.0.2). For a
+  fast start use a small probe instead (`-probesize 32768 -analyzeduration
+  0`): the first frame within a second, where default probing held it back
+  3 s.
 
 ## The Store
 

@@ -33,14 +33,7 @@
   .err { color:var(--bad); font-size:14px; margin-top:6px; word-break:break-word; }
   .small { color:var(--dim); font-size:13px; }
   a { color:var(--accent); }
-  .seg3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
-  .seg3 button { padding:10px 6px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; }
-  .seg3 button.on { border-color:var(--accent); background:rgba(47,129,247,.15); }
-  .pv { position:relative; margin-top:12px; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:1920/720; }
-  .pv img { width:100%; height:100%; display:block; object-fit:fill; }
-  .pv canvas { position:absolute; inset:0; width:100%; height:100%; }
   .hide { display:none !important; }
-  .link { background:none; border:0; color:var(--accent); font-size:14px; padding:6px 0; }
 </style>
 </head>
 <body>
@@ -51,16 +44,14 @@
   <label class="t">Source</label>
   <div class="seg" id="sources">
     <button data-src="url">Stream URL</button>
-    <button data-src="screen">Central screen</button>
+    <button data-src="carplay">CarPlay second screen</button>
   </div>
 </div>
 
-<div class="card hide" id="screenCard">
-  <label class="t">What goes to the cluster</label>
-  <div class="seg3" id="crops"></div>
-  <div class="pv" id="pv"><img id="shot" alt=""><canvas id="box"></canvas></div>
-  <button class="link" id="refresh">Refresh preview</button>
-  <div class="small">The preview is the central screen now; the outlines are what is sent. Open CarPlay (Google Maps) on the central screen first.</div>
+<div class="card hide" id="carplayCard">
+  <label class="t">CarPlay second screen</label>
+  <div class="small" id="cpState">—</div>
+  <div class="small">CarPlay's own cluster view (Google Maps or Apple Maps), next to the main CarPlay screen. The phone draws it at the size of the chosen output from its next connection; until then it is scaled to fit.</div>
 </div>
 
 <div class="card" id="urlCard">
@@ -95,7 +86,7 @@
 (function () {
   var token = new URLSearchParams(location.search).get('t') || '';
   var $ = function (id) { return document.getElementById(id); };
-  var output = 'map', built = false, source = 'url', crop = 'carplay', crops = [], screenSize = { W: 1920, H: 720 }, lastOutputs = [];
+  var output = 'map', built = false, source = 'url', lastOutputs = [];
 
   function get(k, d) { try { return localStorage.getItem('cast.' + k) || d; } catch (e) { return d; } }
   function put(k, v) { try { localStorage.setItem('cast.' + k, v); } catch (e) {} }
@@ -103,7 +94,7 @@
   $('url').value = get('url', '');
   output = get('output', 'map');
   source = get('source', 'url');
-  crop = get('crop', 'carplay');
+  if (source !== 'url' && source !== 'carplay') source = 'url';
   $('vol').value = get('volume', '60'); $('volv').textContent = $('vol').value;
   $('audio').checked = get('audio', '1') === '1';
 
@@ -115,7 +106,7 @@
 
   function buildOutputs(list) {
     var box = $('outputs'); box.innerHTML = '';
-    if (source === 'screen') list = list.filter(function (o) { return o.id === 'map' || o.id === 'hud'; });
+    if (source === 'carplay') list = list.filter(function (o) { return o.id === 'map' || o.id === 'hud'; });
     if (!list.some(function (o) { return o.id === output; }) && list.length) { output = list[0].id; }
     list.forEach(function (o) {
       var b = document.createElement('button'); b.textContent = o.title; b.dataset.id = o.id;
@@ -129,57 +120,31 @@
   function setSource(src) {
     source = src; put('source', src);
     Array.prototype.forEach.call($('sources').children, function (b) { b.classList.toggle('on', b.dataset.src === src); });
-    $('urlCard').classList.toggle('hide', src === 'screen');
-    $('screenCard').classList.toggle('hide', src !== 'screen');
-    $('audioRow').classList.toggle('hide', src === 'screen');
-    $('volRow').classList.toggle('hide', src === 'screen');
+    $('urlCard').classList.toggle('hide', src === 'carplay');
+    $('carplayCard').classList.toggle('hide', src !== 'carplay');
+    $('audioRow').classList.toggle('hide', src === 'carplay');
+    $('volRow').classList.toggle('hide', src === 'carplay');
     buildOutputs(lastOutputs);
-    if (src === 'screen' && !$('shot').src) refreshShot();
   }
   Array.prototype.forEach.call($('sources').children, function (b) { b.onclick = function () { setSource(b.dataset.src); }; });
 
-  function buildCrops(list) {
-    crops = list; var box = $('crops'); box.innerHTML = '';
-    list.forEach(function (c) {
-      var b = document.createElement('button'); b.textContent = c.title.replace(' (stacked)', ''); b.dataset.id = c.id;
-      b.onclick = function () { crop = c.id; put('crop', c.id); markCrop(); drawBoxes(); };
-      box.appendChild(b);
-    });
-    markCrop(); drawBoxes();
+  function carplayText(c) {
+    if (!c) return '—';
+    if (!c.ready) return 'Not available: ' + (c.why || 'hook111 is not running');
+    var t = c.streaming ? 'Streaming (' + c.frames + ' frames)' : 'Ready, waiting for the phone';
+    if (c.display) t += ' · phone draws ' + c.display;
+    if (c.wanted && c.display && c.wanted !== c.display) t += ' (' + c.wanted + ' from its next connection)';
+    return t;
   }
-  function markCrop() { Array.prototype.forEach.call($('crops').children, function (b) { b.classList.toggle('on', b.dataset.id === crop); }); }
-  function drawBoxes() {
-    var cv = $('box'), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
-    var g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height);
-    var c = crops.filter(function (x) { return x.id === crop; })[0]; if (!c) return;
-    var kx = cv.width / screenSize.W, ky = cv.height / screenSize.H;
-    (c.stack || [c]).forEach(function (q, i) {
-      g.fillStyle = 'rgba(47,129,247,.18)'; g.strokeStyle = '#2f81f7'; g.lineWidth = 2 * dpr;
-      g.fillRect(q.x * kx, q.y * ky, q.w * kx, q.h * ky); g.strokeRect(q.x * kx, q.y * ky, q.w * kx, q.h * ky);
-      if (c.stack) { g.fillStyle = '#fff'; g.font = (12 * dpr) + 'px sans-serif'; g.fillText(String(i + 1), q.x * kx + 5 * dpr, q.y * ky + 15 * dpr); }
-    });
-  }
-  function refreshShot() {
-    $('refresh').textContent = 'Taking a snapshot…';
-    var img = $('shot');
-    img.onload = function () { $('refresh').textContent = 'Refresh preview'; drawBoxes(); };
-    img.onerror = function () { $('refresh').textContent = 'No preview (refresh)'; };
-    img.src = '/api/screen.jpg?t=' + encodeURIComponent(token) + '&n=' + Date.now();
-  }
-  $('refresh').onclick = refreshShot;
-  window.addEventListener('resize', drawBoxes);
 
   function show(s) {
     if (s.outputs) lastOutputs = s.outputs;
     if (s.outputs && !$('outputs').children.length) buildOutputs(s.outputs);
-    if (s.screenSize) screenSize = s.screenSize;
-    if (s.crops && !crops.length) buildCrops(s.crops);
-    $('srcCard').classList.toggle('hide', !s.screen);
+    $('cpState').textContent = carplayText(s.carplay);
     $('sub').textContent = 'Uplink ' + s.uplink + ' · renderer ' + s.render;
     $('dot').className = 'dot ' + s.state;
     var names = {}; (s.outputs || []).forEach(function (o) { names[o.id] = o.title; });
-    $('state').textContent = { playing: 'Playing', idle: 'Idle', ended: 'Ended', error: 'Error' }[s.state] || s.state;
+    $('state').textContent = { playing: 'Playing', idle: 'Idle', ended: 'Ended', error: 'Error', waiting: 'Waiting' }[s.state] || s.state;
     var m = [];
     if (s.url) m.push(s.url);
     if (s.output) m.push(names[s.output] + (s.state === 'playing' ? (s.audio ? ', sound ' + s.volume + '%' : ', no sound') : ''));
@@ -196,8 +161,8 @@
   $('qr').onchange = function () { api('/api/qr', { show: this.checked }).then(show); };
   $('play').onclick = function () {
     var body;
-    if (source === 'screen') {
-      body = { source: 'screen', crop: crop, output: output };
+    if (source === 'carplay') {
+      body = { source: 'carplay', output: output };
     } else {
       var url = $('url').value.trim(); if (!url) { $('url').focus(); return; }
       put('url', url);

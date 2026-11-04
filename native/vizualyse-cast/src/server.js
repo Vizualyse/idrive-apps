@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Yousaf Khan
 /**
  * vizualyse-cast: plays a stream URL on the iDrive 7 instrument cluster or HUD,
- * with its sound through the car's speakers, controlled from a phone page.
+ * with its sound through the car's speakers, controlled from a phone page; or
+ * CarPlay's own cluster screen (the second CarPlay screen, through hook111).
  *
  * - A web page on the uplink's Wi-Fi address (the phone's hotspot), port
  *   8480, behind a token; the cluster shows its link as a QR code while idle.
@@ -11,6 +12,8 @@
  *   phone. ffmpeg writes I420 frames (stdout) and S16LE 48 kHz audio (fd 3).
  * - Frames go to cluster-render as a video layer; audio to pcm_play.py
  *   (mgu-python), which plays it into SmartXbar's CarPlayMain source.
+ * - The CarPlay second screen: ffmpeg listens on 127.0.0.1:6111 for hook111's
+ *   H.264 (carplay_screen.js) and scales it for the cluster map or the HUD.
  *
  *   node server.js     (root: the render socket, ALSA, nftables)
  */
@@ -28,6 +31,7 @@ const firewall = require('./firewall.js');
 const { ClusterRender } = require('./cluster_render_client.js');
 const consoleOut = require('./console_out.js');
 const { startControl } = require('./control.js');
+const carplay = require('./carplay_screen.js');
 
 const HERE = __dirname;
 const STATE_DIR = process.env.CAST_STATE || '/var/opt/vizualyse-cast/state';
@@ -35,154 +39,14 @@ const PORT = Number(process.env.CAST_PORT) || 8480;
 const PROXY_PORT = PORT + 1;
 const INTERNET_UID = 12999;
 const IFNAME = 'wlan0';
-const FFMPEG = path.join(HERE, 'ffmpeg');
+const FFMPEG = process.env.CAST_FFMPEG || path.join(HERE, 'ffmpeg');
 const PYTHON = '/var/opt/mgu-python/current/bin/python3';
 const LEASE = '/run/mgu-uplink/lease.json';
 const UPLINK_STATUS = '/run/mgu-uplink/status.json';
 
-/* The central screen as a source: BMW's winston-grabber encodes it in
- * hardware (h264_msdk) at half size and sends MPEG-TS to a local UDP port,
- * which ffmpeg crops and scales like any other stream. */
-const GRABBER = '/usr/bin/winston-grabber';
-/* Each mirror takes the next of 8 local UDP ports: a new one never waits for
- * the one it replaces to let go of its port. */
-const SCREEN_PORT = PORT + 2, SCREEN_PORTS = 8;
-let screenSeq = 0;
-const SCREEN = { W: 1920, H: 720 };
-/* full size: the sharpest picture; the grabber runs at the mirror's own frame rate */
-const GRAB = { w: 1920, h: 720, fps: 15 };
-/* Crops of the central screen, in its own 1920x720 pixels; carplay is the
- * part right of CarPlay's dock at the cluster map's 2.27:1 (the phone page's
- * preview shows where it falls). */
-const CROPS = {
-    carplay: { x: 288, y: 0, w: 1632, h: 720, title: 'CarPlay map' },
-    full: { x: 0, y: 0, w: 1920, h: 720, title: 'Whole screen' },
-    /* Google Maps in CarPlay (dock on the right). Its parts, in screen pixels:
-     * the direction banner, the arrival / time / distance readouts, and the
-     * map around the car. A layout is columns side by side at one height,
-     * each a stack of regions at one width. */
-    /* For the cluster map: the map around the car fills the frame, the
-     * direction card and the readouts card along the top, clear of the car,
-     * which Google Maps draws low. */
-    gmaps: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (cluster)', overlay: {
-        /* the clean map (right of Google's buttons, left of its cards), down to
-         * the screen's bottom so the street-name card under the car shows */
-        base: { x: 125, y: 339, w: 985, h: 381 },
-        /* both cards one height (`hf` of the frame's), each its own shape,
-         * side by side as a pair centred on the top (`slot` 1 then 2), a
-         * little below the edge */
-        top: { x: 1112, y: 4, w: 650, h: 202, hf: 0.19, slot: 1 },
-        bottom: { x: 1112, y: 576, w: 650, h: 140, hf: 0.19, slot: 2 },
-    } },
-    /* For the HUD's wide band: the banner over the readouts on the left, the
-     * map (a wider, lower cut around the car) on the right. */
-    gmapsHud: { x: 0, y: 0, w: 1920, h: 720, title: 'Google Maps (HUD)', columns: [[
-        { x: 1112, y: 4, w: 650, h: 202 },
-        { x: 1112, y: 576, w: 650, h: 140 },
-    ], [
-        { x: 120, y: 300, w: 960, h: 390 },
-    ]] },
-};
-
-/* A layout's geometry fitted into W x H at `fill` of the room (the renderer
- * scales the layer up the rest of the way, keeping the upload small): the
- * frame { w, h }, each column's width and each region's size, all even, the
- * frame a multiple of 4 wide. Columns share one height; a region is `wf` of
- * its column's width (default 1), centred. */
-function layoutSize(columns, W, H, fill) {
-    const hu = columns.map((col) => col.reduce((n, r) => n + r.h * (r.wf || 1) / r.w, 0));
-    const inv = hu.reduce((n, x) => n + 1 / x, 0);
-    const h = even(Math.min(H * fill, W * fill / inv));
-    const ws = hu.map((x) => even(h / x)), total = ws.reduce((m, n) => m + n, 0);
-    ws[ws.length - 1] -= total - four(total);
-    const cols = columns.map((col, j) => ({
-        w: ws[j],
-        regions: col.map((r) => { const rw = even(ws[j] * (r.wf || 1)); return { w: rw, h: even(r.h * rw / r.w) }; }),
-    }));
-    return { w: ws.reduce((m, n) => m + n, 0), h: h, cols: cols };
-}
-
-/* An overlay's frame: the target area's own shape at `fill` (upload), the
- * base cut to that shape around its centre (within the screen), the cards
- * their width fraction of the frame. */
-function overlaySize(ov, W, H, fill) {
-    const w = four(W * fill), h = even(H * fill), aspect = w / h, b = ov.base;
-    let bw = b.w, bh = Math.round(b.w / aspect);
-    if (bh > b.h) { bh = b.h; bw = Math.round(b.h * aspect); }
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-    const base = { x: Math.max(0, Math.round(cx - bw / 2)), y: Math.max(0, Math.min(SCREEN.H - bh, Math.round(cy - bh / 2))), w: bw, h: bh };
-    const card = (r) => {
-        if (r.box) { const cw = even(w * r.box[0]); return { r: r, w: cw, h: even(cw / r.box[1]) }; }
-        if (r.hf) { const ch = even(h * r.hf); return { r: r, h: ch, w: even(r.w * ch / r.h) }; }
-        const cw = even(w * r.wf); return { r: r, w: cw, h: even(r.h * cw / r.w) };
-    };
-    return { w: w, h: h, base: base, top: card(ov.top), bottom: card(ov.bottom) };
-}
-
-function overlayGraph(geo, k, fps, look) {
-    /* x: slots 1 and 2 side by side, the pair centred with a gap; else a side or centred */
-    const gap = even(geo.w * 0.02), pair = geo.top.w + gap + geo.bottom.w, left = Math.round((geo.w - pair) / 2);
-    const ax = (r) => (r.slot === 1 ? String(left) : r.slot === 2 ? String(left + geo.top.w + gap)
-        : r.align === 'left' ? '0' : r.align === 'right' ? 'W-w' : '(W-w)/2');
-    const top = even(geo.h * 0.03), line = top + Math.max(geo.top.h, geo.bottom.h) / 2;
-    const ay = (r) => (r.slot ? String(Math.round(line - (r === geo.top.r ? geo.top.h : geo.bottom.h) / 2))
-        : r.at === 'top' ? String(top) : r === geo.top.r ? '0' : 'H-h');
-    const cut = (r) => 'crop=' + even(r.w * k) + ':' + even(r.h * k) + ':' + even(r.x * k) + ':' + even(r.y * k);
-    return ['[0:v]split=3[b][t][u]',
-        '[b]' + cut(geo.base) + ',scale=' + geo.w + ':' + geo.h + ':flags=bicubic[m]',
-        '[t]' + cut(geo.top.r) + ',scale=' + geo.top.w + ':' + geo.top.h + ':flags=bicubic[tc]',
-        '[u]' + cut(geo.bottom.r) + ',scale=' + geo.bottom.w + ':' + geo.bottom.h + ':flags=bicubic[bc]',
-        '[m][tc]overlay=' + ax(geo.top.r) + ':' + ay(geo.top.r) + '[m1]',
-        '[m1][bc]overlay=' + ax(geo.bottom.r) + ':' + ay(geo.bottom.r) + ',fps=' + fps + (look ? ',' + look : '') + ',format=yuv420p[v]'].join(';');
-}
-
-/* The filter graph of a layout: each region cropped from the half-size grab
- * (k: grab pixels a screen pixel), scaled to its size and centred on black
- * in its column's width, each column stacked, the columns side by side, at
- * the frame's exact size. */
-function layoutGraph(columns, geo, k, fps, look) {
-    const parts = [], all = [];
-    columns.forEach((col, j) => col.forEach((r, i) => all.push({ r: r, j: j, i: i })));
-    parts.push('[0:v]split=' + all.length + all.map((a, n) => '[i' + n + ']').join(''));
-    all.forEach((a, n) => {
-        const r = a.r, cw = geo.cols[a.j].w, g = geo.cols[a.j].regions[a.i];
-        parts.push('[i' + n + ']crop=' + even(r.w * k) + ':' + even(r.h * k) + ':' + even(r.x * k) + ':' + even(r.y * k) +
-            ',scale=' + g.w + ':' + g.h + ':flags=bicubic' + (g.w < cw ? ',pad=' + cw + ':' + g.h + ':(ow-iw)/2:0:black' : '') +
-            '[r' + a.j + '_' + a.i + ']');
-    });
-    columns.forEach((col, j) => {
-        const ins = col.map((r, i) => '[r' + j + '_' + i + ']').join('');
-        parts.push(ins + (col.length > 1 ? 'vstack=inputs=' + col.length + ',' : '') + 'scale=' + geo.cols[j].w + ':' + geo.h + '[c' + j + ']');
-    });
-    const cols = columns.map((c, j) => '[c' + j + ']').join('');
-    parts.push(cols + (columns.length > 1 ? 'hstack=inputs=' + columns.length + ',' : '') +
-        'scale=' + geo.w + ':' + geo.h + ',fps=' + fps + (look ? ',' + look : '') + ',format=yuv420p[v]');
-    return parts.join(';');
-}
-
-/* The mirror's frame sizes: the cluster map at its own 2.27:1, the HUD as before. */
-const MIRROR_SIZES = { map: { w: 544, h: 240 }, hud: { w: 480, h: 270 } };
-/* On the cluster map the gauge surround fades the top and the bottom: a
- * mirror keeps to y 72-440 of its 480 (waze-on-cluster's safe area). */
-const MIRROR_BANDS = { map: [0.08, 0.96] };
-const GRAB_ENV = Object.assign({}, process.env, { XDG_RUNTIME_DIR: '/run/wayland' });
-
 function even(n) { return Math.max(0, Math.round(n / 2) * 2); }
 /* cluster-render takes a video at most this wide a multiple of 4. */
 function four(n) { return Math.max(4, Math.floor(n / 4) * 4); }
-
-/* A crop from the page or the app: a preset name, or x, y, w, h within the
- * screen (at least 64x36); null when it is neither. */
-function normCrop(c) {
-    if (!c) return Object.assign({ preset: 'carplay' }, CROPS.carplay);
-    if (typeof c === 'string' || (c.preset && CROPS[c.preset] && c.x === undefined)) {
-        const k = typeof c === 'string' ? c : c.preset;
-        return CROPS[k] ? Object.assign({ preset: k }, CROPS[k]) : null;
-    }
-    const x = even(Number(c.x)), y = even(Number(c.y)), w = even(Number(c.w)), h = even(Number(c.h));
-    if (![x, y, w, h].every(isFinite) || w < 64 || h < 36 || x + w > SCREEN.W || y + h > SCREEN.H) return null;
-    return { preset: 'custom', x: x, y: y, w: w, h: h, title: 'Custom ' + w + 'x' + h + '+' + x + '+' + y };
-}
 
 /* Each output: the target, the frame size sent and its rate (within the
  * renderer's 5500 KB/s upload ceiling), and the part of the target used. */
@@ -335,11 +199,13 @@ let player = null;      /* { ff, py, opts, video, started, frames, lastErr[] } *
 const consoleVideo = new consoleOut.ConsoleVideo(log);
 let last = { state: 'idle' };
 let lastPlay = null;    /* the last play's options (with its full URL): the app's Play last */
-let lastCrop = null;    /* the last central-screen crop: the app's Mirror */
+let restartTimer = null; /* the CarPlay second screen's ffmpeg, started again after it ends */
+let restartDelay = 500;  /* doubles after each run without a frame, back to 1 s after one with */
 
 function o0(p) { return OUTPUTS[p.opts.output] || {}; }
 
 function stopPlayer(why) {
+    clearTimeout(restartTimer); restartTimer = null;
     const p = player;
     if (!p) return;
     player = null;
@@ -347,7 +213,6 @@ function stopPlayer(why) {
     try { p.ff.kill('SIGTERM'); } catch (e) { /* gone */ }
     setTimeout(() => { try { p.ff.kill('SIGKILL'); } catch (e) { /* gone */ } }, 3000);
     if (p.py) try { p.py.kill('SIGTERM'); } catch (e) { /* gone */ }
-    if (p.grab) try { p.grab.kill('SIGTERM'); } catch (e) { /* gone */ }
     if (p.video) cr.drop(p.video);
     if (o0(p).console) consoleVideo.stop();
     log('play: stopped (' + why + ') after ' + p.frames + ' frames');
@@ -358,49 +223,37 @@ function stopPlayer(why) {
 function play(opts) {
     stopPlayer('replaced');
     lastPlay = opts;
-    const screen = opts.source === 'screen';
-    if (screen) lastCrop = opts.crop;
-    let o = screen ? Object.assign({}, OUTPUTS[opts.output], MIRROR_SIZES[opts.output],
-        MIRROR_BANDS[opts.output] ? { band: MIRROR_BANDS[opts.output] } : {}) : OUTPUTS[opts.output];
-    const columns = screen && opts.crop.columns, ov = screen && opts.crop.overlay;
-    let geo = null;
-    if (columns) {
-        const a = area(o);
-        geo = layoutSize(columns, a.W, a.H, 0.8);
-        o = Object.assign({}, o, { w: geo.w, h: geo.h });
-    } else if (ov) {
-        /* nearly the whole area at 8 fps: sharp, inside the upload ceiling */
-        const a = area(o);
-        geo = overlaySize(ov, a.W, a.H, 0.97);
-        o = Object.assign({}, o, { w: geo.w, h: geo.h, fps: 8 });
+    const cp = opts.source === 'carplay';
+    let o = OUTPUTS[opts.output];
+    if (cp) {
+        /* the size the phone should draw at (from its next connection), and
+         * what goes on to the renderer */
+        const t = carplay.TARGETS[opts.output];
+        o = Object.assign({}, o, { w: t.w, h: t.h, fps: t.fps });
+        try {
+            const d = carplay.wantDisplay(opts.output);
+            if (d) log('carplay: asking for ' + d.wanted + (d.pending ? ' (the phone is on another size until it reconnects: scaled)' : ''));
+        } catch (e) { log('carplay: display: ' + e.message); }
     }
     if (o.w) o = Object.assign({}, o, { w: four(o.w), h: even(o.h) });
     const wantVideo = opts.output !== 'none';
-    const isHttp = !screen && /^https?:/i.test(opts.url);
-    const port = SCREEN_PORT + (screenSeq++ % SCREEN_PORTS);
+    const isHttp = !cp && /^https?:/i.test(opts.url);
 
     const args = ['-nostdin', '-hide_banner', '-loglevel', 'warning', '-threads', '3'];
-    let crop = '';
-    if (screen) {
-        /* live: no -re, as little buffering as ffmpeg allows */
-        const k = GRAB.w / SCREEN.W, c = opts.crop;
-        crop = 'crop=' + even(c.w * k) + ':' + even(c.h * k) + ':' + even(c.x * k) + ':' + even(c.y * k) + ',';
-        args.push('-fflags', 'nobuffer', '-flags', 'low_delay', '-probesize', '500000', '-analyzeduration', '500000',
-            '-f', 'mpegts', '-i', 'udp://127.0.0.1:' + port + '?overrun_nonfatal=1&fifo_size=65536');
+    if (cp) {
+        /* live: no -re; the hook connects to this listener */
+        args.push.apply(args, carplay.inputArgs(carplay.state().port));
+        args.push.apply(args, carplay.outputArgs(opts.output));
     } else {
         if (opts.realtime) args.push('-re');
         if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
         args.push('-i', opts.url);
-    }
-    if (wantVideo && ov) {
-        args.push('-filter_complex', overlayGraph(geo, GRAB.w / SCREEN.W, o.fps, o.look), '-map', '[v]', '-f', 'rawvideo', 'pipe:1');
-    } else if (wantVideo && columns) {
-        args.push('-filter_complex', layoutGraph(columns, geo, GRAB.w / SCREEN.W, o.fps, o.look), '-map', '[v]', '-f', 'rawvideo', 'pipe:1');
-    } else if (wantVideo) {
-        args.push('-map', '0:v:0', '-vf', crop +
-            'scale=' + o.w + ':' + o.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
-            'pad=' + o.w + ':' + o.h + ':-1:-1,fps=' + o.fps + (o.look ? ',' + o.look : '') + ',format=yuv420p',
-            '-f', 'rawvideo', 'pipe:1');
+        if (wantVideo) {
+            args.push('-map', '0:v:0', '-vf',
+                'scale=' + o.w + ':' + o.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
+                'pad=' + o.w + ':' + o.h + ':-1:-1,fps=' + o.fps + (o.look ? ',' + o.look : '') + ',format=yuv420p',
+                '-f', 'rawvideo', 'pipe:1');
+        }
     }
     if (opts.audio) {
         args.push('-map', '0:a:0', '-af', 'volume=' + (opts.volume / 100).toFixed(2), '-ac', '2', '-ar', '48000',
@@ -412,24 +265,7 @@ function play(opts) {
     const p = { ff: ff, py: null, opts: opts, video: null, started: Date.now(), frames: 0, lastErr: [] };
     player = p;
     log('play: ' + opts.shown + ' on ' + opts.output + (opts.audio ? ' with audio at ' + opts.volume + '%' : ' without audio'));
-    if (screen) {
-        /* the grabber after ffmpeg listens, so its first keyframe is not lost */
-        setTimeout(() => {
-            if (player !== p) return;
-            const g = spawn(GRABBER, ['-s', 'center', '-g', GRAB.w + 'x' + GRAB.h, '-f', String(o.fps),
-                '-p', 'h264_msdk(gop=' + o.fps + '), mpegts, udp', 'udp://127.0.0.1:' + port],
-            { env: GRAB_ENV, stdio: ['ignore', 'ignore', 'pipe'] });
-            p.grab = g;
-            g.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
-                p.lastErr.push('grabber: ' + l.trim());
-                log('grabber: ' + l.trim());
-            }));
-            g.on('error', (e) => { p.lastErr.push('grabber: ' + e.message); try { ff.kill('SIGTERM'); } catch (x) { /* gone */ } });
-            g.on('exit', (code, sig) => {
-                if (player === p) { log('play: the grabber ended (' + (sig || code) + ')'); try { ff.kill('SIGTERM'); } catch (e) { /* gone */ } }
-            });
-        }, 400);
-    }
+    ff.on('error', (e) => { p.lastErr.push('ffmpeg: ' + e.message); log('ffmpeg: ' + e.message); });
 
     ff.stderr.on('data', (d) => {
         String(d).split('\n').filter((l) => l.trim()).forEach((l) => {
@@ -484,12 +320,21 @@ function play(opts) {
             return play(Object.assign({}, opts, { audio: false }));
         }
         player = null;
-        if (p.grab) try { p.grab.kill('SIGTERM'); } catch (e) { /* gone */ }
         if (p.py) try { p.py.stdin.end(); } catch (e) { /* gone */ }
         if (p.video) cr.drop(p.video);
         if (o.console) consoleVideo.stop();
         last = { state: ok ? 'ended' : 'error', url: opts.shown, output: opts.output, frames: p.frames,
             error: ok ? null : (p.lastErr.slice(-3).join(' | ') || 'ffmpeg exited ' + (sig || code)) };
+        /* The second screen has no end: the hook's connection went (it gives
+         * up on a reader that stops, then reconnects); listen again. */
+        if (cp && !stopping && settings.enabled) {
+            /* a run that showed nothing waits longer each time (up to 30 s), so
+             * a listener that can't start doesn't spin */
+            restartDelay = p.frames ? 1000 : Math.min(30000, restartDelay * 2);
+            last = { state: 'waiting', url: opts.shown, output: opts.output, frames: p.frames,
+                note: 'listening again for the second screen in ' + Math.round(restartDelay / 1000) + ' s', error: last.error };
+            restartTimer = setTimeout(() => { restartTimer = null; if (!player && lastPlay === opts && settings.enabled && !stopping) play(opts); }, restartDelay);
+        }
         updateQr();
     });
 }
@@ -500,14 +345,12 @@ function status() {
         ? { state: 'playing', url: player.opts.shown, output: player.opts.output, audio: player.opts.audio, volume: player.opts.volume,
             frames: player.frames, seconds: Math.round((Date.now() - player.started) / 1000) }
         : last;
+    const c = carplay.state();
     return Object.assign({ enabled: settings.enabled, uplink: up.state || 'unknown', render: cr.ready ? 'connected' : 'not connected', qr: qrWanted,
-        link: link(), canReplay: !!lastPlay, screen: fs.existsSync(GRABBER),
+        link: link(), canReplay: !!lastPlay,
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
-        crop: (player && player.opts.crop) || lastCrop || Object.assign({ preset: 'carplay' }, CROPS.carplay),
-        crops: Object.keys(CROPS).map((k) => ({ id: k, title: CROPS[k].title, x: CROPS[k].x, y: CROPS[k].y, w: CROPS[k].w, h: CROPS[k].h,
-            stack: CROPS[k].columns ? [].concat.apply([], CROPS[k].columns)
-                : CROPS[k].overlay ? [CROPS[k].overlay.top, CROPS[k].overlay.base, CROPS[k].overlay.bottom] : null })),
-        screenSize: SCREEN,
+        carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
+            display: c.display, wanted: c.wanted },
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -538,20 +381,13 @@ const web = http.createServer((req, res) => {
     if (!settings.enabled) return send(res, 503, 'text/plain', 'Cast to cluster is off: turn it on on the iDrive Cast page.\n');
     if (req.method === 'GET' && u.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', PAGE);
     if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, status());
-    if (req.method === 'GET' && u.pathname === '/api/screen.jpg') {
-        return snapshot((err, jpg) => (err ? json(res, 503, { error: 'no snapshot: ' + err.message }) : send(res, 200, 'image/jpeg', jpg)));
-    }
     if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
 
     readBody(req, (err, b) => {
         if (err) return json(res, 400, { error: 'bad JSON' });
-        if (u.pathname === '/api/play' && b.source === 'screen') {
-            const output = b.output === 'hud' ? 'hud' : 'map';
-            const c = normCrop(b.crop);
-            if (!c) return json(res, 400, { error: 'the crop must lie within the ' + SCREEN.W + 'x' + SCREEN.H + ' screen, at least 64x36' });
-            if (!fs.existsSync(GRABBER)) return json(res, 400, { error: 'this head unit has no ' + GRABBER });
-            play(mirrorOpts(c, output));
-            return json(res, 200, status());
+        if (u.pathname === '/api/play' && b.source === 'carplay') {
+            const why = playCarplay(b.output);
+            return why ? json(res, 400, { error: why }) : json(res, 200, status());
         }
         if (u.pathname === '/api/play') {
             let url;
@@ -572,26 +408,15 @@ const web = http.createServer((req, res) => {
 
 /* ---- start and stop ------------------------------------------------------ */
 
-function mirrorOpts(crop, output) {
-    return { source: 'screen', crop: crop, shown: 'Central screen (' + crop.title + ')', output: output, audio: false, volume: 0, realtime: false };
+/* The CarPlay second screen on the cluster map or the HUD: null, or why not. */
+function carplayOpts(output) {
+    return { source: 'carplay', shown: 'CarPlay second screen', output: output, audio: false, volume: 0, realtime: false };
 }
-
-/* One JPEG of the central screen, for the page's crop preview; requests that
- * arrive while one is taken share it. */
-let snapWaiters = null;
-function snapshot(cb) {
-    if (snapWaiters) { snapWaiters.push(cb); return; }
-    snapWaiters = [cb];
-    const f = '/tmp/vizualyse-cast-snap-' + process.pid + '.jpg';
-    const done = (err, jpg) => { const w = snapWaiters; snapWaiters = null; w.forEach((fn) => fn(err, jpg)); };
-    try { fs.unlinkSync(f); } catch (e) { /* none */ }
-    const g = spawn(GRABBER, ['-s', 'center', '-n', '1', f], { env: GRAB_ENV, stdio: 'ignore' });
-    const t = setTimeout(() => { try { g.kill('SIGKILL'); } catch (e) { /* gone */ } }, 6000);
-    g.on('error', (e) => { clearTimeout(t); done(e); });
-    g.on('exit', () => {
-        clearTimeout(t);
-        fs.readFile(f, (err, jpg) => { try { fs.unlinkSync(f); } catch (e) { /* none */ } done(err, jpg); });
-    });
+function playCarplay(output) {
+    const c = carplay.state();
+    if (!c.ready) return 'the CarPlay second screen is not available: ' + c.why;
+    play(carplayOpts(output === 'hud' ? 'hud' : 'map'));
+    return null;
 }
 
 /* The iDrive app's commands over the control socket: null, or why not. */
@@ -616,20 +441,17 @@ function command(c) {
     if (c.cmd === 'enable') { setEnabled(true); return null; }
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (!settings.enabled) return 'Cast to cluster is off';
-    if (c.cmd === 'mirror') {
-        if (!fs.existsSync(GRABBER)) return 'this head unit has no screen grabber';
-        const crop = c.crop ? normCrop(c.crop) : (lastCrop || Object.assign({ preset: 'carplay' }, CROPS.carplay));
-        if (!crop) return 'unknown layout';
-        play(mirrorOpts(crop, c.output === 'hud' ? 'hud' : 'map'));
-        return null;
-    }
+    if (c.cmd === 'carplay') return playCarplay(c.output);
     if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }
     if (c.cmd === 'qr') { setQr(!!c.show); return null; }
     if (c.cmd === 'replay') {
         if (!lastPlay) return 'nothing played yet: start a stream from the phone first';
         const output = OUTPUTS[c.output] ? c.output : lastPlay.output;
         if (output === 'console' && !consoleOut.available()) return 'the media console needs mgu-render';
-        if (lastPlay.source === 'screen' && (output === 'console' || output === 'none')) return 'the central screen goes to the cluster map or the HUD';
+        if (lastPlay.source === 'carplay') {
+            if (output === 'console' || output === 'none') return 'the CarPlay second screen goes to the cluster map or the HUD';
+            return playCarplay(output);
+        }
         play(Object.assign({}, lastPlay, { output: output, audio: lastPlay.audio || output === 'none' }));
         return null;
     }

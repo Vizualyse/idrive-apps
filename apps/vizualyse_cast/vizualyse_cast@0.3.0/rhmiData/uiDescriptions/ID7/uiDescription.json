@@ -240,7 +240,7 @@
         },
         "36": {
           "type": "button",
-          "name": "castMirrorMap",
+          "name": "castCarplayMap",
           "properties": {
             "Visible": {
               "value": 1,
@@ -254,7 +254,7 @@
           "rows": [
             {
               "Text": {
-                "value": "Mirror Google Maps on the cluster",
+                "value": "CarPlay map on the cluster",
                 "type": "Text"
               }
             }
@@ -262,7 +262,7 @@
         },
         "37": {
           "type": "button",
-          "name": "castMirrorHud",
+          "name": "castCarplayHud",
           "properties": {
             "Visible": {
               "value": 1,
@@ -276,7 +276,7 @@
           "rows": [
             {
               "Text": {
-                "value": "Mirror Google Maps on the HUD",
+                "value": "CarPlay map on the HUD",
                 "type": "Text"
               }
             }

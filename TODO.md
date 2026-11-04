@@ -14,9 +14,12 @@ workflow (Actions > Release, the component ids).
   `release.js` then publishes it on every full release; `component.json`'s
   recmgr entries and `systemd-analyze verify` of the units are untested), or
   by hand as before. Checklist: re/STATUS.md, "Before the next armed boot".
-- [ ] **Display size per target (0.0.7).** Let the advertised second-screen
-  size change, so the cluster (`map`, 1088x480) and the HUD (800x480) can each
-  get their own resolution.
+- [ ] **Display size per target (0.0.7).** The tool now writes the wanted size
+  to `/run/hook111/display` (`WxH@fps`: 1088x480@30 for the cluster,
+  1056x384@30 for the HUD); hook111 still advertises its fixed 1088x480. The
+  hook should read that file at each `/info` (validated) and report what it
+  offered in its status (`display=`). Until then the HUD gets the cluster's
+  stream scaled to fit.
 - [ ] **Open protocol questions:** what `viewAreas`, `showUI` and
   `primaryInputDevice` should contain; whether the phone keeps streaming 111
   while CarPlay isn't on the main screen.
@@ -28,15 +31,16 @@ workflow (Actions > Release, the component ids).
 
 ## Cast to cluster (tool and app)
 
-- [ ] **The CarPlay second screen as a source.** A "CarPlay second screen"
-  source for the cluster and the HUD: ffmpeg reading
-  `tcp://127.0.0.1:6111?listen` (H.264), scaled to stay under
-  cluster-render's ~5500 KB/s upload and a multiple of 4 wide.
-- [ ] **Remove the central-screen mirror** (winston-grabber, the Google Maps
-  layouts).
-- [ ] Update the app's buttons and the page tests.
-- [ ] Bump the versions, from `vizualyse-cast` 0.2.1 and `vizualyse_cast`
-  0.2.0 (the app's `requires` follows the tool's new version).
+- [x] **The CarPlay second screen as a source** (vizualyse-cast 0.3.0): ffmpeg
+  listening on `127.0.0.1:6111`; cluster map 816x360 at 12 fps, HUD 528x192 at
+  15 fps in its band; the size the phone should draw written to
+  `/run/hook111/display`. `test/carplay_test.js`, in CI.
+- [x] **The central-screen mirror removed** (winston-grabber, the layouts).
+- [x] The app's buttons (CarPlay map on the cluster / on the HUD) and the page
+  test (vizualyse_cast 0.3.0, requires vizualyse-cast 0.3.0).
+- [ ] **On the car:** the tool and the app, with hook111 armed in mode `alt`:
+  the cluster map and the HUD, a reconnect, a phone that disconnects
+  mid-stream.
 
 ## Carried over
 

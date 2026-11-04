@@ -7,8 +7,8 @@
  *
  * One LT_State_Wide page: the status; the phone page's link as a QR code
  * (LT_Label_1Graphic_Scalable, a PNG in /dev/shm the HMI can read) and as
- * text; Cast to cluster on or off; Stop; Mirror Google Maps on the cluster
- * (the stacked layout) or on the HUD (banner and readouts beside the map);
+ * text; Cast to cluster on or off; Stop; the CarPlay map (CarPlay's own
+ * second screen, through hook111) on the cluster or on the HUD;
  * Play last on the cluster map / the HUD / this screen, which replay the
  * last stream the phone started (its URL stays in the tool); and the QR code
  * on the cluster on or off. The app holds the tool's control
@@ -30,7 +30,7 @@ const STATE_NAME = 'ST_OnlineApps_VizualyseCast';
 const N = {
     status: 'castStatus', qr: 'castQr', link: 'castLink', hint: 'castHint', stop: 'castStop',
     map: 'castMap', hud: 'castHud', console: 'castConsole', qrToggle: 'castQrToggle', info: 'castInfo',
-    enable: 'castEnable', mirrorMap: 'castMirrorMap', mirrorHud: 'castMirrorHud',
+    enable: 'castEnable', carplayMap: 'castCarplayMap', carplayHud: 'castCarplayHud',
 };
 const PRESS_DEDUPE_MS = 400;
 const ROW_CHARS = 90;
@@ -123,8 +123,8 @@ class CastApp extends OnlineApp {
 
         this._bind(N.stop, () => this._control.stop());
         this._bind(N.enable, () => (this._control.enabled() ? this._control.disable() : this._control.enable()));
-        this._bind(N.mirrorMap, () => this._control.mirror('gmaps', 'map'));
-        this._bind(N.mirrorHud, () => this._control.mirror('gmapsHud', 'hud'));
+        this._bind(N.carplayMap, () => this._control.carplay('map'));
+        this._bind(N.carplayHud, () => this._control.carplay('hud'));
         this._bind(N.map, () => this._control.replay('map'));
         this._bind(N.hud, () => this._control.replay('hud'));
         this._bind(N.console, () => this._control.replay('console'));
@@ -262,8 +262,8 @@ class CastApp extends OnlineApp {
         this._write(N.enable, 'Cast to cluster: ' + (up ? (c.enabled() ? 'on' : 'off') : 'not running'));
         this._setEnabled(N.enable, up);
         this._setEnabled(N.stop, on && c.playing());
-        this._setEnabled(N.mirrorMap, on && c.canMirror());
-        this._setEnabled(N.mirrorHud, on && c.canMirror());
+        this._setEnabled(N.carplayMap, on && c.canCarplay());
+        this._setEnabled(N.carplayHud, on && c.canCarplay());
         ['map', 'hud', 'console'].forEach((k) => {
             this._show(N[k], k !== 'console' || !up || c.hasOutput('console'));
             this._setEnabled(N[k], on && c.canReplay());

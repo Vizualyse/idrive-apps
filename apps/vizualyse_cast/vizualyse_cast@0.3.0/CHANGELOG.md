@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- CarPlay map on the cluster / on the HUD: CarPlay's own second screen (its
+  cluster map), through hook111, in place of mirroring the central screen.
+  Available only while hook111 is armed and ready.
+- The central-screen mirror and its Google Maps layouts are gone.
+- Requires vizualyse-cast 0.3.0.
+
 ## 0.2.0
 
 - Cast to cluster on/off on the page: off stops what plays, hides the QR

@@ -6,7 +6,7 @@
  * newline-delimited JSON. The tool sends {"ev":"status", ...} on connect,
  * after every command and once a second; the app sends {"cmd":"stop"},
  * {"cmd":"replay","output":"map"|"hud"|"console"|"none"},
- * {"cmd":"mirror","crop":"gmaps"|"gmapsHud"|...,"output":"map"|"hud"},
+ * {"cmd":"carplay","output":"map"|"hud"} (the CarPlay second screen),
  * {"cmd":"enable"}, {"cmd":"disable"} and {"cmd":"qr","show":true|false}. Connected while the page is visible,
  * retried once a second; the tool keeps running without it.
  */
@@ -80,13 +80,14 @@ class CastControl extends EventEmitter {
     stop() { return this._send({ cmd: 'stop' }); }
     enable() { return this._send({ cmd: 'enable' }); }
     disable() { return this._send({ cmd: 'disable' }); }
-    mirror(crop, output) { return this._send({ cmd: 'mirror', crop: crop, output: output }); }
+    carplay(output) { return this._send({ cmd: 'carplay', output: output }); }
     replay(output) { return this._send({ cmd: 'replay', output: output }); }
     setQr(show) { return this._send({ cmd: 'qr', show: !!show }); }
 
     connected() { return !!this.status; }
     enabled() { return !(this.status && this.status.enabled === false); }
-    canMirror() { return !!(this.status && this.status.screen && this.enabled()); }
+    /* the tool sees hook111 armed and streaming-ready this start */
+    canCarplay() { return !!(this.status && this.status.carplay && this.status.carplay.ready && this.enabled()); }
     link() { return (this.status && this.status.link) || ''; }
     canReplay() { return !!(this.status && this.status.canReplay); }
     playing() { return !!(this.status && this.status.state === 'playing'); }
