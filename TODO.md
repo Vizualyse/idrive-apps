@@ -33,9 +33,17 @@ workflow (Actions > Release, the component ids).
   (102) ended. No refusals, no fallback, `carplay` not restarted. Guess: the
   session's idle / keep-alive tracking (`_ControlIdleStateTransition`
   `0x17c0e0`; the phone sends `keepAliveLowPower`) doesn't count screen B, so
-  the session is taken as idle and times out. To do: on the car, whether CarPlay
-  audio with the iDrive screen also keeps it up; in the harness, what ends an
-  idle session and whether screen B can count as an active stream.
+  the session is taken as idle and times out.
+  - [x] **Cause found, fix tested off-car (hook111 0.1.1).** The guess was
+    right. Idle, the library waits for keep-alive beacons that the phone,
+    busy streaming 111, never sends, and ends the session after 30 s. hook111
+    now counts screen B as a screen in the idle transition (findings, "The
+    session's idle state"). `setup_b.c`: 69 checks, including the car's
+    sequence; the new checks fail with the wrapper disabled.
+  - [ ] **On the car (0.1.1):** with 111 up, let the iDrive show its own
+    screen for several minutes. Expect `sessionUUID` unchanged,
+    `idle_held` > 0 and `idle_rc=0` in the status, and no cluster stall.
+    Also check that the main screen still comes back.
 - [ ] **On the car:**
   - whether the shutdown mark is written at a real switch-off (one ignition
     cycle, disabled);

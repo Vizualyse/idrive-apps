@@ -211,6 +211,40 @@ static int port_free(int port) {
     return ok;
 }
 
+/* ---- the phone's timing (NTP-like) port ----
+ * A session with a screen runs timing (_TimingNegotiate in 0x17c0e0, then the
+ * timing thread 0x17b460): 32-byte requests {0x80, 0xd2, ..., transmit time at
+ * +24}, answered {0x80, 0xd3, ..., origin = the request's transmit time at +8,
+ * receive time at +16, transmit time at +24} (0x17aee0 / 0x17b050). The
+ * session's timing socket goes to the peer address (+0x100, 0.0.0.0 here: this
+ * host) at the request's timingPort, default 6002. */
+static volatile int timing_replies;
+static void ntp_now(unsigned char out[8]) {
+    struct timespec t; clock_gettime(CLOCK_REALTIME, &t);
+    uint32_t s = (uint32_t)(t.tv_sec + 2208988800u), f = (uint32_t)(((uint64_t)t.tv_nsec << 32) / 1000000000u);
+    s = htonl(s); f = htonl(f); memcpy(out, &s, 4); memcpy(out + 4, &f, 4);
+}
+static void *timing_peer(void *arg) {
+    int fd = *(int *)arg;
+    for (;;) {
+        unsigned char q[64], r[32]; struct sockaddr_storage from; socklen_t fl = sizeof from;
+        ssize_t n = recvfrom(fd, q, sizeof q, 0, (struct sockaddr *)&from, &fl);
+        if (n < 32 || q[1] != 0xd2) continue;
+        memset(r, 0, sizeof r); r[0] = 0x80; r[1] = 0xd3; r[3] = 7;
+        memcpy(r + 8, q + 24, 8); ntp_now(r + 16); ntp_now(r + 24);
+        sendto(fd, r, sizeof r, 0, (struct sockaddr *)&from, fl);
+        timing_replies++;
+    }
+    return NULL;
+}
+static int start_timing_peer(int port) {
+    static int fd; static pthread_t t;
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port) };
+    if (bind(fd, (struct sockaddr *)&a, sizeof a) != 0) { perror("timing peer bind"); return -1; }
+    return pthread_create(&t, NULL, timing_peer, &fd);
+}
+
 /* ---- a fake Cinemo configuration with one "displays" item ---- */
 /* the caller's stack buffer in the list builder (0x10c050): exactly 0x48 bytes,
  * its stack canary right after (local_88 .. local_48) */
@@ -266,6 +300,7 @@ int main(int argc, char **argv) {
     char modefile[600]; snprintf(modefile, sizeof modefile, "%s.mode", logdir);
     set_mode(modefile, "full");          /* the tests below until "modes" are for full */
     hook111_mode_file(modefile);
+    CHECK("the phone's timing port (6002) is up", start_timing_peer(6002) == 0);
 
     /* ---------- SETUP ---------- */
     unsigned char *server = calloc(1, 0x200);
@@ -395,6 +430,104 @@ int main(int argc, char **argv) {
     teardown(session, req111, 0, NULL);
     CHECK("pair-verify: torn down", hook111_stats.teardowns == 4);
     *(void **)(session + 0x498) = NULL;   /* ours, not a CF object: keep it from the stock teardown */
+
+    /* 4b. the idle state: a session the way the phone sets one up (keep-alive
+     * asked for), then the car's sequence from the unit (2026-11-04): 111 up,
+     * the main screen up and torn down when the iDrive takes the screen back.
+     * Stock, the session then goes idle: timing stops and the keep-alive
+     * receiver (0x17a7b0) starts, and with no beacon from the phone (it is
+     * streaming 111, so it isn't idle) it ends the session after 30 s. With
+     * screen B counted as a screen the session must stay active. */
+    {
+        unsigned char *s2 = calloc(1, 0x1d00);
+        *(void **)(s2 + 0x10) = server;
+        *(uint16_t *)(s2 + 0x100) = AF_INET;
+        memcpy(s2 + 0x288, sk, 16);
+        *(uint16_t *)(s2 + 0x490) = 1;
+        for (unsigned i = 0; i < sizeof fds32 / sizeof *fds32; i++) *(int *)(s2 + fds32[i]) = -1;
+        *(int64_t *)(s2 + 0x4c0) = -1;
+        *(int64_t *)(s2 + 0xdd8) = -1;
+        *(void **)(s2 + 0x20) = calloc(1, 0x200);
+        /* the idle branch sets keep-alive on Cinemo's control socket, [[+0x18]+8]+0x78 */
+        unsigned char *c1 = calloc(1, 0x100), *c2 = calloc(1, 0x100);
+        *(void **)(c1 + 8) = c2; *(int *)(c2 + 0x78) = socket(AF_INET, SOCK_STREAM, 0);
+        *(void **)(s2 + 0x18) = c1;
+        /* the stock screen object, as the constructor makes it (0x185440 into +0x1cd0) */
+        FN(int (*)(void **), 0x185440)((void **)(s2 + 0x1cd0));
+        #define KA_RUNNING() (*(void **)(s2 + 0x1b80) != NULL)   /* the keep-alive receiver thread */
+        #define TIMING()     (*(void **)(s2 + 0x1b60) != NULL)   /* the timing thread */
+        #define SCREEN_FLAG() (*(char *)(s2 + 0x1cc8))
+        CF r2;
+        int (*setup)(void *, CF, CF *) = FN(int (*)(void *, CF, CF *), 0x180670);
+
+        /* the phone's first SETUP: no streams, keepAliveLowPower */
+        CF first = CFDictCreate(), kalp = CFStr("keepAliveLowPower");
+        CFDictSet(first, K_FEATURES, feats);
+        CFDictSetI64(first, kalp, 1);
+        r2 = NULL; rc = setup(s2, first, &r2);
+        int e2 = 0;
+        int kap = r2 ? (int)CFDictGetI64(r2, CFStr("keepAlivePort"), &e2) : 0;
+        printf("  idle: first SETUP rc %d, keepAlivePort %d, keep-alive %s, timing %s\n", rc, kap, KA_RUNNING() ? "running" : "stopped", TIMING() ? "running" : "stopped");
+        CHECK("idle: the first SETUP sets up keep-alive, and the session starts idle (keep-alive receiver running)",
+              rc == 0 && *(int *)(s2 + 0x1b68) >= 0 && kap > 0 && KA_RUNNING() && !TIMING());
+
+        /* SETUP {111} */
+        int held0 = hook111_stats.idle_held;
+        CFDictSetI64(st, K_CONNID, (int64_t)cid);
+        r2 = NULL; rc = setup(s2, req, &r2);
+        printf("  idle: SETUP {111} rc %d, keep-alive %s, timing %s, idle_rc %d, timing replies %d\n", rc, KA_RUNNING() ? "running" : "stopped", TIMING() ? "running" : "stopped", hook111_stats.idle_rc, timing_replies);
+        CHECK("idle: SETUP {111} makes the session active: keep-alive receiver stopped, timing running",
+              rc == 0 && current_b && current_b->session == s2 && !KA_RUNNING() && TIMING() && hook111_stats.idle_held > held0 && hook111_stats.idle_rc == 0);
+        CHECK("idle: the screen flag is left clear (a 110 SETUP isn't refused)", SCREEN_FLAG() == 0);
+
+        /* SETUP {110}, the main screen, while screen B is up */
+        CF req110 = CFDictCreate(), streams110 = CFArrayCreate(), st110 = CFDictCreate();
+        CFDictSetI64(st110, K_TYPE, 110);
+        CFDictSetI64(st110, K_CONNID, 777777777ll);
+        CFArrayAppend(streams110, st110);
+        CFDictSet(req110, K_STREAMS, streams110);
+        r2 = NULL; rc = setup(s2, req110, &r2);
+        int p110 = 0;
+        CF rs2 = r2 ? CFDictGetTyped(r2, K_STREAMS, CFArrayTypeID(), &err) : NULL;
+        if (rs2 && CFArrayCount(rs2) > 0 && CFDictGetI64(CFArrayAt(rs2, 0), K_TYPE, &err) == 110) p110 = (int)CFDictGetI64(CFArrayAt(rs2, 0), K_DATAPORT, &err);
+        printf("  idle: SETUP {110} rc %d, dataPort %d\n", rc, p110);
+        CHECK("idle: SETUP {110} with screen B up: set up (stock screen flag set), still active",
+              rc == 0 && p110 > 0 && SCREEN_FLAG() == 1 && !KA_RUNNING() && TIMING() && current_b);
+
+        /* TEARDOWN {110}: the iDrive takes its screen back (the car's case) */
+        teardown(s2, req110, 0, NULL);
+        printf("  idle: after TEARDOWN {110}: keep-alive %s, timing %s, screen B %s\n", KA_RUNNING() ? "running" : "stopped", TIMING() ? "running" : "stopped", current_b ? "up" : "down");
+        CHECK("idle: TEARDOWN {110} with screen B up: the session stays active (no keep-alive receiver, timing running)",
+              SCREEN_FLAG() == 0 && current_b && !KA_RUNNING() && TIMING());
+
+        /* the main screen comes back, and goes again */
+        r2 = NULL; rc = setup(s2, req110, &r2);
+        CHECK("idle: the main screen set up again after its teardown", rc == 0 && SCREEN_FLAG() == 1);
+        teardown(s2, req110, 0, NULL);
+        CHECK("idle: and torn down again, still active", SCREEN_FLAG() == 0 && current_b && !KA_RUNNING() && TIMING());
+
+        /* TEARDOWN {111}: no stream left, idle again */
+        teardown(s2, req111, 0, NULL);
+        printf("  idle: after TEARDOWN {111}: keep-alive %s, timing %s\n", KA_RUNNING() ? "running" : "stopped", TIMING() ? "running" : "stopped");
+        CHECK("idle: TEARDOWN {111}, nothing left: idle again (keep-alive receiver running, timing stopped)",
+              !current_b && KA_RUNNING() && !TIMING());
+
+        /* the stock behaviour without screen B, as a control: the main screen
+         * alone, up and down, ends idle (what the test above guards against) */
+        r2 = NULL; rc = setup(s2, req110, &r2);
+        CHECK("idle (control, no screen B): SETUP {110} makes the session active", rc == 0 && !KA_RUNNING() && TIMING());
+        teardown(s2, req110, 0, NULL);
+        CHECK("idle (control, no screen B): TEARDOWN {110} goes idle, keep-alive receiver running", KA_RUNNING() && !TIMING());
+
+        /* the session ends */
+        teardown(s2, NULL, 0, NULL);
+        FN(int (*)(void *), 0x179d20)(s2);   /* keep-alive stop (finalize does it on the unit) */
+        CHECK("idle: full TEARDOWN: timing stopped, the flag clear", !TIMING() && SCREEN_FLAG() == 0 && !KA_RUNNING());
+        FN(int (*)(void *), 0x17c990)(s2);
+        #undef KA_RUNNING
+        #undef TIMING
+        #undef SCREEN_FLAG
+    }
 
     /* 5. suggestUI from the phone -> showUI back on the events connection.
      * The events side as the constructor (0x17e0f0) and _ControlStart (0x17ec00)

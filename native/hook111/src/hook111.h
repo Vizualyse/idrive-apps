@@ -62,7 +62,8 @@ extern void (*hook111_status_extra)(FILE *f);
 
 /* Counters, for tests and logs. */
 struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged, refusals,
-    b_avcc, b_avcc_bytes, b_starts, b_stops, b_frames, sent_files, last_send_rc; long long b_frame_bytes; };
+    b_avcc, b_avcc_bytes, b_starts, b_stops, b_frames, sent_files, last_send_rc,
+    idle_held, idle_rc; long long b_frame_bytes; };
 extern volatile struct hook111_stats hook111_stats;
 
 #endif

@@ -49,7 +49,7 @@ harness tests are the same code.
 | `ghidra/*.java` | Keyword and 110/111 export, Apple function names from log strings (345), decompiling. | |
 | `harness/ffmpeg.Dockerfile` | hook111's build image plus ffmpeg, tests only. | |
 | `harness/screen_b.c` | A second screen object inside the real library (`aes`, `chacha`, `chacha-tamper`). | pass |
-| `../native/hook111/src/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the display-size file, the bench channel. | `setup_b.c`: 57 |
+| `../native/hook111/src/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the display-size file, the bench channel, the idle state with screen B. | `setup_b.c`: 69 |
 | `../native/hook111/src/annexb.c`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocks, reconnects, resumes at an IDR. | `annexb_test.c`: 22 |
 | `../native/hook111/src/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. | `preload_test.c`: 23 |
 | `../native/hook111/` | The Store tool: the sources above, its build image (`image/Dockerfile`, Ubuntu 18.04, glibc 2.27 and OpenSSL 1.1 as the unit), the arm step (busybox ash), units, drop-ins, `component.json`, `bench/make_command.py`. | `test/arm_test.sh`: 48 |
@@ -98,6 +98,12 @@ The capture shows a real location; it stays off the repository.
   uuid}` made the phone hand the main screen back to the car (`modesChanged`
   screen → entity 2, TEARDOWN of 110), then repeat ~39 s sessions without
   it.
+- **111 alone has to count as a screen.** Without 110 (or audio) the
+  library takes the session as idle. It then waits for the phone's
+  keep-alive beacons, which the phone doesn't send while it streams 111, and
+  ends the session after 30 s. That was the ~40 s drops. hook111 0.1.1 counts
+  screen B in the idle state (findings, "The session's idle state"). Tested
+  off-car; not yet on the car.
 - **Noisy commands.** `iAPSendMessage` arrives hundreds of times in minutes;
   it filled the first plist log.
 - **The shutdown mark can't be relied on alone.** It was missing at the first

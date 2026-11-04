@@ -13,6 +13,9 @@
  *          second record (struct hook111_display).
  *  TEARDOWN AirPlayReceiverSessionTearDown (0x17e840) is wrapped: a 111
  *          stream, or the whole session, takes screen B down first.
+ *  idle    _ControlIdleStateTransition (0x17c0e0) is wrapped: while screen B
+ *          is up the session counts as having a screen, so it stays active
+ *          (timing running, no keep-alive timeout) without a stream 110.
  *  commands AirPlayReceiverSessionControl (0x183bf0) is wrapped: the phone's
  *          suggestUI is answered with showUI. hook111_send_command sends any
  *          command (updateViewArea, ...) the library's own way.
@@ -277,6 +280,37 @@ fail:
     return rc;
 }
 
+/* ---- the session's idle state: screen B counts as a screen ----
+ * _ControlIdleStateTransition (0x17c0e0) takes the session as idle when it has
+ * no main audio (+0x4a8), no alt audio (+0xdc0) and no screen (+0x1cc8, set
+ * only by the stock 110 SETUP). Idle, it stops timing and starts the
+ * keep-alive receiver (0x17a7b0), which ends the session after 30 s without a
+ * beacon on the keepAlivePort. The phone sends beacons only when it is idle
+ * itself, and streaming 111 it isn't: on the unit (2026-11-04) every session
+ * with 111 as its only stream ended ~40 s after the last stock stream.
+ * So while screen B is up the transition runs with +0x1cc8 set, for the call
+ * only: the flag also makes a 110 SETUP fail (-6719), and the stock screen
+ * teardown clears it. The stock callers are the ends of SETUP and TEARDOWN;
+ * the hook adds one after a 111 SETUP. A TEARDOWN {111} takes screen B down
+ * before the stock code runs, so its transition goes idle again.
+ * On the control thread, never called with b_life held. */
+static int (*orig_idle)(void *session, CF resp);
+static int my_idle(void *session, CF resp) {
+    pthread_mutex_lock(&b_life);
+    struct screen_b *b = current_b;
+    char *screen = (char *)session + 0x1cc8;
+    int held = b && b->session == session && !*screen;
+    if (held) *screen = 1;
+    int rc = orig_idle(session, resp);
+    if (held) {
+        *screen = 0;
+        hook111_stats.idle_held++;
+        hook111_stats.idle_rc = rc;
+    }
+    pthread_mutex_unlock(&b_life);
+    return rc;
+}
+
 /* ---- the plist log, for the first car runs ----
  * Each plist as it is (the library's own binary-plist writer, 0x139750: a
  * malloc'd buffer), one file each: <dir>/<nnn>-<what>.bplist, at most
@@ -418,6 +452,7 @@ static void status_now(int force) {
     fprintf(f, "b_avcc=%d\nb_avcc_bytes=%d\nb_starts=%d\nb_stops=%d\nb_frames=%d\nb_frame_bytes=%lld\n", x->b_avcc, x->b_avcc_bytes, x->b_starts, x->b_stops, x->b_frames, (long long)x->b_frame_bytes);
     fprintf(f, "enabled_features=%d\ninfo_records=%d\nsuggest_ui=%d\ncommands_sent=%d\nkeyframe_requests=%d\nsent_files=%d\nlast_send_rc=%d\nteardowns=%d\nlogged=%d\n",
             x->enabled_features, x->info_records, x->suggest_ui, x->commands_sent, x->keyframe_requests, x->sent_files, x->last_send_rc, x->teardowns, x->logged);
+    fprintf(f, "idle_held=%d\nidle_rc=%d\n", x->idle_held, x->idle_rc);
     if (hook111_status_extra) hook111_status_extra(f);
     fclose(f);
     rename(q, p);
@@ -464,6 +499,7 @@ static int my_setup(void *session, CF req, CF *resp) {
     int rc = orig_setup(session, req, resp);
     if (rc != 0 || !resp || !*resp) return rc;
     if (m == MODE_OFF) { log_plist("setup-response", *resp); return 0; }
+    int b_up = 0;
     pthread_mutex_lock(&b_life);
     for (int i = 0; i < n; i++) {
         CF s = CFArrayAt(streams, i);
@@ -471,9 +507,17 @@ static int my_setup(void *session, CF req, CF *resp) {
         if (CFDictGetI64(s, K_TYPE, &err) == 111) {
             int r = setup_111(session, s, *resp);
             if (r) fprintf(stderr, "[hook111] stream 111 setup failed: %d\n", r);
+            else b_up = 1;
         }
     }
     pthread_mutex_unlock(&b_life);
+    /* the stock SETUP ran its idle transition before screen B existed: again,
+     * with screen B counted (an error goes in the status; the stream goes on) */
+    if (b_up) {
+        int r = my_idle(session, *resp);
+        if (r) fprintf(stderr, "[hook111] idle state with screen B: %d\n", r);
+        status_now(1);
+    }
     /* feature negotiation: answer the ones offered that this mode implements */
     CF offered = CFDictGetTyped(req, K_FEATURES, CFArrayTypeID(), &err);
     if (offered) {
@@ -705,8 +749,11 @@ int hook111_install(uintptr_t b, const struct hook111_sink *s, const struct hook
     static const unsigned char tear_pro[18] = { 0x41,0x57, 0x41,0x56, 0x41,0x55, 0x41,0x54, 0x49,0x89,0xf5, 0x55, 0x53, 0x48,0x89,0xfd, 0x89,0xd3 };
     /* SessionControl 0x183bf0: push r15; push r14; mov r15,rdi; push r13; push r12; mov r14d,esi; push rbp; push rbx */
     static const unsigned char ctl_pro[16] = { 0x41,0x57, 0x41,0x56, 0x49,0x89,0xff, 0x41,0x55, 0x41,0x54, 0x41,0x89,0xf6, 0x55, 0x53 };
+    /* IdleStateTransition 0x17c0e0: push r15; push r14; push r13; push r12; mov r13,rdi; push rbp; push rbx; mov r12,rsi */
+    static const unsigned char idle_pro[16] = { 0x41,0x57, 0x41,0x56, 0x41,0x55, 0x41,0x54, 0x49,0x89,0xfd, 0x55, 0x53, 0x49,0x89,0xf4 };
     if (memcmp(AT(0x180670), setup_pro, sizeof setup_pro) || memcmp(AT(0x10d270), copy_pro, sizeof copy_pro)
-        || memcmp(AT(0x17e840), tear_pro, sizeof tear_pro) || memcmp(AT(0x183bf0), ctl_pro, sizeof ctl_pro)) return -1;
+        || memcmp(AT(0x17e840), tear_pro, sizeof tear_pro) || memcmp(AT(0x183bf0), ctl_pro, sizeof ctl_pro)
+        || memcmp(AT(0x17c0e0), idle_pro, sizeof idle_pro)) return -1;
     /* the CopyProperty trampoline: the rip-relative lea becomes movabs rdi, <0x3e1260> */
     unsigned char ct[29];
     void *lea_target = AT(0x3e1260);
@@ -717,7 +764,8 @@ int hook111_install(uintptr_t b, const struct hook111_sink *s, const struct hook
     orig_copyprop = make_tramp(ct, 26, 0x10d270 + sizeof copy_pro);
     orig_teardown = make_tramp(tear_pro, sizeof tear_pro, 0x17e840 + sizeof tear_pro);
     orig_control = make_tramp(ctl_pro, sizeof ctl_pro, 0x183bf0 + sizeof ctl_pro);
-    if (!orig_setup || !orig_copyprop || !orig_teardown || !orig_control) return -1;
+    orig_idle = make_tramp(idle_pro, sizeof idle_pro, 0x17c0e0 + sizeof idle_pro);
+    if (!orig_setup || !orig_copyprop || !orig_teardown || !orig_control || !orig_idle) return -1;
     /* the ScreenStream functions: stock prologues checked, then replaced */
     /* sizes 226, 92, 108, 69 bytes: room for the 14-byte jump */
     static const struct { uintptr_t at; unsigned char b[4]; } ss[] = {
@@ -736,5 +784,6 @@ int hook111_install(uintptr_t b, const struct hook111_sink *s, const struct hook
     if (patch_entry(0x10d270, copy_pro, sizeof copy_pro, (void *)my_copyprop)) return -1;
     if (patch_entry(0x17e840, tear_pro, sizeof tear_pro, (void *)my_teardown)) return -1;
     if (patch_entry(0x183bf0, ctl_pro, sizeof ctl_pro, (void *)my_control)) return -1;
+    if (patch_entry(0x17c0e0, idle_pro, sizeof idle_pro, (void *)my_idle)) return -1;
     return 0;
 }

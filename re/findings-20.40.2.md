@@ -289,6 +289,44 @@ on a fake session:
   `"DataStream-Output-Encryption-Key"`. Proven by the harness's phone
   deriving it with OpenSSL.
 
+## The session's idle state [car + static + harness, 2026-11-04]
+
+Why a session with 111 as its only stream ended every ~40 s on the car.
+
+- **The car:** in hook111's plist log, TEARDOWN of 110 at 15:38:59 (the
+  iDrive took its screen back). The phone's next session started at 15:39:39,
+  with no TEARDOWN in between; screen B streamed throughout.
+- **Idle** (`_ControlIdleStateTransition`, `0x17c0e0`, called at the end of
+  SETUP and of TEARDOWN) means no main audio `+0x4a8`, no alt audio `+0xdc0`
+  and no screen `+0x1cc8`. The stock 110 SETUP sets `+0x1cc8`, and the stock
+  screen teardown `0x179c40` clears it. Screen B never touched it.
+- **Going idle** stops timing (`0x17be20`) and, when the phone asked for
+  keep-alive (`keepAliveLowPower`, socket `+0x1b68` on port 5020), starts
+  `AirPlayKeepAliveReceiver` (`0x17a7b0`). That thread selects on the socket
+  with a 30 s timeout. Any packet restarts the wait. On a timeout it logs
+  "Keep alive thread timeout" and closes the session (`0x17ab90`).
+- **The phone sends beacons only when it considers itself idle.** It's
+  streaming 111, so it sends none. 30 s, then the reconnect: the ~40 s cycle.
+- **Going active** stops the keep-alive receiver (`0x179d20`), recreates the
+  timing socket if it's gone (adding `timingPort` to the response, as in the
+  car's 110 SETUP responses), and runs `_TimingNegotiate` (more than 4 good
+  replies, at most 64 tries 100 ms apart). It then starts the timing thread
+  `0x17b460`. If negotiation fails the transition returns an error, and **a
+  stock SETUP fails with it** (`local_194`).
+- `+0x1cc8` can't simply be left set for screen B: a 110 SETUP refuses with
+  `-6719` while it's set.
+- **The fix (hook111 0.1.1):** `0x17c0e0` is wrapped (16-byte prologue,
+  position-independent). While screen B is up in that session, the flag is set
+  for the duration of the call only. hook111 calls it once more after a 111
+  SETUP, because the stock SETUP's own call ran before screen B existed.
+- **Harness** (`setup_b.c`, "idle"): a fresh session as the phone sets it up
+  (keep-alive asked for), a fake phone timing port, then the car's sequence:
+  111 up, 110 up and down twice, 111 down. Checks: 111 makes the session
+  active; 110 SETUP still works with B up; TEARDOWN {110} leaves it active;
+  TEARDOWN {111} makes it idle again; without B, 110 up/down ends idle (the
+  control). With the wrapper disabled, the three "stays active" checks fail.
+  Not reproduced off-car: the 30 s timeout itself and the phone's beacons.
+
 ## Loading into carplay [facts + static + harness, 2026-11-04]
 
 - `carplay.service`:
