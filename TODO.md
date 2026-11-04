@@ -39,7 +39,13 @@ workflow (Actions > Release, the component ids).
 - [x] **The central-screen mirror removed** (winston-grabber, the layouts).
 - [x] The app's buttons (CarPlay map on the cluster / on the HUD) and the page
   test (vizualyse_cast 0.3.0, requires vizualyse-cast 0.3.0).
-- [ ] **On the car:** the tool and the app, with hook111 armed in mode `alt`:
+- [x] **The second screen's switch** (vizualyse-cast / vizualyse_cast 0.3.1):
+  "CarPlay second screen: on / off" on the iDrive page and the phone page sets
+  hook111's mode (`alt` / `off`) now through its arm step and saves
+  `HOOK111_MODE` in its config for later starts. `carplay_test.js` covers it,
+  including against the real `hook111-arm.sh`.
+- [ ] **On the car:** the tool and the app, with hook111 armed in mode `alt`
+  (set with the switch):
   the cluster map and the HUD, a reconnect, a phone that disconnects
   mid-stream.
 

@@ -50,6 +50,7 @@
 
 <div class="card hide" id="carplayCard">
   <label class="t">CarPlay second screen</label>
+  <div class="row"><span>On <span class="small" id="cpPending"></span></span><input id="cpOn" type="checkbox"></div>
   <div class="small" id="cpState">—</div>
   <div class="small">CarPlay's own cluster view (Google Maps or Apple Maps), next to the main CarPlay screen. The phone draws it at the size of the chosen output from its next connection; until then it is scaled to fit.</div>
 </div>
@@ -141,6 +142,10 @@
     if (s.outputs) lastOutputs = s.outputs;
     if (s.outputs && !$('outputs').children.length) buildOutputs(s.outputs);
     $('cpState').textContent = carplayText(s.carplay);
+    var sw = (s.carplay && s.carplay.switch) || {};
+    $('cpOn').disabled = !sw.installed;
+    $('cpOn').checked = !!sw.on;
+    $('cpPending').textContent = !sw.installed ? '(hook111 is not installed)' : sw.pending ? '(' + sw.pending + ')' : '';
     $('sub').textContent = 'Uplink ' + s.uplink + ' · renderer ' + s.render;
     $('dot').className = 'dot ' + s.state;
     var names = {}; (s.outputs || []).forEach(function (o) { names[o.id] = o.title; });
@@ -172,6 +177,13 @@
     api('/api/play', body)
       .then(show).catch(function (e) { $('err').textContent = e.message; })
       .then(function () { $('play').disabled = false; });
+  };
+  $('cpOn').onchange = function () {
+    var box = this;
+    box.disabled = true;
+    api('/api/hook111', { mode: box.checked ? 'alt' : 'off' })
+      .then(show).catch(function (e) { $('err').textContent = e.message; box.checked = !box.checked; })
+      .then(function () { box.disabled = false; });
   };
   $('stop').onclick = function () { api('/api/stop', {}).then(show); };
 

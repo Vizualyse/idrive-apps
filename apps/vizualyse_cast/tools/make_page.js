@@ -14,6 +14,7 @@ const C = [
     [23, 'label', 'LT_Label_1Row', 'castHint', 0, 'Scan with the phone whose hotspot the car is on'],
     [35, 'button', 'LT_Button_1Row', 'castEnable', 3, 'Cast to cluster: on'],
     [30, 'button', 'LT_Button_1Row', 'castStop', 3, 'Stop'],
+    [38, 'button', 'LT_Button_1Row', 'castCarplayOn', 3, 'CarPlay second screen: off'],
     [36, 'button', 'LT_Button_1Row', 'castCarplayMap', 3, 'CarPlay map on the cluster'],
     [37, 'button', 'LT_Button_1Row', 'castCarplayHud', 3, 'CarPlay map on the HUD'],
     [31, 'button', 'LT_Button_1Row', 'castMap', 3, 'Play last on the cluster map'],

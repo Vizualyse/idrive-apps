@@ -350,7 +350,7 @@ function status() {
         link: link(), canReplay: !!lastPlay,
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
-            display: c.display, wanted: c.wanted },
+            display: c.display, wanted: c.wanted, switch: carplaySwitch() },
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -400,6 +400,10 @@ const web = http.createServer((req, res) => {
             play({ url: url.href, shown: redact(url.href), output: output, audio: audio, volume: volume, realtime: b.realtime !== false });
             return json(res, 200, status());
         }
+        if (u.pathname === '/api/hook111') {
+            const why = setCarplayMode(b.mode);
+            return why ? json(res, 400, { error: why }) : json(res, 200, status());
+        }
         if (u.pathname === '/api/stop') { stopPlayer('stopped from the phone'); return json(res, 200, status()); }
         if (u.pathname === '/api/qr') { setQr(!!b.show); return json(res, 200, status()); }
         json(res, 404, { error: 'not found' });
@@ -416,6 +420,20 @@ function playCarplay(output) {
     const c = carplay.state();
     if (!c.ready) return 'the CarPlay second screen is not available: ' + c.why;
     play(carplayOpts(output === 'hud' ? 'hud' : 'map'));
+    return null;
+}
+
+/* The second screen's switch: hook111's mode, off or alt, now and for later
+ * starts (carplay_screen.setMode). Off also stops a second screen playing.
+ * null, or why not. */
+function carplaySwitch() {
+    try { return carplay.switchState(); } catch (e) { return { installed: false, on: false, pending: null, error: e.message }; }
+}
+function setCarplayMode(mode) {
+    let r;
+    try { r = carplay.setMode(mode); } catch (e) { log('hook111: mode ' + mode + ': ' + e.message); return e.message; }
+    log('hook111: mode ' + r.mode + ' saved; ' + r.note);
+    if (r.mode === 'off' && player && player.opts.source === 'carplay') stopPlayer('the CarPlay second screen turned off');
     return null;
 }
 
@@ -440,6 +458,7 @@ function setEnabled(on) {
 function command(c) {
     if (c.cmd === 'enable') { setEnabled(true); return null; }
     if (c.cmd === 'disable') { setEnabled(false); return null; }
+    if (c.cmd === 'hook111') return setCarplayMode(c.mode);
     if (!settings.enabled) return 'Cast to cluster is off';
     if (c.cmd === 'carplay') return playCarplay(c.output);
     if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }

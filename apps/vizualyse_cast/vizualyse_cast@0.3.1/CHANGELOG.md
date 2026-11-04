@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- CarPlay second screen: on / off. Sets hook111's mode (alt or off) for this
+  start and saves it for later starts; says when a change applies only from
+  the phone's next connection or the next start. Off stops a second screen
+  that is playing.
+- Requires vizualyse-cast 0.3.1.
+
 ## 0.3.0
 
 - CarPlay map on the cluster / on the HUD: CarPlay's own second screen (its

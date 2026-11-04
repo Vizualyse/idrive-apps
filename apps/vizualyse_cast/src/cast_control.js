@@ -7,6 +7,7 @@
  * after every command and once a second; the app sends {"cmd":"stop"},
  * {"cmd":"replay","output":"map"|"hud"|"console"|"none"},
  * {"cmd":"carplay","output":"map"|"hud"} (the CarPlay second screen),
+ * {"cmd":"hook111","mode":"off"|"alt"} (the second screen's switch),
  * {"cmd":"enable"}, {"cmd":"disable"} and {"cmd":"qr","show":true|false}. Connected while the page is visible,
  * retried once a second; the tool keeps running without it.
  */
@@ -81,6 +82,7 @@ class CastControl extends EventEmitter {
     enable() { return this._send({ cmd: 'enable' }); }
     disable() { return this._send({ cmd: 'disable' }); }
     carplay(output) { return this._send({ cmd: 'carplay', output: output }); }
+    setCarplayOn(on) { return this._send({ cmd: 'hook111', mode: on ? 'alt' : 'off' }); }
     replay(output) { return this._send({ cmd: 'replay', output: output }); }
     setQr(show) { return this._send({ cmd: 'qr', show: !!show }); }
 
@@ -88,6 +90,14 @@ class CastControl extends EventEmitter {
     enabled() { return !(this.status && this.status.enabled === false); }
     /* the tool sees hook111 armed and streaming-ready this start */
     canCarplay() { return !!(this.status && this.status.carplay && this.status.carplay.ready && this.enabled()); }
+    /* the second screen's switch: { installed, on, pending } (hook111's mode) */
+    carplaySwitch() { return (this.status && this.status.carplay && this.status.carplay.switch) || { installed: false, on: false, pending: null }; }
+    switchText() {
+        if (!this.status) return 'CarPlay second screen: —';
+        const w = this.carplaySwitch();
+        if (!w.installed) return 'CarPlay second screen: hook111 not installed';
+        return 'CarPlay second screen: ' + (w.on ? 'on' : 'off') + (w.pending ? ' (' + w.pending + ')' : '');
+    }
     link() { return (this.status && this.status.link) || ''; }
     canReplay() { return !!(this.status && this.status.canReplay); }
     playing() { return !!(this.status && this.status.state === 'playing'); }

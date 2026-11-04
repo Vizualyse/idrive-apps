@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 /**
- * CarPlay's second screen as a source. hook111 (re/ in this repository),
+ * CarPlay's second screen as a source. hook111 (native/hook111, a Store tool),
  * when it is armed for the current start, gets the phone to stream its
  * instrument-cluster view next to the main CarPlay screen and hands it out as
  * Annex-B H.264 to a consumer listening on 127.0.0.1:<sink port> (6111). The
@@ -23,7 +23,15 @@ const fs = require('fs');
 const path = require('path');
 
 const RUN = process.env.CAST_HOOK_RUN || '/run/hook111';
+/* hook111's install: its config (HOOK111_MODE= sets each start's mode) and
+ * its arm step, whose `mode` command sets the mode for this start */
+const VAR = process.env.CAST_HOOK_VAR || '/var/opt/hook111';
+const ARM = process.env.CAST_HOOK_ARM || path.join(VAR, 'current', 'hook111-arm.sh');
 const DEFAULT_PORT = 6111;
+/* The modes offered: off (the hook answers the phone as stock) and alt (it
+ * offers the second screen). Not full: with viewAreas the phone refused every
+ * session on the car. */
+const MODES = ['off', 'alt'];
 
 /* What the phone is asked to draw for each target, and what the tool sends
  * on to cluster-render. The phone draws at `display`; ffmpeg scales to `w` x
@@ -53,6 +61,42 @@ function readKv(f) {
 
 function displayText(d) { return d.w + 'x' + d.h + '@' + d.fps; }
 
+/* The mode hook111 starts in: the last HOOK111_MODE= line of its config,
+ * off without one (as its arm step reads it). */
+function savedMode(varDir) {
+    const t = readText(path.join(varDir || VAR, 'config')) || '';
+    const m = t.split('\n').map((l) => l.trim()).filter((l) => /^HOOK111_MODE=(off|alt|full)$/.test(l)).pop();
+    return m ? m.slice('HOOK111_MODE='.length) : 'off';
+}
+
+/* Turn the second screen on (alt) or off, now and for later starts: saved as
+ * HOOK111_MODE in hook111's config (its other lines kept), and, when the hook
+ * is armed this start, set through its arm step's `mode` (the hook reads it at
+ * the phone's next SETUP). Returns { mode, now, note }: now is false when it
+ * only applies from the next start. Throws with the reason when it can't. */
+function setMode(mode, o) {
+    o = o || {};
+    const run = o.run || RUN, varDir = o.varDir || VAR, arm = o.arm || ARM;
+    if (MODES.indexOf(mode) < 0) throw new Error('mode is off or alt');
+    if (!fs.existsSync(arm)) throw new Error('hook111 is not installed (CarPlay cluster map, in the Store)');
+
+    const f = path.join(varDir, 'config');
+    const kept = (readText(f) || '').split('\n').filter((l) => l.trim() && !/^\s*HOOK111_MODE=/.test(l));
+    const tmp = f + '.tmp.' + process.pid;
+    fs.writeFileSync(tmp, kept.concat('HOOK111_MODE=' + mode).join('\n') + '\n', { mode: 0o644 });
+    fs.renameSync(tmp, f);
+
+    const st = state(run);
+    if (!st.armed) return { mode: mode, now: false, note: 'from the next start (hook111 is not armed this start)' };
+    if (st.mode !== mode) {
+        require('child_process').execFileSync('sh', [arm, 'mode', mode], { timeout: 10000, stdio: ['ignore', 'pipe', 'pipe'] });
+    }
+    const now = (readText(path.join(run, 'mode')) || '').trim() === mode;
+    if (!now) return { mode: mode, now: false, note: 'from the next start (the arm step did not set it for this one)' };
+    if (mode === 'alt' && st.fellBack) return { mode: mode, now: false, note: 'from the next start (hook111 fell back to off for this one)' };
+    return { mode: mode, now: true, note: 'from the phone\'s next connection' };
+}
+
 /* Where hook111 stands this start. */
 function state(run) {
     run = run || RUN;
@@ -68,7 +112,7 @@ function state(run) {
     else if (fellBack) why = 'hook111 fell back to off: the phone refused the second screen';
     else if (!ready) why = 'hook111 is in mode ' + (mode || 'off') + ' (alt streams the second screen)';
     return {
-        armed: armed, mode: mode, ready: ready, why: why, port: port,
+        armed: armed, mode: mode, ready: ready, why: why, port: port, fellBack: fellBack,
         streaming: st.screen_b === 'up',
         frames: Number(st.b_frames) || 0,
         display: st.display || null,                       /* what the phone was last offered */
@@ -112,4 +156,18 @@ function outputArgs(output) {
         'pad=' + t.w + ':' + t.h + ':-1:-1,fps=' + t.fps + ',format=yuv420p', '-f', 'rawvideo', 'pipe:1'];
 }
 
-module.exports = { TARGETS, RUN, DEFAULT_PORT, state, wantDisplay, inputArgs, outputArgs, readKv, displayText };
+/* The switch's state for the pages: installed, on (the saved mode is alt),
+ * and when what is saved differs from this start, from when it applies. */
+function switchState(o) {
+    o = o || {};
+    const run = o.run || RUN, varDir = o.varDir || VAR, arm = o.arm || ARM;
+    if (!fs.existsSync(arm)) return { installed: false, on: false, pending: null };
+    const saved = savedMode(varDir), st = state(run);
+    const nowMode = st.armed && !st.fellBack ? (st.mode || 'off') : 'off';
+    let pending = null;
+    if ((saved === 'alt') !== (nowMode === 'alt')) pending = 'from the next start';
+    else if (saved === 'alt' && !st.streaming) pending = 'from the phone\'s next connection';
+    return { installed: true, on: saved === 'alt', saved: saved, pending: pending };
+}
+
+module.exports = { TARGETS, RUN, VAR, ARM, MODES, DEFAULT_PORT, state, savedMode, setMode, switchState, wantDisplay, inputArgs, outputArgs, readKv, displayText };

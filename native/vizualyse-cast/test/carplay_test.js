@@ -37,6 +37,70 @@ function fakeRun(o) {
     return run;
 }
 
+/* a fake hook111 install: its config folder and an arm step whose `mode`
+ * writes the run directory's mode file when armed, as hook111-arm.sh does */
+function fakeInstall(run, config) {
+    const v = tmpdir('hook111-var-');
+    if (config !== undefined) fs.writeFileSync(path.join(v, 'config'), config);
+    const arm = path.join(v, 'hook111-arm.sh');
+    const r = run.replace(/\\/g, '/');
+    fs.writeFileSync(arm, '#!/bin/sh\n[ "$1" = mode ] && [ -e "' + r + '/env" ] && echo "$2" >"' + r + '/mode"\nexit 0\n');
+    return { run: run, varDir: v, arm: arm };
+}
+
+function modes(cp) {
+    const cfg = (o) => fs.readFileSync(path.join(o.varDir, 'config'), 'utf8');
+    const modeNow = (o) => fs.readFileSync(path.join(o.run, 'mode'), 'utf8').trim();
+    let o = fakeInstall(fakeRun({ armed: true, mode: 'off' }), 'HOOK111_SINK_PORT=6111\nHOOK111_MODE=off\n');
+    let sw = cp.switchState(o);
+    ok('switch: installed, off', sw.installed && !sw.on && sw.pending === null);
+    let r = cp.setMode('alt', o);
+    ok('mode alt while armed: set for this start through the arm step, from the phone\'s next connection',
+        r.now && /next connection/.test(r.note) && modeNow(o) === 'alt');
+    ok('... saved as HOOK111_MODE=alt, the config\'s other lines kept, one mode line', cfg(o) === 'HOOK111_SINK_PORT=6111\nHOOK111_MODE=alt\n');
+    sw = cp.switchState(o);
+    ok('switch: on, waiting for the phone (not streaming yet)', sw.on && /next connection/.test(sw.pending));
+    ok('state: ready in alt', cp.state(o.run).ready);
+    r = cp.setMode('off', o);
+    ok('mode off: set now and saved', r.now && modeNow(o) === 'off' && /HOOK111_MODE=off\n$/.test(cfg(o)));
+    let threw = null;
+    try { cp.setMode('full', o); } catch (e) { threw = e.message; }
+    ok('mode full is not offered (the phone refused every session with it)', !!threw && /off or alt/.test(threw) && /HOOK111_MODE=off\n$/.test(cfg(o)));
+
+    o = fakeInstall(fakeRun({}));
+    r = cp.setMode('alt', o);
+    ok('not armed this start: saved (a new config), from the next start', !r.now && /next start/.test(r.note) && cfg(o) === 'HOOK111_MODE=alt\n' &&
+        !fs.existsSync(path.join(o.run, 'mode')));
+    sw = cp.switchState(o);
+    ok('switch: on, from the next start', sw.on && sw.pending === 'from the next start');
+
+    o = fakeInstall(fakeRun({ armed: true, mode: 'alt', fallback: true }), 'HOOK111_MODE=alt\n');
+    r = cp.setMode('alt', o);
+    ok('fell back this start: alt only from the next start', !r.now && /fell back/.test(r.note));
+
+    o = fakeInstall(fakeRun({ armed: true, mode: 'off' }));
+    fs.unlinkSync(o.arm);
+    threw = null;
+    try { cp.setMode('alt', o); } catch (e) { threw = e.message; }
+    ok('hook111 not installed: refused, nothing saved', !!threw && /not installed/.test(threw) && !fs.existsSync(path.join(o.varDir, 'config')));
+    ok('switch: not installed', !cp.switchState(o).installed);
+    ok('saved mode: off without a config line; the last line wins', cp.savedMode(tmpdir('v-')) === 'off' &&
+        cp.savedMode(fakeInstall(fakeRun({}), 'HOOK111_MODE=alt\nHOOK111_MODE=off\n').varDir) === 'off');
+
+    /* hook111's real arm step (native/hook111), under a fake root */
+    const real = path.join(HERE, '..', 'hook111', 'hook111-arm.sh');
+    if (!fs.existsSync(real)) { console.log('skip the real arm step: no ' + real); return; }
+    const root = tmpdir('hook111-root-'), run = path.join(root, 'run', 'hook111');
+    fs.mkdirSync(path.join(root, 'run')); fs.mkdirSync(run);
+    fs.writeFileSync(path.join(run, 'env'), 'LD_PRELOAD="/var/opt/hook111/current/libhook111.so"\n');
+    fs.writeFileSync(path.join(run, 'mode'), 'off\n');
+    process.env.HOOK111_ROOT = root;
+    try {
+        r = cp.setMode('alt', { run: run, varDir: tmpdir('hook111-var-'), arm: real });
+        ok('the real hook111-arm.sh sets the mode for this start', r.now && fs.readFileSync(path.join(run, 'mode'), 'utf8').trim() === 'alt');
+    } finally { delete process.env.HOOK111_ROOT; }
+}
+
 function unit() {
     const cp = require(path.join(HERE, 'src', 'carplay_screen.js'));
     let s = cp.state(tmpdir('none-'));
@@ -143,10 +207,11 @@ function ctl(sockPath, cmd) {
 
 async function server(cluster) {
     const state = tmpdir('cast-state-'), run = fakeRun({ armed: true, mode: 'off' }), PORT = 18480;
+    const inst = fakeInstall(run);
     const sock = path.join(tmpdir('cast-ctl-'), 'ctl.sock');
     const logs = [];
     const srv = spawn(process.execPath, [path.join(HERE, 'src', 'server.js')], {
-        env: Object.assign({}, process.env, { CAST_STATE: state, CAST_PORT: String(PORT), CAST_CTL_SOCKET: sock, CAST_HOOK_RUN: run, CAST_FFMPEG: FFMPEG }),
+        env: Object.assign({}, process.env, { CAST_STATE: state, CAST_PORT: String(PORT), CAST_CTL_SOCKET: sock, CAST_HOOK_RUN: run, CAST_HOOK_VAR: inst.varDir, CAST_HOOK_ARM: inst.arm, CAST_FFMPEG: FFMPEG }),
         stdio: ['ignore', 'pipe', 'pipe'],
     });
     srv.stdout.on('data', (d) => String(d).split('\n').forEach((l) => l && logs.push(l)));
@@ -164,7 +229,13 @@ async function server(cluster) {
         const c0 = await ctl(sock, { cmd: 'carplay', output: 'hud' });
         ok('control socket, carplay while not ready: an error', c0.some((l) => l.ev === 'error' && /not available/.test(l.error)));
 
-        fs.writeFileSync(path.join(run, 'mode'), 'alt\n');
+        ok('status: the switch, installed and off', st.carplay.switch && st.carplay.switch.installed === true && st.carplay.switch.on === false);
+        r = await post(PORT, '/api/hook111', token, { mode: 'full' });
+        ok('the phone page: mode full refused', r.code === 400 && /off or alt/.test(JSON.parse(r.body).error));
+        r = await post(PORT, '/api/hook111', token, { mode: 'alt' });
+        st = r.code === 200 && JSON.parse(r.body);
+        ok('the phone page turns the second screen on: alt now and saved', st && st.carplay.switch.on && st.carplay.ready &&
+            fs.readFileSync(path.join(run, 'mode'), 'utf8').trim() === 'alt' && fs.readFileSync(path.join(inst.varDir, 'config'), 'utf8') === 'HOOK111_MODE=alt\n');
         r = await post(PORT, '/api/play', token, { source: 'carplay', output: 'map' });
         st = r.code === 200 && JSON.parse(r.body);
         ok('play the second screen in mode alt: playing on the cluster map', st && st.state === 'playing' && st.output === 'map' && st.source === 'carplay');
@@ -190,6 +261,14 @@ async function server(cluster) {
         await sleep(1500);
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
         ok('stop: idle, and no listening again after a stop', st.state === 'idle' && logs.filter((l) => /play: CarPlay second screen on hud/.test(l)).length === 1);
+        await ctl(sock, { cmd: 'carplay', output: 'map' });
+        await sleep(300);
+        const c2 = await ctl(sock, { cmd: 'hook111', mode: 'off' });
+        await sleep(300);
+        st = JSON.parse((await get(PORT, '/api/status', token)).body);
+        ok('control socket, hook111 off: no error, the playing second screen stops, off now and saved', !c2.some((l) => l.ev === 'error') &&
+            st.state !== 'playing' && !st.carplay.ready && !st.carplay.switch.on &&
+            fs.readFileSync(path.join(run, 'mode'), 'utf8').trim() === 'off' && fs.readFileSync(path.join(inst.varDir, 'config'), 'utf8') === 'HOOK111_MODE=off\n');
         r = await post(PORT, '/api/play', token, { source: 'screen', output: 'map' });
         ok('the old central-screen source is gone (treated as a URL, refused)', r.code === 400);
     } finally {
@@ -201,6 +280,7 @@ async function server(cluster) {
 
 (async () => {
     const cp = unit();
+    modes(cp);
     if (!fs.existsSync(FFMPEG)) { console.log('skip streams and server: no ffmpeg at ' + FFMPEG + ' (node tools/fetch_ffmpeg.js)'); }
     else { const cluster = await streams(cp); await server(cluster); }
     console.log(failed ? failed + ' FAILED' : 'all carplay tests passed');

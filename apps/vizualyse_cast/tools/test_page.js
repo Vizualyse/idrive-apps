@@ -10,7 +10,8 @@
  *   node tools/test_page.js
  *
  * Covers: application.xml and uiDescription.json agree and the app binds
- * every button; with no tool the status says so; connected and idle, the
+ * every button; with no tool the status says so; the CarPlay second screen
+ * switch is off without hook111 and sends hook111 alt / off; connected and idle, the
  * link is written and shown as a QR PNG (a new file per link, the old handle
  * released); Stop and Play last follow the tool's state and send stop and
  * replay; the console button hides without mgu-render; the QR toggle sends
@@ -137,8 +138,8 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'castQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
-    console.log('ok   page: 8 buttons, a QR graphic, xml and uiDescription agree');
+    assert.deepStrictEqual(buttons, ['castCarplayHud', 'castCarplayMap', 'castCarplayOn', 'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
+    console.log('ok   page: 9 buttons, a QR graphic, xml and uiDescription agree');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -175,7 +176,23 @@ async function main() {
     console.log('ok   playing: "' + S.text + '"; Play last on this screen, Stop and the QR toggle send replay, stop, qr off');
 
     assert.strictEqual(byName.castCarplayMap.enabled, false, 'no CarPlay second screen without hook111');
-    st = Object.assign({}, st, { carplay: { armed: true, ready: true, mode: 'alt' } });
+    assert.strictEqual(byName.castCarplayOn.enabled, false, 'no switch without hook111');
+    assert.strictEqual(byName.castCarplayOn.text, 'CarPlay second screen: hook111 not installed');
+    st = Object.assign({}, st, { carplay: { armed: true, ready: false, mode: 'off', switch: { installed: true, on: false, pending: null } } });
+    control.broadcast();
+    await until('switch enabled, off', () => byName.castCarplayOn.enabled === true && byName.castCarplayOn.text === 'CarPlay second screen: off');
+    assert.strictEqual(byName.castCarplayMap.enabled, false, 'the CarPlay map waits for the switch');
+    await sleep(450);
+    byName.castCarplayOn.emit('action');
+    await until('hook111 alt sent', () => received.some((c) => c.cmd === 'hook111' && c.mode === 'alt'));
+    st = Object.assign({}, st, { carplay: { armed: true, ready: true, mode: 'alt', switch: { installed: true, on: true, pending: 'from the phone\'s next connection' } } });
+    control.broadcast();
+    await until('switch on, pending', () => byName.castCarplayOn.text === 'CarPlay second screen: on (from the phone\'s next connection)');
+    await sleep(450);
+    byName.castCarplayOn.emit('action');
+    await until('hook111 off sent', () => received.some((c) => c.cmd === 'hook111' && c.mode === 'off'));
+    console.log('ok   the switch: disabled without hook111; on / off sends hook111 alt / off; shows when it applies');
+    st = Object.assign({}, st, { carplay: { armed: true, ready: true, mode: 'alt', switch: { installed: true, on: true, pending: null } } });
     control.broadcast();
     await until('carplay enabled', () => byName.castCarplayMap.enabled === true && byName.castCarplayHud.enabled === true);
     await sleep(450);

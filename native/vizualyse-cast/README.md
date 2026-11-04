@@ -31,6 +31,16 @@ ffmpeg listens again.
 | Cluster map | 1088x480 (the `map` target) | 816x360 at 12 fps, scaled up by the renderer |
 | HUD | 1056x384 (the shape of the HUD's visible band) | 528x192 at 15 fps, in the band (17-83 % of the width, 25-65 % of the height) |
 
+**The switch** (the iDrive page and the phone page, "CarPlay second screen:
+on / off") sets hook111's mode: `alt` (on) or `off`. The tool runs as root, so
+it does what the app can't: it saves `HOOK111_MODE=` in
+`/var/opt/hook111/config` (its other lines kept) for later starts, and when
+the hook is armed this start, sets it now with hook111's own
+`hook111-arm.sh mode`; the phone sees it at its next connection. Not armed, or
+fallen back to off this start: it applies from the next start, and the pages
+say so. Off also stops a second screen that's playing. `full` isn't offered:
+with `viewAreas` the phone refused every session.
+
 The tool writes the wanted size to `/run/hook111/display`; the phone gets it
 at its next connection, and until then the stream is scaled to fit. The page
 and the iDrive page show whether hook111 is ready, and why not.

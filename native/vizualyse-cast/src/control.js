@@ -7,7 +7,8 @@
  * newline-delimited JSON. Every client gets {"ev":"status", ...} on connect,
  * after each command and once a second. Commands: {"cmd":"stop"},
  * {"cmd":"replay","output":...}, {"cmd":"carplay","output":"map"|"hud"} (the
- * CarPlay second screen), {"cmd":"enable"}, {"cmd":"disable"} and
+ * CarPlay second screen), {"cmd":"hook111","mode":"off"|"alt"} (the second
+ * screen's switch: hook111's mode), {"cmd":"enable"}, {"cmd":"disable"} and
  * {"cmd":"qr","show":bool}; anything else, or a command that can't run, is
  * answered with {"ev":"error","error":...}.
  */
