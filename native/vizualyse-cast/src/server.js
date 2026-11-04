@@ -100,13 +100,15 @@ const cr = new ClusterRender('vizualyse_cast');
 /* Settings kept across restarts in STATE_DIR/settings.json: the service on
  * or off, the QR code on the cluster (off by default: with navigation up
  * the cluster draws its direction list over it; the iDrive page shows it),
- * and the CarPlay cluster view (carplay_screen.VIEWS). */
+ * the CarPlay cluster view (carplay_screen.VIEWS), and whether the phone is
+ * asked to centre its view (the target's safe area; on by default), and the
+ * HUD's alternate mode (the wide 1056x384 picture, not centred; off). */
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, clusterQr: false, carplayView: 'cluster', carplayShape: 'wide', carplayVignette: false },
-    readJson(SETTINGS_FILE) || {});
+const settings = Object.assign({ enabled: true, clusterQr: false, carplayView: 'cluster', carplayCentre: true, carplayHudAlt: false }, readJson(SETTINGS_FILE) || {});
 if (carplay.VIEWS.indexOf(settings.carplayView) < 0) settings.carplayView = 'cluster';
-if (!carplay.SHAPES[settings.carplayShape]) settings.carplayShape = 'wide';
-settings.carplayVignette = settings.carplayVignette === true;
+settings.carplayCentre = settings.carplayCentre !== false;
+settings.carplayHudAlt = settings.carplayHudAlt === true;
+delete settings.carplayShape; delete settings.carplayVignette;   /* 0.3.5's, removed */
 function saveSettings() {
     try { mkdirp(STATE_DIR); fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings) + '\n', { mode: 0o600 }); } catch (e) { log('settings: ' + e.message); }
 }
@@ -236,8 +238,9 @@ function play(opts) {
         const t = carplay.TARGETS[opts.output];
         o = Object.assign({}, o, { w: t.w, h: t.h, fps: t.fps }, t.xband ? { xband: t.xband } : {}, t.band ? { band: t.band } : {});
         try {
-            const d = carplay.wantDisplay(opts.output, undefined, settings.carplayShape);
-            if (d) log('carplay: asking for ' + d.wanted + (d.pending ? ' (the phone is on another size until it reconnects: scaled)' : ''));
+            const d = carplay.wantDisplay(opts.output, undefined, settings.carplayCentre, settings.carplayHudAlt);
+            if (d) log('carplay: asking for ' + d.wanted + (d.safearea ? ', safe area ' + d.safearea : ', no safe area') +
+                (d.pending ? ' (from the phone\'s next connection; until then scaled)' : ''));
         } catch (e) { log('carplay: display: ' + e.message); }
     }
     if (o.w) o = Object.assign({}, o, { w: four(o.w), h: even(o.h) });
@@ -248,7 +251,7 @@ function play(opts) {
     if (cp) {
         /* live: no -re; the hook connects to this listener */
         args.push.apply(args, carplay.inputArgs(carplay.state().port));
-        args.push.apply(args, carplay.outputArgs(opts.output, { shape: settings.carplayShape, vignette: settings.carplayVignette }));
+        args.push.apply(args, carplay.outputArgs(opts.output));
     } else {
         if (opts.realtime) args.push('-re');
         if (isHttp) args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
@@ -355,10 +358,7 @@ function status() {
         link: link(), canReplay: !!lastPlay,
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
-            display: c.display, wanted: c.wanted, switch: carplaySwitch(), view: carplayView(c),
-            shape: { wanted: settings.carplayShape, title: carplay.SHAPE_TITLES[settings.carplayShape],
-                pending: c.wanted && c.display && c.wanted !== c.display ? 'from the phone\'s next connection' : null },
-            vignette: settings.carplayVignette },
+            display: c.display, wanted: c.wanted, size: c.size, switch: carplaySwitch(), view: carplayView(c), centre: carplayCentre(c), hudAlt: settings.carplayHudAlt },
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -408,12 +408,12 @@ const web = http.createServer((req, res) => {
             play({ url: url.href, shown: redact(url.href), output: output, audio: audio, volume: volume, realtime: b.realtime !== false });
             return json(res, 200, status());
         }
-        if (u.pathname === '/api/carplay-shape') {
-            const why = setCarplayShape(b.shape);
-            return why ? json(res, 400, { error: why }) : json(res, 200, status());
+        if (u.pathname === '/api/carplay-centre') {
+            setCarplayCentre(b.on === true);
+            return json(res, 200, status());
         }
-        if (u.pathname === '/api/carplay-vignette') {
-            setCarplayVignette(b.on === true);
+        if (u.pathname === '/api/carplay-hud-alt') {
+            setCarplayHudAlt(b.on === true);
             return json(res, 200, status());
         }
         if (u.pathname === '/api/carplay-view') {
@@ -478,26 +478,37 @@ function setCarplayView(view) {
     return null;
 }
 
-/* The CarPlay picture's shape (carplay_screen.SHAPES: the phone draws taller,
- * ffmpeg squeezes it back) and our vignette. Both kept in the settings; a
- * CarPlay second screen that is playing starts again with them (the shape's
- * size reaches the phone at its next connection). null, or why not. */
-function restartCarplay(why) {
-    if (player && player.opts.source === 'carplay') { log('carplay: ' + why + ': starting again'); play(player.opts); }
+/* Centre the map: the phone gets the target's safe area (carplay_screen
+ * TARGETS[].safe; viewAreas through hook111) and centres the car, the
+ * directions card above it. Kept in the settings; written for the CarPlay
+ * target playing or last played, now (the phone takes it at its next
+ * connection), or at the next play. { on, safearea, offered, pending }. */
+function carplayCentre(c) {
+    const out = (player && player.opts.source === 'carplay' && player.opts.output) || (lastPlay && lastPlay.source === 'carplay' && lastPlay.output) || 'map';
+    const want = settings.carplayCentre ? carplay.safeText(carplay.safeAreaFor(out, settings.carplayHudAlt)) : null;
+    const offered = c.safearea && c.safearea !== 'none' ? c.safearea : null;
+    return { on: settings.carplayCentre, safearea: want, offered: offered,
+        pending: c.streaming && offered !== want ? 'from the phone\'s next connection' : null };
 }
-function setCarplayShape(shape) {
-    if (!carplay.SHAPES[shape]) return 'shape is ' + Object.keys(carplay.SHAPES).join(', ');
-    settings.carplayShape = shape;
+function setCarplayCentre(on) {
+    settings.carplayCentre = !!on;
     saveSettings();
-    log('carplay: shape ' + shape + ' saved');
-    restartCarplay('shape ' + shape);
+    const out = (player && player.opts.source === 'carplay' && player.opts.output) || (lastPlay && lastPlay.source === 'carplay' && lastPlay.output);
+    let d = null;
+    if (out) { try { d = carplay.wantDisplay(out, undefined, settings.carplayCentre, settings.carplayHudAlt); } catch (e) { log('carplay: centre: ' + e.message); } }
+    log('carplay: centre ' + (on ? 'on' : 'off') + ' saved' + (d ? (d.safearea ? ', safe area ' + d.safearea : ', no safe area') + ', from the phone\'s next connection' : ', from the next play'));
     return null;
 }
-function setCarplayVignette(on) {
-    settings.carplayVignette = !!on;
+/* The HUD's alternate mode: the phone draws the HUD band's own wide shape
+ * (1056x384), no safe area. Off (the default): the cluster's picture, centred,
+ * fitted into the band. Written now when the CarPlay picture is on the HUD. */
+function setCarplayHudAlt(on) {
+    settings.carplayHudAlt = !!on;
     saveSettings();
-    log('carplay: vignette ' + (on ? 'on' : 'off') + ' saved');
-    restartCarplay('vignette ' + (on ? 'on' : 'off'));
+    const onHud = player && player.opts.source === 'carplay' && player.opts.output === 'hud';
+    let d = null;
+    if (onHud) { try { d = carplay.wantDisplay('hud', undefined, settings.carplayCentre, settings.carplayHudAlt); } catch (e) { log('carplay: hud: ' + e.message); } }
+    log('carplay: HUD alternate mode ' + (on ? 'on' : 'off') + ' saved' + (d ? ', asking for ' + d.wanted + ', from the phone\'s next connection' : ', from the next play on the HUD'));
     return null;
 }
 
@@ -524,8 +535,8 @@ function command(c) {
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (c.cmd === 'hook111') return setCarplayMode(c.mode);
     if (c.cmd === 'carplayView') return setCarplayView(c.view);
-    if (c.cmd === 'carplayShape') return setCarplayShape(c.shape);
-    if (c.cmd === 'carplayVignette') return setCarplayVignette(c.on === true);
+    if (c.cmd === 'carplayCentre') return setCarplayCentre(c.on === true);
+    if (c.cmd === 'carplayHudAlt') return setCarplayHudAlt(c.on === true);
     if (!settings.enabled) return 'Cast to cluster is off';
     if (c.cmd === 'carplay') return playCarplay(c.output);
     if (c.cmd === 'stop') { stopPlayer('stopped on the iDrive page'); return null; }

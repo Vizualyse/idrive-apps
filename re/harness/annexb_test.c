@@ -290,10 +290,40 @@ static int decode(const char *in, const char *out) {
     return fail;
 }
 
+/* size <in.h264> <WxH>: the stream's first SPS and PPS as an AVCC (as the
+ * phone sends its config), read by annexb_avcc_size, must give WxH. */
+static int size_check(const char *in, const char *want) {
+    FILE *f = fopen(in, "rb"); if (!f) { perror(in); return 1; }
+    static uint8_t buf[1 << 20]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
+    const uint8_t *sps = NULL, *pps = NULL; size_t sps_n = 0, pps_n = 0;
+    for (size_t i = 0; i + 3 < n && !(sps && pps); i++) {
+        if (buf[i] || buf[i + 1] || buf[i + 2] != 1) continue;
+        size_t s = i + 3, e = s;
+        while (e + 2 < n && !(buf[e] == 0 && buf[e + 1] == 0 && (buf[e + 2] == 1 || (buf[e + 2] == 0 && e + 3 < n && buf[e + 3] == 1)))) e++;
+        if (e + 2 >= n) e = n;
+        int t = buf[s] & 0x1f;
+        if (t == 7 && !sps) { sps = buf + s; sps_n = e - s; }
+        if (t == 8 && !pps) { pps = buf + s; pps_n = e - s; }
+    }
+    if (!sps || !pps) { printf("FAIL %s: no SPS/PPS\n", in); return 1; }
+    uint8_t avcc[1024]; size_t k = 0;
+    avcc[k++] = 1; avcc[k++] = sps[1]; avcc[k++] = sps[2]; avcc[k++] = sps[3]; avcc[k++] = 0xff;
+    avcc[k++] = 0xe1; avcc[k++] = (uint8_t)(sps_n >> 8); avcc[k++] = (uint8_t)sps_n; memcpy(avcc + k, sps, sps_n); k += sps_n;
+    avcc[k++] = 1; avcc[k++] = (uint8_t)(pps_n >> 8); avcc[k++] = (uint8_t)pps_n; memcpy(avcc + k, pps, pps_n); k += pps_n;
+    int w = 0, h = 0, rc = annexb_avcc_size(avcc, k, &w, &h);
+    char got[32]; snprintf(got, sizeof got, "%dx%d", w, h);
+    int ok = rc == 0 && !strcmp(got, want);
+    printf("%s %s: SPS (profile %d) says %s, want %s\n", ok ? "ok  " : "FAIL", in, sps[1], rc ? "unreadable" : got, want);
+    int bad = annexb_avcc_size(avcc, 10, &w, &h) == 0;   /* cut short: must refuse */
+    if (bad) printf("FAIL %s: a truncated AVCC was read\n", in);
+    return !ok || bad;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     if (argc >= 2 && !strcmp(argv[1], "unit")) { int r = unit(); printf("%s\n", r ? "FAIL" : "PASS"); return r; }
     if (argc >= 4 && !strcmp(argv[1], "decode")) return decode(argv[2], argv[3]);
-    fprintf(stderr, "usage: %s unit | decode <in.h264> <out.h264>\n", argv[0]);
+    if (argc >= 4 && !strcmp(argv[1], "size")) return size_check(argv[2], argv[3]);
+    fprintf(stderr, "usage: %s unit | decode <in.h264> <out.h264> | size <in.h264> <WxH>\n", argv[0]);
     return 2;
 }

@@ -86,8 +86,11 @@ The capture shows a real location; it stays off the repository.
   [altScreen]`, `/info` carries a second display record (1088x480,
   `features=2`, its own `uuid`). No `suggestUI` / `showUI` exchange is needed
   to stream.
-- **`viewAreas` breaks it.** Offering it (mode `full`) without the records the
-  phone expects made it refuse every session.
+- **`viewAreas` needs its records.** Offering it (mode `full`) without them
+  made the phone refuse every session. With them (the Audi work's format) it
+  was accepted first time, and the safe area decides the layout: 340x330 at
+  298,80 on 936x480 centred the car with the directions card above it
+  (findings, "View areas"). hook111 0.1.4 sends them from a `safearea` file.
 - **The stream-111 SETUP:** `{type:111, uuid:<our display's uuid>,
   latencyMs:75, streamConnectionID}`, answered `{type:111, dataPort:6031}`.
   The phone sends AVCC (39 bytes), then frames.

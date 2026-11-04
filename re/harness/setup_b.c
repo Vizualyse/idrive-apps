@@ -30,6 +30,7 @@
 #include <time.h>
 #include <dirent.h>
 #include <strings.h>
+#include <sys/stat.h>
 
 #include <signal.h>
 #include <ucontext.h>
@@ -707,6 +708,95 @@ int main(int argc, char **argv) {
         CFRelease(iu);
         unlink(vfile);
         hook111_view_file(NULL);
+
+        /* the trial files: view areas merged into the records (the bytes
+         * bench/make_viewareas.py writes for 936x480 x,y,w,h 168,48,600,400) */
+        static const unsigned char INFO_B[] = {
+            0x62,0x70,0x6c,0x69,0x73,0x74,0x30,0x30,0xa4,0x01,0x02,0x14,0x0d,0x59,0x76,0x69,0x65,0x77,0x41,0x72,0x65,0x61,0x73,0xa1,0x03,0xd7,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0d,0x0e,0x0b,0x13,0x5f,0x10,0x15,0x64,0x72,0x61,0x77,0x55,0x49,0x4f,0x75,0x74,0x73,0x69,0x64,0x65,0x53,0x61,0x66,0x65,0x41,0x72,0x65,0x61,0x5c,0x68,0x65,0x69,0x67,0x68,0x74,0x50,0x69,0x78,0x65,0x6c,0x73,0x5d,0x6f,0x72,0x69,0x67,0x69,0x6e,0x58,0x50,0x69,0x78,0x65,0x6c,0x73,0x5d,0x6f,0x72,0x69,0x67,0x69,0x6e,0x59,0x50,0x69,0x78,0x65,0x6c,0x73,0x58,0x73,0x61,0x66,0x65,0x41,0x72,0x65,0x61,0x5f,0x10,0x19,0x76,0x69,0x65,0x77,0x41,0x72,0x65,0x61,0x54,0x72,0x61,0x6e,0x73,0x69,0x74,0x69,0x6f,0x6e,0x43,0x6f,0x6e,0x74,0x72,0x6f,0x6c,0x5b,0x77,0x69,0x64,0x74,0x68,0x50,0x69,0x78,0x65,0x6c,0x73,0x08,0x11,0x01,0xe0,0x10,0x00,0xd4,0x05,0x06,0x07,0x0a,0x0f,0x10,0x11,0x12,0x11,0x01,0x90,0x10,0xa8,0x10,0x30,0x11,0x02,0x58,0x11,0x03,0xa8,0x5f,0x10,0x0f,0x69,0x6e,0x69,0x74,0x69,0x61,0x6c,0x56,0x69,0x65,0x77,0x41,0x72,0x65,0x61,0x08,0x0d,0x17,0x19,0x28,0x40,0x4d,0x5b,0x69,0x72,0x8e,0x9a,0x9b,0x9e,0xa0,0xa9,0xac,0xae,0xb0,0xb3,0xb6,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x15,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xc8 };
+        char tdir[600]; snprintf(tdir, sizeof tdir, "%s.trial", logdir);
+        mkdir(tdir, 0755);
+        hook111_trial_dir(tdir);
+        char tp[700];
+        snprintf(tp, sizeof tp, "%s/info-b.plist", tdir);
+        FILE *tf = fopen(tp, "wb"); fwrite(INFO_B, 1, sizeof INFO_B, tf); fclose(tf);
+        {   /* info-a.plist: [testKeyA, 7], written with the library's own writer */
+            CF pa = CFArrayCreate(), ka = CFStr("testKeyA"), seven = CFNumI64(7);
+            CFArrayAppend(pa, ka); CFArrayAppend(pa, seven);
+            size_t bl = 0; void *bb = FN(void *(*)(CF, size_t *, int *), 0x139750)(pa, &bl, NULL);
+            snprintf(tp, sizeof tp, "%s/info-a.plist", tdir);
+            tf = fopen(tp, "wb"); fwrite(bb, 1, bl, tf); fclose(tf); free(bb);
+        }
+        int pe = 0;
+        CF dd = FN(CF (*)(void *, CF, void *, int *, void *), 0x10d270)(NULL, K_DISPLAYS, NULL, &pe, cfg);
+        CF rb = dd && CFArrayCount(dd) == 2 ? CFArrayAt(dd, 1) : NULL, ra = dd ? CFArrayAt(dd, 0) : NULL;
+        CF vas = rb ? CFDictGetTyped(rb, CFStr("viewAreas"), CFArrayTypeID(), &e) : NULL;
+        CF va0 = vas && CFArrayCount(vas) == 1 ? CFArrayAt(vas, 0) : NULL;
+        CF safe = va0 ? CFDictGetTyped(va0, CFStr("safeArea"), CFDictTypeID(), &e) : NULL;
+        int e2 = 0;
+        CHECK("trial info-b.plist: viewAreas [{936x480 at 0,0, safeArea 600x400 at 168,48}] and initialViewArea 0 in the second record",
+              va0 && CFDictGetI64(va0, CFStr("widthPixels"), &e2) == 936 && CFDictGetI64(va0, CFStr("heightPixels"), &e2) == 480 &&
+              safe && CFDictGetI64(safe, CFStr("originXPixels"), &e2) == 168 && CFDictGetI64(safe, CFStr("widthPixels"), &e2) == 600 &&
+              CFDictGetI64(safe, CFStr("originYPixels"), &e2) == 48 && CFDictGetI64(safe, CFStr("heightPixels"), &e2) == 400 && !e2 &&
+              CFDictGetI64(rb, CFStr("initialViewArea"), &e2) == 0 && !e2 && hook111_stats.info_extra_b == 2);
+        CHECK("trial info-b.plist: the booleans came through (drawUIOutsideSafeArea, viewAreaTransitionControl)",
+              va0 && (e2 = 0, CFDictGetI64(va0, CFStr("drawUIOutsideSafeArea"), &e2) == 0) && !e2 &&
+              (e2 = 0, CFDictGetI64(va0, CFStr("viewAreaTransitionControl"), &e2) == 0) && !e2 &&
+              (e2 = 0, CFDictGetI64(va0, CFStr("noSuchKey"), &e2), e2 != 0));
+        CHECK("trial info-a.plist: merged into the main display's record", ra && CFDictGetI64(ra, CFStr("testKeyA"), &e2) == 7 && hook111_stats.info_extra_a == 1);
+        snprintf(tp, sizeof tp, "%s/info-b.plist", tdir);
+        tf = fopen(tp, "wb"); fputs("not a plist", tf); fclose(tf);
+        dd = FN(CF (*)(void *, CF, void *, int *, void *), 0x10d270)(NULL, K_DISPLAYS, NULL, &pe, cfg);
+        CHECK("trial info-b.plist that isn't a plist array: ignored, the record as before",
+              dd && CFArrayCount(dd) == 2 && !CFDictGetTyped(CFArrayAt(dd, 1), CFStr("viewAreas"), CFArrayTypeID(), &e) && hook111_stats.info_extra_b == 0);
+        unlink(tp);
+        snprintf(tp, sizeof tp, "%s/info-a.plist", tdir); unlink(tp);
+
+        /* the safe area, baked in: /run/hook111/safearea "x,y,w,h" -> viewAreas records */
+        char sfile[640], dfile2[640];
+        snprintf(sfile, sizeof sfile, "%s.safearea", logdir);
+        snprintf(dfile2, sizeof dfile2, "%s.display2", logdir);
+        hook111_safearea_file(sfile);
+        hook111_display_file(dfile2);
+        set_mode(dfile2, "984x480@30\n");
+        CF r2 = REC1();
+        CHECK("safe area file configured but missing: no viewAreas", r2 && !CFDictGetTyped(r2, CFStr("viewAreas"), CFArrayTypeID(), &e));
+        set_mode(sfile, "322,80,340,330\n");
+        r2 = REC1();
+        CF vs = r2 ? CFDictGetTyped(r2, CFStr("viewAreas"), CFArrayTypeID(), &e) : NULL;
+        CF v0 = vs && CFArrayCount(vs) == 1 ? CFArrayAt(vs, 0) : NULL;
+        CF sa = v0 ? CFDictGetTyped(v0, CFStr("safeArea"), CFDictTypeID(), &e) : NULL;
+        e2 = 0;
+        CHECK("safe area 322,80,340,330 on 984x480: one view area, the whole display, with that safe area; initialViewArea 0",
+              v0 && CFDictGetI64(v0, CFStr("widthPixels"), &e2) == 984 && CFDictGetI64(v0, CFStr("heightPixels"), &e2) == 480 &&
+              CFDictGetI64(v0, CFStr("originXPixels"), &e2) == 0 && CFDictGetI64(v0, CFStr("originYPixels"), &e2) == 0 &&
+              sa && CFDictGetI64(sa, CFStr("originXPixels"), &e2) == 322 && CFDictGetI64(sa, CFStr("originYPixels"), &e2) == 80 &&
+              CFDictGetI64(sa, CFStr("widthPixels"), &e2) == 340 && CFDictGetI64(sa, CFStr("heightPixels"), &e2) == 330 && !e2 &&
+              CFDictGetI64(r2, CFStr("initialViewArea"), &e2) == 0 && !e2);
+        CHECK("safe area: drawUIOutsideSafeArea and viewAreaTransitionControl false (the library's own false)",
+              v0 && (e2 = 0, CFDictGetI64(v0, CFStr("drawUIOutsideSafeArea"), &e2) == 0) && !e2 &&
+              (e2 = 0, CFDictGetI64(v0, CFStr("viewAreaTransitionControl"), &e2) == 0) && !e2);
+        status_now(1);
+        {
+            char stp[700], sl[256]; snprintf(stp, sizeof stp, "%s/status", logdir);
+            FILE *sf = fopen(stp, "r"); int said = 0;
+            while (sf && fgets(sl, sizeof sl, sf)) if (!strcmp(sl, "safearea=322,80,340,330\n")) said = 1;
+            if (sf) fclose(sf);
+            CHECK("the status says which safe area was offered", said);
+        }
+        static const char *bads[] = { "700,80,340,330", "322,200,340,330", "-1,80,340,330", "322,80,40,330", "322,80,340", "322,80,340,330x", "" };
+        int sdef = 1;
+        for (unsigned i = 0; i < sizeof bads / sizeof *bads; i++) {
+            set_mode(sfile, bads[i]);
+            r2 = REC1();
+            if (!r2 || CFDictGetTyped(r2, CFStr("viewAreas"), CFArrayTypeID(), &e)) { sdef = 0; printf("  safe area not refused: \"%s\"\n", bads[i]); }
+        }
+        CHECK("safe area outside the display, negative, under 64 px, short, trailing junk, empty: no viewAreas", sdef);
+        set_mode(dfile2, "936x480@30\n");
+        set_mode(sfile, "322,80,640,330\n");   /* fits 984 wide, not 936: checked against the size offered now */
+        r2 = REC1();
+        CHECK("safe area checked against the size offered now (fits 984, not 936): no viewAreas", r2 && !CFDictGetTyped(r2, CFStr("viewAreas"), CFArrayTypeID(), &e));
+        unlink(sfile); unlink(dfile2);
+        hook111_display_file(NULL);
     }
     /* ---------- modes, and the fallback when the phone refuses ---------- */
     {
@@ -745,7 +835,58 @@ int main(int argc, char **argv) {
         CHECK("after the fallback: SETUP as stock, though the file says full", rc == 0 && resp && EF_COUNT() == 0);
         CHECK("after the fallback: /info stock", INFO_N() == 1);
         teardown(session, empty, 0, NULL);
-        unlink(fb);
+        /* the trial files: unfallback clears it; features replaces the mode's list */
+        char tdir2[600], tp2[700];
+        snprintf(tdir2, sizeof tdir2, "%s.trial", logdir);
+        snprintf(tp2, sizeof tp2, "%s/unfallback", tdir2);
+        FILE *uf = fopen(tp2, "w"); fclose(uf);
+        set_mode(modefile, "alt");
+        rc = CTL_SETUP();
+        CHECK("trial unfallback: the fallback cleared at the next SETUP, the file consumed, its note gone",
+              rc == 0 && !hook111_fell_back() && hook111_mode() == 1 && access(tp2, F_OK) != 0 && access(fb, F_OK) != 0 && EF_COUNT() == 1);
+        teardown(session, empty, 0, NULL);
+        snprintf(tp2, sizeof tp2, "%s/features", tdir2);
+        set_mode(tp2, "altScreen viewAreas\ncornerMasks\n");   /* cornerMasks isn't offered here */
+        rc = CTL_SETUP();
+        CF eft = resp ? CFDictGetTyped(resp, ef_key, CFArrayTypeID(), &err) : NULL;
+        CHECK("trial features altScreen viewAreas cornerMasks, mode alt: enabledFeatures [altScreen, viewAreas] (only what was offered)",
+              rc == 0 && eft && CFArrayCount(eft) == 2 && CFArrayIndexOf(eft, CFStr("altScreen")) >= 0 && CFArrayIndexOf(eft, CFStr("viewAreas")) >= 0);
+        status_now(1);
+        {
+            char stp[700], sl[256]; snprintf(stp, sizeof stp, "%s/status", logdir);
+            FILE *sf = fopen(stp, "r"); int said = 0;
+            while (sf && fgets(sl, sizeof sl, sf)) if (!strcmp(sl, "features=altScreen,viewAreas\n")) said = 1;
+            if (sf) fclose(sf);
+            CHECK("the status says which features were answered", said);
+        }
+        teardown(session, empty, 0, NULL);
+        unlink(tp2);
+        /* the safe area decides viewAreas in mode alt (no trial features file);
+         * each ctl-only session counts as a refusal: the fallback cleared before each */
+        snprintf(tp2, sizeof tp2, "%s/unfallback", tdir2);
+        #define UNFALL() do { FILE *u_ = fopen(tp2, "w"); if (u_) fclose(u_); } while (0)
+        char sfile2[640]; snprintf(sfile2, sizeof sfile2, "%s.safearea", logdir);
+        set_mode(sfile2, "298,80,340,330\n");   /* inside the configured 1088x480 */
+        UNFALL();
+        rc = CTL_SETUP();
+        CF efs = resp ? CFDictGetTyped(resp, ef_key, CFArrayTypeID(), &err) : NULL;
+        CHECK("mode alt with a safe area: enabledFeatures [altScreen, viewAreas]",
+              rc == 0 && efs && CFArrayCount(efs) == 2 && CFArrayIndexOf(efs, CFStr("viewAreas")) >= 0);
+        teardown(session, empty, 0, NULL);
+        set_mode(sfile2, "2000,80,340,330\n");
+        UNFALL();
+        rc = CTL_SETUP();
+        CHECK("mode alt with a safe area that doesn't fit: [altScreen] only (no viewAreas without its records)", rc == 0 && EF_COUNT() == 1);
+        teardown(session, empty, 0, NULL);
+        unlink(sfile2);
+        UNFALL();
+        rc = CTL_SETUP();
+        CHECK("mode alt without a safe area: [altScreen] only, as before", rc == 0 && EF_COUNT() == 1);
+        teardown(session, empty, 0, NULL);
+        hook111_safearea_file(NULL);
+        unlink(tp2);
+        hook111_trial_dir(NULL);
+        #undef UNFALL
     }
 
     /* ---------- the plist log ---------- */

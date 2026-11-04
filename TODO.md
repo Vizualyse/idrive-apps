@@ -26,25 +26,33 @@ workflow (Actions > Release, the component ids).
   only. It goes into `/info`'s `initialURL` (`maps:/car/instrumentcluster`,
   `…/map`, `…/instructioncard`) from `/run/hook111/view`, read at each
   `/info`; `view=` in the status. `setup_b.c`: 76 checks.
-- [ ] **On the car:** whether the phone follows `initialURL`. Pick "directions
-  only" and reconnect the phone. If the cluster view doesn't change, try
-  `showUI {url, uuid}` from the bench (`send.plist`) while the main screen is
-  up. Expect it may cost the main screen, as the `suggestUI` answer did.
-- [x] **Shape and vignette** (vizualyse-cast 0.3.5, vizualyse_cast 0.3.3):
-  the phone asked for the target's height x1.25 / x1.5 (map 936x600 /
-  936x720), squeezed back into the band by ffmpeg; our own light vignette
-  (`vignette=angle=PI/7`). Both switches are on the iDrive page and the phone
-  page.
-- [ ] **On the car:** whether a taller shape moves the directions card (it
-  sits top right at the wide shape; screenshots elsewhere show it top
-  centre), and whether the squeeze looks acceptable. If the card moves at
-  x1.5, try x1.25 for less squeeze.
-- [x] **The cluster map 24 px wider** (vizualyse-cast 0.3.4): 936x480 at x
-  76-1012, sent at 704x360 (the width a multiple of 4: 1 px padding each
-  side), ~4.5 MB/s.
-- [ ] **Open protocol questions:** what `viewAreas`, `showUI` and
-  `primaryInputDevice` should contain; whether the phone keeps streaming 111
-  while CarPlay isn't on the main screen.
+- [x] **On the car:** the phone follows `initialURL` ("map only" dropped the
+  card, 2026-11-04).
+- [x] ~~Shape and vignette~~ (vizualyse-cast 0.3.5): tried on the car,
+  removed in 0.3.6. The squeezed taller shape looked squashed, and no shape
+  moved Google Maps' layout; the safe area does.
+- [x] **The cluster map wider, at native size** (vizualyse-cast 0.3.4, then
+  0.3.6): 984x480 at x 52-1036, sent as drawn at up to 20 fps;
+  cluster-render's governor keeps the link to the cluster within its 5500
+  KB/s cap (tried on the car at 936x480: ~14.5 fps, no budget holds).
+- [x] **View areas, and centring baked in** (hook111 0.1.4, vizualyse-cast
+  0.3.6, vizualyse_cast 0.3.4). Found on the car with trial files (hook111
+  0.1.3, hand-installed, removed again): on 936x480, 340x330 at 298,80
+  centred the car with the card above it; at y 40 both 40 px higher (the
+  default now); a taller area (h 400) pushed the car down. Now a `safearea`
+  file; the tool writes it, centred, behind "Centre the map" (on by default).
+  The HUD shows the cluster's centred picture, or in its alternate mode the
+  wide 1056x384 with no safe area. Shape and vignette removed.
+- [ ] **On the car (next session):** install hook111 0.1.4 + vizualyse-cast
+  0.3.6 + vizualyse_cast 0.3.4 from the Store; check the centred layout at
+  984 wide, the HUD both ways, and the native size while driving (packed
+  frames when the map moves fast?).
+  - Google Maps' time / distance-left pill (the other car's screenshot): not
+    shown by any safe area tried (2026-11-04: 600x400, 340x330 at y 80, 40
+    and 0, 340x400). Next: map-only view with the safe area; then what else
+    the other car tells the phone (iAP2 route guidance is the fallback).
+- [ ] **Open protocol questions:** what `showUI` and `primaryInputDevice`
+  should contain.
 - [ ] **The session drops every ~40 s while the iDrive shows its own screen.**
   Seen on the car (2026-11-04, hook111 0.1.0, mode alt): with 111 the only
   stream (no 110 main screen, no 102 audio) the phone starts a new session every

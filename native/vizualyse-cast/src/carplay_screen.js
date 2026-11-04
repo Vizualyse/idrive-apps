@@ -42,42 +42,49 @@ const VIEWS = ['cluster', 'map', 'card'];
 const VIEW_TITLES = { cluster: 'map and directions', map: 'map only', card: 'directions only' };
 
 /* What the phone is asked to draw for each target, and what the tool sends
- * on to cluster-render. The phone draws at `display`; ffmpeg scales to `w` x
- * `h` at `fps`, inside cluster-render's ~5500 KB/s upload (I420: w*h*1.5*fps):
- *   map: the cluster centre's visible band, 936x480 of its 1088x480 (`xband`);
- *        704x360 at 12 fps = 4.6 MB/s (the width a multiple of 4: 1 px padding
- *        each side, in the fade), scaled up by the renderer;
- *   hud: the HUD's visible band (17-83 % of 800 by 25-65 % of 480 = 528x192);
- *        the phone draws twice that, sent at the band's own size, 15 fps. */
+ * on to cluster-render. The phone draws at `display`; ffmpeg fits that into
+ * `w` x `h` (aspect kept) at up to `fps`:
+ *   map: the cluster centre's band, 984x480 of its 1088x480 (`xband`), sent
+ *        as the phone draws it (no scaling) at up to 20 fps. That can ask for
+ *        more than cluster-render's 5500 KB/s upload cap while the map moves;
+ *        its governor keeps the link to the cluster within the cap (frames it
+ *        can't cover go packed, then exact). On the car (2026-11-04, 936x480,
+ *        parked): ~14.5 fps to the cluster, 0 budget holds, 19 packed in 15 s.
+ *   hud: the HUD's visible band (17-83 % of 800 by 25-65 % of 480 = 528x192),
+ *        15 fps. By default the phone draws the cluster's picture (984x480,
+ *        its safe area) and it is fitted in, black either side. `alt` (the
+ *        HUD's alternate mode): 1056x384, the band's own shape, no safe area.
+ * `safe`: the safe area hook111 offers the phone (viewAreas), centred
+ * across the width the phone draws: where it centres the car and the
+ * directions card. */
 const TARGETS = {
     /* map: calibrated on the car (2026-11-04): the cluster's soft vignette hides
-     * the outer ~130 px each side of the 1088 target, so the phone draws 936x480,
-     * placed at x 76-1012 (widened from 864 on request, 24 then 12 px each side, into
-     * the fade): its edges fade out, nothing of it is cut off (only the
-     * vignette's rounded top corners). */
-    map: { display: { w: 936, h: 480, fps: 30 }, w: 704, h: 360, fps: 12, xband: [76 / 1088, 1012 / 1088] },
-    hud: { display: { w: 1056, h: 384, fps: 30 }, w: 528, h: 192, fps: 15 },
+     * the outer ~130 px each side of the 1088 target, so the phone draws 984x480,
+     * placed at x 52-1036 (widened from 864 on request, 24, 12 and 24 px each side,
+     * into the fade): its edges fade out (only the vignette's rounded top corners
+     * cut). Safe area 340x330 at y 40: on the car, Google Maps put the car, and
+     * the directions card above it, at its centre (936 wide, x 298; y 80 put
+     * both 40 px lower). */
+    map: { display: { w: 984, h: 480, fps: 30 }, w: 984, h: 480, fps: 20, xband: [52 / 1088, 1036 / 1088],
+        safe: { w: 340, h: 330, y: 40 } },
+    hud: { like: 'map', w: 528, h: 192, fps: 15,
+        alt: { display: { w: 1056, h: 384, fps: 30 } } },
 };
 
-/* The shape the phone is asked to draw: the target's own (wide), or its
- * height times 1.25 (taller) or 1.5 (tall), the same width. The phone lays its
- * view out for that shape (where the directions card goes may change: on the
- * car it sits top right at the wide shape); ffmpeg squeezes the picture back
- * into the target's band by the same factor. */
-const SHAPES = { wide: 1, taller: 1.25, tall: 1.5 };
-const SHAPE_TITLES = { wide: 'normal', taller: 'taller (x1.25)', tall: 'tall (x1.5)' };
-/* Our own light vignette over the CarPlay picture: ffmpeg's vignette filter,
- * darkening towards the corners (angle PI/7; its default PI/5 is heavier). */
-const VIGNETTE = 'vignette=angle=PI/7';
-
-/* What the phone should draw for a target in a shape: { w, h, fps }; the
- * height even and at most 1080 (as hook111 accepts). */
-function displayFor(output, shape) {
+/* What the phone draws for a target: { display, safe } (safe null: none). The
+ * HUD takes the map's unless alt (its alternate mode). */
+function drawFor(output, alt) {
     const t = TARGETS[output];
     if (!t) return null;
-    const m = SHAPES[shape] || 1;
-    return { w: t.display.w, h: Math.min(1080, Math.round(t.display.h * m / 2) * 2), fps: t.display.fps };
+    if (t.like && alt && t.alt) return { display: t.alt.display, safe: null };
+    const s = t.like ? TARGETS[t.like] : t;
+    return { display: s.display, safe: s.safe || null };
 }
+
+/* (0.3.5 had a shape setting, taller, and our own vignette. On
+ * the car, 2026-11-04: a taller picture squeezed back looked squashed, and
+ * neither shape moved Google Maps' layout; the safe area does that. Both
+ * removed in 0.3.6.) */
 
 function readText(f) { try { return fs.readFileSync(f, 'utf8'); } catch (e) { return null; } }
 
@@ -153,6 +160,9 @@ function state(run) {
         wanted: (readText(path.join(run, 'display')) || '').trim() || null,
         view: st.view === 'default' ? 'cluster' : st.view || null,   /* the view last offered */
         viewWanted: (readText(path.join(run, 'view')) || '').trim() || null,
+        size: st.b_size || null,                           /* what the phone really sends (its SPS), hook111 0.1.3+ */
+        safearea: st.safearea || null,                     /* x,y,w,h last offered, or none */
+        safeWanted: (readText(path.join(run, 'safearea')) || '').trim() || null,
     };
 }
 
@@ -160,18 +170,39 @@ function state(run) {
  * connection. Returns { wanted, pending } (pending: the phone is still on
  * another size, so the picture is scaled until it reconnects), or null when
  * hook111 isn't there to read it. */
-function wantDisplay(output, run, shape) {
+function writeIfChanged(f, text) {
+    if ((readText(f) || '').trim() === text) return;
+    const tmp = f + '.tmp.' + process.pid;
+    fs.writeFileSync(tmp, text + '\n', { mode: 0o644 });
+    fs.renameSync(tmp, f);
+}
+
+/* The safe area for a target: { x, y, w, h } centred across the width the
+ * phone draws, or null (none: the HUD's alternate mode). */
+function safeAreaFor(output, alt) {
+    const d = drawFor(output, alt);
+    if (!d || !d.safe) return null;
+    return { x: Math.floor((d.display.w - d.safe.w) / 2), y: d.safe.y, w: d.safe.w, h: d.safe.h };
+}
+function safeText(s) { return s ? s.x + ',' + s.y + ',' + s.w + ',' + s.h : null; }
+
+/* Ask for the target's size (and, with centre, its safe area; without,
+ * none): the hook offers them at the phone's next connection. alt: the HUD's
+ * alternate mode. Returns { wanted, safearea, pending } (pending: the phone
+ * is still on another size or safe area, so the picture is scaled until it
+ * reconnects), or null when hook111 isn't there to read it. */
+function wantDisplay(output, run, centre, alt) {
     run = run || RUN;
-    const d = displayFor(output, shape);
+    const d = drawFor(output, alt);
     if (!d || !fs.existsSync(run)) return null;
-    const want = displayText(d), f = path.join(run, 'display');
-    if ((readText(f) || '').trim() !== want) {
-        const tmp = f + '.tmp.' + process.pid;
-        fs.writeFileSync(tmp, want + '\n', { mode: 0o644 });
-        fs.renameSync(tmp, f);
-    }
-    const cur = state(run).display;
-    return { wanted: want, pending: !!cur && cur !== want };
+    const want = displayText(d.display);
+    writeIfChanged(path.join(run, 'display'), want);
+    const sa = centre ? safeText(safeAreaFor(output, alt)) : null, sf = path.join(run, 'safearea');
+    if (sa) writeIfChanged(sf, sa);
+    else { try { fs.unlinkSync(sf); } catch (e) { /* none */ } }
+    const st = state(run);
+    const offeredSafe = st.safearea && st.safearea !== 'none' ? st.safearea : null;
+    return { wanted: want, safearea: sa, pending: (!!st.display && st.display !== want) || (!!st.display && offeredSafe !== sa) };
 }
 
 /* Ask for a cluster view: the hook offers it at the phone's next connection.
@@ -202,20 +233,13 @@ function inputArgs(port) {
         '-f', 'h264', '-i', 'tcp://127.0.0.1:' + (port || DEFAULT_PORT) + '?listen=1'];
 }
 
-/* ffmpeg's video output for a target, I420 on stdout at the target's rate.
- * The wide shape: whatever size the phone sends, fitted into w x h (aspect
- * kept, padded). A taller shape: scaled to exactly w x h, which squeezes the
- * phone's taller picture back by its factor (while the phone is still on the
- * wide size, it is that size's own shape: no squeeze). look: { shape,
- * vignette }. */
-function outputArgs(output, look) {
-    look = look || {};
+/* ffmpeg's video output for a target: whatever size the phone sends, fitted
+ * into w x h (aspect kept, padded, never squeezed), at the target's rate,
+ * I420 on stdout. */
+function outputArgs(output) {
     const t = TARGETS[output];
-    const scale = (SHAPES[look.shape] || 1) !== 1
-        ? 'scale=' + t.w + ':' + t.h + ':flags=bilinear,setsar=1'
-        : 'scale=' + t.w + ':' + t.h + ':force_original_aspect_ratio=decrease:flags=bilinear,pad=' + t.w + ':' + t.h + ':-1:-1';
-    return ['-map', '0:v:0', '-vf', scale + ',fps=' + t.fps + (look.vignette ? ',' + VIGNETTE : '') + ',format=yuv420p',
-        '-f', 'rawvideo', 'pipe:1'];
+    return ['-map', '0:v:0', '-vf', 'scale=' + t.w + ':' + t.h + ':force_original_aspect_ratio=decrease:flags=bilinear,' +
+        'pad=' + t.w + ':' + t.h + ':-1:-1,fps=' + t.fps + ',format=yuv420p', '-f', 'rawvideo', 'pipe:1'];
 }
 
 /* The switch's state for the pages: installed, on (the saved mode is alt),
@@ -232,4 +256,4 @@ function switchState(o) {
     return { installed: true, on: saved === 'alt', saved: saved, pending: pending };
 }
 
-module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, SHAPES, SHAPE_TITLES, VIGNETTE, DEFAULT_PORT, state, savedMode, setMode, switchState, displayFor, wantDisplay, wantView, inputArgs, outputArgs, readKv, displayText };
+module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, DEFAULT_PORT, state, savedMode, setMode, switchState, drawFor, safeAreaFor, safeText, wantDisplay, wantView, inputArgs, outputArgs, readKv, displayText };

@@ -63,6 +63,71 @@ static int grow(uint8_t **b, size_t *cap, size_t need) {
     return 0;
 }
 
+/* ---- the picture size from the AVCC's first SPS (H.264 7.3.2.1.1) ---- */
+struct bits { const uint8_t *p; size_t n, i; int bad; };   /* RBSP: emulation bytes removed */
+static unsigned bit1(struct bits *b) {
+    if (b->i >= b->n * 8) { b->bad = 1; return 0; }
+    unsigned v = (b->p[b->i >> 3] >> (7 - (b->i & 7))) & 1; b->i++; return v;
+}
+static unsigned bitsn(struct bits *b, int k) { unsigned v = 0; while (k--) v = (v << 1) | bit1(b); return v; }
+static unsigned ue(struct bits *b) {
+    int z = 0;
+    while (!bit1(b)) { if (b->bad || ++z > 31) { b->bad = 1; return 0; } }
+    return z ? ((1u << z) - 1) + bitsn(b, z) : 0;
+}
+static int se(struct bits *b) { unsigned k = ue(b); return k & 1 ? (int)((k + 1) / 2) : -(int)(k / 2); }
+static void skip_scaling_list(struct bits *b, int size) {
+    int last = 8, next = 8;
+    for (int j = 0; j < size && !b->bad; j++) {
+        if (next) next = (last + se(b) + 256) % 256;
+        last = next ? next : last;
+    }
+}
+int annexb_avcc_size(const uint8_t *p, size_t n, int *w, int *h) {
+    if (n < 9 || p[0] != 1 || !(p[5] & 0x1f)) return -1;
+    size_t l = ((size_t)p[6] << 8) | p[7];
+    if (l < 4 || 8 + l > n || (p[8] & 0x1f) != 7) return -1;
+    uint8_t r[256]; size_t rn = 0; int zeros = 0;   /* the SPS's RBSP, after its NAL header byte */
+    for (size_t k = 9; k < 8 + l && rn < sizeof r; k++) {
+        if (zeros >= 2 && p[k] == 3) { zeros = 0; continue; }
+        zeros = p[k] == 0 ? zeros + 1 : 0;
+        r[rn++] = p[k];
+    }
+    struct bits b = { r, rn, 0, 0 };
+    unsigned profile = bitsn(&b, 8); bitsn(&b, 16); ue(&b);
+    unsigned chroma = 1, separate = 0;
+    if (profile == 100 || profile == 110 || profile == 122 || profile == 244 || profile == 44 || profile == 83 ||
+        profile == 86 || profile == 118 || profile == 128 || profile == 138 || profile == 139 || profile == 134 || profile == 135) {
+        chroma = ue(&b);
+        if (chroma == 3) separate = bit1(&b);
+        ue(&b); ue(&b); bit1(&b);
+        if (bit1(&b))
+            for (int k = 0; k < (chroma != 3 ? 8 : 12) && !b.bad; k++)
+                if (bit1(&b)) skip_scaling_list(&b, k < 6 ? 16 : 64);
+    }
+    ue(&b);
+    unsigned poc = ue(&b);
+    if (poc == 0) ue(&b);
+    else if (poc == 1) {
+        bit1(&b); se(&b); se(&b);
+        unsigned cycle = ue(&b);
+        for (unsigned k = 0; k < cycle && !b.bad; k++) se(&b);
+    }
+    ue(&b); bit1(&b);
+    unsigned wmb = ue(&b) + 1, hmu = ue(&b) + 1, frame_mbs_only = bit1(&b);
+    if (!frame_mbs_only) bit1(&b);
+    bit1(&b);
+    unsigned cl = 0, cr = 0, ct = 0, cb = 0;
+    if (bit1(&b)) { cl = ue(&b); cr = ue(&b); ct = ue(&b); cb = ue(&b); }
+    if (b.bad) return -1;
+    unsigned array = separate ? 0 : chroma;
+    unsigned cx = array == 0 ? 1 : (array == 3 ? 1 : 2), cy = (array == 1 ? 2 : 1) * (2 - frame_mbs_only);
+    long W = (long)wmb * 16 - (long)cx * (cl + cr), H = (long)(2 - frame_mbs_only) * hmu * 16 - (long)cy * (ct + cb);
+    if (W <= 0 || H <= 0 || W > 8192 || H > 8192) return -1;
+    *w = (int)W; *h = (int)H;
+    return 0;
+}
+
 int annexb_avcc(struct annexb *a, const uint8_t *p, size_t n) {
     free(a->hdr); a->hdr = NULL; a->hdr_n = 0; a->nal_len_size = 0; a->need_idr = 1;
     if (n < 7 || p[0] != 1) goto bad;

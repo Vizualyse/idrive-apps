@@ -65,6 +65,10 @@ static void try_install(const char *why) {
             hook111_display_file(df ? df : "/run/hook111/display");   /* the size per target, from vizualyse-cast */
             const char *vf = getenv("HOOK111_VIEW_FILE");
             hook111_view_file(vf ? vf : "/run/hook111/view");          /* the view (style), from vizualyse-cast */
+            const char *sf = getenv("HOOK111_SAFEAREA_FILE");
+            hook111_safearea_file(sf ? sf : "/run/hook111/safearea");  /* where the phone centres, from vizualyse-cast */
+            const char *td = getenv("HOOK111_TRIAL_DIR");
+            hook111_trial_dir(td ? td : "/run/hook111");                /* the bench's trial files */
             int rc = hook111_install(b, sink_annexb(&sink_state, (uint16_t)port), &display);
             state = rc == 0 ? 1 : -1;
             fprintf(stderr, "[hook111] %s: %s (stream 111 on %d, sink 127.0.0.1:%d, mode now %s)\n", why,

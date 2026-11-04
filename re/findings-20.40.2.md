@@ -327,6 +327,42 @@ Why a session with 111 as its only stream ended every ~40 s on the car.
   control). With the wrapper disabled, the three "stays active" checks fail.
   Not reproduced off-car: the 30 s timeout itself and the phone's beacons.
 
+## View areas: where the phone puts the car [car + harness, 2026-11-04]
+
+Google Maps (iOS 26.7.1) on the second display, frames taken from the stream
+on the car:
+
+- **Without view areas** it puts the car low and to the left, and the
+  directions card top right. Measured across shapes: about 30 % across at
+  936x480 and 1056x576, 24 % at 624x480. The size the phone is offered is
+  followed exactly; the layout doesn't change with it.
+- **The view (`initialURL`) is followed.** `.../map` dropped the card; the car
+  stayed where it was.
+- **With view areas** (`enabledFeatures [altScreen, viewAreas]` at SETUP, and
+  the records in `/info`) the phone accepted the session first time
+  (`refusals=0`) and laid the view out in the safe area:
+
+  | Safe area on 936x480 | Car | Card |
+  |---|---|---|
+  | 600x400 at 168,40 | x ~303, a quarter across the area | inside the area, top right |
+  | **340x330 at 298,80** | **x ~466, centred** | **above the car, centred** |
+
+  A narrow area stacks the card over the car, as the Audi work found for its
+  big-dials layout.
+- **The records** (from joeyQuery/MHI2-altScreen, `add_reference_viewarea`):
+  in the second display's record, `viewAreas: [{widthPixels, heightPixels,
+  originXPixels, originYPixels, drawUIOutsideSafeArea: false,
+  viewAreaTransitionControl: false, safeArea: {widthPixels, heightPixels,
+  originXPixels, originYPixels}}]` and `initialViewArea: 0`. Mode `full`'s
+  refusals came from answering `viewAreas` without them.
+- **Baked into hook111 0.1.4:** a `safearea` file (`x,y,w,h`) gives the records
+  and the feature; the Cast tool writes 340x330 at y 40, centred across the
+  map's width. A CF `false` for the two flags comes from the library's own
+  plist reader (a 45-byte binary plist `[false]`).
+- **The real stream size** is now read from each AVCC's SPS
+  (`annexb_avcc_size`, `b_size=` in the status), which is how the shapes above
+  were measured; the `display=` line is only what was offered.
+
 ## Loading into carplay [facts + static + harness, 2026-11-04]
 
 - `carplay.service`:

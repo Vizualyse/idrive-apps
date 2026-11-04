@@ -28,8 +28,8 @@ ffmpeg listens again.
 
 | Output | The phone draws | Sent to cluster-render |
 |---|---|---|
-| Cluster map | 936x480, placed at x 76-1012 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side; the map reaches 36 px into it for a wider picture) | 704x360 at 12 fps (1 px padding each side), scaled up by the renderer |
-| HUD | 1056x384 (the shape of the HUD's visible band) | 528x192 at 15 fps, in the band (17-83 % of the width, 25-65 % of the height) |
+| Cluster map | 984x480, placed at x 52-1036 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side; the map reaches 60 px into it for a wider picture). Safe area 340x330 at 322,40 when centring | as drawn, 984x480 at up to 20 fps (cluster-render's governor keeps the link within its cap) |
+| HUD | by default the cluster map's picture (984x480, its safe area); in the HUD's alternate mode 1056x384, the band's own shape, no safe area | 528x192 at 15 fps, fitted (black either side by default), in the band (17-83 % of the width, 25-65 % of the height) |
 
 **The switch** (the iDrive page and the phone page, "CarPlay second screen:
 on / off") sets hook111's mode: `alt` (on) or `off`. The tool runs as root, so
@@ -39,7 +39,8 @@ the hook is armed this start, sets it now with hook111's own
 `hook111-arm.sh mode`; the phone sees it at its next connection. Not armed, or
 fallen back to off this start: it applies from the next start, and the pages
 say so. Off also stops a second screen that's playing. `full` isn't offered:
-with `viewAreas` the phone refused every session.
+`viewAreas` without its records made the phone refuse every session (centring,
+below, sends both).
 
 The tool writes the wanted size to `/run/hook111/display`; the phone gets it
 at its next connection, and until then the stream is scaled to fit. The page
@@ -51,19 +52,30 @@ directions only (`card`). It is kept in the tool's settings and written to
 `/run/hook111/view`, rewritten every 5 s in case that directory is new. hook111
 names the view to the phone as `initialURL` at its next connection. The
 commands are `{"cmd":"carplayView","view":…}` on the control socket and
-`POST /api/carplay-view` from the phone page. Experimental: whether the phone
-follows `initialURL` hasn't been seen on the car.
+`POST /api/carplay-view` from the phone page. Seen on the car (2026-11-04):
+the phone follows it ("map only" dropped the directions card).
 
-**The shape** (`wide`, `taller` x1.25, `tall` x1.5): the phone is asked to
-draw the target's height times that (same width; the map's 936x480 becomes
-936x600 or 936x720), from its next connection, and ffmpeg scales the picture
-to exactly the band, squeezing it back. The point: the phone may lay its view
-out differently on a taller screen (the directions card sits top right at
-the wide shape). **The vignette**: ffmpeg's `vignette=angle=PI/7` on the
-CarPlay picture, darkening towards the corners (a white corner comes out
-about a third darker). Both are kept in the settings; a playing second screen
-starts again with a change. The commands are `carplayShape` / `carplayVignette`
-on the control socket and `POST /api/carplay-shape` / `/api/carplay-vignette`.
+**Centring** ("CarPlay: centre the map" on the iDrive page, "Centre the map"
+on the phone page; on by default): the tool writes the target's safe area to
+`/run/hook111/safearea` (`x,y,w,h`; the map's 340x330 at y 40, centred across
+its width; the HUD uses the map's), with the size, when it plays and when the
+switch changes. On the car y 40 put the car and the card 40 px higher than
+y 80; a taller area pushed the car down instead. hook111 (0.1.4) puts it into `/info` as `viewAreas` and
+answers `viewAreas` at SETUP; the phone centres its view on it from its next
+connection. On the car (2026-11-04, Google Maps): the car centred, the
+directions card above it. Without a safe area Google Maps puts the car low
+and a quarter across, the card top right. The commands are
+`{"cmd":"carplayCentre","on":…}` and `POST /api/carplay-centre`.
+
+**The HUD's alternate mode** ("CarPlay HUD alternate mode" / "HUD alternate
+mode"; off by default): with it, the CarPlay picture on the HUD is the wide
+1056x384 that fills the HUD's band, not centred; without, the HUD shows the
+cluster's centred picture, fitted into the band. Written at once while the
+picture is on the HUD (the phone takes it when it reconnects). The commands
+are `{"cmd":"carplayHudAlt","on":…}` and `POST /api/carplay-hud-alt`.
+
+0.3.5's shape setting (a taller picture squeezed back) and its vignette are
+gone: on the car the squeeze looked squashed and moved nothing.
 
 The central-screen mirror (BMW's `winston-grabber` and the Google Maps
 layouts) was removed in 0.3.0.
@@ -78,13 +90,19 @@ layouts) was removed in 0.3.0.
 | `pcm_play.py` | root, mgu-python | plays the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` source |
 | `console_out.js` | root | the media console output: frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_cast` (MGVF, 3 slots), drawn by an mgu-render client in layer mode in the screen's app area |
 | `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start (while on), removed at stop, when turned off and by the tool's `deactivate` |
-| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, hook111, carplayView, enable, disable, the cluster QR code |
+| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, hook111, carplayView, carplayCentre, carplayHudAlt, enable, disable, the cluster QR code |
 | `carplay_screen.js` | root | the CarPlay second screen: hook111's state, the size and the cluster view to ask for, ffmpeg's arguments |
 
 Frame sizes keep within cluster-render's 5500 KB/s upload ceiling: for a
 stream URL 512x288 at 15 fps on the map and 480x270 at 15 fps on the HUD,
 there in the band between its clipped top and the car's speed (25 % to 65 %
-of the height); for the CarPlay second screen, the table above. ffmpeg
+of the height); for the CarPlay second screen, the table above. The CarPlay
+map is the exception: it goes at the phone's own size, and cluster-render's
+governor (it sends only changed tiles, and a frame it can't cover packed,
+then exact) keeps the link to the cluster within the cap. On the car
+(2026-11-04, 936x480 at 20 fps, parked): ~14.5 fps reached the cluster, no
+budget holds, 19 frames packed in 15 s. The cap protects that link: on a car
+the cluster flashed black at 8000 KB/s. ffmpeg
 decodes in software on the Atom A3960's four cores.
 
 `test/carplay_test.js` (Node 8, the kit's ffmpeg) checks the second-screen

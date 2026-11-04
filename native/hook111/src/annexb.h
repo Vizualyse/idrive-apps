@@ -43,6 +43,10 @@ void annexb_init(struct annexb *a, uint16_t port);
 void annexb_close(struct annexb *a);
 /* the AVCCDecoderConfigurationRecord: 0, or -1 if malformed (then frames are dropped until a good one) */
 int annexb_avcc(struct annexb *a, const uint8_t *p, size_t n);
+/* the picture size an AVCC's first SPS declares (cropping applied): 0, or
+ * -1 if it can't be read. What the phone actually draws, as opposed to what
+ * /info offered it. */
+int annexb_avcc_size(const uint8_t *p, size_t n, int *w, int *h);
 /* one access unit: 1 sent (or queued), 0 dropped, -1 malformed */
 int annexb_frame(struct annexb *a, const uint8_t *p, size_t n);
 /* the stream stopped: the next frames start at an IDR */

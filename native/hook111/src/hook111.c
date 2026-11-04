@@ -10,7 +10,9 @@
  *          request offering "altScreen"/"viewAreas" gets them back in
  *          "enabledFeatures".
  *  /info   AirPlayServerCopyProperty (0x10d270) is wrapped: "displays" gets a
- *          second record (struct hook111_display).
+ *          second record (struct hook111_display). With a safe area
+ *          (hook111_safearea_file) it also gets viewAreas, and SETUP
+ *          answers viewAreas.
  *  TEARDOWN AirPlayReceiverSessionTearDown (0x17e840) is wrapped: a 111
  *          stream, or the whole session, takes screen B down first.
  *  idle    _ControlIdleStateTransition (0x17c0e0) is wrapped: while screen B
@@ -28,6 +30,7 @@
  */
 #define _GNU_SOURCE
 #include "hook111.h"
+#include "annexb.h"   /* annexb_avcc_size: the size the phone really sends */
 #include <elf.h>
 #include <errno.h>
 #include <time.h>
@@ -424,6 +427,68 @@ static void display_now(int *w, int *h, int *fps) {
     if (W < 320 || W > 1920 || W % 8 || H < 160 || H > 1080 || H % 2 || F < 1 || F > 60) return;
     *w = W; *h = H; *fps = F;
 }
+/* ---- trial files: <trial dir>/features, info-a.plist, info-b.plist, unfallback ----
+ * For finding the view-area records on the car without a rebuild, read at
+ * every SETUP and /info (the phone reads /info when it connects):
+ *  features      names (space or newline separated) answered in
+ *                enabledFeatures when the phone offers them; replaces the
+ *                mode's list (alt: altScreen; full: altScreen viewAreas)
+ *  info-b.plist  a plist array [key, value, key, value, ...] merged into the
+ *                second display's /info record (viewAreas, initialViewArea...)
+ *  info-a.plist  the same, into the main display's record
+ *  unfallback    removed when seen: clears a fallback to off (refused
+ *                sessions), so a bad trial doesn't end the run
+ * The record format the phone accepts, from the Audi MU0678 work
+ * (joeyQuery/MHI2-altScreen): viewAreas [{widthPixels, heightPixels,
+ * originXPixels, originYPixels, drawUIOutsideSafeArea, viewAreaTransitionControl,
+ * safeArea {widthPixels, heightPixels, originXPixels, originYPixels}}],
+ * initialViewArea 0, with viewAreas in enabledFeatures. */
+static char trial_dir[200];
+void hook111_trial_dir(const char *dir) {
+    trial_dir[0] = 0;
+    if (dir && strlen(dir) < sizeof trial_dir) strcpy(trial_dir, dir);
+}
+static int trial_path(char *p, size_t n, const char *name) {
+    if (!trial_dir[0]) return 0;
+    snprintf(p, n, "%s/%s", trial_dir, name);
+    return 1;
+}
+static CF trial_plist(const char *name) {
+    char p[sizeof trial_dir + 32];
+    if (!trial_path(p, sizeof p, name)) return NULL;
+    int fd = open(p, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return NULL;
+    static unsigned char buf[1 << 16];
+    ssize_t n = read(fd, buf, sizeof buf); close(fd);
+    if (n <= 0 || n == (ssize_t)sizeof buf) return NULL;
+    int err = 0;
+    CF o = FN(CF (*)(const void *, size_t, int *), 0x13a550)(buf, (size_t)n, &err);
+    if (o && (err || CFTypeOf(o) != CFArrayTypeID())) { CFRelease(o); return NULL; }
+    return o;
+}
+/* [key, value, ...] into dict: the number of keys set */
+static int merge_pairs(CF dict, CF arr) {
+    if (!dict || !arr) return 0;
+    int n = CFArrayCount(arr), set = 0;
+    for (int i = 0; i + 1 < n; i += 2) {
+        CF k = CFArrayAt(arr, i);
+        if (k && CFTypeOf(k) == CFStrTypeID()) { CFDictSet(dict, k, CFArrayAt(arr, i + 1)); set++; }
+    }
+    return set;
+}
+static char trial_features_text[160];
+/* the trial feature list, or NULL without the file */
+static const char *trial_features(void) {
+    char p[sizeof trial_dir + 32];
+    if (!trial_path(p, sizeof p, "features")) return NULL;
+    int fd = open(p, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return NULL;
+    ssize_t n = read(fd, trial_features_text, sizeof trial_features_text - 1); close(fd);
+    trial_features_text[n > 0 ? n : 0] = 0;
+    return trial_features_text;
+}
+static char answered_features[96];   /* for the status */
+
 /* ---- the second display's view (its style) ----
  * Which of the phone's cluster views /info names as initialURL: "cluster"
  * (maps:/car/instrumentcluster, the map with the turn card in a corner),
@@ -456,6 +521,74 @@ static const char *view_now(const char **name) {
     return disp.initial_url;
 }
 
+/* ---- the second display's safe area: where the phone centres its view ----
+ * hook111_safearea_file holds "x,y,w,h" in the pixels of the size /info
+ * offers. With a valid one (inside that size, at least 64x64), /info's
+ * second record gets one view area, the whole display, with that safe area,
+ * and SETUP answers viewAreas besides altScreen (mode alt). Without one,
+ * neither: as before. The phone needs both together; viewAreas without the
+ * records made it refuse every session (2026-11-04, mode full).
+ * On the car (2026-11-04, iOS 26.7.1, Google Maps, 936x480): safe area
+ * 340x330 at 298,80 put the car and, above it, the directions card at the
+ * centre; 600x400 at 168,40 moved the card into the area but left the car a
+ * quarter of the way across it (Maps' route view). The record format is the
+ * Audi MU0678 work's (joeyQuery/MHI2-altScreen). */
+static char safearea_path[256];
+static char offered_safearea[48];    /* x,y,w,h of the last /info record, for the status */
+void hook111_safearea_file(const char *path) {
+    safearea_path[0] = 0;
+    if (path && strlen(path) < sizeof safearea_path) strcpy(safearea_path, path);
+}
+/* the safe area for a display of W x H: 1 and *x..*h, or 0 */
+static int safearea_now(int W, int H, int *x, int *y, int *w, int *h) {
+    if (!safearea_path[0]) return 0;
+    char b[48] = ""; int fd = open(safearea_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    ssize_t n = read(fd, b, sizeof b - 1); close(fd);
+    if (n <= 0) return 0;
+    b[n] = 0;
+    char end = 0;
+    if (sscanf(b, "%d,%d,%d,%d%c", x, y, w, h, &end) < 4 || (end && end != '\n')) return 0;
+    return *x >= 0 && *y >= 0 && *w >= 64 && *h >= 64 && *x + *w <= W && *y + *h <= H;
+}
+/* CF false: the library's own, from parsing a binary plist [false] once */
+static CF cf_false(void) {
+    static CF arr;
+    static const unsigned char BP[] = { 0x62,0x70,0x6c,0x69,0x73,0x74,0x30,0x30,0xa1,0x01,0x08,0x08,0x0a,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0b };
+    if (!arr) {
+        int err = 0;
+        CF a = FN(CF (*)(const void *, size_t, int *), 0x13a550)(BP, sizeof BP, &err);
+        if (!a || err || CFTypeOf(a) != CFArrayTypeID() || CFArrayCount(a) != 1) { if (a) CFRelease(a); return NULL; }
+        arr = a;   /* kept: its element is the constant */
+    }
+    return CFArrayAt(arr, 0);
+}
+static void set_rect(CF d, int x, int y, int w, int h) {
+    CF n, k;
+    k = CFStr("widthPixels");   n = CFNumI64(w); CFDictSet(d, k, n); CFRelease(n); CFRelease(k);
+    k = CFStr("heightPixels");  n = CFNumI64(h); CFDictSet(d, k, n); CFRelease(n); CFRelease(k);
+    k = CFStr("originXPixels"); n = CFNumI64(x); CFDictSet(d, k, n); CFRelease(n); CFRelease(k);
+    k = CFStr("originYPixels"); n = CFNumI64(y); CFDictSet(d, k, n); CFRelease(n); CFRelease(k);
+}
+/* viewAreas [{the whole W x H, safeArea}] and initialViewArea 0 into rec: 1 if added */
+static int add_viewareas(CF rec, int W, int H) {
+    int x, y, w, h;
+    CF no = cf_false();
+    if (!safearea_now(W, H, &x, &y, &w, &h) || !no) { offered_safearea[0] = 0; return 0; }
+    CF view = CFDictCreate(), safe = CFDictCreate(), areas = CFArrayCreate(), k, n;
+    set_rect(view, 0, 0, W, H);
+    set_rect(safe, x, y, w, h);
+    k = CFStr("drawUIOutsideSafeArea"); CFDictSet(view, k, no); CFRelease(k);
+    k = CFStr("viewAreaTransitionControl"); CFDictSet(view, k, no); CFRelease(k);
+    k = CFStr("safeArea"); CFDictSet(view, k, safe); CFRelease(k);
+    CFArrayAppend(areas, view);
+    k = CFStr("viewAreas"); CFDictSet(rec, k, areas); CFRelease(k);
+    k = CFStr("initialViewArea"); n = CFNumI64(0); CFDictSet(rec, k, n); CFRelease(n); CFRelease(k);
+    CFRelease(areas); CFRelease(safe); CFRelease(view);
+    snprintf(offered_safearea, sizeof offered_safearea, "%d,%d,%d,%d", x, y, w, h);
+    return 1;
+}
+
 static int mode_now(void) { return read_mode(); }
 int hook111_fell_back(void) { return fallback; }
 
@@ -480,12 +613,15 @@ static void status_now(int force) {
     volatile struct hook111_stats *x = &hook111_stats;
     if (offered_display[0]) fprintf(f, "display=%s\n", offered_display);
     if (offered_view[0]) fprintf(f, "view=%s\n", offered_view);
+    fprintf(f, "safearea=%s\n", offered_safearea[0] ? offered_safearea : "none");
+    if (x->b_width) fprintf(f, "b_size=%dx%d\n", x->b_width, x->b_height);   /* from the stream's SPS */
     fprintf(f, "time_s=%lld\nmode=%s\nfell_back=%d\nrefusals=%d\n", now / 1000000000LL, mode_now() == 2 ? "full" : mode_now() == 1 ? "alt" : "off", hook111_fell_back(), x->refusals);
     fprintf(f, "setups_111=%d\naccepted=%d\npump_done=%d\npump_rc=%d\nscreen_b=%s\n", x->setups_111, x->accepted, x->pump_done, x->pump_rc, current_b ? "up" : "none");
     fprintf(f, "b_avcc=%d\nb_avcc_bytes=%d\nb_starts=%d\nb_stops=%d\nb_frames=%d\nb_frame_bytes=%lld\n", x->b_avcc, x->b_avcc_bytes, x->b_starts, x->b_stops, x->b_frames, (long long)x->b_frame_bytes);
     fprintf(f, "enabled_features=%d\ninfo_records=%d\nsuggest_ui=%d\ncommands_sent=%d\nkeyframe_requests=%d\nsent_files=%d\nlast_send_rc=%d\nteardowns=%d\nlogged=%d\n",
             x->enabled_features, x->info_records, x->suggest_ui, x->commands_sent, x->keyframe_requests, x->sent_files, x->last_send_rc, x->teardowns, x->logged);
     fprintf(f, "idle_held=%d\nidle_rc=%d\n", x->idle_held, x->idle_rc);
+    fprintf(f, "features=%s\ninfo_extra_a=%d\ninfo_extra_b=%d\n", answered_features, x->info_extra_a, x->info_extra_b);
     if (hook111_status_extra) hook111_status_extra(f);
     fclose(f);
     rename(q, p);
@@ -521,6 +657,14 @@ static void bench_send(void *session) {
 static int (*orig_setup)(void *session, CF req, CF *resp);
 static int my_setup(void *session, CF req, CF *resp) {
     log_plist("setup-request", req);
+    char up[sizeof trial_dir + 32];
+    if (trial_path(up, sizeof up, "unfallback") && unlink(up) == 0) {   /* the bench: clear a fallback */
+        pthread_mutex_lock(&mode_lock);
+        fallback = 0; refusals = 0; hook111_stats.refusals = 0;
+        pthread_mutex_unlock(&mode_lock);
+        if (log_dir[0]) { char fb[sizeof log_dir + 16]; snprintf(fb, sizeof fb, "%s/fallback", log_dir); unlink(fb); }
+        fprintf(stderr, "[hook111] fallback cleared from the bench\n");
+    }
     int m = read_mode();
     int err = 0;
     CF streams = CFDictGetTyped(req, K_STREAMS, CFArrayTypeID(), &err);
@@ -555,11 +699,28 @@ static int my_setup(void *session, CF req, CF *resp) {
     CF offered = CFDictGetTyped(req, K_FEATURES, CFArrayTypeID(), &err);
     if (offered) {
         static const char *ours[] = { "altScreen", "viewAreas" };
-        unsigned nours = m == MODE_FULL ? 2 : 1;
+        const char *names[8]; char tbuf[sizeof trial_features_text];
+        unsigned nours = 0;
+        const char *tf = trial_features();
+        if (tf) {   /* the trial list */
+            snprintf(tbuf, sizeof tbuf, "%s", tf);
+            for (char *save = NULL, *t = strtok_r(tbuf, " \t\r\n", &save); t && nours < 8; t = strtok_r(NULL, " \t\r\n", &save)) names[nours++] = t;
+        } else {
+            /* viewAreas: in mode full, or with a safe area (the records go into /info with it) */
+            int dw, dh, dfps, sx, sy, sw, sh;
+            display_now(&dw, &dh, &dfps);
+            nours = m == MODE_FULL || safearea_now(dw, dh, &sx, &sy, &sw, &sh) ? 2 : 1;
+            for (unsigned k = 0; k < nours; k++) names[k] = ours[k];
+        }
         CF enabled = CFArrayCreate();
+        answered_features[0] = 0;
         for (unsigned k = 0; k < nours; k++) {
-            CF f = CFStr(ours[k]);
-            if (CFArrayIndexOf(offered, f) >= 0) CFArrayAppend(enabled, f);
+            CF f = CFStr(names[k]);
+            if (CFArrayIndexOf(offered, f) >= 0) {
+                CFArrayAppend(enabled, f);
+                size_t l = strlen(answered_features);
+                snprintf(answered_features + l, sizeof answered_features - l, "%s%s", l ? "," : "", names[k]);
+            }
             CFRelease(f);
         }
         if (CFArrayCount(enabled) > 0) {
@@ -703,6 +864,13 @@ static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
     CF urls = CFArrayCreate();
     for (int i = 0; i < 3 && disp.suggest_urls[i]; i++) { s = CFStr(disp.suggest_urls[i]); CFArrayAppend(urls, s); CFRelease(s); }
     k = CFStr("altScreenSuggestUIURLs"); CFDictSet(d, k, urls); CFRelease(k); CFRelease(urls);
+    add_viewareas(d, w, h);   /* the safe area, when the consumer asked for one */
+    CF xb = trial_plist("info-b.plist"), xa = trial_plist("info-a.plist");   /* the bench's extra keys (they win) */
+    hook111_stats.info_extra_b = merge_pairs(d, xb);
+    CF a0 = CFArrayCount(v) > 0 ? CFArrayAt(v, 0) : NULL;
+    hook111_stats.info_extra_a = a0 && CFTypeOf(a0) == CFDictTypeID() ? merge_pairs(a0, xa) : 0;
+    if (xb) CFRelease(xb);
+    if (xa) CFRelease(xa);
     CFArrayAppend(v, d);
     CFRelease(d);
     hook111_stats.info_records = CFArrayCount(v);
@@ -714,7 +882,14 @@ static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
 static void *ss_ctx(void *ss) { return *(void **)((char *)ss + 8); }
 
 static int my_ss_set_avcc(void *ss, const void *p, size_t n) {
-    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_avcc++; hook111_stats.b_avcc_bytes = (int)n; if (sink && sink->avcc) sink->avcc(p, n); status_now(1); return 0; }
+    if (is_b_ctx(ss_ctx(ss))) {
+        hook111_stats.b_avcc++; hook111_stats.b_avcc_bytes = (int)n;
+        int w = 0, h = 0;   /* what the phone really draws (its SPS), not what /info offered */
+        if (annexb_avcc_size(p, n, &w, &h) == 0) { hook111_stats.b_width = w; hook111_stats.b_height = h; }
+        if (sink && sink->avcc) sink->avcc(p, n);
+        status_now(1);
+        return 0;
+    }
     void **saved = (void **)((char *)ss + 0x10);
     size_t *saved_n = (size_t *)((char *)ss + 0x18);
     if (*saved && *saved_n == n && memcmp(*saved, p, n) == 0) return 0;

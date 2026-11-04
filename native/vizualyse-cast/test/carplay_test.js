@@ -114,14 +114,16 @@ function unit() {
     s = cp.state(fakeRun({ armed: true, mode: 'alt', port: 6222 }));
     ok('the sink port from its env file', s.port === 6222);
 
-    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '936x480@30' } });
+    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '984x480@30', safearea: 'none' } });
     let d = cp.wantDisplay('map', run);
-    ok('map: asks for 936x480@30, already what the phone has', d.wanted === '936x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '936x480@30\n');
+    ok('map: asks for 984x480@30, already what the phone has', d.wanted === '984x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '984x480@30\n');
     const map = cp.TARGETS.map;
-    ok('map: placed at x 76-1012 of the 1088 target (the calibrated band), the frame its shape (within 1 %)',
-        Math.round(1088 * map.xband[0]) === 76 && Math.round(1088 * map.xband[1]) === 1012 && Math.abs(map.w / map.h - 936 / 480) < 0.01 && map.display.w % 8 === 0);
+    ok('map: placed at x 52-1036 of the 1088 target (the calibrated band), the frame its shape (within 1 %)',
+        Math.round(1088 * map.xband[0]) === 52 && Math.round(1088 * map.xband[1]) === 1036 && Math.abs(map.w / map.h - 984 / 480) < 0.01 && map.display.w % 8 === 0);
     d = cp.wantDisplay('hud', run);
-    ok('hud: asks for 1056x384@30, pending until the phone reconnects', d.wanted === '1056x384@30' && d.pending && cp.state(run).wanted === '1056x384@30');
+    ok('hud, by default: the cluster\'s picture, 984x480@30', d.wanted === '984x480@30' && !d.pending);
+    d = cp.wantDisplay('hud', run, false, true);
+    ok('hud, alternate mode: 1056x384@30, pending until the phone reconnects', d.wanted === '1056x384@30' && d.pending && cp.state(run).wanted === '1056x384@30');
     ok('no hook111 run directory: nothing written', cp.wantDisplay('map', path.join(run, 'nope')) === null);
     ok('an unknown target: nothing written', cp.wantDisplay('console', run) === null);
 
@@ -138,25 +140,35 @@ function unit() {
     ok('view: no hook111 run directory, nothing written', cp.wantView('map', path.join(vrun, 'nope')) === null);
     ok('view: titles for the pages', cp.VIEWS.every((k) => typeof cp.VIEW_TITLES[k] === 'string'));
 
-    /* the shape */
-    ok('shape: map normal 936x480, taller 936x600, tall 936x720; hud tall 1056x576',
-        cp.displayText(cp.displayFor('map', 'wide')) === '936x480@30' && cp.displayText(cp.displayFor('map', 'taller')) === '936x600@30' &&
-        cp.displayText(cp.displayFor('map', 'tall')) === '936x720@30' && cp.displayText(cp.displayFor('hud', 'tall')) === '1056x576@30');
-    ok('shape: an unknown shape is the normal one', cp.displayText(cp.displayFor('map', 'huge')) === '936x480@30');
-    const srun = fakeRun({ armed: true, mode: 'alt', status: { display: '936x480@30' } });
-    const sd = cp.wantDisplay('map', srun, 'tall');
-    ok('shape tall: asks hook111 for 936x720@30, pending until the phone reconnects', sd.wanted === '936x720@30' && sd.pending &&
-        fs.readFileSync(path.join(srun, 'display'), 'utf8') === '936x720@30\n');
-    const vfOf = (look) => { const a = cp.outputArgs('map', look); return a[a.indexOf('-vf') + 1]; };
-    ok('ffmpeg: normal fits and pads; a taller shape scales to exactly 704x360; the vignette only when asked',
-        /force_original_aspect_ratio=decrease/.test(vfOf({})) && /pad=704:360/.test(vfOf({})) && !/vignette/.test(vfOf({})) &&
-        /^scale=704:360:flags=bilinear,setsar=1,/.test(vfOf({ shape: 'tall' })) && !/pad=/.test(vfOf({ shape: 'tall' })) &&
-        /,vignette=angle=PI\/7,format=yuv420p$/.test(vfOf({ vignette: true })));
+    /* centring: the safe area */
+    const sa = cp.safeAreaFor('map');
+    ok('safe area, map: 340x330 at y 40, centred across 984 (x 322); the HUD the same by default, none in its alternate mode',
+        cp.safeText(sa) === '322,40,340,330' && sa.x + sa.w / 2 === 984 / 2 && cp.safeText(cp.safeAreaFor('hud')) === '322,40,340,330' && cp.safeAreaFor('hud', true) === null);
+    const crun = fakeRun({ armed: true, mode: 'alt', status: { display: '984x480@30', safearea: 'none' } });
+    let cd = cp.wantDisplay('map', crun, true);
+    ok('centre on: the safe area written for hook111, pending (the phone was offered none)',
+        cd.safearea === '322,40,340,330' && cd.pending && fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,40,340,330\n' &&
+        cp.state(crun).safeWanted === '322,40,340,330');
+    fs.writeFileSync(path.join(crun, 'log', 'status'), 'display=984x480@30\nsafearea=322,40,340,330\nb_size=984x480\n');
+    cd = cp.wantDisplay('map', crun, true);
+    ok('centre on, already offered: not pending; the real size from the stream', !cd.pending && cp.state(crun).size === '984x480');
+    cd = cp.wantDisplay('hud', crun, true);
+    ok('centre on, the HUD by default: the cluster\'s size and safe area', cd.wanted === '984x480@30' && cd.safearea === '322,40,340,330' &&
+        fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,40,340,330\n');
+    cd = cp.wantDisplay('hud', crun, true, true);
+    ok('centre on, the HUD in its alternate mode: 1056x384, no safe area (the file removed)', cd.wanted === '1056x384@30' && cd.safearea === null &&
+        !fs.existsSync(path.join(crun, 'safearea')));
+    cp.wantDisplay('map', crun, true);
+    cd = cp.wantDisplay('map', crun, false);
+    ok('centre off: the file removed, pending while the phone still has one', cd.safearea === null && cd.pending && !fs.existsSync(path.join(crun, 'safearea')));
+    const vf = cp.outputArgs('map')[cp.outputArgs('map').indexOf('-vf') + 1];
+    ok('ffmpeg: fits and pads, never squeezes, no vignette', /force_original_aspect_ratio=decrease/.test(vf) && /pad=984:480/.test(vf) && !/vignette/.test(vf));
 
-    ['map', 'hud'].forEach((t) => {
-        const T = cp.TARGETS[t], kbs = T.w * T.h * 1.5 * T.fps / 1024;
-        ok(t + ': ' + T.w + 'x' + T.h + ' at ' + T.fps + ' fps, a multiple of 4 wide, ' + Math.round(kbs) + ' KB/s (renderer: 5500)', T.w % 4 === 0 && T.h % 2 === 0 && kbs < 5500);
-    });
+    /* the map goes as the phone draws it (cluster-render's governor keeps the
+     * link within its cap); the HUD's band stays within the cap on its own */
+    ok('map: sent as drawn, 984x480 at up to 20 fps, a multiple of 4 wide', map.w === map.display.w && map.h === map.display.h && map.fps === 20 && map.w % 4 === 0);
+    const H = cp.TARGETS.hud, hkbs = H.w * H.h * 1.5 * H.fps / 1024;
+    ok('hud: ' + H.w + 'x' + H.h + ' at ' + H.fps + ' fps, a multiple of 4 wide, ' + Math.round(hkbs) + ' KB/s (renderer: 5500)', H.w % 4 === 0 && H.h % 2 === 0 && hkbs < 5500);
     const hud = cp.TARGETS.hud;
     ok('hud: the frame is the visible band (17-83 % x 25-65 % of 800x480)', hud.w === Math.round(800 * 0.66) && hud.h === Math.round(480 * 0.40));
     const ia = cp.inputArgs(6111).join(' ');
@@ -200,26 +212,20 @@ async function throughFfmpeg(cp, target, stream, port, look) {
 }
 
 async function streams(cp) {
-    const cluster = makeStream(936, 480, 3), wide = makeStream(1088, 480, 3), hudSize = makeStream(1056, 384, 3);
+    const cluster = makeStream(984, 480, 3), wide = makeStream(1088, 480, 3), hudSize = makeStream(1056, 384, 3);
     let r = await throughFfmpeg(cp, 'map', cluster, 46201);
-    ok('map: a 936x480 stream -> ' + r.frames + ' whole 704x360 frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
+    ok('map: a 984x480 stream -> ' + r.frames + ' whole 984x480 frames (as drawn, no scaling), ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
     r = await throughFfmpeg(cp, 'map', wide, 46204);
     ok('map while the phone is still on 1088x480: scaled to fit (' + r.frames + ' frames)', r.whole && r.frames >= 30 && r.code === 0);
+    r = await throughFfmpeg(cp, 'hud', cluster, 46209);
+    ok('hud, by default: the cluster\'s 984x480 -> ' + r.frames + ' whole 528x192 frames (fitted, black either side)', r.whole && r.frames >= 40 && r.code === 0 && !r.err);
     r = await throughFfmpeg(cp, 'hud', hudSize, 46202);
     ok('hud: a 1056x384 stream -> ' + r.frames + ' whole 528x192 frames', r.whole && r.frames >= 40 && r.code === 0 && !r.err);
-    /* the shapes: the phone draws taller, ffmpeg squeezes it back */
-    const tall = makeStream(936, 720, 3);
-    r = await throughFfmpeg(cp, 'map', tall, 46205, { shape: 'tall' });
-    ok('map, tall: a 936x720 stream -> ' + r.frames + ' whole 704x360 frames (squeezed back, not padded), ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
-    r = await throughFfmpeg(cp, 'map', cluster, 46206, { shape: 'taller' });
-    ok('map, taller, while the phone is still on 936x480: whole frames, ffmpeg clean', r.whole && r.frames >= 30 && r.code === 0 && !r.err);
-    /* the vignette, on a white picture: the corners darker, the middle not */
-    const white = makeStream(936, 480, 2, 'color=c=white');
-    r = await throughFfmpeg(cp, 'map', white, 46207, { vignette: true });
-    const corner = r.y(2, 2), mid = r.y(352, 180);
-    const plain = await throughFfmpeg(cp, 'map', white, 46208, {});
-    ok('vignette: corners darker (Y ' + corner + ') than the middle (' + mid + '); without it, the corner ' + plain.y(2, 2),
-        r.whole && r.code === 0 && !r.err && corner < mid - 40 && mid > 200 && plain.y(2, 2) > 200);
+    /* a white picture at the cluster size: nothing darkened, no vignette */
+    const white = makeStream(984, 480, 2, 'color=c=white');
+    r = await throughFfmpeg(cp, 'map', white, 46207);
+    ok('map: a white picture stays white to its corners (Y ' + r.y(3, 2) + ', middle ' + r.y(370, 180) + ')',
+        r.whole && r.code === 0 && !r.err && r.y(3, 2) > 200 && r.y(370, 180) > 200);
     r = await throughFfmpeg(cp, 'hud', wide, 46203);
     ok('hud while the phone is still on 1088x480: scaled to fit (' + r.frames + ' frames)', r.whole && r.frames >= 40 && r.code === 0);
     return cluster;
@@ -255,6 +261,8 @@ function ctl(sockPath, cmd) {
 
 async function server(cluster) {
     const state = tmpdir('cast-state-'), run = fakeRun({ armed: true, mode: 'off' }), PORT = 18480;
+    /* a settings file as 0.3.5 left it: its shape and vignette must go */
+    fs.writeFileSync(path.join(state, 'settings.json'), JSON.stringify({ enabled: true, carplayShape: 'tall', carplayVignette: true }));
     const inst = fakeInstall(run);
     const sock = path.join(tmpdir('cast-ctl-'), 'ctl.sock');
     const logs = [];
@@ -308,7 +316,8 @@ async function server(cluster) {
         r = await post(PORT, '/api/play', token, { source: 'carplay', output: 'map' });
         st = r.code === 200 && JSON.parse(r.body);
         ok('play the second screen in mode alt: playing on the cluster map', st && st.state === 'playing' && st.output === 'map' && st.source === 'carplay');
-        ok('it asked hook111 for the cluster size', fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '936x480@30');
+        ok('it asked hook111 for the cluster size and, centring by default, its safe area',
+            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' && fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330');
         const s = await connectWhenListening(6111, 50);
         s.end(fs.readFileSync(cluster));
         let frames = 0;
@@ -321,35 +330,40 @@ async function server(cluster) {
         back.destroy();
         ok('... and takes the next connection', true);
 
-        /* the shape and the vignette while the second screen plays: it starts again with them */
+        /* centring: the switch, while the second screen plays (no restart: the phone takes it when it reconnects) */
         const starts = () => logs.filter((l) => /play: CarPlay second screen on map/.test(l)).length;
-        let n0 = starts();
-        const cs = await ctl(sock, { cmd: 'carplayShape', shape: 'tall' });
-        let restarted = false;
-        for (let i = 0; i < 30 && !restarted; i++) { await sleep(100); restarted = starts() > n0; }
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
-        ok('control socket, carplayShape tall while playing: started again, asked hook111 for 936x720, saved',
-            !cs.some((l) => l.ev === 'error') && restarted && fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '936x720@30' &&
-            st.carplay.shape.wanted === 'tall' && st.carplay.shape.title === 'tall (x1.5)' &&
-            JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayShape === 'tall');
-        n0 = starts();
-        r = await post(PORT, '/api/carplay-vignette', token, { on: true });
-        restarted = false;
-        for (let i = 0; i < 30 && !restarted; i++) { await sleep(100); restarted = starts() > n0; }
-        st = JSON.parse((await get(PORT, '/api/status', token)).body);
-        ok('the phone page turns the vignette on while playing: started again, saved', r.code === 200 && restarted && st.carplay.vignette === true &&
-            JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayVignette === true);
-        r = await post(PORT, '/api/carplay-shape', token, { shape: 'square' });
-        ok('the phone page: an unknown shape refused', r.code === 400 && /wide, taller, tall/.test(JSON.parse(r.body).error));
-        await post(PORT, '/api/carplay-shape', token, { shape: 'wide' });
-        await post(PORT, '/api/carplay-vignette', token, { on: false });
+        ok('status: centring on by default, the map\'s safe area', st.carplay.centre && st.carplay.centre.on === true && st.carplay.centre.safearea === '322,40,340,330');
+        const n0 = starts();
+        const cc = await ctl(sock, { cmd: 'carplayCentre', on: false });
         await sleep(300);
+        st = JSON.parse((await get(PORT, '/api/status', token)).body);
+        const saved = JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8'));
+        ok('control socket, carplayCentre off: the safe area file removed, saved, the stream not restarted',
+            !cc.some((l) => l.ev === 'error') && !fs.existsSync(path.join(run, 'safearea')) && st.carplay.centre.on === false &&
+            saved.carplayCentre === false && starts() === n0);
+        ok('0.3.5\'s shape and vignette settings dropped from the settings file', !('carplayShape' in saved) && !('carplayVignette' in saved));
+        r = await post(PORT, '/api/carplay-centre', token, { on: true });
+        ok('the phone page turns centring back on: the safe area written again', r.code === 200 &&
+            fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330' && JSON.parse(r.body).carplay.centre.on === true);
+        ok('the removed shape and vignette endpoints answer not found',
+            (await post(PORT, '/api/carplay-shape', token, { shape: 'tall' })).code === 404 && (await post(PORT, '/api/carplay-vignette', token, { on: true })).code === 404);
 
         const c1 = await ctl(sock, { cmd: 'carplay', output: 'hud' });
         await sleep(300);
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
-        ok('control socket, carplay hud: playing on the HUD, asked for 1056x384', c1.length >= 1 && st.output === 'hud' && st.state === 'playing' &&
-            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '1056x384@30');
+        ok('control socket, carplay hud: playing on the HUD, by default the cluster\'s picture (984x480, its safe area)', c1.length >= 1 && st.output === 'hud' &&
+            st.state === 'playing' && fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' &&
+            fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330' && st.carplay.hudAlt === false);
+        const ha = await ctl(sock, { cmd: 'carplayHudAlt', on: true });
+        await sleep(300);
+        st = JSON.parse((await get(PORT, '/api/status', token)).body);
+        ok('control socket, carplayHudAlt on while on the HUD: 1056x384 asked for, no safe area, saved', !ha.some((l) => l.ev === 'error') &&
+            st.carplay.hudAlt === true && fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '1056x384@30' &&
+            !fs.existsSync(path.join(run, 'safearea')) && JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayHudAlt === true);
+        r = await post(PORT, '/api/carplay-hud-alt', token, { on: false });
+        ok('the phone page turns the HUD\'s alternate mode off: the cluster\'s picture again', r.code === 200 && JSON.parse(r.body).carplay.hudAlt === false &&
+            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' && fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330');
         r = await post(PORT, '/api/stop', token, {});
         await sleep(1500);
         st = JSON.parse((await get(PORT, '/api/status', token)).body);

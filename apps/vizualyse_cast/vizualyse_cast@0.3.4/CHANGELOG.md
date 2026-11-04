@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.4
+
+- CarPlay: centre the map: on / off (on by default). The phone centres the
+  car on the cluster, with the directions card above it, from its next
+  connection. Needs hook111 0.1.4.
+- CarPlay HUD alternate mode: on / off (off by default). Off, the HUD shows
+  the cluster's centred picture; on, the wide picture that fills the HUD.
+- The cluster map at the phone's own size (sharper), at up to 20 fps.
+- The CarPlay shape and vignette buttons are gone (the squeezed shapes looked
+  squashed and didn't move Google Maps' layout).
+- Requires vizualyse-cast 0.3.6.
+
 ## 0.3.3
 
 - CarPlay shape: normal / taller (x1.25) / tall (x1.5). The phone is asked

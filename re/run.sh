@@ -149,7 +149,19 @@ harness-annexb)
         echo "  ffmpeg: decoded $got frame(s) of $sent sent; errors: $(wc -l <annexb_ffmpeg.err) line(s)"
         head -5 annexb_ffmpeg.err
         if [ -s annexb_ffmpeg.err ] || [ "$got" != "$sent" ]; then echo "FAIL ffmpeg decode"; exit 1; fi
-        echo "ok   ffmpeg decodes every frame sent, no errors"; echo PASS' ;;
+        echo "ok   ffmpeg decodes every frame sent, no errors"
+        # the size the phone really draws, from its SPS (annexb_avcc_size): the
+        # sizes hook111 offers, other profiles, 4:4:4 chroma, a scaling matrix
+        n=0
+        for spec in "936x480 high" "936x600 high" "936x720 high" "1056x384 high" "1056x576 high" "1088x480 high" "912x480 high" \
+                    "936x480 baseline" "936x720 main" "936x720 high444" "1056x384 cqm"; do
+            set -- $spec; f=size_$1_$2.h264; prof=; pix=yuv420p; x=
+            case $2 in baseline|main) prof="-profile:v $2";; high444) pix=yuv444p;; cqm) x=":cqm=jvt";; esac
+            ffmpeg -v error -y -f lavfi -i testsrc=size=$1:rate=30 -t 0.2 -pix_fmt $pix -c:v libx264 $prof -preset ultrafast \
+                -x264-params keyint=30$x -f h264 $f
+            /re/out/harness/annexb_test size $f $1; n=$((n + 1))
+        done
+        echo "ok   the SPS size read right in $n streams"; echo PASS' ;;
 selftest)
     $RUN "$IMAGE" sh /re/test/selftest.sh ;;
 *)

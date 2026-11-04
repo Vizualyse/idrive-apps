@@ -56,6 +56,13 @@ void hook111_display_file(const char *path);
  * cluster view named as initialURL), read at every /info; not called,
  * missing or anything else: the configured initialURL. */
 void hook111_view_file(const char *path);
+/* The second display's safe area file ("x,y,w,h" in the offered display's
+ * pixels), read at every SETUP and /info: with a valid one, /info gets
+ * viewAreas records with it and SETUP answers viewAreas too. */
+void hook111_safearea_file(const char *path);
+/* The bench's trial files (features, info-a.plist, info-b.plist, unfallback)
+ * live in dir; not called: none are read. See hook111.c, "trial files". */
+void hook111_trial_dir(const char *dir);
 /* 0 off, 1 alt, 2 full, as it applies now; whether it fell back to off. */
 int hook111_mode(void);
 int hook111_fell_back(void);
@@ -67,7 +74,7 @@ extern void (*hook111_status_extra)(FILE *f);
 /* Counters, for tests and logs. */
 struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged, refusals,
     b_avcc, b_avcc_bytes, b_starts, b_stops, b_frames, sent_files, last_send_rc,
-    idle_held, idle_rc; long long b_frame_bytes; };
+    idle_held, idle_rc, b_width, b_height, info_extra_a, info_extra_b; long long b_frame_bytes; };
 extern volatile struct hook111_stats hook111_stats;
 
 #endif

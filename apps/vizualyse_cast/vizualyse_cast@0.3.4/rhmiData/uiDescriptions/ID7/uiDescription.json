@@ -350,7 +350,7 @@
         },
         "41": {
           "type": "button",
-          "name": "castCarplayShape",
+          "name": "castCarplayCentre",
           "properties": {
             "Visible": {
               "value": 1,
@@ -364,7 +364,7 @@
           "rows": [
             {
               "Text": {
-                "value": "CarPlay shape: normal",
+                "value": "CarPlay: centre the map: on",
                 "type": "Text"
               }
             }
@@ -372,7 +372,7 @@
         },
         "42": {
           "type": "button",
-          "name": "castCarplayVignette",
+          "name": "castCarplayHudAlt",
           "properties": {
             "Visible": {
               "value": 1,
@@ -386,7 +386,7 @@
           "rows": [
             {
               "Text": {
-                "value": "CarPlay vignette: off",
+                "value": "CarPlay HUD alternate mode: off",
                 "type": "Text"
               }
             }
