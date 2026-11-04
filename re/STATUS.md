@@ -210,16 +210,19 @@ Nothing else on the unit was changed. Everything else was read-only.
    - the shape of the stream-111 SETUP response (stock-style, or the request
      cloned with `streamID`);
    - **new:** what `suggestUI` carries, and the keys `showUI` wants (the hook
-     sends `url` + `uuid`; one `#define` each in `hook111.c`);
-   - **new:** whether `forceKeyFrame` with no params refreshes stream 111, or
-     needs the stream named. Without a keyframe on request, a drop freezes the
-     cluster until the phone's next IDR.
+     sends `url` + `uuid`; one `#define` each in `hook111.c`). The phone
+     hasn't sent a `suggestUI` yet: streaming started without one;
+   - ~~whether `forceKeyFrame` needs the stream named~~: it does,
+     `{uuid: <display uuid>}` (§6.9);
+   - `viewAreas`: offering it (mode `full`) made the phone refuse every
+     session; the structure it expects is still unknown.
 5. ~~**The pair-verify key path.**~~ Done 2026-11-04 (§3).
 6. **Session commands.** Done: the mechanism (`suggestUI` → `showUI`,
    `hook111_send_command` for anything else), tested to the phone's socket.
    Left: `updateViewArea` / `adjacentViewAreas` / `changeMapZoomLevel`
    content, which waits on item 4.
-7. **Output sink.** Done: `sink_annexb.c` → `127.0.0.1:6111`. Left: the
+7. **Output sink.** Done, and proven on the car (§6.9): `sink_annexb.c` →
+   `127.0.0.1:6111`, 1088x480 H.264 that ffmpeg decodes. Left: the
    consumer. vizualyse-cast's ffmpeg → cluster-render path with
    `-f h264 -i tcp://127.0.0.1:6111?listen` as its input (`map` target, width
    a multiple of 4, within 5500 KB/s).
@@ -235,7 +238,7 @@ Nothing else on the unit was changed. Everything else was read-only.
    The watcher is needed because the mark was **not** written at a
    `systemctl reboot` on the unit (2026-11-04). Whether it is written at a
    normal switch-off is still to check (one ignition cycle, disabled).
-   Installed on the unit 2026-11-04 (0.0.1, then 0.0.2), disabled. A stock
+   Installed on the unit 2026-11-04 (0.0.1 to 0.0.4; first disabled). A stock
    boot with it installed was checked: `carplay` without the preload, the
    drop-in loaded, no `/run/hook111`, the arm step `not armed: disabled`.
    Found there: sshd's host keys are in `/run/sshd`, new at every boot; and
@@ -283,6 +286,36 @@ Nothing else on the unit was changed. Everything else was read-only.
    - a separate cap for noisy commands;
    - a bench channel (`send.plist`, made with `bench/make_command.py`) to send
      any command without a rebuild.
+
+   **Same day, 0.0.4: the cluster stream works end to end, off a stock 2020
+   head unit.** Armed in mode `alt`, the phone connected normally, then:
+   - its stream-111 SETUP: `{type:111, uuid:<our cluster display's uuid>,
+     latencyMs:75, streamConnectionID}`, answered `{type:111, dataPort:6031}`;
+   - it connected to 6031 and streamed: AVCC (39 bytes), then about 16 fps,
+     decrypted by screen B's pump (6063 frames in about 6 minutes);
+   - no `suggestUI` / `showUI` was needed; `altScreen` and the second `/info`
+     record were enough;
+   - the stock `forceKeyFrame` (no params) never brought an IDR on 111 (167
+     requests). **`forceKeyFrame {uuid: <the display's uuid>}` (sent through
+     the bench channel) brought one within 0.5 s**;
+   - captured on the unit from `127.0.0.1:6111`: 2348 frames, 40.7 MB of
+     H.264 High, **1088x480** (exactly cluster-render's `map` target), 0
+     decode errors in ffmpeg. The picture is Google Maps' instrument-cluster
+     view: the map, the route, the car, the direction card. The capture shows
+     a real location, so it stays off the repository.
+
+   The main CarPlay screen worked throughout; `carplay` never restarted.
+   Found there, fixed in 0.0.5:
+   - the hook's own keyframe request now names the display (`{uuid}`);
+   - the sink kept a connect refused while nobody listened as a dead socket
+     for good (1880 frames dropped, never reconnected). It now checks each
+     pending connect (`poll` + `SO_ERROR`, drop after 1 s), and asks the phone
+     for a keyframe only once a consumer is really connected. annexb_test has
+     a case for exactly that; 22 checks.
+
+   Next: the consumer. vizualyse-cast's ffmpeg → cluster-render path, reading
+   `tcp://127.0.0.1:6111?listen`, onto the `map` target.
+
    Before the first armed boot:
    - check `getcap /usr/bin/carplay` is empty (`carplay` runs as `cia_13002`,
      and file capabilities would make glibc ignore the preload);

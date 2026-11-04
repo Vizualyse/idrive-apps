@@ -530,10 +530,11 @@ int hook111_send_command(void *session, const char *type, void *params) {
     return rc;
 }
 
-/* forceKeyFrame as the stock AirPlayReceiverSessionForceKeyFrame (0x1843a0)
- * sends it: no params. UNVERIFIED that the phone refreshes stream 111 on it
- * (it may want the stream named). At most once a second; called from the
- * pump thread, whose screen B teardown waits for. */
+/* forceKeyFrame for screen B: {type: forceKeyFrame, params: {uuid: <its
+ * display's uuid>}}. On the unit (2026-11-04, iOS 26.7.1) the stock form
+ * with no params (0x1843a0) never brought an IDR on stream 111 (167
+ * requests); with the uuid the IDR came within 0.5 s. At most once a second;
+ * called from the pump thread, whose screen B teardown waits for. */
 int hook111_request_keyframe(void) {
     static long long last;
     struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
@@ -541,7 +542,10 @@ int hook111_request_keyframe(void) {
     struct screen_b *b = current_b;
     if (!b || (last && now - last < 1000000000LL)) return -6721;   /* busy */
     last = now;
-    int rc = hook111_send_command(b->session, "forceKeyFrame", NULL);
+    CF p = CFDictCreate(), u = CFStr(disp.uuid);
+    CFDictSet(p, K_UUID, u); CFRelease(u);
+    int rc = hook111_send_command(b->session, "forceKeyFrame", p);
+    CFRelease(p);
     if (rc == 0) hook111_stats.keyframe_requests++;
     return rc;
 }

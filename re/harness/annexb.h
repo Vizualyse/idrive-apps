@@ -26,6 +26,8 @@ struct annexb {
     uint16_t port;              /* 127.0.0.1:port */
     int fd;                     /* connected, or -1 */
     int live;                   /* a byte has gone through on fd */
+    int confirmed;              /* fd's connect has completed */
+    long long conn_started;     /* CLOCK_MONOTONIC ns of that connect */
     int nal_len_size;           /* from the AVCC: 1, 2 or 4 */
     int need_idr;
     uint8_t *hdr; size_t hdr_n; /* SPS/PPS, Annex-B */

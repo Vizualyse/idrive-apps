@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <stdlib.h>
@@ -41,7 +42,7 @@ void annexb_init(struct annexb *a, uint16_t port) {
 
 static void drop_conn(struct annexb *a) {
     if (a->fd >= 0) close(a->fd);
-    a->fd = -1; a->pend_n = 0; a->busy_frames = 0; a->need_idr = 1;
+    a->fd = -1; a->pend_n = 0; a->busy_frames = 0; a->need_idr = 1; a->confirmed = 0;
 }
 
 void annexb_close(struct annexb *a) {
@@ -99,12 +100,29 @@ static int try_connect(struct annexb *a) {
     struct sockaddr_in sa = { .sin_family = AF_INET, .sin_port = htons(a->port), .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
     /* loopback: a non-blocking connect either succeeds at once, is refused at
      * once, or is in progress for the time the kernel takes; never wait */
-    if (connect(fd, (struct sockaddr *)&sa, sizeof sa) != 0 && errno != EINPROGRESS) { close(fd); return -1; }
+    int c = connect(fd, (struct sockaddr *)&sa, sizeof sa);
+    if (c != 0 && errno != EINPROGRESS) { close(fd); return -1; }
     int one = 1, sb = SNDBUF;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
     setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sb, sizeof sb);
     a->fd = fd; a->live = 0;   /* counted in connects once a byte goes through */
+    a->confirmed = c == 0; a->conn_started = now;
     return 0;
+}
+
+/* An in-progress connect: done, refused, or still waiting? Without this, a
+ * connect refused while nobody listened stayed as a dead socket for good,
+ * since nothing is sent while waiting for an IDR (seen on the unit,
+ * 2026-11-04: 1880 frames dropped, never reconnected). */
+#define CONNECT_WAIT_NS 1000000000LL
+static void check_conn(struct annexb *a) {
+    if (a->fd < 0 || a->confirmed) return;
+    struct pollfd pf = { a->fd, POLLOUT, 0 };
+    if (poll(&pf, 1, 0) > 0) {
+        int err = 0; socklen_t el = sizeof err;
+        if (getsockopt(a->fd, SOL_SOCKET, SO_ERROR, &err, &el) != 0 || err != 0 || (pf.revents & (POLLERR | POLLHUP))) drop_conn(a);
+        else a->confirmed = 1;
+    } else if (mono_ns() - a->conn_started > CONNECT_WAIT_NS) drop_conn(a);
 }
 
 /* send what it takes now; the rest becomes the pending tail */
@@ -152,9 +170,14 @@ int annexb_frame(struct annexb *a, const uint8_t *p, size_t n) {
         a->busy_frames = 0;
     }
     int conn_rc = 0;
-    if (a->fd < 0) PROF(0, conn_rc = try_connect(a));
+    check_conn(a);
+    if (a->fd < 0) { PROF(0, conn_rc = try_connect(a)); if (conn_rc == 0) check_conn(a); }
     if (a->fd < 0 || conn_rc != 0) { a->st.dropped++; return 0; }
-    if (a->need_idr && !idr) { a->st.dropped++; a->want_keyframe = 1; return 0; }
+    if (a->need_idr && !idr) {
+        a->st.dropped++;
+        if (a->confirmed) a->want_keyframe = 1;   /* a consumer is there: ask the phone */
+        return 0;
+    }
 
     size_t total = (idr ? a->hdr_n : 0) + payload + 4 * nals, o = 0;
     int grow_rc;

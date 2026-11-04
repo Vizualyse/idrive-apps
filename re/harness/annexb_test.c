@@ -172,6 +172,30 @@ static int unit(void) {
     CHECK("then the IDR goes out", a.st.frames_out == 1 && a.want_keyframe == 0);
     consumer_end(&c4, &a); annexb_close(&a); free(c4.buf);
 
+    /* the car, 2026-11-04: the IDR at the start found nobody listening; the
+     * refused connect must not stay as a dead socket; when a consumer comes,
+     * the sink reconnects, asks for a keyframe, and starts at the next IDR */
+    annexb_init(&a, 46116);
+    annexb_avcc(&a, rec, avcc_record(rec, 4));
+    for (int f = 0; f < 10; f++) { n = make_frame(fr, f, 1000, 500, 4); annexb_frame(&a, fr, n); usleep(2000); }   /* one IDR, at 0 */
+    CHECK("no consumer at the IDR: nothing out, no keyframe asked of the phone", a.st.frames_out == 0 && a.want_keyframe == 0);
+    usleep(1100000);   /* past the retry interval and the connect wait */
+    for (int f = 10; f < 14; f++) { n = make_frame(fr, f, 1000, 500, 4); annexb_frame(&a, fr, n); usleep(2000); }
+    CHECK("still nobody: the refused connect dropped (no dead socket)", a.fd < 0 || !a.confirmed);
+    struct consumer c5 = { .lfd = listen_on(46116, 0) };
+    pthread_create(&c5.t, NULL, consume, &c5);
+    usleep(600000);
+    for (int f = 14; f < 30; f++) { n = make_frame(fr, f, 1000, 500, 4); annexb_frame(&a, fr, n); usleep(30000); }
+    CHECK("a consumer comes: reconnected, confirmed, a keyframe asked for", a.fd >= 0 && a.confirmed && a.want_keyframe == 1 && a.st.frames_out == 0);
+    a.want_keyframe = 0;
+    n = make_frame(fr, 1000, 1000, 500, 4); annexb_frame(&a, fr, n);   /* the IDR the phone sends when asked */
+    for (int f = 1001; f < 1005; f++) { n = make_frame(fr, f, 1000, 500, 4); annexb_frame(&a, fr, n); usleep(2000); }
+    consumer_end(&c5, &a);
+    r = check_segments(&c5, 1000, 500, &frames, &gaps);
+    printf("  late consumer after a refused connect: %d frames, check %d\n", frames, r);
+    CHECK("then the stream starts at that IDR, whole", r == 0 && frames == 5);
+    annexb_close(&a); free(c5.buf);
+
     /* length size 2 */
     annexb_init(&a, 46112);
     struct consumer c2 = { .lfd = listen_on(46112, 0) };

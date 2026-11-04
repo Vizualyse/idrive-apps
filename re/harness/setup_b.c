@@ -440,6 +440,10 @@ int main(int argc, char **argv) {
     ctyp = cmd ? CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err) : NULL;
     CF fkf = CFStr("forceKeyFrame");
     CHECK("keyframe request: forceKeyFrame reaches the phone", rc == 0 && kr1 == 0 && ctyp && CFEqual(ctyp, fkf));
+    {
+        CF kp = cmd ? CFDictGetTyped(cmd, K_PARAMS, CFDictTypeID(), &err) : NULL, ku = CFStr(test_disp.uuid);
+        CHECK("keyframe request: names screen B's display ({uuid}), as the phone needs", kp && CFEqual(CFDictGetTyped(kp, K_UUID, CFStrTypeID(), &err), ku));
+    }
     CHECK("keyframe request: a second within the second is refused", kr2 == -6721 && hook111_stats.keyframe_requests == 1);
     teardown(session, req111, 0, NULL);
     CHECK("other commands still reach the stock code", FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, CFStr("noSuchCommand"), NULL, NULL, &sresp) != 0);
