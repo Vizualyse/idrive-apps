@@ -9,11 +9,12 @@ workflow (Actions > Release, the component ids).
 
 ## hook111 (CarPlay's second screen)
 
-- [ ] **Decide how it gets onto the car.** It's off the car now. Either an
-  mgu-deploy install from the Store (move `re/deploy/hook111` into `native/`;
-  `release.js` then publishes it on every full release; `component.json`'s
-  recmgr entries and `systemd-analyze verify` of the units are untested), or
-  by hand as before. Checklist: re/STATUS.md, "Before the next armed boot".
+- [x] **Into the Store.** `native/hook111` 0.1.0, published with the
+  catalog; `release.js` publishes it on every full release from now on.
+- [ ] **First install from the Store on the car.** Untested: mgu-deploy's
+  install (recmgr entries for `hook111-arm` / `hook111-health`), and
+  `systemd-analyze verify` of the units on the unit. Then `mode alt`.
+  Checklist: re/STATUS.md, "Before the next armed boot".
 - [x] **Display size per target (0.0.7).** hook111 reads `/run/hook111/display`
   (`WxH@fps`, written by vizualyse-cast: 1088x480@30 for the cluster map,
   1056x384@30 for the HUD) at each `/info`, validated, and reports what it

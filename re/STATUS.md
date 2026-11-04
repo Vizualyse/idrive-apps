@@ -20,11 +20,13 @@ main CarPlay screen, and hands it out on `127.0.0.1:6111`. Confirmed on the
 car with navigation running; the main screen kept working and `carplay` never
 restarted.
 
-**It is not on the car now.** The hand-installed copy was removed on
-2026-11-04; nothing of it is left on the unit (the `carplay` that was running
-then keeps it in memory until its next start). How it goes back on (mgu-deploy
-from the Store, or by hand) is undecided. It stays out of `native/` until then:
-`release.js` publishes every `native/` tool on a full release.
+**It ships from the Store now.** The hand-installed copy was removed from
+the unit on 2026-11-04. hook111 is a Store tool, `native/hook111` (0.1.0, with
+0.0.7's display size per target), installed by mgu-deploy. A fresh install
+arms at the next start in mode `off` (the hook loaded, answering as stock);
+`hook111-arm.sh mode alt` turns the second screen on. The mgu-deploy install
+itself (its recmgr entries, the units under `systemd-analyze verify`) hasn't
+run on the car yet.
 
 The consumer exists off the car: vizualyse-cast 0.3.0's "CarPlay second
 screen" source reads `6111` for the cluster map or the HUD, and writes the
@@ -33,7 +35,11 @@ car) offers that size in `/info`: 1088x480@30 for the cluster map,
 1056x384@30 for the HUD, read at each connection and validated; it reports
 what it offered as `display=` in its status. Both are untested on the car.
 
-## What's in `re/`
+## What's in `re/` and `native/hook111`
+
+The tests in `re/harness` build hook111's sources from `native/hook111/src`
+(`re/run.sh` mounts the kit at `/hook111`), so the Store kit and what the
+harness tests are the same code.
 
 | File | Purpose | Tests |
 |---|---|---|
@@ -41,19 +47,20 @@ what it offered as `display=` in its status. Both are untested on the car.
 | `docker/Dockerfile` | Analysis image `idrive-re:ghidra-12.1.4` (Ghidra checksum verified, JDK 21, binutils, pyelftools, gcc). | |
 | `survey.py` | Each binary's identity and loading, where the second-screen keywords appear; the swap check for another firmware's binaries. | `test/selftest.sh`: 12 |
 | `ghidra/*.java` | Keyword and 110/111 export, Apple function names from log strings (345), decompiling. | |
-| `harness/Dockerfile` | Ubuntu 18.04 image matching the unit's glibc 2.27 and OpenSSL 1.1 (`ffmpeg.Dockerfile` adds ffmpeg, tests only). | |
+| `harness/ffmpeg.Dockerfile` | hook111's build image plus ffmpeg, tests only. | |
 | `harness/screen_b.c` | A second screen object inside the real library (`aes`, `chacha`, `chacha-tamper`). | pass |
-| `harness/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the display-size file, the bench channel. | `setup_b.c`: 57 |
-| `harness/annexb.c`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocks, reconnects, resumes at an IDR. | `annexb_test.c`: 22 |
-| `harness/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. | `preload_test.c`: 23 |
-| `deploy/hook111/` | Arm step (busybox ash), units, drop-ins, `component.json` (mgu-deploy, untested), `bench/make_command.py`. | `test/arm_test.sh`: 48 |
+| `../native/hook111/src/hook111.c` / `.h` | The hook: SETUP, TEARDOWN, `/info`, session commands, frames, the plist log, the mode file, the display-size file, the bench channel. | `setup_b.c`: 57 |
+| `../native/hook111/src/annexb.c`, `sink_annexb.c` | Screen B's sink: Annex-B H.264 to `127.0.0.1:6111`, never blocks, reconnects, resumes at an IDR. | `annexb_test.c`: 22 |
+| `../native/hook111/src/preload.c` | `libhook111.so`: installs the hook when Cinemo `dlopen`s the plugin. | `preload_test.c`: 23 |
+| `../native/hook111/` | The Store tool: the sources above, its build image (`image/Dockerfile`, Ubuntu 18.04, glibc 2.27 and OpenSSL 1.1 as the unit), the arm step (busybox ash), units, drop-ins, `component.json`, `bench/make_command.py`. | `test/arm_test.sh`: 48 |
 
 Data pulled from the unit stays outside the repository, in
 `../idrive-rootfs/20.40.2/` (`facts.txt`, `rootfs.tar`, `nft-ruleset.txt`)
 and the docker volume `idrive-rootfs-20.40.2`.
 
-Build: `node release/tool_artifact.js re/deploy/hook111 --out <dir>` gives
-`hook111@<version>.tgz`, byte-identical across builds. The library needs
+Build: `node release/tool_artifact.js native/hook111 --out <dir>` (or
+`node release/release.js check hook111`) gives `hook111@<version>.tgz`,
+byte-identical across builds; `build.sh` reads nothing outside the kit. The library needs
 nothing newer than GLIBC_2.17 and exports only `dlopen` and
 `hook111_preload_state`.
 

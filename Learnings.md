@@ -54,7 +54,7 @@ line says otherwise.
   no gate to flip.
 - **But the second screen can be added.** Cinemo wraps Apple's own AirPlay
   receiver code (`AirPlay/320.17.6`), and a screen is a self-contained object,
-  so a hook can create a second one. `hook111` (`re/`), preloaded into the
+  so a hook can create a second one. `hook111` (`native/hook111`, from `re/`), preloaded into the
   stock `carplay`, gets the phone to stream its cluster view as stream 111:
   Google Maps' cluster map, 1088x480 H.264 at about 16 fps, next to the main
   screen. Details: [`re/STATUS.md`](re/STATUS.md).

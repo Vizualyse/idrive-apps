@@ -2,4 +2,4 @@
 # (busybox ash on the unit, sh in the build containers): LF, whatever
 # core.autocrlf says.
 *.sh text eol=lf
-re/deploy/** text eol=lf
+native/hook111/** text eol=lf

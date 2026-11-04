@@ -19,7 +19,7 @@ the instrument cluster or the HUD, with its sound through the speakers.
 
 CarPlay's own instrument-cluster view (Google Maps' or Apple Maps' cluster
 map), which the phone draws next to the main CarPlay screen. On this head
-unit's 2020 `carplay` it needs **hook111** (`re/` in this repository) armed
+unit's 2020 `carplay` it needs **hook111** ([`native/hook111`](../hook111), from the Store) armed
 for the current start, in mode `alt`. The hook hands the stream out as H.264
 to a consumer on `127.0.0.1:6111`; the tool's ffmpeg is that consumer
 (`carplay_screen.js`). It listens, the hook connects and asks the phone for a

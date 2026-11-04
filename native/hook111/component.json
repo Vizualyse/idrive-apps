@@ -1,9 +1,10 @@
 {
   "id": "hook111",
   "kind": "tool",
-  "version": "0.0.7",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
   "title": "CarPlay cluster map (stream 111)",
-  "description": "DRAFT, not tested on a car: preloads a hook into carplay 20.40.2 that adds CarPlay's alternate screen (stream 111) and sends it as H.264 to 127.0.0.1:6111. Armed per start; off after two failed starts.",
+  "description": "EXPERIMENTAL. Preloads a hook into carplay 20.40.2 that adds CarPlay's second screen (stream 111, the phone's cluster map) and hands it out as H.264 on 127.0.0.1:6111, for Cast to cluster. Installs in mode off (answers as stock); hook111-arm.sh mode alt turns the second screen on. Armed per start; carplay starts stock after two failed starts. Streamed on one car by hand (0.0.6); this install from the Store is new.",
   "requires": {
     "mgu-deploy": "0.7.0"
   },
@@ -12,7 +13,8 @@
   "build": ["sh", "build.sh"],
   "files": [
     { "path": "libhook111.so", "from": "build/libhook111.so", "mode": "0644" },
-    { "path": "hook111-arm.sh", "from": "hook111-arm.sh", "mode": "0755" }
+    { "path": "hook111-arm.sh", "from": "hook111-arm.sh", "mode": "0755" },
+    { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }
   ],
   "units": [
     { "name": "hook111-arm.service", "from": "systemd/hook111-arm.service" },

@@ -18,7 +18,9 @@ export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 IMAGE=idrive-re:ghidra-12.1.4
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
-RUN="docker run --rm --platform linux/amd64 -v $WIN_HERE:/re"
+# hook111's kit (its sources, arm step and build image) is the Store tool in native/hook111
+WIN_HOOK=$(cd "$HERE/../native/hook111" && (pwd -W 2>/dev/null || pwd))
+RUN="docker run --rm --platform linux/amd64 -v $WIN_HERE:/re -v $WIN_HOOK:/hook111"
 
 cmd=${1:-}; [ $# -gt 0 ] && shift
 case "$cmd" in
@@ -71,34 +73,34 @@ harness)
     # built for glibc 2.27, run by the unit's own loader from the root file system
     NAME=${1:?name}; MODE=${2:-aes}; N=${3:-12}
     HIMG=idrive-re-harness:18.04
-    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HERE/harness" >/dev/null
+    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HOOK/image" >/dev/null
     mkdir -p "$HERE/out/harness"
     $RUN $HIMG sh -c 'gcc -O1 -g -Wall -o /re/out/harness/screen_b /re/harness/screen_b.c -ldl -lpthread -lcrypto' || exit 1
     $RUN -v "idrive-rootfs-$NAME:/rootfs:ro" $HIMG \
         /rootfs/lib/ld-linux-x86-64.so.2 --library-path /rootfs/lib:/rootfs/usr/lib:/rootfs/usr/lib/cinemo \
         /re/out/harness/screen_b /rootfs/usr/lib/cinemo/libNmeCarPlay.so "$MODE" "$N" ;;
 harness-setup)
-    # hook111 (re/harness/hook111.c) through the library's own SETUP and /info entries
+    # hook111 (native/hook111/src/hook111.c) through the library's own SETUP and /info entries
     NAME=${1:?name}
     HIMG=idrive-re-harness:18.04
-    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HERE/harness" >/dev/null
+    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HOOK/image" >/dev/null
     mkdir -p "$HERE/out/harness"
-    $RUN $HIMG sh -c 'gcc -O1 -g -Wall -o /re/out/harness/setup_b /re/harness/setup_b.c -ldl -lpthread -lcrypto' || exit 1
+    $RUN $HIMG sh -c 'gcc -O1 -g -Wall -I/hook111/src -o /re/out/harness/setup_b /re/harness/setup_b.c -ldl -lpthread -lcrypto' || exit 1
     $RUN -v "idrive-rootfs-$NAME:/rootfs:ro" $HIMG \
         /rootfs/lib/ld-linux-x86-64.so.2 --library-path /rootfs/lib:/rootfs/usr/lib:/rootfs/usr/lib/cinemo \
         /re/out/harness/setup_b /rootfs/usr/lib/cinemo/libNmeCarPlay.so ;;
 harness-preload)
-    # libhook111.so (re/harness/preload.c) loaded as on the car: LD_PRELOAD after
+    # libhook111.so (native/hook111/src/preload.c) loaded as on the car: LD_PRELOAD after
     # the unit's libschedconfig, the plugin dlopen'ed by a library
     NAME=${1:?name}
     HIMG=idrive-re-harness:18.04
-    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HERE/harness" >/dev/null
+    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HOOK/image" >/dev/null
     mkdir -p "$HERE/out/harness"
     $RUN $HIMG sh -c '
         set -e; cd /re/out/harness
-        gcc -O1 -g -Wall -shared -fPIC -fvisibility=hidden -o libhook111.so /re/harness/preload.c -ldl -lpthread
+        gcc -O1 -g -Wall -shared -fPIC -fvisibility=hidden -o libhook111.so /hook111/src/preload.c -ldl -lpthread
         gcc -O1 -shared -fPIC -o libstubloader.so /re/harness/stub_loader.c -ldl
-        gcc -O1 -g -Wall -o preload_test /re/harness/preload_test.c -ldl
+        gcc -O1 -g -Wall -I/hook111/src -o preload_test /re/harness/preload_test.c -ldl
         echo "-- the stub, as libNmeBaseClasses.so:"; readelf -Ws --dyn-syms libstubloader.so | grep " UND dlopen"
         echo "-- libhook111.so exports:"; readelf -Ws --dyn-syms libhook111.so | grep -E " (dlopen|hook111_[a-z_]+)$" | awk "{print \$8}" | tr "\n" " "; echo' || exit 1
     LP=/rootfs/lib:/rootfs/usr/lib:/rootfs/usr/lib/cinemo
@@ -118,23 +120,23 @@ harness-preload)
     done
     exit $rc ;;
 deploy-test)
-    # re/deploy/hook111/hook111-arm.sh on the unit's busybox and libc, fake systemctl
+    # native/hook111/hook111-arm.sh on the unit's busybox and libc, fake systemctl
     NAME=${1:?name}
     HIMG=idrive-re-harness:18.04
     $RUN -v "idrive-rootfs-$NAME:/rootfs:ro" $HIMG sh -c '
         ln -sf /rootfs/lib/ld-linux-x86-64.so.2 /lib/ld-linux-x86-64.so.2
         export LD_LIBRARY_PATH=/rootfs/lib:/rootfs/usr/lib
-        /rootfs/bin/busybox.nosuid sh /re/deploy/hook111/test/arm_test.sh /rootfs /re/deploy/hook111' ;;
+        /rootfs/bin/busybox.nosuid sh /hook111/test/arm_test.sh /rootfs /hook111' ;;
 harness-annexb)
-    # the stream-111 output sink (re/harness/annexb.c): unit tests, then a real
+    # the stream-111 output sink (native/hook111/src/annexb.c): unit tests, then a real
     # x264 stream through it to a slow reader, decoded by ffmpeg. No BMW bytes.
     HIMG=idrive-re-harness:18.04; FIMG=idrive-re-harness:18.04-ffmpeg
-    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HERE/harness" >/dev/null
+    docker image inspect $HIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $HIMG "$WIN_HOOK/image" >/dev/null
     docker image inspect $FIMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $FIMG -f "$WIN_HERE/harness/ffmpeg.Dockerfile" "$WIN_HERE/harness" >/dev/null
     mkdir -p "$HERE/out/harness"
     $RUN $FIMG sh -c '
         set -e
-        gcc -O1 -g -Wall -o /re/out/harness/annexb_test /re/harness/annexb_test.c -lpthread
+        gcc -O1 -g -Wall -I/hook111/src -o /re/out/harness/annexb_test /re/harness/annexb_test.c -lpthread
         /re/out/harness/annexb_test unit
         cd /re/out/harness
         ffmpeg -v error -y -f lavfi -i testsrc=size=1088x480:rate=30 -t 10 -vf noise=alls=12:allf=t -pix_fmt yuv420p -c:v libx264 -preset ultrafast -qp 24 \

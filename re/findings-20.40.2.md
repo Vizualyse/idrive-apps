@@ -207,7 +207,7 @@ next section covers the first two.
 
 ## Proven off-car: hook111 through SETUP and /info [harness, 2026-11-03]
 
-`re/run.sh harness-setup 20.40.2` (`re/harness/setup_b.c` + `hook111.c`).
+`re/run.sh harness-setup 20.40.2` (`re/harness/setup_b.c` + `native/hook111/src/hook111.c`).
 Everything listed in STATUS.md §3 passes. What it took to run the stock SETUP
 on a fake session:
 

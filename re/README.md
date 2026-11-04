@@ -63,7 +63,7 @@ outside it (`../idrive-rootfs/`) and in docker volumes; results go to
    re/run.sh harness-setup 20.40.2     # hook111 through the library's SETUP, TEARDOWN, /info, /command
    re/run.sh harness-preload 20.40.2   # libhook111.so loaded as in carplay (LD_PRELOAD, plugin dlopen)
    re/run.sh harness-annexb            # the Annex-B sink; ffmpeg decodes what it sends (no BMW bytes)
-   re/run.sh deploy-test 20.40.2       # the arm step (deploy/hook111) on the unit's busybox
+   re/run.sh deploy-test 20.40.2       # the arm step (native/hook111) on the unit's busybox
    ```
 
    Where it stands and what's left: [STATUS.md](STATUS.md).
