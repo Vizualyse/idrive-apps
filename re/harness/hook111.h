@@ -41,8 +41,13 @@ int hook111_send_command(void *session, const char *type, void *params);
  * second; for a sink whose consumer waits for an IDR. 0 or an error. */
 int hook111_request_keyframe(void);
 
+/* Log every SETUP request and response, phone command, TEARDOWN, /info
+ * displays and sent command as a binary plist, <dir>/<nnn>-<what>.bplist
+ * (at most 500). Off unless dir exists and is writable; NULL turns it off. */
+void hook111_log_to(const char *dir);
+
 /* Counters, for tests and logs. */
-struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests; };
+struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged; };
 extern volatile struct hook111_stats hook111_stats;
 
 #endif

@@ -28,6 +28,7 @@
 #include <openssl/sha.h>
 #include <sys/socket.h>
 #include <time.h>
+#include <dirent.h>
 #include <strings.h>
 
 #include <signal.h>
@@ -258,6 +259,8 @@ int main(int argc, char **argv) {
     sigaction(SIGSEGV, &sa, NULL); sigaction(SIGBUS, &sa, NULL);
     sigaction(SIGALRM, &sa, NULL);   /* the watchdog: a hang dumps the same way */
     alarm(60);
+    char logdir[] = "/tmp/hook111-log.XXXXXX";
+    hook111_log_to(mkdtemp(logdir));   /* the plist log, checked at the end */
 
     /* ---------- SETUP ---------- */
     unsigned char *server = calloc(1, 0x200);
@@ -455,6 +458,36 @@ int main(int argc, char **argv) {
         CHECK("second record: 1088x480, features 2", CFDictGetI64(d1, K_WPX, &e) == 1088 && CFDictGetI64(d1, K_HPX, &e) == 480 && CFDictGetI64(d1, K_FEATURES, &e) == 2 && !e);
         CF urls = CFDictGetTyped(d1, CFStr("altScreenSuggestUIURLs"), CFArrayTypeID(), &e);
         CHECK("second record: 3 altScreenSuggestUIURLs", urls && CFArrayCount(urls) == 3);
+    }
+    /* ---------- the plist log ---------- */
+    {
+        int counts[6] = {0}, parsed = 0, total = 0, streams_ok = 0, suggest_ok = 0;
+        static const char *kinds[6] = { "setup-request", "setup-response", "command", "teardown", "info-displays", "sent" };
+        DIR *d = opendir(logdir); struct dirent *e;
+        CF su = CFStr("suggestUI");
+        while (d && (e = readdir(d))) {
+            if (e->d_name[0] == '.') continue;
+            total++;
+            char p[512]; snprintf(p, sizeof p, "%s/%s", logdir, e->d_name);
+            FILE *f = fopen(p, "rb"); if (!f) continue;
+            static unsigned char buf[1 << 16]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
+            int perr = 0;
+            CF o = FN(CF (*)(const void *, size_t, int *), 0x13a550)(buf, n, &perr);
+            if (o && !perr) parsed++;
+            for (int k = 0; k < 6; k++) if (strstr(e->d_name, kinds[k]) && (k != 0 || !strstr(e->d_name, "response"))) counts[k]++;
+            if (o && strstr(e->d_name, "setup-request") && CFDictGetTyped(o, K_STREAMS, CFArrayTypeID(), &perr)) streams_ok++;
+            if (o && strstr(e->d_name, "-command") && CFTypeOf(o) == CFDictTypeID()) {
+                int e2 = 0; CF t = CFDictGetTyped(o, K_TYPE, CFStrTypeID(), &e2);
+                if (t && CFEqual(t, su)) suggest_ok++;
+            }
+        }
+        if (d) closedir(d);
+        printf("  log: %d file(s): %d setup-request, %d setup-response, %d command, %d teardown, %d info-displays, %d sent\n",
+               total, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]);
+        CHECK("plist log: every file parses back (the library's own reader)", total > 0 && parsed == total && total == hook111_stats.logged);
+        CHECK("plist log: SETUP requests with their streams, responses, TEARDOWNs, /info, commands both ways",
+              counts[0] >= 4 && streams_ok == counts[0] && counts[1] >= 4 && counts[3] >= 1 && counts[4] == 1 && counts[2] >= 2 && counts[5] >= 2);
+        CHECK("plist log: the phone's suggestUI, as it came", suggest_ok == 1);
     }
     printf("%s\n", fail ? "FAIL" : "PASS");
     return fail;

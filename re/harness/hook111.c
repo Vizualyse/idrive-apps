@@ -38,6 +38,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 static const char BUILD_ID[] = "8e502fa40b7fbfb79c36acdd9905da6a1d000254";
@@ -267,8 +268,48 @@ fail:
     return rc;
 }
 
+/* ---- the plist log, for the first car runs ----
+ * Each plist as it is (the library's own binary-plist writer, 0x139750: a
+ * malloc'd buffer), one file each: <dir>/<nnn>-<what>.bplist, at most
+ * LOG_MAX. Off unless hook111_log_to names a writable directory. */
+#define LOG_MAX 500
+static char log_dir[256];
+static volatile int log_n;
+void hook111_log_to(const char *dir) {
+    log_dir[0] = 0;
+    if (dir && *dir && strlen(dir) < sizeof log_dir - 40 && access(dir, W_OK) == 0) strcpy(log_dir, dir);
+}
+static void log_plist(const char *what, CF obj) {
+    if (!log_dir[0] || !obj) return;
+    int n = __sync_fetch_and_add(&log_n, 1);
+    if (n >= LOG_MAX) return;
+    size_t len = 0;
+    void *b = FN(void *(*)(CF, size_t *, int *), 0x139750)(obj, &len, NULL);
+    if (!b) return;
+    char p[sizeof log_dir + 48];
+    snprintf(p, sizeof p, "%s/%03d-%s.bplist", log_dir, n, what);
+    int fd = open(p, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+    if (fd >= 0) {
+        const char *c = b; size_t left = len;
+        while (left) { ssize_t k = write(fd, c, left); if (k <= 0) break; c += k; left -= (size_t)k; }
+        close(fd);
+        hook111_stats.logged++;
+    }
+    free(b);
+}
+/* a command with its name: {type, params} */
+static void log_command(const char *what, CF cmd, CF params) {
+    if (!log_dir[0]) return;
+    CF d = CFDictCreate();
+    if (cmd) CFDictSet(d, K_TYPE, cmd);
+    if (params) CFDictSet(d, K_PARAMS, params);
+    log_plist(what, d);
+    CFRelease(d);
+}
+
 static int (*orig_setup)(void *session, CF req, CF *resp);
 static int my_setup(void *session, CF req, CF *resp) {
+    log_plist("setup-request", req);
     int rc = orig_setup(session, req, resp);
     if (rc != 0 || !resp || !*resp) return rc;
     int err = 0;
@@ -302,12 +343,14 @@ static int my_setup(void *session, CF req, CF *resp) {
         }
         CFRelease(enabled);
     }
+    log_plist("setup-response", *resp);
     return 0;
 }
 
 /* AirPlayReceiverSessionTearDown(session, request or NULL, reason, &done) */
 static void (*orig_teardown)(void *session, CF req, int reason, void *done);
 static void my_teardown(void *session, CF req, int reason, void *done) {
+    log_plist("teardown", req);
     pthread_mutex_lock(&b_life);
     struct screen_b *b = current_b;
     if (b && b->session == session) {
@@ -334,6 +377,7 @@ int hook111_send_command(void *session, const char *type, void *params) {
     CF cmd = CFDictCreate(), t = CFStr(type);
     CFDictSet(cmd, K_TYPE, t); CFRelease(t);
     if (params) CFDictSet(cmd, K_PARAMS, params);
+    log_plist("sent", cmd);
     struct { void *session; CF cmd; void *completion, *ctx; int rc; } c = { session, cmd, NULL, NULL, -6700 };
     FN(void (*)(void *, void *, void *), 0x1460e0)(*(void **)((char *)session + 0x468), &c, AT(0x17a0c0));
     CFRelease(cmd);
@@ -380,6 +424,7 @@ static int answer_suggest_ui(void *session, CF params) {
  * stock code doesn't know goes to Cinemo, which has no suggestUI. */
 static int (*orig_control)(void *, int, CF, CF, CF, CF *);
 static int my_control(void *session, int flags, CF cmd, CF qual, CF params, CF *resp) {
+    log_command("command", cmd, params);
     CF su = CFStr("suggestUI");
     int ours = cmd && CFEqual(cmd, su);
     CFRelease(su);
@@ -410,6 +455,7 @@ static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
     CFArrayAppend(v, d);
     CFRelease(d);
     hook111_stats.info_records = CFArrayCount(v);
+    log_plist("info-displays", v);
     return v;
 }
 

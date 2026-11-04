@@ -135,6 +135,11 @@ cmd_boot() {
         } >"$RUN/env.tmp" 2>/dev/null && chmod 0644 "$RUN/env.tmp" && mv -f "$RUN/env.tmp" "$RUN/env" || reason="cannot write $RUN/env"
     fi
     if [ -z "$reason" ]; then
+        # the hook's plist log (it writes there only if the directory exists),
+        # owned by carplay's user; on /run, so gone at the next reboot
+        u=$(bounded 5 "$SYSTEMCTL" show carplay.service -p User); u=${u#User=}
+        if mkdir -p "$RUN/log" 2>/dev/null && [ -n "$u" ] && chown "$u:$u" "$RUN/log" 2>/dev/null; then chmod 0755 "$RUN/log"
+        else rm -rf "$RUN/log"; log "no plist log (carplay's user: ${u:-unknown})"; fi
         armed=$boot; last="armed $boot"
         if ! save_state; then
             # an unsaved arm would never be counted: do not arm

@@ -30,6 +30,7 @@ cp "$RFS/usr/lib/cinemo/libNmeCarPlay.so" "$R/usr/lib/cinemo/"
 echo stub >"$V/current/libhook111.so"
 STOCK='MALLOC_ARENA_MAX=4 MALLOC_MMAP_THRESHOLD_=1048576 MALLOC_TRIM_THRESHOLD_=524288 LD_PRELOAD=/usr/lib/libschedconfig.so.1 WAYLAND_DISPLAY=wayland-1 XDG_RUNTIME_DIR=/run/wayland'
 echo "$STOCK" >"$T/sys/Environment"
+echo root >"$T/sys/User"   # carplay's user on the unit is cia_13002; root is one this container has
 OURS=/var/opt/hook111/current/libhook111.so
 
 fail=0
@@ -48,6 +49,7 @@ check "exits 0" '[ $rc = 0 ]'
 check "armed" 'armed'
 check "env: the stock preload, then ours" "grep -qx 'LD_PRELOAD=\"/usr/lib/libschedconfig.so.1 $OURS\"' '$R/run/hook111/env'"
 check "state: armed this start, no failures" '[ "$(st armed)" = boot-1 ] && [ "$(st fails)" = 0 ]'
+check "the plist log directory, owned by carplay's user" '[ -d "$R/run/hook111/log" ] && [ "$(stat -c %U "$R/run/hook111/log")" = root ]'
 sh "$S" boot >/dev/null 2>&1
 check "a second run in the same start counts nothing" '[ "$(st fails)" = 0 ] && armed'
 

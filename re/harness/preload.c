@@ -13,6 +13,7 @@
  * Config (environment, set by the arm step's env file):
  *   HOOK111_SINK_PORT   127.0.0.1 port of the Annex-B consumer (default 6111)
  *   HOOK111_DATA_PORT   stream 111's listener (default 6031, open in the firewall)
+ *   HOOK111_LOG_DIR     the plist log (default /run/hook111/log, used if it exists)
  */
 #define _GNU_SOURCE
 #include "hook111.c"
@@ -52,6 +53,8 @@ static void try_install(const char *why) {
         if (b) {
             display.port = env_int("HOOK111_DATA_PORT", 6031, 1, 65535);
             int port = env_int("HOOK111_SINK_PORT", 6111, 1, 65535);
+            const char *ld = getenv("HOOK111_LOG_DIR");
+            hook111_log_to(ld ? ld : "/run/hook111/log");   /* only if it exists: the arm step makes it */
             int rc = hook111_install(b, sink_annexb(&sink_state, (uint16_t)port), &display);
             state = rc == 0 ? 1 : -1;
             fprintf(stderr, "[hook111] %s: %s (stream 111 on %d, sink 127.0.0.1:%d)\n", why,
