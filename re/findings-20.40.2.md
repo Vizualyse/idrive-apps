@@ -363,6 +363,53 @@ on the car:
   (`annexb_avcc_size`, `b_size=` in the status), which is how the shapes above
   were measured; the `display=` line is only what was offered.
 
+## The cluster scene: showUI and its URL [car + harness, 2026-11-04]
+
+Tried from the bench channel (`send.plist`) on the car, hook111 0.1.4, Google
+Maps, iOS 26.7.1, 984x480 with view areas. Background from
+luka-dev/mib2q-carplay-rgi (`docs/cluster-and-rgi/THIRD_PARTY_NAV_APPS.md`):
+DashBoard parses the cluster URL's query into the scene settings
+(`showETA`, `maneuverLayout`, `showSpeedLimit`, `showCompass`).
+
+- **`showUI {uuid: <the second display>, url}` switches the cluster scene at
+  once**, and did not cost the main screen (unlike answering `suggestUI`).
+  The phone takes a new URL each time it changes; sent on a fresh stream it
+  takes the same URL again.
+- **The query applies through `showUI` only.** The same URL as `/info`'s
+  `initialURL` changed nothing.
+- **The cards** (centred safe area 340x330 / 340x435):
+
+  | URL | Cluster |
+  |---|---|
+  | `maps:/car/instrumentcluster?showETA=yes` | directions card (top), time / distance card (bottom) |
+  | `…?showETA=no` | directions card only |
+  | `…?showETA=yes&maneuverLayout=topAligned` | time / distance card only (naming a layout hid the directions card on the narrow area) |
+  | `…?showETA=yes&maneuverLayout=leftAligned` | the card at the safe area's left, the car pushed right |
+  | `…/map` | no cards, road names on the map |
+  | `…` (no query, from `showUI`) | no cards at all |
+
+  On the wide 1056x384 with no safe area: `topAligned` showed both cards
+  (with distance left), and `/map?showETA=yes` the time / distance card alone,
+  bottom right.
+- **Not seen:** `showCompass=yes` (Google Maps draws none); `showSpeedLimit=yes`
+  showed nothing parked on a residential street (to try while driving).
+- **Zoom:** `changeMapZoomLevel {uuid, zoomDirection}` 0 in, 1 out, at once.
+- **View areas switch live:** with two in `/info` (`[0]` the safe area, `[1]`
+  the whole display), `initialViewArea 0` and `adjacentViewAreas []`,
+  `updateViewArea {uuid, viewAreaIndex 1, adjacentViewAreas [0],
+  animationDurationMillis 300}` moved to Maps' own layout and back (`0`, `[]`),
+  no reconnect.
+- **The card layout** follows the safe area: the directions card its top edge,
+  the time / distance card its bottom, the car between (lower without the time
+  / distance card). The owner's pick on 984x480: 340x435 at y 20.
+- **No effect:** the declared physical size (150 vs 180 mm wide) on the card
+  size.
+- **Built in (hook111 0.1.5):** files `url` (sent as `showUI` once per stream
+  and on a change), `viewarea` (`initialViewArea`, and `updateViewArea` on a
+  change), `zoom` (taken and sent); checked from the frame pump every 500 ms.
+  `setup_b.c` checks each against a fake phone on the library's events
+  connection.
+
 ## Loading into carplay [facts + static + harness, 2026-11-04]
 
 - `carplay.service`:

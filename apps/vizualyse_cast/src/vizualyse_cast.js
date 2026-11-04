@@ -32,7 +32,7 @@ const STATE_NAME = 'ST_OnlineApps_VizualyseCast';
 const N = {
     status: 'castStatus', qr: 'castQr', link: 'castLink', hint: 'castHint', stop: 'castStop',
     map: 'castMap', hud: 'castHud', console: 'castConsole', qrToggle: 'castQrToggle', info: 'castInfo',
-    enable: 'castEnable', carplayOn: 'castCarplayOn', carplayView: 'castCarplayView', carplayCentre: 'castCarplayCentre', carplayHudAlt: 'castCarplayHudAlt', carplayMap: 'castCarplayMap', carplayHud: 'castCarplayHud',
+    enable: 'castEnable', carplayOn: 'castCarplayOn', carplayDirections: 'castCarplayDirections', carplayEta: 'castCarplayEta', carplayZoomIn: 'castCarplayZoomIn', carplayZoomOut: 'castCarplayZoomOut', carplayCentre: 'castCarplayCentre', carplayHudAlt: 'castCarplayHudAlt', carplayMap: 'castCarplayMap', carplayHud: 'castCarplayHud',
 };
 const PRESS_DEDUPE_MS = 400;
 const ROW_CHARS = 90;
@@ -126,7 +126,10 @@ class CastApp extends OnlineApp {
         this._bind(N.stop, () => this._control.stop());
         this._bind(N.enable, () => (this._control.enabled() ? this._control.disable() : this._control.enable()));
         this._bind(N.carplayOn, () => this._control.setCarplayOn(!this._control.carplaySwitch().on));
-        this._bind(N.carplayView, () => this._control.nextCarplayView());
+        this._bind(N.carplayDirections, () => { const k = this._control.carplayCards(); this._control.setCarplayCards({ directions: !(k && k.directions) }); });
+        this._bind(N.carplayEta, () => { const k = this._control.carplayCards(); this._control.setCarplayCards({ eta: !(k && k.eta) }); });
+        this._bind(N.carplayZoomIn, () => this._control.zoom('in'));
+        this._bind(N.carplayZoomOut, () => this._control.zoom('out'));
         this._bind(N.carplayCentre, () => this._control.setCarplayCentre(!this._control.carplayCentre().on));
         this._bind(N.carplayHudAlt, () => this._control.setCarplayHudAlt(!this._control.carplayHudAlt()));
         this._bind(N.carplayMap, () => this._control.carplay('map'));
@@ -270,8 +273,10 @@ class CastApp extends OnlineApp {
         this._setEnabled(N.stop, on && c.playing());
         this._write(N.carplayOn, c.switchText());
         this._setEnabled(N.carplayOn, up && c.carplaySwitch().installed);
-        this._write(N.carplayView, c.viewText());
-        this._setEnabled(N.carplayView, up && c.carplaySwitch().installed);
+        this._write(N.carplayDirections, c.cardText('directions'));
+        this._write(N.carplayEta, c.cardText('eta'));
+        ['carplayDirections', 'carplayEta'].forEach((k) => this._setEnabled(N[k], up && c.carplaySwitch().installed));
+        ['carplayZoomIn', 'carplayZoomOut'].forEach((k) => this._setEnabled(N[k], on && c.canCarplay() && c.playing()));
         this._write(N.carplayCentre, c.centreText());
         this._setEnabled(N.carplayCentre, up && c.carplaySwitch().installed);
         this._write(N.carplayHudAlt, c.hudAltText());

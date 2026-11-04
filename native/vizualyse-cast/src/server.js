@@ -100,14 +100,16 @@ const cr = new ClusterRender('vizualyse_cast');
 /* Settings kept across restarts in STATE_DIR/settings.json: the service on
  * or off, the QR code on the cluster (off by default: with navigation up
  * the cluster draws its direction list over it; the iDrive page shows it),
- * the CarPlay cluster view (carplay_screen.VIEWS), and whether the phone is
+ * the CarPlay cluster cards (directions, time / distance; both on), whether the phone is
  * asked to centre its view (the target's safe area; on by default), and the
  * HUD's alternate mode (the wide 1056x384 picture, not centred; off). */
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, clusterQr: false, carplayView: 'cluster', carplayCentre: true, carplayHudAlt: false }, readJson(SETTINGS_FILE) || {});
-if (carplay.VIEWS.indexOf(settings.carplayView) < 0) settings.carplayView = 'cluster';
+const settings = Object.assign({ enabled: true, clusterQr: false, carplayDirections: true, carplayEta: true, carplayCentre: true, carplayHudAlt: false }, readJson(SETTINGS_FILE) || {});
 settings.carplayCentre = settings.carplayCentre !== false;
 settings.carplayHudAlt = settings.carplayHudAlt === true;
+settings.carplayDirections = settings.carplayDirections !== false;
+settings.carplayEta = settings.carplayEta !== false;
+delete settings.carplayView;   /* 0.3.6's view setting: the two card switches replace it */
 delete settings.carplayShape; delete settings.carplayVignette;   /* 0.3.5's, removed */
 function saveSettings() {
     try { mkdirp(STATE_DIR); fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings) + '\n', { mode: 0o600 }); } catch (e) { log('settings: ' + e.message); }
@@ -242,6 +244,7 @@ function play(opts) {
             if (d) log('carplay: asking for ' + d.wanted + (d.safearea ? ', safe area ' + d.safearea : ', no safe area') +
                 (d.pending ? ' (from the phone\'s next connection; until then scaled)' : ''));
         } catch (e) { log('carplay: display: ' + e.message); }
+        syncScene();
     }
     if (o.w) o = Object.assign({}, o, { w: four(o.w), h: even(o.h) });
     const wantVideo = opts.output !== 'none';
@@ -358,7 +361,7 @@ function status() {
         link: link(), canReplay: !!lastPlay,
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
-            display: c.display, wanted: c.wanted, size: c.size, switch: carplaySwitch(), view: carplayView(c), centre: carplayCentre(c), hudAlt: settings.carplayHudAlt },
+            display: c.display, wanted: c.wanted, size: c.size, switch: carplaySwitch(), cards: carplayCards(c), centre: carplayCentre(c), hudAlt: settings.carplayHudAlt },
         outputs: Object.keys(OUTPUTS).filter((k) => k !== 'console' || consoleOut.available()).map((k) => ({ id: k, title: OUTPUTS[k].title })) }, s);
 }
 
@@ -416,8 +419,12 @@ const web = http.createServer((req, res) => {
             setCarplayHudAlt(b.on === true);
             return json(res, 200, status());
         }
-        if (u.pathname === '/api/carplay-view') {
-            const why = setCarplayView(b.view);
+        if (u.pathname === '/api/carplay-cards') {
+            setCarplayCards(b);
+            return json(res, 200, status());
+        }
+        if (u.pathname === '/api/carplay-zoom') {
+            const why = carplayZoom(b.dir);
             return why ? json(res, 400, { error: why }) : json(res, 200, status());
         }
         if (u.pathname === '/api/hook111') {
@@ -457,57 +464,76 @@ function setCarplayMode(mode) {
     return null;
 }
 
-/* The CarPlay cluster view (its style): kept in the settings and written to
- * hook111's run directory, now and whenever that appears (it is made at each
- * start by hook111's arm step). The phone gets it at its next connection.
- * { wanted, title, offered, pending } for the pages. */
-function syncView() {
-    try { return carplay.wantView(settings.carplayView); } catch (e) { log('carplay: view: ' + e.message); return null; }
+/* The CarPlay output playing, or last played, or the cluster map. */
+function carplayOutput() {
+    return (player && player.opts.source === 'carplay' && player.opts.output) || (lastPlay && lastPlay.source === 'carplay' && lastPlay.output) || 'map';
 }
-function carplayView(c) {
-    const wanted = settings.carplayView;
-    return { wanted: wanted, title: carplay.VIEW_TITLES[wanted], offered: c.view,
-        pending: c.view && c.view !== wanted ? 'from the phone\'s next connection' : null };
+const hudAltOn = (out) => out === 'hud' && settings.carplayHudAlt;
+
+/* The cluster scene: the directions card and the time / distance card,
+ * written for hook111 (carplay_screen.sceneUrl), now and every 5 s (its run
+ * directory is new at each start). hook111 0.1.5 sends a change to the phone
+ * at once. The HUD's alternate mode shows the time / distance card only. */
+function sceneOpts(out) {
+    const alt = hudAltOn(out);
+    return { directions: alt ? false : settings.carplayDirections, eta: settings.carplayEta, wide: alt || !settings.carplayCentre };
 }
-function setCarplayView(view) {
-    if (carplay.VIEWS.indexOf(view) < 0) return 'view is ' + carplay.VIEWS.join(', ');
-    settings.carplayView = view;
+function syncScene() {
+    try { return carplay.wantScene(sceneOpts(carplayOutput())); } catch (e) { log('carplay: scene: ' + e.message); return null; }
+}
+function carplayCards(c) {
+    const url = carplay.sceneUrl(sceneOpts(carplayOutput()));
+    return { directions: settings.carplayDirections, eta: settings.carplayEta, url: url,
+        pending: c.streaming && c.uiUrl !== url ? 'in a moment' : null };
+}
+function setCarplayCards(b) {
+    if (typeof b.directions === 'boolean') settings.carplayDirections = b.directions;
+    if (typeof b.eta === 'boolean') settings.carplayEta = b.eta;
     saveSettings();
-    const r = syncView();
-    log('carplay: view ' + view + ' saved' + (r ? (r.pending ? ', from the phone\'s next connection' : '') : ', from the next start (hook111 is not armed this start)'));
+    const r = syncScene();
+    log('carplay: directions card ' + (settings.carplayDirections ? 'on' : 'off') + ', time / distance card ' + (settings.carplayEta ? 'on' : 'off') +
+        (r ? ': ' + r.url : ', from the next start (hook111 is not armed this start)'));
+    return null;
+}
+/* Zoom the cluster map in or out (hook111 sends it while the stream runs). */
+function carplayZoom(dir) {
+    let ok;
+    try { ok = carplay.requestZoom(dir); } catch (e) { return e.message; }
+    if (!ok) return 'hook111 is not armed this start';
+    log('carplay: zoom ' + dir);
     return null;
 }
 
-/* Centre the map: the phone gets the target's safe area (carplay_screen
- * TARGETS[].safe; viewAreas through hook111) and centres the car, the
- * directions card above it. Kept in the settings; written for the CarPlay
- * target playing or last played, now (the phone takes it at its next
- * connection), or at the next play. { on, safearea, offered, pending }. */
+/* Centre the map: view area 0, the phone's view centred on the target's safe
+ * area (carplay_screen TARGETS[].safe): the directions card at the top, the
+ * car, the time / distance card at the bottom. Off: view area 1, Maps' own
+ * layout. hook111 0.1.5 switches it at once (updateViewArea). */
 function carplayCentre(c) {
-    const out = (player && player.opts.source === 'carplay' && player.opts.output) || (lastPlay && lastPlay.source === 'carplay' && lastPlay.output) || 'map';
-    const want = settings.carplayCentre ? carplay.safeText(carplay.safeAreaFor(out, settings.carplayHudAlt)) : null;
-    const offered = c.safearea && c.safearea !== 'none' ? c.safearea : null;
-    return { on: settings.carplayCentre, safearea: want, offered: offered,
-        pending: c.streaming && offered !== want ? 'from the phone\'s next connection' : null };
+    const out = carplayOutput();
+    return { on: settings.carplayCentre, safearea: carplay.safeText(carplay.safeAreaFor(out, hudAltOn(out))),
+        pending: c.streaming && c.viewarea !== null && c.viewarea !== (settings.carplayCentre ? 0 : 1) ? 'in a moment' : null };
 }
 function setCarplayCentre(on) {
     settings.carplayCentre = !!on;
     saveSettings();
-    const out = (player && player.opts.source === 'carplay' && player.opts.output) || (lastPlay && lastPlay.source === 'carplay' && lastPlay.output);
-    let d = null;
-    if (out) { try { d = carplay.wantDisplay(out, undefined, settings.carplayCentre, settings.carplayHudAlt); } catch (e) { log('carplay: centre: ' + e.message); } }
-    log('carplay: centre ' + (on ? 'on' : 'off') + ' saved' + (d ? (d.safearea ? ', safe area ' + d.safearea : ', no safe area') + ', from the phone\'s next connection' : ', from the next play'));
+    const out = carplayOutput();
+    try { carplay.wantDisplay(out, undefined, settings.carplayCentre, hudAltOn(out)); } catch (e) { log('carplay: centre: ' + e.message); }
+    syncScene();
+    log('carplay: centre ' + (on ? 'on' : 'off') + ' saved');
     return null;
 }
 /* The HUD's alternate mode: the phone draws the HUD band's own wide shape
- * (1056x384), no safe area. Off (the default): the cluster's picture, centred,
- * fitted into the band. Written now when the CarPlay picture is on the HUD. */
+ * (1056x384), no safe area, the time / distance card only. Off (the default):
+ * the cluster's picture and cards, centred, fitted into the band. Written now
+ * when the CarPlay picture is on the HUD (the size from the phone's next
+ * connection). */
 function setCarplayHudAlt(on) {
     settings.carplayHudAlt = !!on;
     saveSettings();
     const onHud = player && player.opts.source === 'carplay' && player.opts.output === 'hud';
     let d = null;
     if (onHud) { try { d = carplay.wantDisplay('hud', undefined, settings.carplayCentre, settings.carplayHudAlt); } catch (e) { log('carplay: hud: ' + e.message); } }
+    syncScene();
     log('carplay: HUD alternate mode ' + (on ? 'on' : 'off') + ' saved' + (d ? ', asking for ' + d.wanted + ', from the phone\'s next connection' : ', from the next play on the HUD'));
     return null;
 }
@@ -534,7 +560,8 @@ function command(c) {
     if (c.cmd === 'enable') { setEnabled(true); return null; }
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (c.cmd === 'hook111') return setCarplayMode(c.mode);
-    if (c.cmd === 'carplayView') return setCarplayView(c.view);
+    if (c.cmd === 'carplayCards') return setCarplayCards(c);
+    if (c.cmd === 'carplayZoom') return carplayZoom(c.dir);
     if (c.cmd === 'carplayCentre') return setCarplayCentre(c.on === true);
     if (c.cmd === 'carplayHudAlt') return setCarplayHudAlt(c.on === true);
     if (!settings.enabled) return 'Cast to cluster is off';
@@ -591,5 +618,5 @@ control = startControl({ status: status, command: command, log: log });
 cr.connect();
 /* The address changes with the hotspot: keep the QR code current. hook111's
  * run directory can appear after this tool starts: keep its view current. */
-syncView();
-setInterval(() => { updateQr(); syncView(); }, 5000);
+syncScene();
+setInterval(() => { updateQr(); syncScene(); }, 5000);

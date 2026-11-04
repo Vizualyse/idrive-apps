@@ -574,6 +574,91 @@ int main(int argc, char **argv) {
         CHECK("keyframe request: names screen B's display ({uuid}), as the phone needs", kp && CFEqual(CFDictGetTyped(kp, K_UUID, CFStrTypeID(), &err), ku));
     }
     CHECK("keyframe request: a second within the second is refused", kr2 == -6721 && hook111_stats.keyframe_requests == 1);
+
+    /* the cluster scene, the view area and zoom from the consumer's files,
+     * sent from the frame pump while screen B streams (here: marked started,
+     * polled directly) */
+    {
+        char uf[640], vf[640], zf[640];
+        snprintf(uf, sizeof uf, "%s.url", logdir); snprintf(vf, sizeof vf, "%s.viewarea", logdir); snprintf(zf, sizeof zf, "%s.zoom", logdir);
+        hook111_url_file(uf); hook111_viewarea_file(vf); hook111_zoom_file(zf);
+        #define NEXT_CMD(typevar, parvar) do { free(body); body = NULL; got = read_request(sv[1], line, sizeof line, &body, &nbody, ctype, sizeof ctype); \
+            cmd = got == 0 ? FN(CF (*)(const void *, size_t, int *), 0x13a550)(body, nbody, &perr2) : NULL; \
+            typevar = cmd ? CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err) : NULL; parvar = cmd ? CFDictGetTyped(cmd, K_PARAMS, CFDictTypeID(), &err) : NULL; } while (0)
+        CF ty = NULL, pa = NULL, uu = CFStr(test_disp.uuid);
+        current_b->started = 1;
+        ui_poll(current_b, 1);
+        CHECK("scene: no url file, nothing sent", hook111_stats.ui_sent == 0);
+        set_mode(uf, "maps:/car/instrumentcluster?showETA=yes\n");
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        CHECK("scene: showUI {uuid: screen B's display, url} reaches the phone, the URL as written",
+              ty && CFEqual(ty, CFStr("showUI")) && pa && CFEqual(CFDictGetTyped(pa, K_UUID, CFStrTypeID(), &err), uu) &&
+              CFEqual(CFDictGetTyped(pa, K_URL, CFStrTypeID(), &err), CFStr("maps:/car/instrumentcluster?showETA=yes")) && hook111_stats.ui_sent == 1);
+        int sent_before = hook111_stats.commands_sent;
+        ui_poll(current_b, 1);
+        CHECK("scene: the same URL is not sent again", hook111_stats.commands_sent == sent_before);
+        set_mode(uf, "maps:/car/instrumentcluster/map?showETA=yes");
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        CHECK("scene: a changed URL is sent at once", ty && CFEqual(ty, CFStr("showUI")) && pa &&
+              CFEqual(CFDictGetTyped(pa, K_URL, CFStrTypeID(), &err), CFStr("maps:/car/instrumentcluster/map?showETA=yes")) && hook111_stats.ui_sent == 2);
+        ui_reset();
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        CHECK("scene: a new stream gets the URL again", ty && CFEqual(ty, CFStr("showUI")) && hook111_stats.ui_sent == 3);
+        /* the view area: needs both offered at /info */
+        offered_viewareas = 1; ui_va_sent = 0;
+        set_mode(vf, "1");
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        CF adj = pa ? CFDictGetTyped(pa, CFStr("adjacentViewAreas"), CFArrayTypeID(), &err) : NULL;
+        int e3 = 0;
+        CHECK("view area 1: updateViewArea {uuid, viewAreaIndex 1, adjacentViewAreas [0], animationDurationMillis 300}",
+              ty && CFEqual(ty, CFStr("updateViewArea")) && pa && CFEqual(CFDictGetTyped(pa, K_UUID, CFStrTypeID(), &err), uu) &&
+              CFDictGetI64(pa, CFStr("viewAreaIndex"), &e3) == 1 && adj && CFArrayCount(adj) == 1 &&
+              CFDictGetI64(pa, CFStr("animationDurationMillis"), &e3) == 300 && !e3 && hook111_stats.va_sent == 1);
+        set_mode(vf, "0");
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        adj = pa ? CFDictGetTyped(pa, CFStr("adjacentViewAreas"), CFArrayTypeID(), &err) : NULL;
+        CHECK("view area 0: updateViewArea {viewAreaIndex 0, adjacentViewAreas []}", ty && CFEqual(ty, CFStr("updateViewArea")) &&
+              CFDictGetI64(pa, CFStr("viewAreaIndex"), &e3) == 0 && adj && CFArrayCount(adj) == 0 && hook111_stats.va_sent == 2);
+        sent_before = hook111_stats.commands_sent;
+        offered_viewareas = 0; set_mode(vf, "1");
+        ui_poll(current_b, 1);
+        CHECK("view area: not sent when /info offered no view areas", hook111_stats.commands_sent == sent_before);
+        /* zoom */
+        set_mode(zf, "in");
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        CHECK("zoom in: changeMapZoomLevel {uuid, zoomDirection 0}, the request taken", ty && CFEqual(ty, CFStr("changeMapZoomLevel")) && pa &&
+              CFEqual(CFDictGetTyped(pa, K_UUID, CFStrTypeID(), &err), uu) && CFDictGetI64(pa, CFStr("zoomDirection"), &e3) == 0 && !e3 &&
+              access(zf, F_OK) != 0 && hook111_stats.zoom_sent == 1);
+        set_mode(zf, "out");
+        ui_poll(current_b, 1);
+        NEXT_CMD(ty, pa);
+        CHECK("zoom out: zoomDirection 1", ty && CFEqual(ty, CFStr("changeMapZoomLevel")) && CFDictGetI64(pa, CFStr("zoomDirection"), &e3) == 1);
+        sent_before = hook111_stats.commands_sent;
+        set_mode(zf, "sideways");
+        ui_poll(current_b, 1);
+        CHECK("zoom: anything else is taken and dropped", hook111_stats.commands_sent == sent_before && access(zf, F_OK) != 0);
+        current_b->started = 0;
+        set_mode(zf, "in");
+        ui_poll(current_b, 1);
+        CHECK("nothing sent before screen B streams (the zoom request waits)", hook111_stats.commands_sent == sent_before && access(zf, F_OK) == 0);
+        status_now(1);
+        {
+            char stp[700], sl[256]; snprintf(stp, sizeof stp, "%s/status", logdir);
+            FILE *sf = fopen(stp, "r"); int said = 0;
+            while (sf && fgets(sl, sizeof sl, sf)) if (!strcmp(sl, "ui_url=maps:/car/instrumentcluster/map?showETA=yes\n")) said = 1;
+            if (sf) fclose(sf);
+            CHECK("the status says which scene the phone took", said);
+        }
+        unlink(uf); unlink(vf); unlink(zf);
+        hook111_url_file(NULL); hook111_viewarea_file(NULL); hook111_zoom_file(NULL);
+        #undef NEXT_CMD
+    }
     teardown(session, req111, 0, NULL);
     CHECK("other commands still reach the stock code", FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, CFStr("noSuchCommand"), NULL, NULL, &sresp) != 0);
 
@@ -763,15 +848,34 @@ int main(int argc, char **argv) {
         set_mode(sfile, "322,80,340,330\n");
         r2 = REC1();
         CF vs = r2 ? CFDictGetTyped(r2, CFStr("viewAreas"), CFArrayTypeID(), &e) : NULL;
-        CF v0 = vs && CFArrayCount(vs) == 1 ? CFArrayAt(vs, 0) : NULL;
-        CF sa = v0 ? CFDictGetTyped(v0, CFStr("safeArea"), CFDictTypeID(), &e) : NULL;
+        CF v0 = vs && CFArrayCount(vs) == 2 ? CFArrayAt(vs, 0) : NULL, v1 = v0 ? CFArrayAt(vs, 1) : NULL;
+        CF sa = v0 ? CFDictGetTyped(v0, CFStr("safeArea"), CFDictTypeID(), &e) : NULL, sa1 = v1 ? CFDictGetTyped(v1, CFStr("safeArea"), CFDictTypeID(), &e) : NULL;
+        CF adj0 = r2 ? CFDictGetTyped(r2, CFStr("adjacentViewAreas"), CFArrayTypeID(), &e) : NULL;
         e2 = 0;
-        CHECK("safe area 322,80,340,330 on 984x480: one view area, the whole display, with that safe area; initialViewArea 0",
+        CHECK("safe area 322,80,340,330 on 984x480: view area 0 the whole display with that safe area; initialViewArea 0, adjacentViewAreas []",
               v0 && CFDictGetI64(v0, CFStr("widthPixels"), &e2) == 984 && CFDictGetI64(v0, CFStr("heightPixels"), &e2) == 480 &&
               CFDictGetI64(v0, CFStr("originXPixels"), &e2) == 0 && CFDictGetI64(v0, CFStr("originYPixels"), &e2) == 0 &&
               sa && CFDictGetI64(sa, CFStr("originXPixels"), &e2) == 322 && CFDictGetI64(sa, CFStr("originYPixels"), &e2) == 80 &&
               CFDictGetI64(sa, CFStr("widthPixels"), &e2) == 340 && CFDictGetI64(sa, CFStr("heightPixels"), &e2) == 330 && !e2 &&
-              CFDictGetI64(r2, CFStr("initialViewArea"), &e2) == 0 && !e2);
+              CFDictGetI64(r2, CFStr("initialViewArea"), &e2) == 0 && !e2 && adj0 && CFArrayCount(adj0) == 0);
+        CHECK("view area 1: the whole display as its safe area (Maps' own layout)",
+              sa1 && CFDictGetI64(sa1, CFStr("originXPixels"), &e2) == 0 && CFDictGetI64(sa1, CFStr("originYPixels"), &e2) == 0 &&
+              CFDictGetI64(sa1, CFStr("widthPixels"), &e2) == 984 && CFDictGetI64(sa1, CFStr("heightPixels"), &e2) == 480 && !e2);
+        {
+            char vfile[640]; snprintf(vfile, sizeof vfile, "%s.va", logdir);
+            hook111_viewarea_file(vfile);
+            set_mode(vfile, "1\n");
+            CF r3 = REC1();
+            CF adj1 = r3 ? CFDictGetTyped(r3, CFStr("adjacentViewAreas"), CFArrayTypeID(), &e) : NULL;
+            e2 = 0;
+            CHECK("view area file 1: initialViewArea 1, adjacentViewAreas [0]",
+                  r3 && CFDictGetI64(r3, CFStr("initialViewArea"), &e2) == 1 && !e2 && adj1 && CFArrayCount(adj1) == 1);
+            set_mode(vfile, "2");
+            r3 = REC1();
+            CHECK("view area file anything else: 0", r3 && CFDictGetI64(r3, CFStr("initialViewArea"), &e2) == 0);
+            unlink(vfile); hook111_viewarea_file(NULL);
+            r2 = REC1();
+        }
         CHECK("safe area: drawUIOutsideSafeArea and viewAreaTransitionControl false (the library's own false)",
               v0 && (e2 = 0, CFDictGetI64(v0, CFStr("drawUIOutsideSafeArea"), &e2) == 0) && !e2 &&
               (e2 = 0, CFDictGetI64(v0, CFStr("viewAreaTransitionControl"), &e2) == 0) && !e2);

@@ -51,8 +51,9 @@
 <div class="card hide" id="carplayCard">
   <label class="t">CarPlay second screen</label>
   <div class="row"><span>On <span class="small" id="cpPending"></span></span><input id="cpOn" type="checkbox"></div>
-  <div class="row"><span>Cluster view <span class="small" id="cpViewPending"></span></span>
-    <select id="cpView"><option value="cluster">Map and directions</option><option value="map">Map only</option><option value="card">Directions only</option></select></div>
+  <div class="row"><span>Directions card</span><input id="cpDirections" type="checkbox"></div>
+  <div class="row"><span>Time / distance card <span class="small" id="cpCardsPending"></span></span><input id="cpEta" type="checkbox"></div>
+  <div class="row"><span>Zoom the map</span><span class="seg" style="width:140px"><button id="cpZoomOut">−</button><button id="cpZoomIn">+</button></span></div>
   <div class="row"><span>Centre the map <span class="small" id="cpCentrePending"></span></span><input id="cpCentre" type="checkbox"></div>
   <div class="row"><span>HUD alternate mode <span class="small">(wider, not centred)</span></span><input id="cpHudAlt" type="checkbox"></div>
   <div class="small" id="cpState">—</div>
@@ -150,10 +151,11 @@
     $('cpOn').disabled = !sw.installed;
     $('cpOn').checked = !!sw.on;
     $('cpPending').textContent = !sw.installed ? '(hook111 is not installed)' : sw.pending ? '(' + sw.pending + ')' : '';
-    var vw = (s.carplay && s.carplay.view) || {};
-    $('cpView').disabled = !sw.installed;
-    if (vw.wanted && document.activeElement !== $('cpView')) $('cpView').value = vw.wanted;
-    $('cpViewPending').textContent = vw.pending ? '(' + vw.pending + ')' : '';
+    var cd = (s.carplay && s.carplay.cards) || {};
+    ['cpDirections', 'cpEta', 'cpZoomIn', 'cpZoomOut'].forEach(function (id) { $(id).disabled = !sw.installed; });
+    if (document.activeElement !== $('cpDirections')) $('cpDirections').checked = cd.directions !== false;
+    if (document.activeElement !== $('cpEta')) $('cpEta').checked = cd.eta !== false;
+    $('cpCardsPending').textContent = cd.pending ? '(' + cd.pending + ')' : '';
     var ce = (s.carplay && s.carplay.centre) || {};
     $('cpCentre').disabled = !sw.installed;
     if (document.activeElement !== $('cpCentre')) $('cpCentre').checked = ce.on !== false;
@@ -199,13 +201,23 @@
       .then(show).catch(function (e) { $('err').textContent = e.message; box.checked = !box.checked; })
       .then(function () { box.disabled = false; });
   };
-  $('cpView').onchange = function () {
-    var sel = this;
-    sel.disabled = true;
-    api('/api/carplay-view', { view: sel.value })
-      .then(show).catch(function (e) { $('err').textContent = e.message; })
-      .then(function () { sel.disabled = false; });
-  };
+  function cards(field) {
+    return function () {
+      var box = this, body = {};
+      body[field] = box.checked;
+      box.disabled = true;
+      api('/api/carplay-cards', body)
+        .then(show).catch(function (e) { $('err').textContent = e.message; box.checked = !box.checked; })
+        .then(function () { box.disabled = false; });
+    };
+  }
+  $('cpDirections').onchange = cards('directions');
+  $('cpEta').onchange = cards('eta');
+  function zoom(dir) {
+    return function () { api('/api/carplay-zoom', { dir: dir }).catch(function (e) { $('err').textContent = e.message; }); };
+  }
+  $('cpZoomIn').onclick = zoom('in');
+  $('cpZoomOut').onclick = zoom('out');
   $('cpCentre').onchange = function () {
     var box = this;
     box.disabled = true;

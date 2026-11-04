@@ -114,7 +114,7 @@ function unit() {
     s = cp.state(fakeRun({ armed: true, mode: 'alt', port: 6222 }));
     ok('the sink port from its env file', s.port === 6222);
 
-    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '984x480@30', safearea: 'none' } });
+    const run = fakeRun({ armed: true, mode: 'alt', status: { display: '984x480@30', safearea: '322,20,340,435' } });
     let d = cp.wantDisplay('map', run);
     ok('map: asks for 984x480@30, already what the phone has', d.wanted === '984x480@30' && !d.pending && fs.readFileSync(path.join(run, 'display'), 'utf8') === '984x480@30\n');
     const map = cp.TARGETS.map;
@@ -142,25 +142,47 @@ function unit() {
 
     /* centring: the safe area */
     const sa = cp.safeAreaFor('map');
-    ok('safe area, map: 340x330 at y 40, centred across 984 (x 322); the HUD the same by default, none in its alternate mode',
-        cp.safeText(sa) === '322,40,340,330' && sa.x + sa.w / 2 === 984 / 2 && cp.safeText(cp.safeAreaFor('hud')) === '322,40,340,330' && cp.safeAreaFor('hud', true) === null);
+    ok('safe area, map: 340x435 at y 20, centred across 984 (x 322); the HUD the same by default, none in its alternate mode',
+        cp.safeText(sa) === '322,20,340,435' && sa.x + sa.w / 2 === 984 / 2 && cp.safeText(cp.safeAreaFor('hud')) === '322,20,340,435' && cp.safeAreaFor('hud', true) === null);
     const crun = fakeRun({ armed: true, mode: 'alt', status: { display: '984x480@30', safearea: 'none' } });
     let cd = cp.wantDisplay('map', crun, true);
     ok('centre on: the safe area written for hook111, pending (the phone was offered none)',
-        cd.safearea === '322,40,340,330' && cd.pending && fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,40,340,330\n' &&
-        cp.state(crun).safeWanted === '322,40,340,330');
-    fs.writeFileSync(path.join(crun, 'log', 'status'), 'display=984x480@30\nsafearea=322,40,340,330\nb_size=984x480\n');
+        cd.safearea === '322,20,340,435' && cd.pending && fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,20,340,435\n' &&
+        cp.state(crun).safeWanted === '322,20,340,435');
+    fs.writeFileSync(path.join(crun, 'log', 'status'), 'display=984x480@30\nsafearea=322,20,340,435\nb_size=984x480\n');
     cd = cp.wantDisplay('map', crun, true);
     ok('centre on, already offered: not pending; the real size from the stream', !cd.pending && cp.state(crun).size === '984x480');
     cd = cp.wantDisplay('hud', crun, true);
-    ok('centre on, the HUD by default: the cluster\'s size and safe area', cd.wanted === '984x480@30' && cd.safearea === '322,40,340,330' &&
-        fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,40,340,330\n');
+    ok('centre on, the HUD by default: the cluster\'s size and safe area', cd.wanted === '984x480@30' && cd.safearea === '322,20,340,435' &&
+        fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,20,340,435\n');
     cd = cp.wantDisplay('hud', crun, true, true);
     ok('centre on, the HUD in its alternate mode: 1056x384, no safe area (the file removed)', cd.wanted === '1056x384@30' && cd.safearea === null &&
         !fs.existsSync(path.join(crun, 'safearea')));
-    cp.wantDisplay('map', crun, true);
+    cd = cp.wantDisplay('map', crun, true);
+    ok('centre on: view area 0 (centred) written for hook111', cd.viewarea === 0 && fs.readFileSync(path.join(crun, 'viewarea'), 'utf8') === '0\n');
     cd = cp.wantDisplay('map', crun, false);
-    ok('centre off: the file removed, pending while the phone still has one', cd.safearea === null && cd.pending && !fs.existsSync(path.join(crun, 'safearea')));
+    ok('centre off: view area 1 (Maps\' own layout), the safe area still offered (the switch is live, no reconnect)',
+        cd.viewarea === 1 && fs.readFileSync(path.join(crun, 'viewarea'), 'utf8') === '1\n' && cd.safearea === '322,20,340,435' &&
+        fs.readFileSync(path.join(crun, 'safearea'), 'utf8') === '322,20,340,435\n');
+
+    /* the cluster scene: the cards, as found on the car */
+    const U = 'maps:/car/instrumentcluster';
+    ok('scene: directions + time/distance, directions only, time/distance only (narrow, wide), neither',
+        cp.sceneUrl({ directions: true, eta: true }) === U + '?showETA=yes' && cp.sceneUrl({ directions: true, eta: false }) === U + '?showETA=no' &&
+        cp.sceneUrl({ directions: false, eta: true }) === U + '?showETA=yes&maneuverLayout=topAligned' &&
+        cp.sceneUrl({ directions: false, eta: true, wide: true }) === U + '/map?showETA=yes' && cp.sceneUrl({ directions: false, eta: false }) === U + '/map');
+    let sc = cp.wantScene({ directions: false, eta: true, wide: true }, crun);
+    ok('scene: written for hook111 (url), with the view /info names (map without the directions card), not yet sent',
+        sc.url === U + '/map?showETA=yes' && !sc.sent && fs.readFileSync(path.join(crun, 'url'), 'utf8') === U + '/map?showETA=yes\n' &&
+        fs.readFileSync(path.join(crun, 'view'), 'utf8') === 'map\n');
+    fs.writeFileSync(path.join(crun, 'log', 'status'), 'ui_url=' + U + '/map?showETA=yes\nviewarea=1\n');
+    sc = cp.wantScene({ directions: false, eta: true, wide: true }, crun);
+    ok('scene: sent once hook111 says the phone took it', sc.sent && cp.state(crun).uiUrl === U + '/map?showETA=yes' && cp.state(crun).viewarea === 1);
+    ok('scene: no hook111 run directory, nothing written', cp.wantScene({ directions: true, eta: true }, path.join(crun, 'nope')) === null);
+    ok('zoom: "in" written for hook111 to take', cp.requestZoom('in', crun) === true && fs.readFileSync(path.join(crun, 'zoom'), 'utf8') === 'in\n');
+    let zthrew = null;
+    try { cp.requestZoom('left', crun); } catch (e) { zthrew = e.message; }
+    ok('zoom: only in or out', !!zthrew && fs.readFileSync(path.join(crun, 'zoom'), 'utf8') === 'in\n');
     const vf = cp.outputArgs('map')[cp.outputArgs('map').indexOf('-vf') + 1];
     ok('ffmpeg: fits and pads, never squeezes, no vignette', /force_original_aspect_ratio=decrease/.test(vf) && /pad=984:480/.test(vf) && !/vignette/.test(vf));
 
@@ -287,26 +309,15 @@ async function server(cluster) {
 
         ok('status: the switch, installed and off', st.carplay.switch && st.carplay.switch.installed === true && st.carplay.switch.on === false);
 
-        ok('status: the cluster view, map and directions by default, written for hook111 at start',
-            st.carplay.view && st.carplay.view.wanted === 'cluster' && st.carplay.view.title === 'map and directions' &&
+        ok('status: both cards by default, the scene written for hook111 at start (the view /info names with it)',
+            st.carplay.cards && st.carplay.cards.directions === true && st.carplay.cards.eta === true &&
+            fs.readFileSync(path.join(run, 'url'), 'utf8') === 'maps:/car/instrumentcluster?showETA=yes\n' &&
             fs.readFileSync(path.join(run, 'view'), 'utf8') === 'cluster\n');
-        r = await post(PORT, '/api/carplay-view', token, { view: 'card' });
-        st = r.code === 200 && JSON.parse(r.body);
-        ok('the phone page sets the view: card, written and saved', st && st.carplay.view.wanted === 'card' &&
-            fs.readFileSync(path.join(run, 'view'), 'utf8') === 'card\n' && JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayView === 'card');
-        fs.writeFileSync(path.join(run, 'log', 'status'), 'view=default\n');
-        st = JSON.parse((await get(PORT, '/api/status', token)).body);
-        ok('... pending while the phone was last offered another view', st.carplay.view.pending === 'from the phone\'s next connection');
-        r = await post(PORT, '/api/carplay-view', token, { view: 'wide' });
-        ok('the phone page: an unknown view refused', r.code === 400 && /cluster, map, card/.test(JSON.parse(r.body).error));
-        const cv = await ctl(sock, { cmd: 'carplayView', view: 'map' });
-        await sleep(200);
-        ok('control socket, carplayView map: no error, written', !cv.some((l) => l.ev === 'error') && fs.readFileSync(path.join(run, 'view'), 'utf8') === 'map\n');
-        fs.unlinkSync(path.join(run, 'view'));
+        ok('0.3.6\'s view setting dropped from the settings', !('carplayView' in JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8') || '{}')));
+        fs.unlinkSync(path.join(run, 'url'));
         let rewritten = false;
-        for (let i = 0; i < 70 && !rewritten; i++) { await sleep(100); rewritten = fs.existsSync(path.join(run, 'view')); }
-        ok('the view file comes back when hook111\'s run directory loses it (a new start)', rewritten && fs.readFileSync(path.join(run, 'view'), 'utf8') === 'map\n');
-        fs.writeFileSync(path.join(run, 'log', 'status'), '');
+        for (let i = 0; i < 70 && !rewritten; i++) { await sleep(100); rewritten = fs.existsSync(path.join(run, 'url')); }
+        ok('the scene file comes back when hook111\'s run directory loses it (a new start)', rewritten);
         r = await post(PORT, '/api/hook111', token, { mode: 'full' });
         ok('the phone page: mode full refused', r.code === 400 && /off or alt/.test(JSON.parse(r.body).error));
         r = await post(PORT, '/api/hook111', token, { mode: 'alt' });
@@ -317,7 +328,7 @@ async function server(cluster) {
         st = r.code === 200 && JSON.parse(r.body);
         ok('play the second screen in mode alt: playing on the cluster map', st && st.state === 'playing' && st.output === 'map' && st.source === 'carplay');
         ok('it asked hook111 for the cluster size and, centring by default, its safe area',
-            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' && fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330');
+            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' && fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,20,340,435');
         const s = await connectWhenListening(6111, 50);
         s.end(fs.readFileSync(cluster));
         let frames = 0;
@@ -333,19 +344,45 @@ async function server(cluster) {
         /* centring: the switch, while the second screen plays (no restart: the phone takes it when it reconnects) */
         const starts = () => logs.filter((l) => /play: CarPlay second screen on map/.test(l)).length;
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
-        ok('status: centring on by default, the map\'s safe area', st.carplay.centre && st.carplay.centre.on === true && st.carplay.centre.safearea === '322,40,340,330');
+        ok('status: centring on by default, the map\'s safe area', st.carplay.centre && st.carplay.centre.on === true && st.carplay.centre.safearea === '322,20,340,435');
         const n0 = starts();
         const cc = await ctl(sock, { cmd: 'carplayCentre', on: false });
         await sleep(300);
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
         const saved = JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8'));
-        ok('control socket, carplayCentre off: the safe area file removed, saved, the stream not restarted',
-            !cc.some((l) => l.ev === 'error') && !fs.existsSync(path.join(run, 'safearea')) && st.carplay.centre.on === false &&
+        ok('control socket, carplayCentre off: view area 1 written (live), the safe area kept, saved, the stream not restarted',
+            !cc.some((l) => l.ev === 'error') && fs.readFileSync(path.join(run, 'viewarea'), 'utf8').trim() === '1' &&
+            fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,20,340,435' && st.carplay.centre.on === false &&
             saved.carplayCentre === false && starts() === n0);
+        ok('... and the scene for Maps\' own layout: both cards (wide)', fs.readFileSync(path.join(run, 'url'), 'utf8').trim() === 'maps:/car/instrumentcluster?showETA=yes');
         ok('0.3.5\'s shape and vignette settings dropped from the settings file', !('carplayShape' in saved) && !('carplayVignette' in saved));
         r = await post(PORT, '/api/carplay-centre', token, { on: true });
-        ok('the phone page turns centring back on: the safe area written again', r.code === 200 &&
-            fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330' && JSON.parse(r.body).carplay.centre.on === true);
+        ok('the phone page turns centring back on: view area 0', r.code === 200 &&
+            fs.readFileSync(path.join(run, 'viewarea'), 'utf8').trim() === '0' && JSON.parse(r.body).carplay.centre.on === true);
+
+        /* the cards and zoom */
+        ok('status: both cards on by default, the scene written for hook111', st.carplay.cards && st.carplay.cards.directions === true &&
+            st.carplay.cards.eta === true);
+        const cc2 = await ctl(sock, { cmd: 'carplayCards', directions: false });
+        await sleep(200);
+        ok('control socket, carplayCards directions off: time / distance only, centred (a layout named), saved', !cc2.some((l) => l.ev === 'error') &&
+            fs.readFileSync(path.join(run, 'url'), 'utf8').trim() === 'maps:/car/instrumentcluster?showETA=yes&maneuverLayout=topAligned' &&
+            fs.readFileSync(path.join(run, 'view'), 'utf8').trim() === 'map' &&
+            JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayDirections === false);
+        r = await post(PORT, '/api/carplay-cards', token, { eta: false });
+        ok('the phone page turns the time / distance card off too: map only', r.code === 200 &&
+            fs.readFileSync(path.join(run, 'url'), 'utf8').trim() === 'maps:/car/instrumentcluster/map' && JSON.parse(r.body).carplay.cards.eta === false);
+        r = await post(PORT, '/api/carplay-cards', token, { directions: true, eta: true });
+        ok('both back on', fs.readFileSync(path.join(run, 'url'), 'utf8').trim() === 'maps:/car/instrumentcluster?showETA=yes' &&
+            fs.readFileSync(path.join(run, 'view'), 'utf8').trim() === 'cluster');
+        const cz = await ctl(sock, { cmd: 'carplayZoom', dir: 'out' });
+        await sleep(200);
+        ok('control socket, carplayZoom out: the request written for hook111', !cz.some((l) => l.ev === 'error') && fs.readFileSync(path.join(run, 'zoom'), 'utf8').trim() === 'out');
+        r = await post(PORT, '/api/carplay-zoom', token, { dir: 'in' });
+        ok('the phone page zooms in', r.code === 200 && fs.readFileSync(path.join(run, 'zoom'), 'utf8').trim() === 'in');
+        r = await post(PORT, '/api/carplay-zoom', token, { dir: 'up' });
+        ok('zoom: anything else refused', r.code === 400 && /in or out/.test(JSON.parse(r.body).error));
+        ok('the 0.3.6 view endpoint is gone', (await post(PORT, '/api/carplay-view', token, { view: 'map' })).code === 404);
         ok('the removed shape and vignette endpoints answer not found',
             (await post(PORT, '/api/carplay-shape', token, { shape: 'tall' })).code === 404 && (await post(PORT, '/api/carplay-vignette', token, { on: true })).code === 404);
 
@@ -354,16 +391,17 @@ async function server(cluster) {
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
         ok('control socket, carplay hud: playing on the HUD, by default the cluster\'s picture (984x480, its safe area)', c1.length >= 1 && st.output === 'hud' &&
             st.state === 'playing' && fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' &&
-            fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330' && st.carplay.hudAlt === false);
+            fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,20,340,435' && st.carplay.hudAlt === false);
         const ha = await ctl(sock, { cmd: 'carplayHudAlt', on: true });
         await sleep(300);
         st = JSON.parse((await get(PORT, '/api/status', token)).body);
         ok('control socket, carplayHudAlt on while on the HUD: 1056x384 asked for, no safe area, saved', !ha.some((l) => l.ev === 'error') &&
             st.carplay.hudAlt === true && fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '1056x384@30' &&
             !fs.existsSync(path.join(run, 'safearea')) && JSON.parse(fs.readFileSync(path.join(state, 'settings.json'), 'utf8')).carplayHudAlt === true);
+        ok('... with the time / distance card only, bottom right (map only + the card)', fs.readFileSync(path.join(run, 'url'), 'utf8').trim() === 'maps:/car/instrumentcluster/map?showETA=yes');
         r = await post(PORT, '/api/carplay-hud-alt', token, { on: false });
         ok('the phone page turns the HUD\'s alternate mode off: the cluster\'s picture again', r.code === 200 && JSON.parse(r.body).carplay.hudAlt === false &&
-            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' && fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,40,340,330');
+            fs.readFileSync(path.join(run, 'display'), 'utf8').trim() === '984x480@30' && fs.readFileSync(path.join(run, 'safearea'), 'utf8').trim() === '322,20,340,435');
         r = await post(PORT, '/api/stop', token, {});
         await sleep(1500);
         st = JSON.parse((await get(PORT, '/api/status', token)).body);

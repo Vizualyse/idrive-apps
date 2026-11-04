@@ -34,12 +34,33 @@ const DEFAULT_PORT = 6111;
  * offers the second screen). Not full: with viewAreas the phone refused every
  * session on the car. */
 const MODES = ['off', 'alt'];
-/* The cluster views (the style) the phone is asked for, as hook111 names them
- * in /info's initialURL: cluster = the map with the directions card, map = the
- * map alone, card = the directions card alone. Whether the phone follows it
- * is not yet seen on the car. */
+/* The cluster views hook111 names in /info's initialURL (the view the phone
+ * starts in): cluster = the map with the directions card, map = the map
+ * alone, card = the directions card alone. */
 const VIEWS = ['cluster', 'map', 'card'];
 const VIEW_TITLES = { cluster: 'map and directions', map: 'map only', card: 'directions only' };
+
+/* The cluster scene: the URL hook111 (0.1.5) sends as showUI while the
+ * stream runs, which the phone applies at once. Its query sets the cards
+ * (DashBoard's cluster URL handler, per luka-dev/mib2q-carplay-rgi). Found on
+ * the car (2026-11-04, Google Maps, iOS 26.7.1):
+ *   directions + time/distance: maps:/car/instrumentcluster?showETA=yes
+ *   directions only:            maps:/car/instrumentcluster?showETA=no
+ *   time/distance only, narrow (centred) safe area:
+ *                               maps:/car/instrumentcluster?showETA=yes&maneuverLayout=topAligned
+ *     (naming a layout hides the directions card there; on a wide area it
+ *     shows both, so wide uses map only plus the card: bottom right)
+ *   time/distance only, wide:   maps:/car/instrumentcluster/map?showETA=yes
+ *   neither:                    maps:/car/instrumentcluster/map
+ * `wide`: the safe area isn't the narrow centred one (centring off, or the
+ * HUD's alternate mode). */
+const SCENE_ROOT = 'maps:/car/instrumentcluster';
+function sceneUrl(o) {
+    if (o.directions && o.eta) return SCENE_ROOT + '?showETA=yes';
+    if (o.directions) return SCENE_ROOT + '?showETA=no';
+    if (o.eta) return o.wide ? SCENE_ROOT + '/map?showETA=yes' : SCENE_ROOT + '?showETA=yes&maneuverLayout=topAligned';
+    return SCENE_ROOT + '/map';
+}
 
 /* What the phone is asked to draw for each target, and what the tool sends
  * on to cluster-render. The phone draws at `display`; ffmpeg fits that into
@@ -62,11 +83,12 @@ const TARGETS = {
      * the outer ~130 px each side of the 1088 target, so the phone draws 984x480,
      * placed at x 52-1036 (widened from 864 on request, 24, 12 and 24 px each side,
      * into the fade): its edges fade out (only the vignette's rounded top corners
-     * cut). Safe area 340x330 at y 40: on the car, Google Maps put the car, and
-     * the directions card above it, at its centre (936 wide, x 298; y 80 put
-     * both 40 px lower). */
+     * cut). Safe area 340x435 at y 20, centred: on the car (2026-11-04) the
+     * directions card at the top edge, the car below it, the time / distance
+     * card at the bottom (ends ~y 452); the owner's pick after y 110 h 330,
+     * h 440 and h 455 (the card touched the bottom). */
     map: { display: { w: 984, h: 480, fps: 30 }, w: 984, h: 480, fps: 20, xband: [52 / 1088, 1036 / 1088],
-        safe: { w: 340, h: 330, y: 40 } },
+        safe: { w: 340, h: 435, y: 20 } },
     hud: { like: 'map', w: 528, h: 192, fps: 15,
         alt: { display: { w: 1056, h: 384, fps: 30 } } },
 };
@@ -163,6 +185,8 @@ function state(run) {
         size: st.b_size || null,                           /* what the phone really sends (its SPS), hook111 0.1.3+ */
         safearea: st.safearea || null,                     /* x,y,w,h last offered, or none */
         safeWanted: (readText(path.join(run, 'safearea')) || '').trim() || null,
+        uiUrl: st.ui_url && st.ui_url !== 'none' ? st.ui_url : null,   /* the scene the phone took (showUI), hook111 0.1.5+ */
+        viewarea: st.viewarea !== undefined ? Number(st.viewarea) : null,
     };
 }
 
@@ -186,23 +210,53 @@ function safeAreaFor(output, alt) {
 }
 function safeText(s) { return s ? s.x + ',' + s.y + ',' + s.w + ',' + s.h : null; }
 
-/* Ask for the target's size (and, with centre, its safe area; without,
- * none): the hook offers them at the phone's next connection. alt: the HUD's
- * alternate mode. Returns { wanted, safearea, pending } (pending: the phone
- * is still on another size or safe area, so the picture is scaled until it
- * reconnects), or null when hook111 isn't there to read it. */
+/* Ask for the target's size and safe area (hook111 offers them at the
+ * phone's next connection), and the view area: 0 centred on the safe area,
+ * 1 the whole display, Maps' own layout (centre off). hook111 0.1.5 sends a
+ * view area change at once (updateViewArea); size and safe area wait for a
+ * reconnect. alt: the HUD's alternate mode (no safe area). Returns
+ * { wanted, safearea, viewarea, pending } (pending: the phone is still on
+ * another size or safe area), or null when hook111 isn't there to read it. */
 function wantDisplay(output, run, centre, alt) {
     run = run || RUN;
     const d = drawFor(output, alt);
     if (!d || !fs.existsSync(run)) return null;
     const want = displayText(d.display);
     writeIfChanged(path.join(run, 'display'), want);
-    const sa = centre ? safeText(safeAreaFor(output, alt)) : null, sf = path.join(run, 'safearea');
+    const sa = safeText(safeAreaFor(output, alt)), sf = path.join(run, 'safearea');
     if (sa) writeIfChanged(sf, sa);
     else { try { fs.unlinkSync(sf); } catch (e) { /* none */ } }
+    const va = centre === false ? '1' : '0';
+    writeIfChanged(path.join(run, 'viewarea'), va);
     const st = state(run);
     const offeredSafe = st.safearea && st.safearea !== 'none' ? st.safearea : null;
-    return { wanted: want, safearea: sa, pending: (!!st.display && st.display !== want) || (!!st.display && offeredSafe !== sa) };
+    return { wanted: want, safearea: sa, viewarea: Number(va),
+        pending: (!!st.display && st.display !== want) || (!!st.display && offeredSafe !== sa) };
+}
+
+/* The cluster scene for the cards (sceneUrl): written for hook111, which
+ * sends it as showUI while the stream runs (0.1.5; at once, no reconnect),
+ * and the view /info names at the phone's next connection. Returns { url,
+ * sent } (sent: the phone has it), or null without hook111's run directory. */
+function wantScene(o, run) {
+    run = run || RUN;
+    if (!fs.existsSync(run)) return null;
+    const url = sceneUrl(o);
+    writeIfChanged(path.join(run, 'url'), url);
+    writeIfChanged(path.join(run, 'view'), o.directions ? 'cluster' : 'map');
+    return { url: url, sent: state(run).uiUrl === url };
+}
+
+/* Zoom the cluster map: "in" or "out", taken by hook111 (0.1.5) within half
+ * a second while the stream runs. */
+function requestZoom(dir, run) {
+    run = run || RUN;
+    if (dir !== 'in' && dir !== 'out') throw new Error('zoom is in or out');
+    if (!fs.existsSync(run)) return false;
+    const f = path.join(run, 'zoom'), tmp = f + '.tmp.' + process.pid;
+    fs.writeFileSync(tmp, dir + '\n', { mode: 0o644 });
+    fs.renameSync(tmp, f);
+    return true;
 }
 
 /* Ask for a cluster view: the hook offers it at the phone's next connection.
@@ -256,4 +310,4 @@ function switchState(o) {
     return { installed: true, on: saved === 'alt', saved: saved, pending: pending };
 }
 
-module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, DEFAULT_PORT, state, savedMode, setMode, switchState, drawFor, safeAreaFor, safeText, wantDisplay, wantView, inputArgs, outputArgs, readKv, displayText };
+module.exports = { TARGETS, RUN, VAR, ARM, MODES, VIEWS, VIEW_TITLES, DEFAULT_PORT, state, savedMode, setMode, switchState, drawFor, safeAreaFor, safeText, wantDisplay, wantView, sceneUrl, wantScene, requestZoom, inputArgs, outputArgs, readKv, displayText };

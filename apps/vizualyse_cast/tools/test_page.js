@@ -138,9 +138,9 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'castQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['castCarplayCentre', 'castCarplayHud', 'castCarplayHudAlt', 'castCarplayMap', 'castCarplayOn', 'castCarplayView',
+    assert.deepStrictEqual(buttons, ['castCarplayCentre', 'castCarplayDirections', 'castCarplayEta', 'castCarplayHud', 'castCarplayHudAlt', 'castCarplayMap', 'castCarplayOn', 'castCarplayZoomIn', 'castCarplayZoomOut',
         'castConsole', 'castEnable', 'castHud', 'castMap', 'castQrToggle', 'castStop']);
-    console.log('ok   page: 12 buttons, a QR graphic, xml and uiDescription agree');
+    console.log('ok   page: 15 buttons, a QR graphic, xml and uiDescription agree');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -194,19 +194,27 @@ async function main() {
     await until('hook111 off sent', () => received.some((c) => c.cmd === 'hook111' && c.mode === 'off'));
     console.log('ok   the switch: disabled without hook111; on / off sends hook111 alt / off; shows when it applies');
 
-    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { view: { wanted: 'cluster', title: 'map and directions', offered: 'cluster', pending: null } }) });
+    st = Object.assign({}, st, { state: 'playing', carplay: Object.assign({}, st.carplay, { ready: true, cards: { directions: true, eta: true, url: 'maps:/car/instrumentcluster?showETA=yes', pending: null } }) });
     control.broadcast();
-    await until('view shown', () => byName.castCarplayView.enabled === true && byName.castCarplayView.text === 'CarPlay cluster view: map and directions');
+    await until('cards shown', () => byName.castCarplayDirections.enabled === true && byName.castCarplayDirections.text === 'CarPlay directions card: on' &&
+        byName.castCarplayEta.text === 'CarPlay time / distance card: on');
     await sleep(450);
-    byName.castCarplayView.emit('action');
-    await until('view map sent', () => received.some((c) => c.cmd === 'carplayView' && c.view === 'map'));
-    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { view: { wanted: 'card', title: 'directions only', offered: 'cluster', pending: 'from the phone\'s next connection' } }) });
+    byName.castCarplayDirections.emit('action');
+    await until('directions off sent', () => received.some((c) => c.cmd === 'carplayCards' && c.directions === false && c.eta === undefined));
+    await sleep(450);
+    byName.castCarplayEta.emit('action');
+    await until('time / distance off sent', () => received.some((c) => c.cmd === 'carplayCards' && c.eta === false && c.directions === undefined));
+    st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { cards: { directions: false, eta: false, url: 'maps:/car/instrumentcluster/map', pending: null } }) });
     control.broadcast();
-    await until('view card, pending', () => byName.castCarplayView.text === 'CarPlay cluster view: directions only (from the phone\'s next connection)');
+    await until('cards shown off', () => byName.castCarplayDirections.text === 'CarPlay directions card: off' && byName.castCarplayEta.text === 'CarPlay time / distance card: off');
+    await until('zoom enabled while the CarPlay picture plays', () => byName.castCarplayZoomIn.enabled === true && byName.castCarplayZoomOut.enabled === true);
     await sleep(450);
-    byName.castCarplayView.emit('action');
-    await until('view cluster sent (it wraps round)', () => received.some((c) => c.cmd === 'carplayView' && c.view === 'cluster'));
-    console.log('ok   the cluster view: shows the view and when it applies; each press sends the next (map and directions -> map only -> directions only -> ...)');
+    byName.castCarplayZoomIn.emit('action');
+    await until('zoom in sent', () => received.some((c) => c.cmd === 'carplayZoom' && c.dir === 'in'));
+    await sleep(450);
+    byName.castCarplayZoomOut.emit('action');
+    await until('zoom out sent', () => received.some((c) => c.cmd === 'carplayZoom' && c.dir === 'out'));
+    console.log('ok   the cluster cards: each shown and toggled on its own (carplayCards); zoom in / out sent while the CarPlay picture plays');
 
     st = Object.assign({}, st, { carplay: Object.assign({}, st.carplay, { centre: { on: true, safearea: '322,80,340,330', offered: '322,80,340,330', pending: null } }) });
     control.broadcast();

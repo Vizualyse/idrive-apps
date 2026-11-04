@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.5
+
+- CarPlay directions card: on / off, and CarPlay time / distance card: on /
+  off. Each applies at once on the cluster (no reconnect).
+- CarPlay map: zoom in / zoom out, while the CarPlay picture plays.
+- CarPlay: centre the map now switches at once too.
+- The "CarPlay cluster view" button is gone (the two card buttons replace
+  it).
+- Requires vizualyse-cast 0.3.7 (and hook111 0.1.5 for the live changes).
+
 ## 0.3.4
 
 - CarPlay: centre the map: on / off (on by default). The phone centres the

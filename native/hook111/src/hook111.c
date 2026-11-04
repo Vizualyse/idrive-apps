@@ -19,8 +19,10 @@
  *          is up the session counts as having a screen, so it stays active
  *          (timing running, no keep-alive timeout) without a stream 110.
  *  commands AirPlayReceiverSessionControl (0x183bf0) is wrapped: the phone's
- *          suggestUI is answered with showUI. hook111_send_command sends any
- *          command (updateViewArea, ...) the library's own way.
+ *          suggestUI is logged, not answered. hook111_send_command sends any
+ *          command the library's own way; while screen B streams, the
+ *          consumer's scene URL goes as showUI, its view area as
+ *          updateViewArea and its zoom requests as changeMapZoomLevel.
  *  frames  The four ScreenStream functions are replaced by equivalents: calls
  *          for screen B's context go to the sink; all others do what the stock
  *          code does.
@@ -124,6 +126,7 @@ static void *make_tramp(const unsigned char *code, size_t n, uintptr_t resume_gh
 }
 
 static void status_now(int force);   /* the status file, below */
+static void ui_reset(void);           /* the scene and view area, sent again for a new stream (below) */
 static char offered_display[32];     /* WxH@fps of the last /info record, for the status */
 
 /* ---- screen B: the second screen object and its thread ----
@@ -269,6 +272,7 @@ static int setup_111(void *session, CF stream, CF resp) {
     if (rc) goto fail;
     hook111_stats.pump_done = 0;
     current_b = b;
+    ui_reset();
     if (pthread_create(&b->thread, NULL, screen_b_thread, b) != 0) { current_b = NULL; rc = -6700; goto fail; }
     b->have_thread = 1;
     hook111_stats.setups_111++;
@@ -571,21 +575,68 @@ static void set_rect(CF d, int x, int y, int w, int h) {
     k = CFStr("originYPixels"); n = CFNumI64(y); CFDictSet(d, k, n); CFRelease(n); CFRelease(k);
 }
 /* viewAreas [{the whole W x H, safeArea}] and initialViewArea 0 into rec: 1 if added */
-static int add_viewareas(CF rec, int W, int H) {
-    int x, y, w, h;
-    CF no = cf_false();
-    if (!safearea_now(W, H, &x, &y, &w, &h) || !no) { offered_safearea[0] = 0; return 0; }
-    CF view = CFDictCreate(), safe = CFDictCreate(), areas = CFArrayCreate(), k, n;
+/* a small text file into b (NUL-terminated, a trailing newline dropped): its length, or -1 */
+static int read_small(const char *path, char *b, size_t n) {
+    if (!path || !path[0]) return -1;
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t r = read(fd, b, n - 1); close(fd);
+    if (r < 0) return -1;
+    b[r] = 0;
+    while (r > 0 && (b[r - 1] == '\n' || b[r - 1] == '\r')) b[--r] = 0;
+    return (int)r;
+}
+
+/* ---- the view area in use: 0 the safe area (centred), 1 Maps' own layout ----
+ * hook111_viewarea_file holds "0" or "1" (missing or anything else: 0). It
+ * picks initialViewArea at /info and, while screen B streams, a change is
+ * sent as updateViewArea, which the phone applies at once (on the car,
+ * 2026-11-04: the two layouts switched both ways with no reconnect). */
+static char viewarea_path[256];
+static int offered_viewareas;        /* this /info offered both view areas */
+static int offered_va;               /* initialViewArea of the last /info */
+static char ui_url_sent[512];        /* the scene URL the phone last took, this stream */
+static volatile int ui_need = 1;     /* a new stream: send the URL again */
+static int ui_va_sent;               /* the view area the phone is in */
+void hook111_viewarea_file(const char *path) {
+    viewarea_path[0] = 0;
+    if (path && strlen(path) < sizeof viewarea_path) strcpy(viewarea_path, path);
+}
+static int viewarea_now(void) {
+    char b[8];
+    return read_small(viewarea_path, b, sizeof b) > 0 && !strcmp(b, "1") ? 1 : 0;
+}
+static CF view_area(int W, int H, int x, int y, int w, int h, CF no) {
+    CF view = CFDictCreate(), safe = CFDictCreate(), k;
     set_rect(view, 0, 0, W, H);
     set_rect(safe, x, y, w, h);
     k = CFStr("drawUIOutsideSafeArea"); CFDictSet(view, k, no); CFRelease(k);
     k = CFStr("viewAreaTransitionControl"); CFDictSet(view, k, no); CFRelease(k);
     k = CFStr("safeArea"); CFDictSet(view, k, safe); CFRelease(k);
-    CFArrayAppend(areas, view);
+    CFRelease(safe);
+    return view;
+}
+/* the view areas with the current safe area: [0] it, [1] the whole display
+ * (Maps' own layout); initialViewArea from the view area file, and
+ * adjacentViewAreas as the RGI project's MHI3 reference sends it ([] at 0,
+ * [0] at 1). 1 if added. */
+static int add_viewareas(CF rec, int W, int H) {
+    int x, y, w, h;
+    CF no = cf_false();
+    offered_viewareas = 0;
+    if (!safearea_now(W, H, &x, &y, &w, &h) || !no) { offered_safearea[0] = 0; return 0; }
+    int initial = viewarea_now();
+    offered_va = initial;
+    CF areas = CFArrayCreate(), a0 = view_area(W, H, x, y, w, h, no), a1 = view_area(W, H, 0, 0, W, H, no), adj = CFArrayCreate(), k, n;
+    CFArrayAppend(areas, a0); CFArrayAppend(areas, a1);
+    CFRelease(a0); CFRelease(a1);
     k = CFStr("viewAreas"); CFDictSet(rec, k, areas); CFRelease(k);
-    k = CFStr("initialViewArea"); n = CFNumI64(0); CFDictSet(rec, k, n); CFRelease(n); CFRelease(k);
-    CFRelease(areas); CFRelease(safe); CFRelease(view);
+    k = CFStr("initialViewArea"); n = CFNumI64(initial); CFDictSet(rec, k, n); CFRelease(n); CFRelease(k);
+    if (initial) { n = CFNumI64(0); CFArrayAppend(adj, n); CFRelease(n); }
+    k = CFStr("adjacentViewAreas"); CFDictSet(rec, k, adj); CFRelease(k);
+    CFRelease(adj); CFRelease(areas);
     snprintf(offered_safearea, sizeof offered_safearea, "%d,%d,%d,%d", x, y, w, h);
+    offered_viewareas = 1;
     return 1;
 }
 
@@ -622,6 +673,8 @@ static void status_now(int force) {
             x->enabled_features, x->info_records, x->suggest_ui, x->commands_sent, x->keyframe_requests, x->sent_files, x->last_send_rc, x->teardowns, x->logged);
     fprintf(f, "idle_held=%d\nidle_rc=%d\n", x->idle_held, x->idle_rc);
     fprintf(f, "features=%s\ninfo_extra_a=%d\ninfo_extra_b=%d\n", answered_features, x->info_extra_a, x->info_extra_b);
+    fprintf(f, "ui_url=%s\nui_sent=%d\nui_rc=%d\nviewarea=%d\nva_sent=%d\nzoom_sent=%d\n",
+            ui_url_sent[0] ? ui_url_sent : "none", x->ui_sent, x->ui_rc, ui_va_sent, x->va_sent, x->zoom_sent);
     if (hook111_status_extra) hook111_status_extra(f);
     fclose(f);
     rename(q, p);
@@ -817,6 +870,73 @@ int hook111_request_keyframe(void) {
     return rc;
 }
 
+/* ---- the cluster scene, the view area and zoom, from the consumer ----
+ * Files the consumer (vizualyse-cast) writes; checked from screen B's frame
+ * pump, so only while its stream is decodable, at most every 500 ms:
+ *  url       the scene: sent as showUI {uuid, url} once per stream and again
+ *            when it changes. Its query sets the cards: showETA=yes|no,
+ *            maneuverLayout=..., showSpeedLimit=... (DashBoard's
+ *            applySettingsForClusterURL, per luka-dev/mib2q-carplay-rgi). On the
+ *            car (2026-11-04) these applied at once from showUI and not from
+ *            /info's initialURL; showUI did not cost the main screen.
+ *  viewarea  "0" / "1": sent as updateViewArea when it differs from what the
+ *            phone was last given (needs both view areas offered at /info).
+ *  zoom      "in" / "out": taken (renamed, read, removed) and sent as
+ *            changeMapZoomLevel {uuid, zoomDirection 0 in / 1 out}. */
+static char url_path[256], zoom_path[256];
+void hook111_url_file(const char *path) { url_path[0] = 0; if (path && strlen(path) < sizeof url_path) strcpy(url_path, path); }
+void hook111_zoom_file(const char *path) { zoom_path[0] = 0; if (path && strlen(path) < sizeof zoom_path) strcpy(zoom_path, path); }
+static void ui_reset(void) { ui_need = 1; ui_url_sent[0] = 0; ui_va_sent = offered_va; }
+
+static int send_with_uuid(void *session, const char *type, CF params) {
+    CF u = CFStr(disp.uuid);
+    CFDictSet(params, K_UUID, u); CFRelease(u);
+    int rc = hook111_send_command(session, type, params);
+    CFRelease(params);
+    return rc;
+}
+static void ui_poll(struct screen_b *b, int force) {
+    static long long last;
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    long long now = (long long)t.tv_sec * 1000000000LL + t.tv_nsec;
+    if (!b || !b->started || (!force && last && now - last < 500000000LL)) return;
+    last = now;
+    char url[512];
+    if (read_small(url_path, url, sizeof url) > 0 && (ui_need || strcmp(url, ui_url_sent))) {
+        CF p = CFDictCreate(), s = CFStr(url);
+        CFDictSet(p, K_URL, s); CFRelease(s);
+        int rc = send_with_uuid(b->session, "showUI", p);
+        hook111_stats.ui_rc = rc;
+        if (rc == 0) { snprintf(ui_url_sent, sizeof ui_url_sent, "%s", url); ui_need = 0; hook111_stats.ui_sent++; }
+        status_now(1);
+    }
+    int va = viewarea_now();
+    if (offered_viewareas && va != ui_va_sent) {
+        CF p = CFDictCreate(), adj = CFArrayCreate(), n, k;
+        n = CFNumI64(va); k = CFStr("viewAreaIndex"); CFDictSet(p, k, n); CFRelease(k); CFRelease(n);
+        if (va) { n = CFNumI64(0); CFArrayAppend(adj, n); CFRelease(n); }
+        k = CFStr("adjacentViewAreas"); CFDictSet(p, k, adj); CFRelease(k); CFRelease(adj);
+        n = CFNumI64(300); k = CFStr("animationDurationMillis"); CFDictSet(p, k, n); CFRelease(k); CFRelease(n);
+        int rc = send_with_uuid(b->session, "updateViewArea", p);
+        if (rc == 0) { ui_va_sent = va; hook111_stats.va_sent++; }
+        status_now(1);
+    }
+    if (zoom_path[0]) {
+        char taken[sizeof zoom_path + 8], z[16];
+        snprintf(taken, sizeof taken, "%s.taken", zoom_path);
+        if (rename(zoom_path, taken) == 0) {
+            int dir = read_small(taken, z, sizeof z) > 0 ? (!strcmp(z, "in") ? 0 : !strcmp(z, "out") ? 1 : -1) : -1;
+            unlink(taken);
+            if (dir >= 0) {
+                CF p = CFDictCreate(), n = CFNumI64(dir), k = CFStr("zoomDirection");
+                CFDictSet(p, k, n); CFRelease(k); CFRelease(n);
+                if (send_with_uuid(b->session, "changeMapZoomLevel", p) == 0) hook111_stats.zoom_sent++;
+                status_now(1);
+            }
+        }
+    }
+}
+
 /* suggestUI is accepted and logged, and NOT answered. On the unit
  * (2026-11-04, iOS 26.7.1) the phone sent suggestUI {urls: []}; the hook's
  * guessed answer, showUI {url: maps:/car/instrumentcluster, uuid: <screen B>},
@@ -913,7 +1033,7 @@ static void my_ss_stop(void *ss) {
 }
 static int my_ss_frame(void *ss, const void *p, size_t n, uint64_t ts, void *x, void (*cb)(void *), void *arg) {
     (void)x;
-    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_frames++; hook111_stats.b_frame_bytes += (long long)n; if (sink && sink->frame) sink->frame(p, n, ts); status_now(hook111_stats.b_frames == 1); }
+    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_frames++; hook111_stats.b_frame_bytes += (long long)n; if (sink && sink->frame) sink->frame(p, n, ts); status_now(hook111_stats.b_frames == 1); ui_poll(current_b, 0); }
     else FN(void (*)(const void *, size_t, uint64_t, void *), 0x19b8e0)(p, n, (ts * 0x434a900ull) / 1000000000ull, ss_ctx(ss));
     if (cb) cb(arg);
     return 0;

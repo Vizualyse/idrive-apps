@@ -28,7 +28,7 @@ ffmpeg listens again.
 
 | Output | The phone draws | Sent to cluster-render |
 |---|---|---|
-| Cluster map | 984x480, placed at x 52-1036 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side; the map reaches 60 px into it for a wider picture). Safe area 340x330 at 322,40 when centring | as drawn, 984x480 at up to 20 fps (cluster-render's governor keeps the link within its cap) |
+| Cluster map | 984x480, placed at x 52-1036 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side; the map reaches 60 px into it for a wider picture). Safe area 340x435 at 322,20 when centring | as drawn, 984x480 at up to 20 fps (cluster-render's governor keeps the link within its cap) |
 | HUD | by default the cluster map's picture (984x480, its safe area); in the HUD's alternate mode 1056x384, the band's own shape, no safe area | 528x192 at 15 fps, fitted (black either side by default), in the band (17-83 % of the width, 25-65 % of the height) |
 
 **The switch** (the iDrive page and the phone page, "CarPlay second screen:
@@ -46,21 +46,32 @@ The tool writes the wanted size to `/run/hook111/display`; the phone gets it
 at its next connection, and until then the stream is scaled to fit. The page
 and the iDrive page show whether hook111 is ready, and why not.
 
-**The cluster view** (the style; "CarPlay cluster view" on both pages) is one
-of map and directions (`cluster`, the default), map only (`map`) or
-directions only (`card`). It is kept in the tool's settings and written to
-`/run/hook111/view`, rewritten every 5 s in case that directory is new. hook111
-names the view to the phone as `initialURL` at its next connection. The
-commands are `{"cmd":"carplayView","view":…}` on the control socket and
-`POST /api/carplay-view` from the phone page. Seen on the car (2026-11-04):
-the phone follows it ("map only" dropped the directions card).
+**The cluster cards** ("CarPlay directions card" / "CarPlay time / distance
+card" on the iDrive page, two checkboxes on the phone page; both on by
+default): the tool writes the scene for them to `/run/hook111/url`
+(`carplay_screen.sceneUrl`), and hook111 0.1.5 sends it to the phone as
+`showUI` while the stream runs: at once, no reconnect. Found on the car
+(2026-11-04, Google Maps): `?showETA=yes` both cards, `?showETA=no`
+directions only, `?showETA=yes&maneuverLayout=topAligned` the time /
+distance card only on the centred area (on a wide area that shows both, so
+there `/map?showETA=yes`: the card bottom right), `/map` neither. The
+options only apply through `showUI`, not `/info`'s `initialURL`; the view
+/info names (`/run/hook111/view`) follows the directions card. The commands
+are `{"cmd":"carplayCards","directions":…,"eta":…}` and
+`POST /api/carplay-cards`.
+
+**Zoom** ("CarPlay map: zoom in / out", "−" / "+" on the phone page): a
+request in `/run/hook111/zoom` that hook111 sends as `changeMapZoomLevel`.
+`{"cmd":"carplayZoom","dir":"in"|"out"}`, `POST /api/carplay-zoom`.
 
 **Centring** ("CarPlay: centre the map" on the iDrive page, "Centre the map"
 on the phone page; on by default): the tool writes the target's safe area to
-`/run/hook111/safearea` (`x,y,w,h`; the map's 340x330 at y 40, centred across
-its width; the HUD uses the map's), with the size, when it plays and when the
-switch changes. On the car y 40 put the car and the card 40 px higher than
-y 80; a taller area pushed the car down instead. hook111 (0.1.4) puts it into `/info` as `viewAreas` and
+`/run/hook111/safearea` (`x,y,w,h`; the map's 340x435 at y 20, centred across
+its width; the HUD uses the map's) with the size when it plays, and the view
+area to `/run/hook111/viewarea`: 0 centred, 1 Maps' own layout. hook111 0.1.5
+offers both view areas and switches between them at once (`updateViewArea`).
+On the car the directions card follows the area's top edge and the time /
+distance card its bottom; 340x435 at y 20 was the owner's pick. hook111 (0.1.4) puts it into `/info` as `viewAreas` and
 answers `viewAreas` at SETUP; the phone centres its view on it from its next
 connection. On the car (2026-11-04, Google Maps): the car centred, the
 directions card above it. Without a safe area Google Maps puts the car low
@@ -69,7 +80,8 @@ and a quarter across, the card top right. The commands are
 
 **The HUD's alternate mode** ("CarPlay HUD alternate mode" / "HUD alternate
 mode"; off by default): with it, the CarPlay picture on the HUD is the wide
-1056x384 that fills the HUD's band, not centred; without, the HUD shows the
+1056x384 that fills the HUD's band, not centred, with the time / distance
+card only (bottom right); without, the HUD shows the
 cluster's centred picture, fitted into the band. Written at once while the
 picture is on the HUD (the phone takes it when it reconnects). The commands
 are `{"cmd":"carplayHudAlt","on":…}` and `POST /api/carplay-hud-alt`.
@@ -90,7 +102,7 @@ layouts) was removed in 0.3.0.
 | `pcm_play.py` | root, mgu-python | plays the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` source |
 | `console_out.js` | root | the media console output: frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_cast` (MGVF, 3 slots), drawn by an mgu-render client in layer mode in the screen's app area |
 | `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start (while on), removed at stop, when turned off and by the tool's `deactivate` |
-| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, hook111, carplayView, carplayCentre, carplayHudAlt, enable, disable, the cluster QR code |
+| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, hook111, carplayCards, carplayZoom, carplayCentre, carplayHudAlt, enable, disable, the cluster QR code |
 | `carplay_screen.js` | root | the CarPlay second screen: hook111's state, the size and the cluster view to ask for, ffmpeg's arguments |
 
 Frame sizes keep within cluster-render's 5500 KB/s upload ceiling: for a

@@ -43,16 +43,36 @@ workflow (Actions > Release, the component ids).
   file; the tool writes it, centred, behind "Centre the map" (on by default).
   The HUD shows the cluster's centred picture, or in its alternate mode the
   wide 1056x384 with no safe area. Shape and vignette removed.
-- [ ] **On the car (next session):** install hook111 0.1.4 + vizualyse-cast
-  0.3.6 + vizualyse_cast 0.3.4 from the Store; check the centred layout at
-  984 wide, the HUD both ways, and the native size while driving (packed
-  frames when the map moves fast?).
-  - Google Maps' time / distance-left pill (the other car's screenshot): not
-    shown by any safe area tried (2026-11-04: 600x400, 340x330 at y 80, 40
-    and 0, 340x400). Next: map-only view with the safe area; then what else
-    the other car tells the phone (iAP2 route guidance is the fallback).
-- [ ] **Open protocol questions:** what `showUI` and `primaryInputDevice`
-  should contain.
+- [x] **On the car (2026-11-04, hook111 0.1.4, vizualyse-cast 0.3.6) with
+  the bench channel** (findings, "The cluster scene: showUI and its URL"):
+  - the time / distance card: `showUI {uuid, url}` with `showETA=yes`
+    (`initialURL` options are ignored); the directions card stays unless a
+    `maneuverLayout` is named on the narrow area; all four card combinations
+    switch live;
+  - zoom in / out: `changeMapZoomLevel {uuid, zoomDirection 0 / 1}`, live;
+  - layout switching: `updateViewArea {uuid, viewAreaIndex,
+    adjacentViewAreas, animationDurationMillis}` with two view areas, live;
+  - the layout the owner settled on: safe area 340x435 at y 20 (984x480);
+  - HUD: the default (the cluster's picture) looks fine; the wide alternate
+    mode is better with the time / distance card only, bottom right
+    (`/map?showETA=yes`);
+  - no effect: the declared physical size (150 vs 180 mm) on the card size;
+    `showCompass=yes` (Google Maps draws none).
+- [x] **Build it in** (hook111 0.1.5, vizualyse-cast 0.3.7, vizualyse_cast
+  0.3.5): the hook sends `showUI` with the tool's URL when the stream starts
+  and on a change, zoom requests, and the view area (centred / Maps' own)
+  live; the tool's directions / time-distance switches and zoom buttons.
+- [ ] **On the car (still to test):**
+  - the speed-limit sign (`showSpeedLimit=yes`) while driving on a road with
+    a known limit (none showed parked on a residential street);
+  - the native-size map while driving (packed frames when it moves fast?);
+  - the built-in version of the above after the next release.
+- [ ] **30 fps from Maps** (now ~16-17 fps): the iAP2 IdentificationInformation
+  profile ID `bf889dfdaea54096` (`mapsRefreshRate=30`, luka-dev/mib2q-carplay-rgi
+  `docs/altscreen-and-video/MAPS_30FPS_PROFILE.md`). Find where our `carplay`
+  sends the identification (Cinemo's iAP2 stack), add the parameter in the
+  harness first.
+- [ ] **Open protocol questions:** what `primaryInputDevice` should contain.
 - [ ] **The session drops every ~40 s while the iDrive shows its own screen.**
   Seen on the car (2026-11-04, hook111 0.1.0, mode alt): with 111 the only
   stream (no 110 main screen, no 102 audio) the phone starts a new session every

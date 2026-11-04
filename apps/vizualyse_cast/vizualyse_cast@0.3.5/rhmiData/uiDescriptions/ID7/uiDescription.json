@@ -306,7 +306,7 @@
         },
         "39": {
           "type": "button",
-          "name": "castCarplayView",
+          "name": "castCarplayDirections",
           "properties": {
             "Visible": {
               "value": 1,
@@ -320,7 +320,7 @@
           "rows": [
             {
               "Text": {
-                "value": "CarPlay cluster view: map and directions",
+                "value": "CarPlay directions card: on",
                 "type": "Text"
               }
             }
@@ -387,6 +387,72 @@
             {
               "Text": {
                 "value": "CarPlay HUD alternate mode: off",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "43": {
+          "type": "button",
+          "name": "castCarplayEta",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay time / distance card: on",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "44": {
+          "type": "button",
+          "name": "castCarplayZoomIn",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay map: zoom in",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "45": {
+          "type": "button",
+          "name": "castCarplayZoomOut",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay map: zoom out",
                 "type": "Text"
               }
             }

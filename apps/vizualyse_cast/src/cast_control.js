@@ -8,7 +8,7 @@
  * {"cmd":"replay","output":"map"|"hud"|"console"|"none"},
  * {"cmd":"carplay","output":"map"|"hud"} (the CarPlay second screen),
  * {"cmd":"hook111","mode":"off"|"alt"} (the second screen's switch),
- * {"cmd":"carplayView","view":"cluster"|"map"|"card"} (its cluster view),
+ * {"cmd":"carplayCards","directions":…,"eta":…} (the cluster cards), {"cmd":"carplayZoom","dir":"in"|"out"},
  * {"cmd":"carplayCentre","on":…} (the phone centres its cluster view), {"cmd":"carplayHudAlt","on":…},
  * {"cmd":"enable"}, {"cmd":"disable"} and {"cmd":"qr","show":true|false}. Connected while the page is visible,
  * retried once a second; the tool keeps running without it.
@@ -85,11 +85,9 @@ class CastControl extends EventEmitter {
     disable() { return this._send({ cmd: 'disable' }); }
     carplay(output) { return this._send({ cmd: 'carplay', output: output }); }
     setCarplayOn(on) { return this._send({ cmd: 'hook111', mode: on ? 'alt' : 'off' }); }
-    /* the next cluster view: map and directions -> map only -> directions only -> ... */
-    nextCarplayView() {
-        const order = ['cluster', 'map', 'card'], cur = this.carplayView().wanted;
-        return this._send({ cmd: 'carplayView', view: order[(order.indexOf(cur) + 1) % order.length] });
-    }
+    /* the cluster cards (each on or off) and zoom */
+    setCarplayCards(cards) { return this._send(Object.assign({ cmd: 'carplayCards' }, cards)); }
+    zoom(dir) { return this._send({ cmd: 'carplayZoom', dir: dir }); }
     replay(output) { return this._send({ cmd: 'replay', output: output }); }
     setQr(show) { return this._send({ cmd: 'qr', show: !!show }); }
 
@@ -117,12 +115,12 @@ class CastControl extends EventEmitter {
         const c = this.carplayCentre();
         return 'CarPlay: centre the map: ' + (c.on ? 'on' : 'off') + (c.pending ? ' (' + c.pending + ')' : '');
     }
-    /* the cluster view: { wanted, title, offered, pending } */
-    carplayView() { return (this.status && this.status.carplay && this.status.carplay.view) || { wanted: 'cluster', title: null, pending: null }; }
-    viewText() {
-        const v = this.carplayView();
-        if (!this.status || !v.title) return 'CarPlay cluster view: —';
-        return 'CarPlay cluster view: ' + v.title + (v.pending ? ' (' + v.pending + ')' : '');
+    /* the cluster cards: { directions, eta, url, pending } */
+    carplayCards() { return (this.status && this.status.carplay && this.status.carplay.cards) || null; }
+    cardText(which) {
+        const c = this.carplayCards(), name = which === 'eta' ? 'time / distance' : 'directions';
+        if (!c) return 'CarPlay ' + name + ' card: —';
+        return 'CarPlay ' + name + ' card: ' + (c[which] ? 'on' : 'off');
     }
     link() { return (this.status && this.status.link) || ''; }
     canReplay() { return !!(this.status && this.status.canReplay); }
