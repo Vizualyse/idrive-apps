@@ -229,7 +229,7 @@ function play(opts) {
         /* the size the phone should draw at (from its next connection), and
          * what goes on to the renderer */
         const t = carplay.TARGETS[opts.output];
-        o = Object.assign({}, o, { w: t.w, h: t.h, fps: t.fps });
+        o = Object.assign({}, o, { w: t.w, h: t.h, fps: t.fps }, t.xband ? { xband: t.xband } : {}, t.band ? { band: t.band } : {});
         try {
             const d = carplay.wantDisplay(opts.output);
             if (d) log('carplay: asking for ' + d.wanted + (d.pending ? ' (the phone is on another size until it reconnects: scaled)' : ''));

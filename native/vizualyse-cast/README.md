@@ -28,7 +28,7 @@ ffmpeg listens again.
 
 | Output | The phone draws | Sent to cluster-render |
 |---|---|---|
-| Cluster map | 1088x480 (the `map` target) | 816x360 at 12 fps, scaled up by the renderer |
+| Cluster map | 864x480, placed at x 112-976 of the 1088x480 `map` target (calibrated on the car: the cluster's soft vignette hides the outer ~130 px each side) | 648x360 at 12 fps, scaled up by the renderer |
 | HUD | 1056x384 (the shape of the HUD's visible band) | 528x192 at 15 fps, in the band (17-83 % of the width, 25-65 % of the height) |
 
 **The switch** (the iDrive page and the phone page, "CarPlay second screen:
