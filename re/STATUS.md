@@ -227,9 +227,23 @@ Nothing else on the unit was changed. Everything else was read-only.
    arm step, units, drop-ins (`deploy/hook111/`). Nothing on `/` changes: a
    static drop-in reads `/run/hook111/env`, which only the arm step writes, so
    every reboot starts stock until it arms again. Off after 2 failed starts.
+   A crash is caught two ways:
+   - the shutdown mark (a `var-opt-ro` drop-in);
+   - `hook111-health`, which watches `carplay` for the whole armed start and
+     writes `crashed=<boot>` the moment a run ends failed.
+
+   The watcher is needed because the mark was **not** written at a
+   `systemctl reboot` on the unit (2026-11-04). Whether it is written at a
+   normal switch-off is still to check (one ignition cycle, disabled).
+   Installed on the unit 2026-11-04 (0.0.1, then 0.0.2), disabled. A stock
+   boot with it installed was checked: `carplay` without the preload, the
+   drop-in loaded, no `/run/hook111`, the arm step `not armed: disabled`.
+   Found there: sshd's host keys are in `/run/sshd`, new at every boot; and
+   the journal is volatile and had rotated within 5 minutes, so the state
+   file and the plist log are the record, not `journalctl`.
    Built with the repo's packer:
    `node release/tool_artifact.js re/deploy/hook111 --out <dir>` runs
-   `build.sh` (gcc in the glibc-2.27 image) and gives `hook111@0.0.1.tgz`,
+   `build.sh` (gcc in the glibc-2.27 image) and gives `hook111@<version>.tgz`,
    byte-identical across two builds. The library needs nothing newer than
    GLIBC_2.17, and exports only `dlopen` and `hook111_preload_state`. The
    shipped `.so` passes the preload test. It stays out of `native/` on

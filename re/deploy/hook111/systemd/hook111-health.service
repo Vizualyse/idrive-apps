@@ -1,12 +1,13 @@
 [Unit]
-Description=hook111: mark this start healthy once carplay has run 60 s with the hook
+Description=hook111: watch carplay for an armed start (healthy after 60 s; a crash recorded at once)
 RequiresMountsFor=/var/opt
 After=hook111-arm.service carplay.service
 
 [Service]
 Type=simple
-# Reads systemctl and /proc/<carplay>/maps once a second, writes its state
-# once, and exits (at the latest after 15 min). Never touches carplay.
+# An armed start only (otherwise it exits at once): checks /proc/<carplay>
+# every second and systemctl every 5 s (bounded), writes its state on
+# /var/opt when carplay turns healthy or crashes. Never touches carplay.
 ExecStart=-/bin/sh /var/opt/hook111/current/hook111-arm.sh health
 StandardOutput=journal
 StandardError=journal

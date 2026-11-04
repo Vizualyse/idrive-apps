@@ -13,6 +13,7 @@ cat >"$BB/systemctl" <<'EOF'
 #!/bin/sh
 D=${FAKE_SYS:?}
 [ -e "$D/hang" ] && sleep 30
+if [ "$1" = is-system-running ]; then cat "$D/system" 2>/dev/null || echo running; exit 0; fi
 [ "$1" = show ] || exit 1
 shift 2
 while [ $# -gt 0 ]; do
@@ -22,7 +23,7 @@ done
 EOF
 chmod +x "$BB/systemctl"
 export PATH="$BB" FAKE_SYS="$T/sys"
-export HOOK111_ROOT="$T/root" HOOK111_BOOT_ID_FILE="$T/boot_id" HOOK111_PROC="$T/proc" HOOK111_HEALTHY_AFTER=2 HOOK111_HEALTH_GIVE_UP=8
+export HOOK111_ROOT="$T/root" HOOK111_BOOT_ID_FILE="$T/boot_id" HOOK111_PROC="$T/proc" HOOK111_HEALTHY_AFTER=2 HOOK111_WATCH_FOR=4
 S=$SRC/hook111-arm.sh
 R=$T/root; V=$R/var/opt/hook111
 mkdir -p "$R/usr/lib/cinemo" "$V/current" "$T/sys" "$T/proc"
@@ -68,7 +69,7 @@ check "reset: armed again" 'armed && [ "$(st fails)" = 0 ]'
 echo "== healthy, then a clean shutdown"
 carplay active success; echo 4242 >"$T/sys/MainPID"; mkdir -p "$T/proc/4242"; echo "7f00-7f01 r-xp 0 0:0 0 $OURS" >"$T/proc/4242/maps"
 t0=$(date +%s); sh "$S" health >"$T/out" 2>&1; t1=$(date +%s)
-check "health: marked after carplay ran with the hook (${HOOK111_HEALTHY_AFTER} s)" '[ "$(st healthy)" = "$(cat $T/boot_id)" ] && [ $((t1 - t0)) -le 5 ]'
+check "health: marked after carplay ran with the hook (${HOOK111_HEALTHY_AFTER} s)" '[ "$(st healthy)" = "$(cat $T/boot_id)" ] && [ $((t1 - t0)) -le 7 ]'
 sh "$S" mark; newboot; boot
 check "healthy + running at the mark: counter clear, armed" 'armed && [ "$(st fails)" = 0 ]'
 
@@ -91,7 +92,42 @@ check "switched off before healthy (mark running): not counted" '[ "$(st fails)"
 echo "== health: the hook not in carplay"
 echo "7f00-7f01 r-xp 0 0:0 0 /usr/lib/libc.so.6" >"$T/proc/4242/maps"
 sh "$S" health >"$T/out" 2>&1
-check "not loaded: never healthy, gives up" '[ "$(st healthy)" != "$(cat $T/boot_id)" ] && grep -q "gave up" "$T/out"'
+check "not loaded: never healthy" '[ "$(st healthy)" != "$(cat $T/boot_id)" ] && grep -q "watched" "$T/out"'
+sh "$S" reset >/dev/null
+echo "7f00-7f01 r-xp 0 0:0 0 $OURS" >"$T/proc/4242/maps"
+
+echo "== the watcher: crashes it sees itself (no shutdown mark)"
+export HOOK111_WATCH_FOR=12
+crash_while_watched() {   # $1: seconds of a healthy run before carplay dies
+    carplay active success; echo 4242 >"$T/sys/MainPID"; mkdir -p "$T/proc/4242"; echo "7f00-7f01 r-xp 0 0:0 0 $OURS" >"$T/proc/4242/maps"
+    sh "$S" health >"$T/out" 2>&1 & w=$!
+    sleep "$1"; carplay failed core-dump; echo 0 >"$T/sys/MainPID"; rm -rf "$T/proc/4242"
+    t0=$(date +%s); wait $w; t1=$(date +%s)
+}
+freshboot; boot; sh "$S" reset >/dev/null   # counting starts here
+crash_while_watched 4
+check "a crash after healthy: recorded at once (<= 3 s), by the watcher" '[ "$(st crashed)" = "$(cat $T/boot_id)" ] && [ "$(st healthy)" = "$(cat $T/boot_id)" ] && [ $((t1 - t0)) -le 3 ]'
+newboot; boot
+check "the next start counts it, with no mark at all" '[ "$(st fails)" = 1 ] && grep -q "watcher saw carplay crash" "$T/out" && armed'
+crash_while_watched 4; newboot; boot
+check "two such starts: off" '[ "$(st fails)" = 2 ] && ! armed'
+freshboot; boot
+carplay failed core-dump; echo 0 >"$T/sys/MainPID"; rm -rf "$T/proc/4242"
+sh "$S" health >"$T/out" 2>&1
+check "carplay already failed when the watcher starts (a crash at load): recorded" '[ "$(st crashed)" = "$(cat $T/boot_id)" ]'
+freshboot; boot
+carplay active success; echo 4242 >"$T/sys/MainPID"; mkdir -p "$T/proc/4242"
+sh "$S" health >"$T/out" 2>&1 & w=$!
+sleep 3; echo stopping >"$T/sys/system"; carplay failed signal; echo 0 >"$T/sys/MainPID"; rm -rf "$T/proc/4242"; wait $w
+check "carplay ending while the system stops: not a crash" '[ "$(st crashed)" != "$(cat $T/boot_id)" ] && grep -q "system stops" "$T/out"'
+rm -f "$T/sys/system"
+freshboot; boot
+carplay active success; echo 4242 >"$T/sys/MainPID"; mkdir -p "$T/proc/4242" "$T/proc/4343"
+sh "$S" health >"$T/out" 2>&1 & w=$!
+sleep 3; echo 4343 >"$T/sys/MainPID"; rm -rf "$T/proc/4242"; wait $w
+check "a run that ends cleanly and a new one starts: not a crash" '[ "$(st crashed)" != "$(cat $T/boot_id)" ]'
+rm -rf "$T/proc/4343"; echo 4242 >"$T/sys/MainPID"; mkdir -p "$T/proc/4242"; echo "7f00-7f01 r-xp 0 0:0 0 $OURS" >"$T/proc/4242/maps"
+export HOOK111_WATCH_FOR=4
 sh "$S" reset >/dev/null
 
 echo "== refusals"

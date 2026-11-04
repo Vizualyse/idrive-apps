@@ -6,8 +6,10 @@
 #            start's outcome, then write /run/hook111/env (or not)
 #   mark     var-opt-ro.service drop-in, before /var/opt goes read-only at a
 #            shutdown or crash reboot: record how carplay is doing
-#   health   hook111-health.service: a carplay that has run 60 s with the hook
-#            loaded marks this start healthy
+#   health   hook111-health.service, for the whole armed start: a carplay that
+#            has run 60 s with the hook loaded marks the start healthy; a
+#            carplay run that ends failed marks it crashed at once (the reboot
+#            follows within seconds), whatever the shutdown mark does
 #   status | disable | enable | reset
 #
 # Nothing on / changes. The env file is on /run (tmpfs): every reboot, a crash
@@ -15,10 +17,13 @@
 # drop-in only reads it (EnvironmentFile=-/run/hook111/env). This script never
 # stops, kills or restarts anything, and always exits 0.
 #
-# Counting: the last armed start counts as failed when carplay had failed at
-# its shutdown mark, or when it has no mark and never got healthy (power lost,
-# a crash before the mark could run). It counts as good (the counter is
-# cleared) when it got healthy and carplay was running or stopped at the mark.
+# Counting: the last armed start counts as failed when the watcher saw carplay
+# crash, when carplay had failed at its shutdown mark, or when it has no mark
+# and never got healthy (power lost, a crash before anything was recorded). It
+# counts as good (the counter is cleared) when it got healthy, did not crash,
+# and carplay was running or stopped at the mark. The mark is not always
+# written (it was not at a `systemctl reboot` on the unit, 2026-11-04), so the
+# watcher is what catches a crash after the start was healthy.
 # At THRESHOLD failed starts in a row the hook stays off until `reset`.
 
 ROOT=${HOOK111_ROOT:-}
@@ -34,7 +39,7 @@ PROC=${HOOK111_PROC:-/proc}
 SYSTEMCTL=${HOOK111_SYSTEMCTL:-systemctl}
 THRESHOLD=2
 HEALTHY_AFTER=${HOOK111_HEALTHY_AFTER:-60}     # seconds
-HEALTH_GIVE_UP=${HOOK111_HEALTH_GIVE_UP:-900}  # seconds
+WATCH_FOR=${HOOK111_WATCH_FOR:-0}              # seconds the watcher runs; 0: the whole start (tests set it)
 
 log() { echo "hook111-arm: $*"; }
 
@@ -53,21 +58,21 @@ bounded() {
     return $_rc
 }
 
-# state: fails=N armed=<boot id or empty> healthy=<boot id or empty> last=<text>
-fails=0 armed= healthy= last=
+# state: fails=N armed=<boot id> healthy=<boot id> crashed=<boot id> last=<text> (ids or empty)
+fails=0 armed= healthy= crashed= last=
 load_state() {
     [ -f "$STATE" ] || return 0
     while IFS='=' read -r k v; do
         case $k in
         fails) case $v in ''|*[!0-9]*) fails=$THRESHOLD ;; *) fails=$v ;; esac ;;   # unreadable: stay off
-        armed) armed=$v ;; healthy) healthy=$v ;; last) last=$v ;;
+        armed) armed=$v ;; healthy) healthy=$v ;; crashed) crashed=$v ;; last) last=$v ;;
         esac
     done <"$STATE"
 }
 save_state() {   # whole, or not at all: temp file, sync, rename
     mkdir -p "$VAR" 2>/dev/null
     _t="$STATE.tmp.$$"
-    { echo "fails=$fails"; echo "armed=$armed"; echo "healthy=$healthy"; echo "last=$last"; } >"$_t" 2>/dev/null \
+    { echo "fails=$fails"; echo "armed=$armed"; echo "healthy=$healthy"; echo "crashed=$crashed"; echo "last=$last"; } >"$_t" 2>/dev/null \
         && sync && mv -f "$_t" "$STATE" && sync && return 0
     rm -f "$_t"; return 1
 }
@@ -100,7 +105,9 @@ cmd_boot() {
         mark=$(cat "$SHUTDOWN" 2>/dev/null)
         result=none
         [ "${mark%% *}" = "$armed" ] && result=${mark#* }
+        [ "$crashed" = "$armed" ] && result=crashed
         case $result in
+        crashed) fails=$((fails + 1)); why="the watcher saw carplay crash" ;;
         failed) fails=$((fails + 1)); why="carplay had failed at its shutdown" ;;
         running|stopped)
             if [ "$healthy" = "$armed" ]; then fails=0; why="healthy, carplay $result at its shutdown"
@@ -167,32 +174,67 @@ cmd_mark() {
     exit 0
 }
 
+# carplay.service's MainPID, ActiveState and Result, into cp_pid cp_act cp_res
+cp_query() {
+    cp_pid=; cp_act=; cp_res=
+    _o=$(bounded 5 "$SYSTEMCTL" show carplay.service -p MainPID -p ActiveState -p Result) || return 1
+    for _l in $_o; do case $_l in MainPID=*) cp_pid=${_l#*=} ;; ActiveState=*) cp_act=${_l#*=} ;; Result=*) cp_res=${_l#*=} ;; esac; done
+    [ "$cp_pid" = 0 ] && cp_pid=
+    return 0
+}
+
+record_crash() {
+    load_state; crashed=$boot; last="crashed $boot: $1"
+    if save_state; then log "carplay crashed ($1): recorded"; else log "carplay crashed ($1): could not record it"; fi
+}
+
 cmd_health() {
     boot=$(boot_id)
     load_state
     [ -n "$boot" ] && [ "$armed" = "$boot" ] || { log "health: not armed this start"; exit 0; }
-    pid_seen=; since=0; t=0
-    while [ "$t" -lt "$HEALTH_GIVE_UP" ]; do
-        out=$(bounded 5 "$SYSTEMCTL" show carplay.service -p MainPID -p ActiveState)
-        pid=; act=
-        for l in $out; do case $l in MainPID=*) pid=${l#*=} ;; ActiveState=*) act=${l#*=} ;; esac; done
-        if [ "$act" = active ] && [ -n "$pid" ] && [ "$pid" != 0 ] && grep -q "libhook111.so" "$PROC/$pid/maps" 2>/dev/null; then
-            [ "$pid" = "$pid_seen" ] || { pid_seen=$pid; since=$t; }
-            if [ $((t - since)) -ge "$HEALTHY_AFTER" ]; then
-                load_state; healthy=$boot; last="healthy $boot"; save_state
-                log "healthy: carplay $pid ran ${HEALTHY_AFTER} s with the hook"; exit 0
+    pid=; since=0; t=0; marked=0; last_q=-100
+    while [ "$WATCH_FOR" = 0 ] || [ "$t" -lt "$WATCH_FOR" ]; do
+        if [ -n "$pid" ] && [ ! -d "$PROC/$pid" ]; then
+            # the run we watched is gone: ask until systemd has its result (a few seconds)
+            i=0
+            while [ $i -lt 5 ]; do
+                cp_query
+                if [ "$cp_act" = failed ] || { [ -n "$cp_res" ] && [ "$cp_res" != success ]; }; then
+                    sys=$(bounded 5 "$SYSTEMCTL" is-system-running)
+                    if [ "$sys" = stopping ]; then log "carplay ended while the system stops: not a crash"
+                    else record_crash "ActiveState=$cp_act Result=$cp_res"; fi
+                    exit 0
+                fi
+                [ "$cp_act" = active ] && [ -n "$cp_pid" ] && [ "$cp_pid" != "$pid" ] && break   # a new run, the old one ended cleanly
+                [ "$cp_act" = inactive ] && break
+                sleep 1; i=$((i + 1)); t=$((t + 1))
+            done
+            pid=; last_q=$t
+        elif [ $((t - last_q)) -ge 5 ] || [ -z "$pid" ]; then
+            cp_query; last_q=$t
+            if [ "$cp_act" = failed ] || { [ -n "$cp_res" ] && [ "$cp_res" != success ]; }; then
+                # this armed start's carplay failed, also before the watcher first looked (a crash at load)
+                sys=$(bounded 5 "$SYSTEMCTL" is-system-running)
+                [ "$sys" = stopping ] || record_crash "ActiveState=$cp_act Result=$cp_res"
+                exit 0
+            elif [ "$cp_act" = active ] && [ -n "$cp_pid" ] && [ -d "$PROC/$cp_pid" ]; then
+                [ "$cp_pid" = "$pid" ] || { pid=$cp_pid; since=$t; }
             fi
-        else pid_seen=; fi
+        fi
+        if [ "$marked" = 0 ] && [ -n "$pid" ] && [ $((t - since)) -ge "$HEALTHY_AFTER" ] && grep -q "libhook111.so" "$PROC/$pid/maps" 2>/dev/null; then
+            load_state; healthy=$boot; last="healthy $boot"; save_state; marked=1
+            log "healthy: carplay $pid ran ${HEALTHY_AFTER} s with the hook; still watching"
+        fi
         sleep 1; t=$((t + 1))
     done
-    log "health: gave up after ${HEALTH_GIVE_UP} s"; exit 0
+    log "health: watched ${WATCH_FOR} s"; exit 0
 }
 
 case ${1:-} in
 boot) cmd_boot ;;
 mark) cmd_mark ;;
 health) cmd_health ;;
-status) load_state; echo "failed starts: $fails (off at $THRESHOLD)"; echo "armed: ${armed:-no}"; echo "healthy: ${healthy:-no}"
+status) load_state; echo "failed starts: $fails (off at $THRESHOLD)"; echo "armed: ${armed:-no}"; echo "healthy: ${healthy:-no}"; echo "crashed: ${crashed:-no}"
         echo "last: $last"; [ -e "$VAR/disabled" ] && echo "disabled"; [ -r "$RUN/env" ] && { echo "this start:"; cat "$RUN/env"; }; exit 0 ;;
 disable) mkdir -p "$VAR" && touch "$VAR/disabled" && sync; log "disabled from the next start"; exit 0 ;;
 enable) rm -f "$VAR/disabled"; sync; log "enabled from the next start"; exit 0 ;;
