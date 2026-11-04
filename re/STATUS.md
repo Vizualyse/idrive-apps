@@ -271,6 +271,18 @@ Nothing else on the unit was changed. Everything else was read-only.
    - a mode read at every SETUP from `/run/hook111/mode` (`off` / `alt` /
      `full`; `hook111-arm.sh mode <m>`, no reboot), default `off`;
    - a fallback to `off` after 3 refused sessions in a row.
+   **Same day, 0.0.3:** with mode `off` CarPlay connected normally (the hook
+   in-process, answering as stock). With mode `alt` (`altScreen` only) the
+   phone accepted the second display, **set up stream 111 and connected to
+   6031**, and the main screen worked. But no frame reached the sink, and the
+   plist log had filled up with `iAPSendMessage` (212 in minutes) before that
+   SETUP. A working session's stream-110 SETUP carries `latencyMs`,
+   `streamConnectionID`, `type`, `uuid`. 0.0.4 adds:
+   - a status file (`/run/hook111/log/status`: screen B's counters and the
+     sink's);
+   - a separate cap for noisy commands;
+   - a bench channel (`send.plist`, made with `bench/make_command.py`) to send
+     any command without a rebuild.
    Before the first armed boot:
    - check `getcap /usr/bin/carplay` is empty (`carplay` runs as `cia_13002`,
      and file capabilities would make glibc ignore the preload);

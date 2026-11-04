@@ -444,6 +444,45 @@ int main(int argc, char **argv) {
     teardown(session, req111, 0, NULL);
     CHECK("other commands still reach the stock code", FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, CFStr("noSuchCommand"), NULL, NULL, &sresp) != 0);
 
+    /* commands from the bench: <log dir>/send.plist, sent on the phone's next command */
+    {
+        char sp[700], done[700];
+        snprintf(sp, sizeof sp, "%s/send.plist", logdir);
+        CF bc = CFDictCreate(), bp = CFDictCreate(), bt = CFStr("requestUI"), bu = CFStr("maps:/car/instrumentcluster");
+        CFDictSet(bp, K_URL, bu); CFDictSet(bc, K_TYPE, bt); CFDictSet(bc, K_PARAMS, bp);
+        size_t bl = 0; void *bb = FN(void *(*)(CF, size_t *, int *), 0x139750)(bc, &bl, NULL);
+        FILE *bf = fopen(sp, "wb"); fwrite(bb, 1, bl, bf); fclose(bf); free(bb);
+        int sent0 = hook111_stats.sent_files;
+        FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, CFStr("noSuchCommand"), NULL, NULL, &sresp);   /* the phone's next command */
+        free(body); body = NULL;
+        got = read_request(sv[1], line, sizeof line, &body, &nbody, ctype, sizeof ctype);
+        cmd = got == 0 ? FN(CF (*)(const void *, size_t, int *), 0x13a550)(body, nbody, &perr2) : NULL;
+        ctyp = cmd ? CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err) : NULL;
+        cpar = cmd ? CFDictGetTyped(cmd, K_PARAMS, CFDictTypeID(), &err) : NULL;
+        snprintf(done, sizeof done, "%s/send.%d.done", logdir, sent0 + 1);
+        CHECK("bench send.plist: reaches the phone as it is", ctyp && CFEqual(ctyp, bt) && cpar && CFEqual(CFDictGetTyped(cpar, K_URL, CFStrTypeID(), &err), bu));
+        CHECK("bench send.plist: consumed (renamed .done), rc 0 in the status", access(sp, F_OK) != 0 && access(done, F_OK) == 0 && hook111_stats.last_send_rc == 0);
+        bf = fopen(sp, "wb"); fputs("not a plist", bf); fclose(bf);
+        FN(int (*)(void *, int, CF, CF, CF, CF *), 0x183bf0)(session, 1, CFStr("noSuchCommand"), NULL, NULL, &sresp);
+        CHECK("bench send.plist that isn't a command: consumed once, kFormatErr, nothing sent", access(sp, F_OK) != 0 && hook111_stats.last_send_rc == -6705);
+        /* the noisy commands' own cap */
+        int before = hook111_stats.logged;
+        CF iap = CFStr("iAPSendMessage");
+        for (int k = 0; k < 6; k++) log_command("command", iap, NULL);
+        CHECK("iAPSendMessage: only the first 3 logged", hook111_stats.logged - before == 3);
+        /* the status file */
+        status_now(1);
+        char stp[700], sl[256]; snprintf(stp, sizeof stp, "%s/status", logdir);
+        FILE *sf = fopen(stp, "r"); int have_setups = 0, have_sent = 0;
+        while (sf && fgets(sl, sizeof sl, sf)) {
+            int v;
+            if (sscanf(sl, "setups_111=%d", &v) == 1 && v == hook111_stats.setups_111) have_setups = 1;
+            if (sscanf(sl, "sent_files=%d", &v) == 1 && v == hook111_stats.sent_files) have_sent = 1;
+        }
+        if (sf) fclose(sf);
+        CHECK("status file: the counters as they are", have_setups && have_sent);
+    }
+
     /* ---------- /info ---------- */
     for (int i = 0; i < 16; i++) vtable[i] = (void *)p_noop;
     vtable[0x28 / 8] = (void *)p_count; vtable[0x30 / 8] = (void *)p_get; vtable[0x40 / 8] = (void *)p_read;

@@ -22,8 +22,14 @@ static void ab_frame(const uint8_t *p, size_t n, uint64_t ts) {
 
 static const struct hook111_sink ab_sink = { ab_avcc, ab_start, ab_stop, ab_frame };
 
+static void ab_status(FILE *f) {
+    fprintf(f, "sink_port=%u\nsink_connected=%d\nsink_need_idr=%d\nsink_frames_in=%lu\nsink_frames_out=%lu\nsink_dropped=%lu\nsink_connects=%lu\nsink_bytes_out=%lu\nsink_bad_input=%lu\n",
+            ab->port, ab->fd >= 0, ab->need_idr, ab->st.frames_in, ab->st.frames_out, ab->st.dropped, ab->st.connects, ab->st.bytes_out, ab->st.bad_input);
+}
+
 const struct hook111_sink *sink_annexb(struct annexb *a, uint16_t port) {
     ab = a;
     annexb_init(ab, port);
+    hook111_status_extra = ab_status;
     return &ab_sink;
 }

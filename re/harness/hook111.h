@@ -53,8 +53,13 @@ void hook111_mode_file(const char *path);
 int hook111_mode(void);
 int hook111_fell_back(void);
 
+/* The status file (<log dir>/status) gets these lines from the sink too. */
+#include <stdio.h>
+extern void (*hook111_status_extra)(FILE *f);
+
 /* Counters, for tests and logs. */
-struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged, refusals; };
+struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged, refusals,
+    b_avcc, b_avcc_bytes, b_starts, b_stops, b_frames, sent_files, last_send_rc; long long b_frame_bytes; };
 extern volatile struct hook111_stats hook111_stats;
 
 #endif

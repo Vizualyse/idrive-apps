@@ -40,6 +40,8 @@
 #include <netinet/tcp.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/syscall.h>
+static long gettid_(void) { return syscall(SYS_gettid); }
 
 static const char BUILD_ID[] = "8e502fa40b7fbfb79c36acdd9905da6a1d000254";
 static uintptr_t base;
@@ -115,6 +117,8 @@ static void *make_tramp(const unsigned char *code, size_t n, uintptr_t resume_gh
     return t;
 }
 
+static void status_now(int force);   /* the status file, below */
+
 /* ---- screen B: the second screen object and its thread ----
  * One at a time. Its life follows the stock screen's (_ScreenStart 0x17a480,
  * _ScreenThread 0x17a530, _ScreenTearDown 0x179c40):
@@ -173,6 +177,7 @@ static void *screen_b_thread(void *arg) {
     pthread_mutex_lock(&b->lock);
     if (b->quit) { pthread_mutex_unlock(&b->lock); close(fd); rc = -6723; goto done; }
     hook111_stats.accepted++;
+    status_now(1);
     FN(int (*)(void **, int), 0x156a20)(&b->ns, fd);
     pthread_mutex_unlock(&b->lock);
     FN(void (*)(int, int), 0x157350)(FN(int (*)(void *), 0x155aa0)(b->ns), 0xc);
@@ -192,6 +197,7 @@ static void *screen_b_thread(void *arg) {
 done:
     hook111_stats.pump_rc = rc;
     hook111_stats.pump_done = 1;
+    status_now(1);
     return NULL;
 }
 
@@ -213,6 +219,7 @@ static void teardown_b(struct screen_b *b) {
     pthread_mutex_destroy(&b->lock);
     free(b);
     hook111_stats.teardowns++;
+    status_now(1);
 }
 
 /* the type-111 branch: the stock 110 branch's steps for a second screen; with b_life held */
@@ -258,6 +265,7 @@ static int setup_111(void *session, CF stream, CF resp) {
     if (pthread_create(&b->thread, NULL, screen_b_thread, b) != 0) { current_b = NULL; rc = -6700; goto fail; }
     b->have_thread = 1;
     hook111_stats.setups_111++;
+    status_now(1);
     return 0;
 fail:
     if (b->obj) FN(void (*)(void *), 0x1853f0)(b->obj);
@@ -297,9 +305,16 @@ static void log_plist(const char *what, CF obj) {
     }
     free(b);
 }
-/* a command with its name: {type, params} */
+/* a command with its name: {type, params}. The phone sends iAPSendMessage
+ * and updateFeedback every second or so (212 in a few minutes on the unit):
+ * only the first NOISY_MAX of each go in, so they don't use up the log. */
+#define NOISY_MAX 3
 static void log_command(const char *what, CF cmd, CF params) {
     if (!log_dir[0]) return;
+    static CF noisy[2]; static int noisy_n[2];
+    if (!noisy[0]) { noisy[0] = CFStr("iAPSendMessage"); noisy[1] = CFStr("updateFeedback"); }
+    for (int k = 0; k < 2; k++)
+        if (cmd && CFEqual(cmd, noisy[k]) && __sync_fetch_and_add(&noisy_n[k], 1) >= NOISY_MAX) return;
     CF d = CFDictCreate();
     if (cmd) CFDictSet(d, K_TYPE, cmd);
     if (params) CFDictSet(d, K_PARAMS, params);
@@ -347,7 +362,64 @@ static int read_mode(void) {
     return MODE_OFF;
 }
 int hook111_mode(void) { return read_mode(); }
+static int mode_now(void) { return read_mode(); }
 int hook111_fell_back(void) { return fallback; }
+
+/* ---- the status file: <log dir>/status, text, rewritten whole ----
+ * On each event (SETUP of 111, accept, the stream's start and end,
+ * TEARDOWN, a fallback, a command sent) and otherwise at most once a second
+ * (from the frame pump and the phone's commands). A sink can add lines. */
+void (*hook111_status_extra)(FILE *f);
+static int mode_now(void);
+static void status_now(int force) {
+    if (!log_dir[0]) return;
+    static volatile long long last;
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    long long now = (long long)t.tv_sec * 1000000000LL + t.tv_nsec;
+    if (!force && now - last < 1000000000LL) return;
+    last = now;
+    char p[sizeof log_dir + 24], q[sizeof log_dir + 32];
+    snprintf(p, sizeof p, "%s/status", log_dir);
+    snprintf(q, sizeof q, "%s/status.%d", log_dir, (int)gettid_());
+    FILE *f = fopen(q, "w");
+    if (!f) return;
+    volatile struct hook111_stats *x = &hook111_stats;
+    fprintf(f, "time_s=%lld\nmode=%s\nfell_back=%d\nrefusals=%d\n", now / 1000000000LL, mode_now() == 2 ? "full" : mode_now() == 1 ? "alt" : "off", hook111_fell_back(), x->refusals);
+    fprintf(f, "setups_111=%d\naccepted=%d\npump_done=%d\npump_rc=%d\nscreen_b=%s\n", x->setups_111, x->accepted, x->pump_done, x->pump_rc, current_b ? "up" : "none");
+    fprintf(f, "b_avcc=%d\nb_avcc_bytes=%d\nb_starts=%d\nb_stops=%d\nb_frames=%d\nb_frame_bytes=%lld\n", x->b_avcc, x->b_avcc_bytes, x->b_starts, x->b_stops, x->b_frames, (long long)x->b_frame_bytes);
+    fprintf(f, "enabled_features=%d\ninfo_records=%d\nsuggest_ui=%d\ncommands_sent=%d\nkeyframe_requests=%d\nsent_files=%d\nlast_send_rc=%d\nteardowns=%d\nlogged=%d\n",
+            x->enabled_features, x->info_records, x->suggest_ui, x->commands_sent, x->keyframe_requests, x->sent_files, x->last_send_rc, x->teardowns, x->logged);
+    if (hook111_status_extra) hook111_status_extra(f);
+    fclose(f);
+    rename(q, p);
+}
+
+/* ---- commands from the bench: <log dir>/send.plist ----
+ * A binary or XML plist {type, params}, put there by root. The hook sends it
+ * as it is, the library's own way, on the phone's next command (about a
+ * second), then renames it send.<n>.done; the result is in the status
+ * (last_send_rc). For trying showUI / requestUI variants without a rebuild. */
+static int send_dict(void *session, CF cmd);
+static void bench_send(void *session) {
+    if (!log_dir[0]) return;
+    char p[sizeof log_dir + 16];
+    snprintf(p, sizeof p, "%s/send.plist", log_dir);
+    int fd = open(p, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    static unsigned char buf[1 << 16];
+    ssize_t n = read(fd, buf, sizeof buf); close(fd);
+    int seq = __sync_add_and_fetch(&hook111_stats.sent_files, 1);
+    char d[sizeof log_dir + 32];
+    snprintf(d, sizeof d, "%s/send.%d.done", log_dir, seq);
+    rename(p, d);   /* first, so a bad file is tried once */
+    int err = 0, rc = -6705;   /* kFormatErr */
+    CF cmd = n > 0 ? FN(CF (*)(const void *, size_t, int *), 0x13a550)(buf, (size_t)n, &err) : NULL;
+    if (cmd && !err && CFTypeOf(cmd) == CFDictTypeID() && CFDictGetTyped(cmd, K_TYPE, CFStrTypeID(), &err)) rc = send_dict(session, cmd);
+    if (cmd) CFRelease(cmd);
+    hook111_stats.last_send_rc = rc;
+    fprintf(stderr, "[hook111] bench command %d sent: %d\n", seq, rc);
+    status_now(1);
+}
 
 static int (*orig_setup)(void *session, CF req, CF *resp);
 static int my_setup(void *session, CF req, CF *resp) {
@@ -427,6 +499,7 @@ static void my_teardown(void *session, CF req, int reason, void *done) {
         hook111_stats.refusals = refusals;
         pthread_mutex_unlock(&mode_lock);
         if (now_off) note_fallback();
+        status_now(1);
     }
     pthread_mutex_lock(&b_life);
     struct screen_b *b = current_b;
@@ -440,17 +513,21 @@ static void my_teardown(void *session, CF req, int reason, void *done) {
  * it: {type, params} goes to 0x17a0c0 on the session's event queue (+0x468),
  * which POSTs it as a binary plist to /command on the events connection
  * (+0x470, up once +0x466 is set by _ControlStart). */
-int hook111_send_command(void *session, const char *type, void *params) {
+static int send_dict(void *session, CF cmd) {
     if (!session || !*((char *)session + 0x466) || !*(void **)((char *)session + 0x468)) return -6709;  /* not started */
-    CF cmd = CFDictCreate(), t = CFStr(type);
-    CFDictSet(cmd, K_TYPE, t); CFRelease(t);
-    if (params) CFDictSet(cmd, K_PARAMS, params);
     log_plist("sent", cmd);
     struct { void *session; CF cmd; void *completion, *ctx; int rc; } c = { session, cmd, NULL, NULL, -6700 };
     FN(void (*)(void *, void *, void *), 0x1460e0)(*(void **)((char *)session + 0x468), &c, AT(0x17a0c0));
-    CFRelease(cmd);
     if (c.rc == 0) hook111_stats.commands_sent++;
     return c.rc;
+}
+int hook111_send_command(void *session, const char *type, void *params) {
+    CF cmd = CFDictCreate(), t = CFStr(type);
+    CFDictSet(cmd, K_TYPE, t); CFRelease(t);
+    if (params) CFDictSet(cmd, K_PARAMS, params);
+    int rc = send_dict(session, cmd);
+    CFRelease(cmd);
+    return rc;
 }
 
 /* forceKeyFrame as the stock AirPlayReceiverSessionForceKeyFrame (0x1843a0)
@@ -493,6 +570,8 @@ static int answer_suggest_ui(void *session, CF params) {
 static int (*orig_control)(void *, int, CF, CF, CF, CF *);
 static int my_control(void *session, int flags, CF cmd, CF qual, CF params, CF *resp) {
     log_command("command", cmd, params);
+    bench_send(session);
+    status_now(0);
     CF su = CFStr("suggestUI");
     int ours = cmd && CFEqual(cmd, su);
     CFRelease(su);
@@ -532,7 +611,7 @@ static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
 static void *ss_ctx(void *ss) { return *(void **)((char *)ss + 8); }
 
 static int my_ss_set_avcc(void *ss, const void *p, size_t n) {
-    if (is_b_ctx(ss_ctx(ss))) { if (sink && sink->avcc) sink->avcc(p, n); return 0; }
+    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_avcc++; hook111_stats.b_avcc_bytes = (int)n; if (sink && sink->avcc) sink->avcc(p, n); status_now(1); return 0; }
     void **saved = (void **)((char *)ss + 0x10);
     size_t *saved_n = (size_t *)((char *)ss + 0x18);
     if (*saved && *saved_n == n && memcmp(*saved, p, n) == 0) return 0;
@@ -544,19 +623,19 @@ static int my_ss_set_avcc(void *ss, const void *p, size_t n) {
     return 0;
 }
 static int my_ss_start(void *ss) {
-    if (is_b_ctx(ss_ctx(ss))) { if (sink && sink->start) sink->start(); return 0; }
+    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_starts++; if (sink && sink->start) sink->start(); status_now(1); return 0; }
     FN(void (*)(void *), 0x19b870)(ss_ctx(ss));
     return 0;
 }
 static void my_ss_stop(void *ss) {
-    if (is_b_ctx(ss_ctx(ss))) { if (sink && sink->stop) sink->stop(); }
+    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_stops++; if (sink && sink->stop) sink->stop(); status_now(1); }
     else FN(void (*)(void *), 0x19b890)(ss_ctx(ss));
     void **saved = (void **)((char *)ss + 0x10);
     free(*saved); *saved = NULL;
 }
 static int my_ss_frame(void *ss, const void *p, size_t n, uint64_t ts, void *x, void (*cb)(void *), void *arg) {
     (void)x;
-    if (is_b_ctx(ss_ctx(ss))) { if (sink && sink->frame) sink->frame(p, n, ts); }
+    if (is_b_ctx(ss_ctx(ss))) { hook111_stats.b_frames++; hook111_stats.b_frame_bytes += (long long)n; if (sink && sink->frame) sink->frame(p, n, ts); status_now(hook111_stats.b_frames == 1); }
     else FN(void (*)(const void *, size_t, uint64_t, void *), 0x19b8e0)(p, n, (ts * 0x434a900ull) / 1000000000ull, ss_ctx(ss));
     if (cb) cb(arg);
     return 0;
