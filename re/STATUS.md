@@ -230,11 +230,16 @@ Nothing else on the unit was changed. Everything else was read-only.
    Built with the repo's packer:
    `node release/tool_artifact.js re/deploy/hook111 --out <dir>` runs
    `build.sh` (gcc in the glibc-2.27 image) and gives `hook111@0.0.1.tgz`,
-   byte-identical across two builds (sha256 `a9d1613d…`). The library needs
-   nothing newer than GLIBC_2.17, and exports only `dlopen` and
-   `hook111_preload_state`. The shipped `.so` passes the preload test. It
-   stays out of `native/` on purpose: `release.js` publishes every
-   `native/` tool on a full release, and this one hasn't run on a car.
+   byte-identical across two builds. The library needs nothing newer than
+   GLIBC_2.17, and exports only `dlopen` and `hook111_preload_state`. The
+   shipped `.so` passes the preload test. It stays out of `native/` on
+   purpose: `release.js` publishes every `native/` tool on a full release,
+   and this one hasn't run on a car.
+   For the first car runs, the hook writes every SETUP request and response,
+   phone command, TEARDOWN, `/info` displays and sent command as a binary
+   plist to `/run/hook111/log/<nnn>-<what>.bplist` (at most 500). The arm step
+   creates that directory, owned by `carplay`'s user. Pull the files and read
+   them with Python's `plistlib`.
    Not done:
    - an install by mgu-deploy, which also adds `hook111-arm` /
      `hook111-health` to recmgr's lists;
