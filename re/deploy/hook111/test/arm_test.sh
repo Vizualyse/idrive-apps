@@ -160,6 +160,25 @@ sh "$S" reset >/dev/null
 printf 'HOOK111_SINK_PORT=7001\nHOOK111_SINK_PORT=1; rm -rf /\nOTHER=1\nHOOK111_DATA_PORT=6031\n' >"$V/config"; newboot; boot
 check "config: only HOOK111_*=<number> passes" "grep -qx 'HOOK111_SINK_PORT=7001' '$R/run/hook111/env' && grep -qx 'HOOK111_DATA_PORT=6031' '$R/run/hook111/env' && [ \$(wc -l <'$R/run/hook111/env') = 3 ]"
 rm -f "$V/config"
+sh "$S" reset >/dev/null
+
+echo "== the hook's mode"
+freshboot; boot
+check "mode: off unless the config says otherwise" 'armed && [ "$(cat $R/run/hook111/mode)" = off ]'
+printf 'HOOK111_MODE=alt\n' >"$V/config"; freshboot; boot
+check "mode: HOOK111_MODE=alt in the config" '[ "$(cat $R/run/hook111/mode)" = alt ]'
+printf 'HOOK111_MODE=bogus\n' >"$V/config"; freshboot; boot
+check "mode: a bad value is off" '[ "$(cat $R/run/hook111/mode)" = off ]'
+rm -f "$V/config"
+sh "$S" mode full >"$T/out" 2>&1
+check "mode full: set for this start" '[ "$(cat $R/run/hook111/mode)" = full ] && grep -q "next SETUP" "$T/out"'
+sh "$S" mode nonsense >/dev/null 2>&1
+check "mode nonsense: refused, mode unchanged, exit 0" '[ $? = 0 ] && [ "$(cat $R/run/hook111/mode)" = full ]'
+sh "$S" status >"$T/out" 2>&1
+check "status shows the mode" 'grep -qx "mode: full" "$T/out"'
+newboot; sh "$S" mode alt >"$T/out" 2>&1
+check "mode before the start is armed: refused" '[ ! -e "$R/run/hook111/mode" ] && grep -q "not armed" "$T/out"'
+sh "$S" reset >/dev/null
 sed -i 's/^fails=.*/fails=abc/' "$V/state"; newboot; boot
 check "unreadable counter: stays off" '! armed'
 sh "$S" reset >/dev/null

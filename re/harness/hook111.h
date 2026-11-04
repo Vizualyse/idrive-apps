@@ -46,8 +46,15 @@ int hook111_request_keyframe(void);
  * (at most 500). Off unless dir exists and is writable; NULL turns it off. */
 void hook111_log_to(const char *dir);
 
+/* The mode file (contents off | alt | full), read at every SETUP and /info.
+ * Not called: full. Called with a path that does not exist: off. */
+void hook111_mode_file(const char *path);
+/* 0 off, 1 alt, 2 full, as it applies now; whether it fell back to off. */
+int hook111_mode(void);
+int hook111_fell_back(void);
+
 /* Counters, for tests and logs. */
-struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged; };
+struct hook111_stats { int setups_111, accepted, pump_rc, pump_done, enabled_features, info_records, teardowns, suggest_ui, commands_sent, keyframe_requests, logged, refusals; };
 extern volatile struct hook111_stats hook111_stats;
 
 #endif

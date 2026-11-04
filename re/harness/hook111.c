@@ -307,14 +307,62 @@ static void log_command(const char *what, CF cmd, CF params) {
     CFRelease(d);
 }
 
+/* ---- the mode, and falling back when the phone refuses ----
+ * off  pass-through: the stock answers, no stream 111
+ * alt  enabledFeatures [altScreen], the second /info display, stream 111
+ * full enabledFeatures [altScreen, viewAreas], the same
+ * Read from hook111_mode_file at every SETUP and /info, so it can change
+ * between the phone's attempts. With no file configured (the harness) it is
+ * full; with one configured but missing, off.
+ *
+ * A session that got our features and then ends in a full TEARDOWN with no
+ * stream SETUP is a refusal: on the unit (2026-11-04) the phone did exactly
+ * that, every 10 s, with "connection failed" on the screen. After FALLBACK_AFTER
+ * refusals in a row the hook is off for the rest of this carplay run, and
+ * says so in <log dir>/fallback. A session with a stream SETUP resets it. */
+enum { MODE_OFF, MODE_ALT, MODE_FULL };
+static const char *mode_names[] __attribute__((unused)) = { "off", "alt", "full" };   /* the preload prints it */
+#define FALLBACK_AFTER 3
+static char mode_path[256];
+static volatile int fallback;
+static int refusals;
+static void *adv_session;   /* the session our features went to, until its TEARDOWN */
+static int adv_streams;     /* it had a stream SETUP */
+static pthread_mutex_t mode_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void hook111_mode_file(const char *path) {
+    mode_path[0] = 0;
+    if (path && strlen(path) < sizeof mode_path) strcpy(mode_path, path);
+}
+static int read_mode(void) {
+    if (fallback) return MODE_OFF;
+    if (!mode_path[0]) return MODE_FULL;
+    char b[16] = ""; int fd = open(mode_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return MODE_OFF;
+    ssize_t n = read(fd, b, sizeof b - 1); close(fd);
+    if (n <= 0) return MODE_OFF;
+    b[n] = 0;
+    if (!strncmp(b, "full", 4)) return MODE_FULL;
+    if (!strncmp(b, "alt", 3)) return MODE_ALT;
+    return MODE_OFF;
+}
+int hook111_mode(void) { return read_mode(); }
+int hook111_fell_back(void) { return fallback; }
+
 static int (*orig_setup)(void *session, CF req, CF *resp);
 static int my_setup(void *session, CF req, CF *resp) {
     log_plist("setup-request", req);
-    int rc = orig_setup(session, req, resp);
-    if (rc != 0 || !resp || !*resp) return rc;
+    int m = read_mode();
     int err = 0;
     CF streams = CFDictGetTyped(req, K_STREAMS, CFArrayTypeID(), &err);
     int n = streams ? CFArrayCount(streams) : 0;
+    pthread_mutex_lock(&mode_lock);
+    if (n == 0) { adv_session = m != MODE_OFF ? session : NULL; adv_streams = 0; }   /* a session's first SETUP */
+    else if (session == adv_session) { adv_streams = 1; refusals = 0; }
+    pthread_mutex_unlock(&mode_lock);
+    int rc = orig_setup(session, req, resp);
+    if (rc != 0 || !resp || !*resp) return rc;
+    if (m == MODE_OFF) { log_plist("setup-response", *resp); return 0; }
     pthread_mutex_lock(&b_life);
     for (int i = 0; i < n; i++) {
         CF s = CFArrayAt(streams, i);
@@ -325,12 +373,13 @@ static int my_setup(void *session, CF req, CF *resp) {
         }
     }
     pthread_mutex_unlock(&b_life);
-    /* feature negotiation: answer the ones offered that we implement */
+    /* feature negotiation: answer the ones offered that this mode implements */
     CF offered = CFDictGetTyped(req, K_FEATURES, CFArrayTypeID(), &err);
     if (offered) {
         static const char *ours[] = { "altScreen", "viewAreas" };
+        unsigned nours = m == MODE_FULL ? 2 : 1;
         CF enabled = CFArrayCreate();
-        for (unsigned k = 0; k < 2; k++) {
+        for (unsigned k = 0; k < nours; k++) {
             CF f = CFStr(ours[k]);
             if (CFArrayIndexOf(offered, f) >= 0) CFArrayAppend(enabled, f);
             CFRelease(f);
@@ -347,22 +396,41 @@ static int my_setup(void *session, CF req, CF *resp) {
     return 0;
 }
 
+static void note_fallback(void) {
+    fprintf(stderr, "[hook111] the phone refused %d sessions in a row: off for this carplay run\n", FALLBACK_AFTER);
+    if (!log_dir[0]) return;
+    char p[sizeof log_dir + 16];
+    snprintf(p, sizeof p, "%s/fallback", log_dir);
+    int fd = open(p, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd >= 0) { if (write(fd, "off\n", 4) != 4) { /* best effort */ } close(fd); }
+}
+
 /* AirPlayReceiverSessionTearDown(session, request or NULL, reason, &done) */
 static void (*orig_teardown)(void *session, CF req, int reason, void *done);
 static void my_teardown(void *session, CF req, int reason, void *done) {
     log_plist("teardown", req);
+    int err = 0, n = 0, ours = 0;
+    CF streams = req ? CFDictGetTyped(req, K_STREAMS, CFArrayTypeID(), &err) : NULL;
+    if (streams) n = CFArrayCount(streams);
+    for (int i = 0; i < n; i++) {
+        CF s = CFArrayAt(streams, i);
+        if (s && CFTypeOf(s) == CFDictTypeID() && CFDictGetI64(s, K_TYPE, &err) == 111) ours = 1;
+    }
+    if (n == 0) {   /* the whole session goes: was it a refusal of what we advertised? */
+        int now_off = 0;
+        pthread_mutex_lock(&mode_lock);
+        if (session == adv_session) {
+            if (adv_streams) refusals = 0;
+            else if (++refusals >= FALLBACK_AFTER && !fallback) { fallback = 1; now_off = 1; }
+            adv_session = NULL;
+        }
+        hook111_stats.refusals = refusals;
+        pthread_mutex_unlock(&mode_lock);
+        if (now_off) note_fallback();
+    }
     pthread_mutex_lock(&b_life);
     struct screen_b *b = current_b;
-    if (b && b->session == session) {
-        int err = 0, n = 0, ours = 0;
-        CF streams = req ? CFDictGetTyped(req, K_STREAMS, CFArrayTypeID(), &err) : NULL;
-        if (streams) n = CFArrayCount(streams);
-        for (int i = 0; i < n; i++) {
-            CF s = CFArrayAt(streams, i);
-            if (s && CFTypeOf(s) == CFDictTypeID() && CFDictGetI64(s, K_TYPE, &err) == 111) ours = 1;
-        }
-        if (n == 0 || ours) teardown_b(b);   /* n == 0: the whole session goes */
-    }
+    if (b && b->session == session && (n == 0 || ours)) teardown_b(b);
     pthread_mutex_unlock(&b_life);
     orig_teardown(session, req, reason, done);
 }
@@ -428,7 +496,7 @@ static int my_control(void *session, int flags, CF cmd, CF qual, CF params, CF *
     CF su = CFStr("suggestUI");
     int ours = cmd && CFEqual(cmd, su);
     CFRelease(su);
-    if (!ours) return orig_control(session, flags, cmd, qual, params, resp);
+    if (!ours || read_mode() == MODE_OFF) return orig_control(session, flags, cmd, qual, params, resp);
     hook111_stats.suggest_ui++;
     int rc = answer_suggest_ui(session, params);
     if (rc) fprintf(stderr, "[hook111] showUI failed: %d\n", rc);
@@ -439,6 +507,7 @@ static CF (*orig_copyprop)(void *, CF, void *, int *, void *);
 static CF my_copyprop(void *a1, CF prop, void *a3, int *err, void *cfg) {
     CF v = orig_copyprop(a1, prop, a3, err, cfg);
     if (!v || !CFEqual(prop, K_DISPLAYS) || CFTypeOf(v) != CFArrayTypeID()) return v;
+    if (read_mode() == MODE_OFF) { log_plist("info-displays", v); return v; }
     CF d = CFDictCreate(), s, k;
     s = CFStr(disp.uuid); CFDictSet(d, K_UUID, s); CFRelease(s);
     CF n;

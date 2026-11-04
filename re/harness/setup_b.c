@@ -193,6 +193,8 @@ static int read_request(int fd, char *line, size_t nline, unsigned char **body, 
     return 0;
 }
 
+static void set_mode(const char *path, const char *m) { FILE *f = fopen(path, "w"); if (f) { fputs(m, f); fclose(f); } }
+
 static void sink_reset(void) {
     got_avcc_n = 0; got_start = got_stop = got_frames = bad_frames = 0;
     for (int i = 0; i < 16; i++) { free(want[i]); want[i] = NULL; }
@@ -261,6 +263,9 @@ int main(int argc, char **argv) {
     alarm(60);
     char logdir[] = "/tmp/hook111-log.XXXXXX";
     hook111_log_to(mkdtemp(logdir));   /* the plist log, checked at the end */
+    char modefile[600]; snprintf(modefile, sizeof modefile, "%s.mode", logdir);
+    set_mode(modefile, "full");          /* the tests below until "modes" are for full */
+    hook111_mode_file(modefile);
 
     /* ---------- SETUP ---------- */
     unsigned char *server = calloc(1, 0x200);
@@ -459,6 +464,46 @@ int main(int argc, char **argv) {
         CF urls = CFDictGetTyped(d1, CFStr("altScreenSuggestUIURLs"), CFArrayTypeID(), &e);
         CHECK("second record: 3 altScreenSuggestUIURLs", urls && CFArrayCount(urls) == 3);
     }
+    /* ---------- modes, and the fallback when the phone refuses ---------- */
+    {
+        /* the phone's first SETUP: no streams, the features it offers (as on the unit) */
+        CF ctl = CFDictCreate(), ef_key = CFStr("enabledFeatures");
+        CFDictSet(ctl, K_FEATURES, feats);
+        CF empty = CFDictCreate();
+        #define CTL_SETUP() (resp = NULL, FN(int (*)(void *, CF, CF *), 0x180670)(session, ctl, &resp))
+        #define EF_COUNT() (resp && CFDictGetTyped(resp, ef_key, CFArrayTypeID(), &err) ? CFArrayCount(CFDictGetTyped(resp, ef_key, CFArrayTypeID(), &err)) : 0)
+        #define INFO_N() ({ int pe = 0; CF dd = FN(CF (*)(void *, CF, void *, int *, void *), 0x10d270)(NULL, K_DISPLAYS, NULL, &pe, cfg); \
+                            dd && CFTypeOf(dd) == CFArrayTypeID() ? CFArrayCount(dd) : -1; })
+        set_mode(modefile, "off");
+        rc = CTL_SETUP();
+        CHECK("mode off: SETUP answered as stock (no enabledFeatures)", rc == 0 && resp && EF_COUNT() == 0);
+        CHECK("mode off: /info has the stock display only", INFO_N() == 1);
+        teardown(session, empty, 0, NULL);
+        set_mode(modefile, "alt");
+        rc = CTL_SETUP();
+        CF efa = resp ? CFDictGetTyped(resp, ef_key, CFArrayTypeID(), &err) : NULL;
+        CHECK("mode alt: enabledFeatures [altScreen] only", rc == 0 && efa && CFArrayCount(efa) == 1 && CFArrayIndexOf(efa, CFStr("altScreen")) >= 0);
+        CHECK("mode alt: /info has both displays", INFO_N() == 2);
+        teardown(session, empty, 0, NULL);
+        CHECK("a refusal counted (alt, no stream SETUP)", hook111_stats.refusals == 1 && !hook111_fell_back());
+        set_mode(modefile, "full");
+        rc = CTL_SETUP();
+        CHECK("mode full: enabledFeatures [altScreen, viewAreas]", rc == 0 && EF_COUNT() == 2);
+        resp = NULL;
+        rc = FN(int (*)(void *, CF, CF *), 0x180670)(session, req, &resp);   /* a stream SETUP in this session */
+        teardown(session, empty, 0, NULL);
+        CHECK("a session with a stream SETUP resets the count", hook111_stats.refusals == 0 && !hook111_fell_back());
+        for (int k = 0; k < 3; k++) { CTL_SETUP(); (void)INFO_N(); teardown(session, empty, 0, NULL); }
+        char fb[700]; snprintf(fb, sizeof fb, "%s/fallback", logdir);
+        printf("  after 3 refused sessions: refusals %d, fell back %d\n", hook111_stats.refusals, hook111_fell_back());
+        CHECK("3 refused sessions in a row: off for this run, and it says so", hook111_fell_back() && hook111_mode() == 0 && access(fb, F_OK) == 0);
+        rc = CTL_SETUP();
+        CHECK("after the fallback: SETUP as stock, though the file says full", rc == 0 && resp && EF_COUNT() == 0);
+        CHECK("after the fallback: /info stock", INFO_N() == 1);
+        teardown(session, empty, 0, NULL);
+        unlink(fb);
+    }
+
     /* ---------- the plist log ---------- */
     {
         int counts[6] = {0}, parsed = 0, total = 0, streams_ok = 0, suggest_ok = 0;
@@ -466,7 +511,7 @@ int main(int argc, char **argv) {
         DIR *d = opendir(logdir); struct dirent *e;
         CF su = CFStr("suggestUI");
         while (d && (e = readdir(d))) {
-            if (e->d_name[0] == '.') continue;
+            if (e->d_name[0] == '.' || !strstr(e->d_name, ".bplist")) continue;
             total++;
             char p[512]; snprintf(p, sizeof p, "%s/%s", logdir, e->d_name);
             FILE *f = fopen(p, "rb"); if (!f) continue;
@@ -486,7 +531,7 @@ int main(int argc, char **argv) {
                total, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]);
         CHECK("plist log: every file parses back (the library's own reader)", total > 0 && parsed == total && total == hook111_stats.logged);
         CHECK("plist log: SETUP requests with their streams, responses, TEARDOWNs, /info, commands both ways",
-              counts[0] >= 4 && streams_ok == counts[0] && counts[1] >= 4 && counts[3] >= 1 && counts[4] == 1 && counts[2] >= 2 && counts[5] >= 2);
+              counts[0] >= 4 && streams_ok >= 4 && counts[1] >= 4 && counts[3] >= 1 && counts[4] >= 1 && counts[2] >= 2 && counts[5] >= 2);
         CHECK("plist log: the phone's suggestUI, as it came", suggest_ok == 1);
     }
     printf("%s\n", fail ? "FAIL" : "PASS");

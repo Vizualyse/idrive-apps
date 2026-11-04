@@ -10,6 +10,7 @@
 #            has run 60 s with the hook loaded marks the start healthy; a
 #            carplay run that ends failed marks it crashed at once (the reboot
 #            follows within seconds), whatever the shutdown mark does
+#   mode off|alt|full   the hook's mode for this start, from the phone's next SETUP
 #   status | disable | enable | reset
 #
 # Nothing on / changes. The env file is on /run (tmpfs): every reboot, a crash
@@ -142,6 +143,12 @@ cmd_boot() {
         } >"$RUN/env.tmp" 2>/dev/null && chmod 0644 "$RUN/env.tmp" && mv -f "$RUN/env.tmp" "$RUN/env" || reason="cannot write $RUN/env"
     fi
     if [ -z "$reason" ]; then
+        # the hook's mode for this start (it reads the file at every SETUP): off unless the config says otherwise
+        m=off
+        if [ -r "$VAR/config" ]; then
+            c=$(grep -E '^HOOK111_MODE=(off|alt|full)$' "$VAR/config" | tail -1); [ -n "$c" ] && m=${c#HOOK111_MODE=}
+        fi
+        echo "$m" >"$RUN/mode.tmp" 2>/dev/null && chmod 0644 "$RUN/mode.tmp" && mv -f "$RUN/mode.tmp" "$RUN/mode" || rm -f "$RUN/mode.tmp"
         # the hook's plist log (it writes there only if the directory exists),
         # owned by carplay's user; on /run, so gone at the next reboot
         u=$(bounded 5 "$SYSTEMCTL" show carplay.service -p User); u=${u#User=}
@@ -235,9 +242,15 @@ boot) cmd_boot ;;
 mark) cmd_mark ;;
 health) cmd_health ;;
 status) load_state; echo "failed starts: $fails (off at $THRESHOLD)"; echo "armed: ${armed:-no}"; echo "healthy: ${healthy:-no}"; echo "crashed: ${crashed:-no}"
-        echo "last: $last"; [ -e "$VAR/disabled" ] && echo "disabled"; [ -r "$RUN/env" ] && { echo "this start:"; cat "$RUN/env"; }; exit 0 ;;
+        echo "last: $last"; [ -e "$VAR/disabled" ] && echo "disabled"; [ -r "$RUN/env" ] && { echo "this start:"; cat "$RUN/env"; echo "mode: $(cat "$RUN/mode" 2>/dev/null)"; [ -e "$RUN/log/fallback" ] && echo "the hook fell back to off (the phone refused)"; }; exit 0 ;;
+mode) case ${2:-} in
+      off|alt|full)
+          if [ -d "$RUN" ]; then echo "$2" >"$RUN/mode.tmp" && chmod 0644 "$RUN/mode.tmp" && mv -f "$RUN/mode.tmp" "$RUN/mode" && log "mode $2 from the phone's next SETUP"
+          else log "not armed this start: no mode to set"; fi ;;
+      *) echo "usage: $0 mode off|alt|full" >&2 ;;
+      esac; exit 0 ;;
 disable) mkdir -p "$VAR" && touch "$VAR/disabled" && sync; log "disabled from the next start"; exit 0 ;;
 enable) rm -f "$VAR/disabled"; sync; log "enabled from the next start"; exit 0 ;;
 reset) load_state; fails=0; rm -f "$VAR/disabled"; last="reset"; save_state; log "reset: the hook arms at the next start"; exit 0 ;;
-*) echo "usage: $0 boot|mark|health|status|disable|enable|reset" >&2; exit 0 ;;
+*) echo "usage: $0 boot|mark|health|status|mode off|alt|full|disable|enable|reset" >&2; exit 0 ;;
 esac

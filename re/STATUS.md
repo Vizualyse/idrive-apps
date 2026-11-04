@@ -259,6 +259,18 @@ Nothing else on the unit was changed. Everything else was read-only.
      `hook111-health` to recmgr's lists;
    - `systemd-analyze verify` of the units on the unit.
 9. **First car test**, with a phone (MFi authentication can't be emulated).
+   **First armed start, 2026-11-04 (0.0.2):** the hook installed in the real
+   `carplay` and the start was marked healthy, but the phone (iPhone16,2,
+   iOS 26.7.1, AirPlay `sourceVersion` 960.13.1) refused every session. Its
+   first SETUP (no streams) offers `altScreen` and `viewAreas`. We answered
+   `enabledFeatures [altScreen, viewAreas]`, it read `/info` (the stock display
+   plus ours), then sent a full TEARDOWN (`{}`). Every 10 s, "connection
+   failed" on the screen. Likely: `viewAreas` negotiated but no record carries
+   one; or the cluster record lacks `primaryInputDevice`. `carplay` never
+   crashed, so "healthy" didn't mean CarPlay worked. 0.0.3 adds:
+   - a mode read at every SETUP from `/run/hook111/mode` (`off` / `alt` /
+     `full`; `hook111-arm.sh mode <m>`, no reboot), default `off`;
+   - a fallback to `off` after 3 refused sessions in a row.
    Before the first armed boot:
    - check `getcap /usr/bin/carplay` is empty (`carplay` runs as `cia_13002`,
      and file capabilities would make glibc ignore the preload);
