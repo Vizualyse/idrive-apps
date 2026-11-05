@@ -105,9 +105,9 @@ through mgu-render in the app area, touch read passively, only while parked
 the unit's own root filesystem (JSPI, WebGL 2 and WebGPU on SwiftShader there).
 **Ask before running anything on the unit.**
 
-- [ ] **Release** vizualyse-chromium 0.1.0 and vizualyse_chromium 0.1.0
-  (the tool kit is ~250 MB: check the Store downloads and installs it, and
-  how long the first unpack takes on the Atom).
+- [ ] **Install from the Store** (published 2026-11-05): the tool kit is
+  260 MB; check the Store downloads and installs it, and how long the first
+  unpack takes on the Atom.
 - [ ] **On the car, read-only:** `state/gpu.json`, `gpu.txt` and the
   journal's `@gpu`: WebGPU should be `intel / gen-9` and WebGL 2 on ANV,
   not SwiftShader; if not, why (ANV's `kernel missing ...`, the render node
