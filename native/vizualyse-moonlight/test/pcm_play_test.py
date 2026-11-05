@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Yousaf Khan
-"""pcm_play.py's live mode off the car, in real time: a stream at 48 kHz in
+"""pcm_play.py's stream lock (run as root, as on the car: a missing lock is
+made ent_alsa:mgu_alsa 0660, a root-owned one set back, another owner's left
+alone), then its live mode off the car, in real time: a stream at 48 kHz in
 5 ms packets (as moonlight-core's), into a fake device that plays at 48 kHz
 but blocks every write for 2 s once, as SmartXbar's first connect after boot
 did on the car (the sound then stayed behind the picture). Every frame
@@ -83,6 +85,39 @@ def produce(wfd, t0, seconds):
     os.close(wfd)
 
 
+def lock_test():
+    """prepare_lock as root, in a scratch lock folder, with this box's own
+    users standing in for ent_alsa / mgu_alsa (made here if missing)."""
+    import grp
+    import pwd
+    import subprocess
+    import tempfile
+    if os.geteuid() != 0:
+        print("skip lock test: not root")
+        return
+    for cmd in (["groupadd", "-f", "mgu_alsa"], ["useradd", "-M", "-N", "-g", "mgu_alsa", "ent_alsa"]):
+        subprocess.call(cmd, stderr=subprocess.DEVNULL)
+    uid, gid = pwd.getpwnam("ent_alsa").pw_uid, grp.getgrnam("mgu_alsa").gr_gid
+    d = tempfile.mkdtemp()
+    dev = "smartx:CarPlayMain_CF_48_STEREO"
+    path = pcm_play.lock_path(dev, d)
+    ok("the lock's path", path == os.path.join(d, "smartx_CarPlayMain_CF_48_STEREO_p.lock"), path)
+    did = pcm_play.prepare_lock(dev, d, log=lambda m: None)
+    st = os.stat(path)
+    ok("a missing lock is made ent_alsa:mgu_alsa 0660", st.st_uid == uid and st.st_gid == gid and st.st_mode & 0o777 == 0o660, str(did))
+    os.chown(path, 0, gid)
+    os.chmod(path, 0o640)
+    did = pcm_play.prepare_lock(dev, d, log=lambda m: None)
+    st = os.stat(path)
+    ok("a root-owned lock is set back", st.st_uid == uid and st.st_mode & 0o777 == 0o660, str(did))
+    os.chown(path, 1234, gid)
+    os.chmod(path, 0o640)
+    did = pcm_play.prepare_lock(dev, d, log=lambda m: None)
+    st = os.stat(path)
+    ok("CarPlay's own lock (another user's) is left alone", did is None and st.st_uid == 1234 and st.st_mode & 0o777 == 0o640)
+    ok("not a SmartX device: nothing", pcm_play.prepare_lock("default", d, log=lambda m: None) is None)
+
+
 def main():
     r, w = os.pipe()
     t0 = time.monotonic()
@@ -107,4 +142,5 @@ def main():
     sys.exit(1 if fails else 0)
 
 
+lock_test()
 main()

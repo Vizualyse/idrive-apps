@@ -15,12 +15,22 @@ what waits beyond --max-queue-ms is dropped, oldest first. Without it, a
 stall stays for good: SmartXbar's first connect after boot can block writes
 for many seconds (52 s seen), and everything sent meanwhile would be played
 late. Every 10 s (and on a drop) it logs the latency and what it dropped.
+
+The stream's lock (SmartX: /run/smartx/smartx_<stream>_p.lock) is made by
+whoever opens the stream first, with that user's owner and mode. Opened
+first by root it is root's, 0640, and the stream's real owner (CarPlay's
+cia_* user, the media engine) can no longer take it: CarPlay was silent until
+a restart (2026-11-05). So before opening, a missing lock is made as the
+system makes its own, ent_alsa:mgu_alsa 0660, and one that still ends up
+root's is set back after.
 """
 import argparse
 import array
 import ctypes
 import math
+import grp
 import os
+import pwd
 import select
 import signal
 import sys
@@ -28,6 +38,46 @@ import time
 
 SND_PCM_FORMAT_S16_LE = 2
 SND_PCM_ACCESS_RW_INTERLEAVED = 3
+LOCK_DIR = "/run/smartx"
+LOCK_OWNER, LOCK_GROUP, LOCK_MODE = "ent_alsa", "mgu_alsa", 0o660
+
+
+def lock_path(device, lock_dir=LOCK_DIR):
+    """The SmartX playback stream's lock file, or None for another device."""
+    if not device.startswith("smartx:"):
+        return None
+    return os.path.join(lock_dir, "smartx_%s_p.lock" % device[len("smartx:"):])
+
+
+def prepare_lock(device, lock_dir=LOCK_DIR, owner=LOCK_OWNER, group=LOCK_GROUP, log=print):
+    """Makes the stream's lock as the system does, or sets a root-owned one
+    back: never leaves one the stream's owner can't take. What it did, for
+    the log, or None."""
+    path = lock_path(device, lock_dir)
+    if not path or os.geteuid() != 0 or not os.path.isdir(lock_dir):
+        return None
+    try:
+        uid, gid = pwd.getpwnam(owner).pw_uid, grp.getgrnam(group).gr_gid
+    except KeyError:
+        return None
+    try:
+        made = False
+        if not os.path.exists(path):
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, LOCK_MODE)
+            os.close(fd)
+            made = True
+        st = os.stat(path)
+        if made or st.st_uid == 0:
+            os.chown(path, uid, gid)
+            os.chmod(path, LOCK_MODE)
+            what = "%s %s as %s:%s %o" % ("made" if made else "set back", path, owner, group, LOCK_MODE)
+            log("pcm: lock " + what)
+            return what
+    except FileExistsError:
+        return None
+    except OSError as e:
+        log("pcm: lock %s: %s" % (path, e))
+    return None
 
 
 class Alsa:
@@ -160,7 +210,10 @@ def main():
 
     stop = [False]
     signal.signal(signal.SIGTERM, lambda *_: stop.__setitem__(0, True))
+    prepare_lock(a.device, log=lambda m: print(m, flush=True))
     sink = Alsa(a.device, a.rate, a.channels, 200000, a.rate * a.latency_ms // 2000 if a.live else 0)
+    # opened first by someone else as root meanwhile: set it back too
+    prepare_lock(a.device, log=lambda m: print(m, flush=True))
     print("pcm: %s open, %d Hz, %d ch, buffer %d ms" % (a.device, a.rate, a.channels, sink.size * 1000 // a.rate), flush=True)
 
     played = 0

@@ -57,8 +57,13 @@ unit on the car: recmgr restarts the head unit**
   what that one is and how a source is activated (audiomanager over
   SOME/IP). OAP's "audioFocus" is only an app priority. Until then: the
   phone page's volume slider (0-150 %, live from 0.1.2).
-  Lead: oap-sdk's OAP media player (`OapGenericMedia`,
-  [knowledge/sound.md](knowledge/sound.md)).
+  Tried on the car (2026-11-05, [knowledge/sound.md](knowledge/sound.md)):
+  the Store apps' media source plays only finished files (no pipe, local
+  HTTP or growing file); CarPlay's own process reports its sources
+  unavailable without a phone, so a connect to them hangs; the owner slots
+  nobody provides (CD, SDARS) have no source registered (coding). Left: our
+  own source and domain through the routing interface (`registerDomain`,
+  `registerSource`, `registerGateway`), studied offline first.
 
 ### Moonlight 0.2.0 on the car (built and tested off the car, 2026-11-05)
 
