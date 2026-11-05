@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.3.0",
+  "application": {
+    "uuid": "21c6f2c2-f8b4-4b1c-befe-5f9954f635fa",
+    "type": "OnlineApp",
+    "name": "vizualyse_moonlight",
+    "vendor": "Yousaf Khan",
+    "version": "0.1.0",
+    "defaultLanguage": "en_GB",
+    "uiDescriptions": [
+      {
+        "applicationFilePath": "./uiDescriptions/ID7/application.xml",
+        "uiDescriptionFilePath": "./uiDescriptions/ID7/uiDescription.json",
+        "hmi": [
+          "ID7"
+        ]
+      }
+    ],
+    "stringBundleUuid": "574f124f-648d-4237-990a-3125c0d3bb1f",
+    "resourceBundleUuid": "43b2065e-65d8-4047-81bc-81afba2d06a4",
+    "variantGroups": [
+      {
+        "stringsPath": "./variantGroups/Common/texts",
+        "resourcesPath": "./variantGroups/Common/images",
+        "hmi": [
+          "ID7"
+        ],
+        "brands": [
+          "BMW"
+        ]
+      }
+    ],
+    "entryPoints": [
+      {
+        "name": "vizualyse_moonlight",
+        "uuid": "f9726d0a-9616-4b2c-b4d2-986658e7467a",
+        "textId": "SID_MOONLIGHT_TITLE",
+        "icon": "vizualyse_moonlight_icon.png",
+        "insertionStateId": 20974,
+        "insertionFocusId": 2,
+        "insertionMode": "INSERT_BELOW",
+        "insertionOrder": 1,
+        "insertionPriority": 0,
+        "previewType": "NONE",
+        "bookmarkable": true,
+        "private": null,
+        "appearance": "DEFAULT",
+        "isGroupHeader": false,
+        "insertionGroup": 0
+      }
+    ]
+  }
+}

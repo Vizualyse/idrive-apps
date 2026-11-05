@@ -23,21 +23,36 @@ workflow (Actions > Release, the component ids).
   harness first.
 - [ ] **Open protocol questions:** what `primaryInputDevice` should contain.
 
-## New apps
+## Moonlight (vizualyse-moonlight, vizualyse_moonlight 0.1.0)
 
-- [ ] **A Moonlight client, with controller support.** Stream games from a PC
-  running Sunshine (GameStream protocol) to the central screen, parked.
-  To find out: whether a Moonlight core (moonlight-common-c) builds for the
-  unit and decodes H.264 in hardware there (the libva path, or what
-  mgu-render uses); sound through the car's speakers; game controllers over
-  Bluetooth (HID) or USB, and whether the unit's kernel has the input drivers
-  (`hid-generic`, `xpad`, evdev) or they can be loaded; pairing (the PIN) and
-  the host list from the iDrive page or the phone page; the network (the car's
-  hotspot with the PC on it, or a phone tethering both). Only while parked.
+Built and tested off the car against a real Sunshine
+([`native/vizualyse-moonlight`](native/vizualyse-moonlight), "Off the car").
+
+- [ ] **Release it** (both at 0.1.0, not yet published).
+- [ ] **On the car:**
+  - the head unit reaching the PC on the hotspot (pairing, then a stream:
+    does UDP 47998-48000 get in with the host rule);
+  - the picture on the central screen (mgu-render), and whether the Atom
+    decodes 1280x720@60 in software in time (720p30 is the default); the
+    latency end to end;
+  - the sound through SmartXbar;
+  - controllers: which drivers the kernel has (`xpad`, `hid-microsoft`,
+    `hid-sony`, `hid-generic`), a USB pad, pairing a Bluetooth pad with the
+    car; the phone pad's latency;
+  - the iDrive page (the tile next to Cast's, the QR code, the buttons).
+- [ ] **Only while parked:** nothing checks the gear or the speed yet; find
+  where a root tool can read them, and stop (or refuse) the stream when
+  moving.
+- [ ] **Hardware decoding**, if software isn't enough: the Atom's VA-API
+  (libva) or what winston-grabber's `h264_msdk` uses, from moonlight-core.
+- [ ] Finding the PC on its own (mDNS `_nvstream._tcp`) instead of typing
+  its address; Wake-on-LAN (serverinfo gives the MAC).
 
 ## Carried over
 
-- [ ] **Control-socket hardening.** `/dev/shm/vizualyse-cast/ctl.sock` is
+- [ ] **Control-socket hardening** (Cast's, and Moonlight's
+  `/dev/shm/vizualyse-moonlight/ctl.sock` the same way; to do when Moonlight
+  is tested on the car). `/dev/shm/vizualyse-cast/ctl.sock` is
   0660, group `tm_oap_app`, which every Store app is in: any of them can read
   the phone link with its token and send commands. Accept only the Cast app's
   uid (peer credentials via `/proc/net/unix`, or a tiny native helper), or keep

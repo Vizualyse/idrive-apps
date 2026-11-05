@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+[Unit]
+Description=vizualyse-moonlight: games from a PC (Sunshine) on the central screen, controlled from the phone
+RequiresMountsFor=/var/opt
+After=mgu-render.service mgu-uplink.service
+Wants=mgu-render.service
+
+[Service]
+# Root: /dev/input (the controllers), the renderer, ALSA and the nftables rules.
+ExecStart=/usr/bin/node /var/opt/vizualyse-moonlight/current/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

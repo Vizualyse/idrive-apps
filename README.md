@@ -14,6 +14,8 @@ A tech demo, built and tested on a bench head unit.
 | [`samples`](samples) | cluster-render samples: a CPU gauge and clock, raw video and sound from files |
 | [`release`](release) | builds and publishes the Store catalog |
 | `tools` | `oap_pack.js`, `oap_link.js`: pack the app |
+| [`native/vizualyse-moonlight`](native/vizualyse-moonlight) | **Moonlight**, a tool: games from a PC running Sunshine on the central screen, with sound and game controllers, controlled from the phone. Experimental, tested off the car |
+| [`apps/vizualyse_moonlight`](apps/vizualyse_moonlight) | **Moonlight**, its iDrive app: the phone link and QR code, on/off, Stop, Quit game, Resume last |
 | [`native/hook111`](native/hook111) | **CarPlay cluster map (stream 111)**, a tool: a hook preloaded into the stock 2020 `carplay` that adds CarPlay's second screen and hands it to Cast to cluster. Experimental |
 | [`re`](re) | the off-car reverse engineering and harnesses behind hook111 ([status](re/STATUS.md)) |
 
@@ -28,10 +30,16 @@ cluster** first. It requires, from their own sources: `mgu-deploy`,
 ([robertnisipeanu/idrive-apps](https://github.com/robertnisipeanu/idrive-apps));
 the media console needs `mgu-render` (mgu-store).
 
+For **Moonlight**, install **Moonlight** the same way; it needs `mgu-python`
+and `mgu-render`.
+
 ## Build and test
 
 ```sh
 node apps/vizualyse_cast/tools/test_page.js   # the page against a fake HMI and the tool's real control socket
+node apps/vizualyse_moonlight/tools/test_page.js
+sh native/vizualyse-moonlight/build.sh                 # moonlight-core (Docker), its mapping test, ffmpeg
+sh native/vizualyse-moonlight/test/run_sunshine_test.sh # against a real Sunshine, Node 8 (Docker)
 node release/test/release_test.js
 node release/release.js check                 # two clean builds, compared byte for byte
 ```

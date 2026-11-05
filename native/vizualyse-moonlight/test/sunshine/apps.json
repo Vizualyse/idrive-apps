@@ -1,0 +1,1 @@
+{ "env": {}, "apps": [ { "name": "Desktop", "image-path": "desktop.png" }, { "name": "Test pattern", "image-path": "box.png" } ] }

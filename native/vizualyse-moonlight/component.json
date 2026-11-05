@@ -1,0 +1,52 @@
+{
+  "id": "vizualyse-moonlight",
+  "kind": "tool",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "title": "Moonlight",
+  "description": "EXPERIMENTAL. Streams games from a PC running Sunshine (GameStream) to the central screen while parked, with the sound through the speakers and game controllers (USB / Bluetooth gamepads, or the phone as a pad). Pair the PC and pick a game on the phone page: scan the QR code on the iDrive Moonlight page. Tested off the car against Sunshine; not yet on a car.",
+  "requires": {
+    "mgu-deploy": "0.7.0",
+    "mgu-python": "1.0.0",
+    "mgu-render": "0.6.11"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "deactivate": [
+    "node",
+    "firewall.js",
+    "remove"
+  ],
+  "build": [
+    "sh",
+    "build.sh"
+  ],
+  "files": [
+    { "path": "server.js", "from": "src/server.js", "mode": "0644" },
+    { "path": "gamestream.js", "from": "src/gamestream.js", "mode": "0644" },
+    { "path": "firewall.js", "from": "src/firewall.js", "mode": "0644" },
+    { "path": "console_out.js", "from": "src/console_out.js", "mode": "0644" },
+    { "path": "control.js", "from": "src/control.js", "mode": "0644" },
+    { "path": "page.html", "from": "src/page.html", "mode": "0644" },
+    { "path": "pcm_play.py", "from": "src/pcm_play.py", "mode": "0644" },
+    { "path": "moonlight-core", "from": "build/moonlight-core", "mode": "0755" },
+    { "path": "ffmpeg", "from": "build/ffmpeg", "mode": "0755" },
+    { "path": "ffmpeg-GPLv3.txt", "from": "build/ffmpeg-GPLv3.txt", "mode": "0644" },
+    { "path": "THIRD-PARTY.md", "from": "THIRD-PARTY.md", "mode": "0644" },
+    { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }
+  ],
+  "units": [
+    { "name": "vizualyse-moonlight.service", "from": "systemd/vizualyse-moonlight.service" }
+  ],
+  "enable": [
+    { "unit": "vizualyse-moonlight.service", "target": "multi-user.target" }
+  ],
+  "recmgr": [
+    "vizualyse-moonlight"
+  ],
+  "restart": [
+    "vizualyse-moonlight.service"
+  ]
+}

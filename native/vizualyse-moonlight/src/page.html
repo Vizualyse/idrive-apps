@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<title>Moonlight on iDrive</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --line:#30363d; --text:#e6edf3; --dim:#8b949e; --accent:#2f81f7; --ok:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 -apple-system, system-ui, sans-serif;
+         padding:max(16px, env(safe-area-inset-top)) 16px 32px; }
+  h1 { font-size:22px; margin:4px 0 2px; }
+  .sub { color:var(--dim); font-size:14px; margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  label.t { display:block; font-size:13px; color:var(--dim); margin:0 0 8px; text-transform:uppercase; letter-spacing:.04em; }
+  input[type=text] { flex:1; min-width:0; font-size:16px; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+  .seg { display:grid; grid-template-columns:repeat(auto-fit, minmax(90px, 1fr)); gap:8px; }
+  button { font:inherit; color:var(--text); }
+  .seg button, .btn { padding:12px 8px; border-radius:10px; border:1px solid var(--line); background:var(--bg); font-size:15px; }
+  .seg button.on { border-color:var(--accent); background:rgba(47,129,247,.15); }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+  input[type=range] { width:60%; accent-color:var(--accent); }
+  input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
+  .go { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+  .go button { padding:15px 6px; border:0; border-radius:12px; font-size:16px; font-weight:600; color:#fff; }
+  #play { background:var(--accent); } #stop { background:#30363d; } #quit { background:#5a1e1e; }
+  button:disabled { opacity:.45; }
+  .host { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line); }
+  .host:first-of-type { border-top:0; }
+  .host .n { flex:1; min-width:0; }
+  .host .n b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .host.sel b { color:var(--accent); }
+  .tag { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--dim); white-space:nowrap; }
+  .tag.ok { color:var(--ok); border-color:var(--ok); } .tag.bad { color:var(--bad); border-color:var(--bad); } .tag.warn { color:var(--warn); border-color:var(--warn); }
+  .pin { font-size:44px; font-weight:700; letter-spacing:.3em; text-align:center; margin:8px 0; font-variant-numeric:tabular-nums; }
+  .apps { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .apps button { padding:14px 8px; border-radius:10px; border:1px solid var(--line); background:var(--bg); text-align:left; }
+  .apps button.on { border-color:var(--accent); background:rgba(47,129,247,.15); }
+  .apps button.run::after { content:" ▶"; color:var(--ok); }
+  .st { display:flex; align-items:center; gap:10px; font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--dim); flex:none; }
+  .dot.streaming { background:var(--ok); } .dot.starting { background:var(--warn); } .dot.error { background:var(--bad); }
+  .meta { color:var(--dim); font-size:14px; margin-top:6px; word-break:break-word; }
+  .err { color:var(--bad); font-size:14px; margin-top:6px; word-break:break-word; }
+  .small { color:var(--dim); font-size:13px; }
+  .hide { display:none !important; }
+  /* the on-screen pad */
+  #pad { user-select:none; -webkit-user-select:none; touch-action:none; }
+  .padgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .stick { position:relative; aspect-ratio:1; border-radius:50%; background:var(--bg); border:1px solid var(--line); touch-action:none; }
+  .stick i { position:absolute; left:50%; top:50%; width:38%; height:38%; margin:-19% 0 0 -19%; border-radius:50%; background:#30363d; }
+  .pb { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .pb button, .shoulders button, .mid button { padding:14px 0; border-radius:12px; border:1px solid var(--line); background:var(--bg); font-weight:700; touch-action:none; }
+  .pb button.down, .shoulders button.down, .mid button.down { background:var(--accent); border-color:var(--accent); }
+  .shoulders, .mid { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
+  .mid { grid-template-columns:repeat(3, 1fr); margin:12px 0 0; }
+  .a { color:#3fb950; } .b { color:#f85149; } .x { color:#58a6ff; } .y { color:#d29922; }
+</style>
+</head>
+<body>
+<h1>Moonlight on iDrive</h1>
+<div class="sub" id="sub">Connecting…</div>
+
+<div class="card">
+  <label class="t">Gaming PCs</label>
+  <div id="hosts"><div class="small">No PC yet. Run <b>Sunshine</b> on the PC, put it on the same Wi-Fi as the car (the phone's hotspot), and add its address.</div></div>
+  <div class="row"><input id="addr" type="text" inputmode="decimal" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="PC address, e.g. 172.20.10.4"><button class="btn" id="add">Add</button></div>
+</div>
+
+<div class="card hide" id="pairCard">
+  <label class="t">Pair with <span id="pairName"></span></label>
+  <div class="small">On the PC open Sunshine's page (https://localhost:47990), go to <b>PIN</b>, pick the request from <b>iDrive</b> and type:</div>
+  <div class="pin" id="pin">----</div>
+  <div class="small" id="pairState">Waiting for the PIN…</div>
+</div>
+
+<div class="card" id="appsCard">
+  <label class="t">Games <span class="small" id="appsFrom"></span></label>
+  <div class="apps" id="apps"><div class="small">Pair a PC to see its games.</div></div>
+  <div class="row"><span class="small">Close the game on the PC to start another.</span><button class="btn" id="refresh">Refresh</button></div>
+</div>
+
+<div class="card">
+  <label class="t">Stream</label>
+  <div class="seg" id="modes"></div>
+  <div class="seg" id="rates" style="margin-top:8px"></div>
+  <div class="row"><span>Bitrate <span id="brv">8</span> Mbps</span><input id="br" type="range" min="2" max="30" value="8"></div>
+  <div class="row"><span>Sound through the speakers</span><input id="audio" type="checkbox" checked></div>
+  <div class="row"><span>Volume <span id="volv">100</span>%</span><input id="vol" type="range" min="0" max="150" value="100"></div>
+  <div class="row"><span>Let the PC change its resolution <span class="small">(Sunshine: optimise game settings)</span></span><input id="sops" type="checkbox" checked></div>
+</div>
+
+<div class="go">
+  <button id="play">Play</button>
+  <button id="stop">Stop</button>
+  <button id="quit">Quit game</button>
+</div>
+
+<div class="card">
+  <div class="st"><span class="dot" id="dot"></span><span id="state">—</span></div>
+  <div class="meta" id="meta"></div>
+  <div class="meta" id="pads"></div>
+  <div class="err" id="err"></div>
+</div>
+
+<div class="card hide" id="pad">
+  <label class="t">Controller <span class="small">(this phone; a real one connected to the car works too)</span></label>
+  <div class="shoulders"><button data-t="lt">LT</button><button data-b="256">LB</button><button data-b="512">RB</button><button data-t="rt">RT</button></div>
+  <div class="padgrid">
+    <div class="stick" data-s="l"><i></i></div>
+    <div class="pb"><span></span><button class="y" data-b="32768">Y</button><span></span><button class="x" data-b="16384">X</button><span></span><button class="b" data-b="8192">B</button><span></span><button class="a" data-b="4096">A</button><span></span></div>
+    <div class="pb"><span></span><button data-b="1">▲</button><span></span><button data-b="4">◀</button><span></span><button data-b="8">▶</button><span></span><button data-b="2">▼</button><span></span></div>
+    <div class="stick" data-s="r"><i></i></div>
+  </div>
+  <div class="mid"><button data-b="32">Back</button><button data-b="1024">Guide</button><button data-b="16">Start</button></div>
+</div>
+
+<script>
+(function () {
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var $ = function (id) { return document.getElementById(id); };
+  var sel = { host: null, app: null }, last = null, building = false;
+  function get(k, d) { try { var v = localStorage.getItem('ml.' + k); return v === null ? d : v; } catch (e) { return d; } }
+  function put(k, v) { try { localStorage.setItem('ml.' + k, v); } catch (e) {} }
+  sel.host = get('host', null); sel.app = Number(get('app', 0)) || null;
+
+  function api(p, body) {
+    return fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Moonlight-Token': token, 'Content-Type': 'application/json' },
+                      body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) { if (j.status) show(j.status); throw new Error(j.error || r.status); } return j; }); });
+  }
+  function fail(e) { $('err').textContent = e.message; }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+  function hostTag(h) {
+    if (!h.online) return el('span', 'tag bad', 'offline');
+    if (!h.paired) return el('span', 'tag warn', 'not paired');
+    return el('span', 'tag ok', h.busy ? 'in a game' : 'paired');
+  }
+  function drawHosts(s) {
+    var box = $('hosts');
+    if (!s.hosts.length) return;
+    box.innerHTML = '';
+    if (!s.hosts.some(function (h) { return h.id === sel.host; })) sel.host = (s.hosts.filter(function (h) { return h.paired; })[0] || s.hosts[0]).id;
+    s.hosts.forEach(function (h) {
+      var row = el('div', 'host' + (h.id === sel.host ? ' sel' : ''));
+      var n = el('div', 'n'); n.appendChild(el('b', '', h.name)); n.appendChild(el('span', 'small', h.address + (h.error ? ' · ' + h.error : '')));
+      n.onclick = function () { sel.host = h.id; put('host', h.id); show(last); };
+      row.appendChild(n); row.appendChild(hostTag(h));
+      var pair = el('button', 'btn', h.paired ? 'Re-pair' : 'Pair');
+      pair.disabled = !h.online || !!(s.pairing && s.pairing.state === 'waiting');
+      pair.onclick = function () { $('err').textContent = ''; api('/api/pair', { id: h.id }).then(show).catch(fail); };
+      var rm = el('button', 'btn', '✕'); rm.title = 'Forget this PC';
+      rm.onclick = function () { if (confirm('Forget ' + h.name + '?')) api('/api/hosts/remove', { id: h.id }).then(show).catch(fail); };
+      row.appendChild(pair); row.appendChild(rm);
+      box.appendChild(row);
+    });
+  }
+  function drawApps(s) {
+    var h = s.hosts.filter(function (x) { return x.id === sel.host; })[0], box = $('apps');
+    $('appsFrom').textContent = h ? 'on ' + h.name : '';
+    box.innerHTML = '';
+    if (!h || !h.paired) { box.appendChild(el('div', 'small', h ? 'Pair ' + h.name + ' to see its games.' : 'Add a PC first.')); return; }
+    if (!h.apps) { box.appendChild(el('div', 'small', 'Loading the games…')); if (!building) { building = true; api('/api/apps', { id: h.id }).then(show).catch(fail).then(function () { building = false; }); } return; }
+    if (!h.apps.some(function (a) { return a.id === sel.app; })) sel.app = h.currentGame || (h.apps[0] && h.apps[0].id);
+    h.apps.forEach(function (a) {
+      var b = el('button', (a.id === sel.app ? 'on' : '') + (a.id === h.currentGame ? ' run' : ''), a.name);
+      b.onclick = function () { sel.app = a.id; put('app', a.id); show(last); };
+      box.appendChild(b);
+    });
+  }
+  function seg(box, items, cur, cb) {
+    if (box.children.length !== items.length) {
+      box.innerHTML = '';
+      items.forEach(function (it) { var b = el('button', '', it.label); b.dataset.v = it.v; b.onclick = function () { cb(it.v); }; box.appendChild(b); });
+    }
+    Array.prototype.forEach.call(box.children, function (b) { b.classList.toggle('on', b.dataset.v === String(cur)); });
+  }
+  function drawSettings(s) {
+    var st = s.settings;
+    seg($('modes'), s.modes.map(function (m) { return { v: m, label: m.replace('x', '×') }; }), st.mode, function (v) { api('/api/settings', { mode: v }).then(show).catch(fail); });
+    seg($('rates'), s.rates.map(function (r) { return { v: String(r), label: r + ' fps' }; }), st.fps, function (v) { api('/api/settings', { fps: Number(v) }).then(show).catch(fail); });
+    if (document.activeElement !== $('br')) { $('br').value = Math.round(st.bitrate / 1000); $('brv').textContent = $('br').value; }
+    if (document.activeElement !== $('vol')) { $('vol').value = st.volume; $('volv').textContent = st.volume; }
+    $('audio').checked = st.audio; $('sops').checked = st.sops;
+  }
+  var NAMES = { idle: 'Idle', starting: 'Starting…', streaming: 'Streaming', ended: 'Ended', error: 'Error' };
+  function show(s) {
+    if (!s) return;
+    last = s;
+    $('sub').textContent = 'Uplink ' + s.uplink + ' · screen ' + s.render;
+    drawHosts(s); drawApps(s); drawSettings(s);
+    var p = s.pairing;
+    $('pairCard').classList.toggle('hide', !p);
+    if (p) {
+      $('pairName').textContent = p.name; $('pin').textContent = p.pin;
+      $('pairState').textContent = p.state === 'waiting' ? 'Waiting for the PIN…' : p.state === 'paired' ? 'Paired.' : 'Failed: ' + p.error;
+    }
+    var live = s.state === 'streaming' || s.state === 'starting';
+    $('dot').className = 'dot ' + s.state;
+    $('state').textContent = NAMES[s.state] || s.state;
+    var m = [];
+    if (s.app) m.push(s.app.name + (s.host ? ' from ' + s.host.name : ''));
+    if (s.state === 'streaming') m.push(s.size + ' · ' + s.fps + ' fps · ' + s.rtt + ' ms' + (s.poor ? ' · poor connection' : '') + ' · ' + s.seconds + ' s');
+    if (!live && s.note) m.push(s.note);
+    $('meta').textContent = m.join(' · ');
+    $('pads').textContent = s.pads.length ? 'Controllers: ' + s.pads.map(function (x) { return x.name; }).join(', ') : 'No controller connected to the car';
+    $('err').textContent = s.error || '';
+    var h = s.hosts.filter(function (x) { return x.id === sel.host; })[0];
+    $('play').disabled = live || !h || !h.paired || !sel.app;
+    $('play').textContent = h && h.currentGame && h.currentGame === sel.app ? 'Resume' : 'Play';
+    $('stop').disabled = !live;
+    $('quit').disabled = !(live || (h && h.busy));
+    $('pad').classList.toggle('hide', !live);
+    if (!live) padReset();
+  }
+  function poll() { api('/api/status').then(show).catch(function (e) { $('sub').textContent = 'Not reachable: ' + e.message; }); }
+
+  $('add').onclick = function () {
+    var a = $('addr').value.trim(); if (!a) { $('addr').focus(); return; }
+    $('add').disabled = true; $('err').textContent = '';
+    api('/api/hosts/add', { address: a }).then(function (s) { $('addr').value = ''; show(s); }).catch(fail).then(function () { $('add').disabled = false; });
+  };
+  $('refresh').onclick = function () { api('/api/hosts/refresh', {}).then(show).catch(fail); };
+  $('br').oninput = function () { $('brv').textContent = this.value; };
+  $('br').onchange = function () { api('/api/settings', { bitrate: Number(this.value) * 1000 }).then(show).catch(fail); };
+  $('vol').oninput = function () { $('volv').textContent = this.value; };
+  $('vol').onchange = function () { api('/api/settings', { volume: Number(this.value) }).then(show).catch(fail); };
+  $('audio').onchange = function () { api('/api/settings', { audio: this.checked }).then(show).catch(fail); };
+  $('sops').onchange = function () { api('/api/settings', { sops: this.checked }).then(show).catch(fail); };
+  $('play').onclick = function () {
+    $('play').disabled = true; $('err').textContent = '';
+    api('/api/play', { id: sel.host, app: sel.app }).then(show).catch(fail);
+  };
+  $('stop').onclick = function () { api('/api/stop', {}).then(show).catch(fail); };
+  $('quit').onclick = function () { api('/api/quit', {}).then(show).catch(fail); };
+
+  /* ---- the on-screen pad: state sent on change, at most every 33 ms ---- */
+  var pad = { b: 0, lt: 0, rt: 0, lx: 0, ly: 0, rx: 0, ry: 0 }, timer = null, dirty = false, sent = false;
+  function flush() { timer = null; if (!dirty) return; dirty = false; sent = true; api('/api/pad', pad).catch(function () {}); }
+  function changed() { dirty = true; if (!timer) timer = setTimeout(flush, 33); }
+  function padReset() { if (!sent) return; pad = { b: 0, lt: 0, rt: 0, lx: 0, ly: 0, rx: 0, ry: 0 }; sent = false; }
+  Array.prototype.forEach.call(document.querySelectorAll('#pad button'), function (b) {
+    function down(e) { e.preventDefault(); b.classList.add('down'); if (b.dataset.b) pad.b |= Number(b.dataset.b); else pad[b.dataset.t] = 255; changed(); if (navigator.vibrate) navigator.vibrate(8); }
+    function up(e) { e.preventDefault(); b.classList.remove('down'); if (b.dataset.b) pad.b &= ~Number(b.dataset.b); else pad[b.dataset.t] = 0; changed(); }
+    b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.stick'), function (st) {
+    var knob = st.querySelector('i'), id = null, s = st.dataset.s;
+    function move(e) {
+      var r = st.getBoundingClientRect(), R = r.width / 2;
+      var dx = (e.clientX - r.left - R) / R, dy = (e.clientY - r.top - R) / R, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 1) { dx /= d; dy /= d; }
+      knob.style.transform = 'translate(' + (dx * R * 0.6) + 'px,' + (dy * R * 0.6) + 'px)';
+      pad[s + 'x'] = Math.round(dx * 32767); pad[s + 'y'] = Math.round(-dy * 32767); changed();
+    }
+    st.addEventListener('pointerdown', function (e) { e.preventDefault(); id = e.pointerId; st.setPointerCapture(id); move(e); });
+    st.addEventListener('pointermove', function (e) { if (e.pointerId === id) move(e); });
+    function end(e) { if (e.pointerId !== id) return; id = null; knob.style.transform = ''; pad[s + 'x'] = 0; pad[s + 'y'] = 0; changed(); }
+    st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
+  });
+
+  poll(); setInterval(poll, 1500);
+})();
+</script>
+</body>
+</html>
