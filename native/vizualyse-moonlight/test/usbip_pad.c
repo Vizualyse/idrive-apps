@@ -27,6 +27,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 
 #define VHCI "/sys/devices/platform/vhci_hcd.0"
 #define PRODUCT "Test USB Pad"
@@ -197,22 +198,20 @@ static int free_port(void) {
     return port;
 }
 
-/* the device's node, once the kernel has configured it */
-static int find_node(char *node, size_t n) {
+/* The device's node, once the kernel has configured it: 0, or 1 when a
+ * kernel driver holds its interface (unbind then names that driver's unbind
+ * file and ifname the interface), or -1 while it is not there. */
+static int find_node(char *node, size_t n, char *unbind, size_t un, char *ifname, size_t ifn) {
     char path[256], v[64];
     for (int bus = 1; bus < 64; bus++) for (int port = 1; port <= 16; port++) {
         snprintf(path, sizeof(path), "/sys/bus/usb/devices/%d-%d/product", bus, port);
         if (sysread(path, v, sizeof(v)) < 0 || strcmp(v, PRODUCT) != 0) continue;
         snprintf(path, sizeof(path), "/sys/bus/usb/devices/%d-%d/%d-%d:1.0", bus, port, bus, port);
         if (access(path, F_OK) != 0) continue;
-        /* a kernel with xpad (GitHub's runners) takes it at once: let go, as on the car, where nothing holds it */
-        char drv[400], ifname[32];
-        snprintf(ifname, sizeof(ifname), "%d-%d:1.0", bus, port);
-        snprintf(drv, sizeof(drv), "%s/driver/unbind", path);
-        if (access(drv, F_OK) == 0) {
-            if (syswrite(drv, ifname) < 0) { fprintf(stderr, "usbip_pad: unbind %s: %s\n", ifname, strerror(errno)); continue; }
-            fprintf(stderr, "usbip_pad: %s unbound from its kernel driver\n", ifname);
-        }
+        /* a kernel with xpad (GitHub's runners) takes it at once */
+        snprintf(ifname, ifn, "%d-%d:1.0", bus, port);
+        snprintf(unbind, un, "%s/driver/unbind", path);
+        if (access(unbind, F_OK) == 0) return 1;
         char b[16], d[16];
         snprintf(path, sizeof(path), "/sys/bus/usb/devices/%d-%d/busnum", bus, port);
         if (sysread(path, b, sizeof(b)) < 0) continue;
@@ -246,10 +245,28 @@ int main(int argc, char **argv) {
     char node[64] = "";
     long until = ms() + 10000, end = ms() + seconds * 1000L, next = 0, combo_end = 0;
     int ready = 0, on = 0;
+    pid_t unbinder = 0;
+    long free_since = 0;
     for (;;) {
         long now = ms();
         /* twice, a moment apart: a driver can bind just after the interface appears */
-        if (!ready && find_node(node, sizeof(node)) == 0 && (usleep(300000), find_node(node, sizeof(node)) == 0)) { printf("ready %s\n", node); fflush(stdout); ready = 1; next = now + 1000; }
+        if (unbinder > 0 && waitpid(unbinder, NULL, WNOHANG) == unbinder) unbinder = 0;
+        if (!ready) {
+            char unbind[400], ifname[32];
+            int r = find_node(node, sizeof(node), unbind, sizeof(unbind), ifname, sizeof(ifname));
+            if (r == 1 && !unbinder) {
+                /* Let go of the driver, as on the car, where nothing holds it. In a
+                 * child: the driver's unbind waits for its URB to be unlinked, and
+                 * that unlink is ours to answer, so this loop must keep serving. */
+                fprintf(stderr, "usbip_pad: unbinding %s from its kernel driver\n", ifname);
+                unbinder = fork();
+                if (unbinder == 0) _exit(syswrite(unbind, ifname) < 0 ? 1 : 0);
+            }
+            /* driverless for 300 ms: a driver can bind just after the interface appears */
+            if (r != 0) free_since = 0;
+            else if (!free_since) free_since = now;
+            else if (now - free_since >= 300) { printf("ready %s\n", node); fflush(stdout); ready = 1; next = now + 1000; }
+        }
         if (!ready && now > until) { printf("the device did not appear\n"); fflush(stdout); break; }
         if (ready && now >= end) break;
         if (ready && combo_end && now >= combo_end) { buttons = 0; changed = 1; combo_end = 0; next = now + 1000; send_report(); }

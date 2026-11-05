@@ -135,7 +135,7 @@ async function main() {
         const proc = spawn(process.env[kind.env], ['300'], { stdio: ['pipe', 'pipe', 'pipe'] });
         let err = '';
         proc.stderr.on('data', (d) => { err += String(d); });
-        const ready = await new Promise((r) => { proc.stdout.once('data', (d) => r(String(d).trim())); proc.on('exit', (c) => r('exit ' + c)); });
+        const ready = await new Promise((r) => { proc.stdout.once('data', (d) => r(String(d).trim())); proc.on('exit', (c) => r('exit ' + c)); setTimeout(() => r('not ready in 20 s'), 20000); });
         if (!kind.node.test(ready)) { console.log('skip ' + kind.what + ': ' + ready + ' ' + err.trim()); proc.kill(); continue; }
         console.log('     virtual gamepad: ' + kind.name + ', ' + ready);
         pads.push(Object.assign({ proc: proc, err: () => err }, kind));

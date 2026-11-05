@@ -52,8 +52,10 @@ jobs:
             node native/vizualyse-cast/test/control_test.js &&
             node native/vizualyse-cast/test/control_test.js native/vizualyse-moonlight/src/control.js vizualyse_moonlight'
       - name: Moonlight against Sunshine (the head unit in a box, Node 8)
+        timeout-minutes: 20
         run: |
           sudo modprobe uinput || true
+          sudo modprobe vhci-hcd || true
           sh native/vizualyse-moonlight/build.sh
           sh native/vizualyse-moonlight/test/run_sunshine_test.sh
       - name: Reproducible builds
