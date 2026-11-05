@@ -167,6 +167,12 @@ line says otherwise.
   libasound works with nothing to compile.
 - The first open of an input after boot can take a long time to connect
   (2 s of audio took 52 s once); after that it is real time.
+- So a live stream must drop, not queue: Moonlight 0.1.1 wrote every sample
+  and the game's sound stayed seconds behind the picture after such a stall
+  (2026-11-05). `pcm_play.py --live` reads its input empty, keeps the device
+  60 ms full and drops what waits beyond 60 ms. `snd_pcm_set_params` starts
+  playback only once the whole buffer is full, so a device kept part full
+  needs a lower start threshold (sw params).
 
 ## Video and decoding
 

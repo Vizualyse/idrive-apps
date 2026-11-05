@@ -412,14 +412,21 @@ function startStream(h, app, launch, retried) {
     });
 
     if (settings.audio) {
-        const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--file', '-'], { stdio: ['pipe', 'pipe', 'pipe'] });
+        /* --live: it never falls behind (SmartXbar's first connect can block for many seconds) */
+        const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--file', '-', '--live'], { stdio: ['pipe', 'pipe', 'pipe'] });
         s.py = py;
         py.on('error', (e) => log('audio: ' + e.message));
         py.stdin.on('error', () => { /* python gone */ });
         py.stdout.on('data', (d) => log(String(d).trim()));
         py.stderr.on('data', (d) => log(String(d).trim()));
         const vol = settings.volume;
-        core.stdio[3].on('data', (d) => { try { py.stdin.write(setVolume(d, vol)); } catch (e) { /* gone */ } });
+        core.stdio[3].on('data', (d) => {
+            /* the player reads all it is given at once; while it can't (blocked opening SmartXbar), don't
+             * keep more than 1 s here either: it would only be dropped there */
+            const ws = py.stdin._writableState;
+            if (ws && ws.length > 48000 * 4) return;
+            try { py.stdin.write(setVolume(d, vol)); } catch (e) { /* gone */ }
+        });
     }
 
     let buf = '';

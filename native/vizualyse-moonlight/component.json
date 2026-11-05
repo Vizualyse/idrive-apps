@@ -1,10 +1,10 @@
 {
   "id": "vizualyse-moonlight",
   "kind": "tool",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "GPL-3.0-or-later",
   "title": "Moonlight",
-  "description": "EXPERIMENTAL. Streams games from a PC running Sunshine (GameStream) to the central screen (or the cluster or the HUD) while parked, with the sound through the speakers and game controllers (USB / Bluetooth gamepads, or the phone as a pad). Pair the PC and pick a game on the phone page: scan the QR code on the iDrive Moonlight page. Tested off the car against Sunshine; not yet on a car.",
+  "description": "EXPERIMENTAL. Streams games from a PC running Sunshine (GameStream) to the central screen (or the cluster or the HUD) while parked, with the sound through the speakers and game controllers (a wired Xbox 360-style USB pad, or the phone as a pad; no Bluetooth pads). Pair the PC and pick a game on the phone page: scan the QR code on the iDrive Moonlight page.",
   "requires": {
     "mgu-deploy": "0.7.0",
     "cluster-render": "0.3.3",

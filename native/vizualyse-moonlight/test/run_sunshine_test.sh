@@ -1,5 +1,6 @@
 #!/bin/sh
-# Runs test/sunshine_test.js and test/server_test.js: Sunshine (test/sunshine)
+# Runs test/pcm_play_test.py (the audio player's live mode), then
+# test/sunshine_test.js and test/server_test.js: Sunshine (test/sunshine)
 # and the head unit in a box (test/unit) on their own Docker network. Needs
 # build/moonlight-core and build/ffmpeg (sh build.sh). The head unit's
 # container gets --privileged and the Docker host's /dev for virtual
@@ -13,6 +14,8 @@ export MSYS_NO_PATHCONV=1
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 NET=ml-test-$$
+# the audio player's live mode (pcm_play.py) in mgu-python's Python, first: it needs no Sunshine
+docker run --rm -v "$WIN_HERE:/m:ro" -w /m python:3.12-slim python3 test/pcm_play_test.py
 docker build -q -t ml-sunshine-test "$WIN_HERE/test/sunshine" >/dev/null
 docker build -q -t ml-unit:18.04-node8 "$WIN_HERE/test/unit" >/dev/null
 docker network create $NET >/dev/null
