@@ -18,9 +18,23 @@ a real Sunshine (below), not yet on a car.
    **Stop** leaves the game running on the PC (Play then resumes it); **Quit
    game** closes it.
 
-Controllers: a USB or Bluetooth gamepad connected to the car (found through
-`/dev/input`, hot-plugged), and the phone page's own on-screen pad while a
+Controllers: a wired Xbox 360-style (XInput) USB pad plugged into the car,
+read straight through usbfs (hot-plugged), evdev gamepads where the kernel
+has them (not on the car), and the phone page's own on-screen pad while a
 stream runs. Up to four.
+
+On the car, the kernel (4.14.147-apl, its config in `configs.ko`) has no
+evdev, HID, uinput, joydev or Bluetooth HID, and `CONFIG_MODULE_SIG_FORCE=y`
+refuses any module not signed by BMW: no gamepad driver can be added. But the
+USB port is in host mode and usbfs is there (seen 2026-11-05): a wired
+Flydigi Vader 4 Pro enumerates as an Xbox 360 pad (`045e:028e`, one
+interface `ff/5d/01`, interrupt IN `0x81` / OUT `0x05`, 1 ms), no driver
+bound, its node `/dev/bus/usb/001/NNN` `root:mgu_usb 0660`. It shows up as
+`04b4:2412` for ~11 s first, then re-enumerates as the 360 pad. Read by
+hand, its interface gave the standard 20-byte XInput reports, and the LED
+command `01 03 06` on `0x05` was accepted. moonlight-core does the same
+while streaming: any `ff/5d/01` interface no driver holds is claimed, its
+LED set to the player, its reports read with one interrupt URB at a time.
 
 ## How it works
 
@@ -28,7 +42,7 @@ stream runs. Up to four.
 |---|---|---|
 | `server.js` | root | the phone page on port 8490 (token in the QR link); the PCs, pairing and the games; starts the stream's processes; the iDrive app's socket |
 | `gamestream.js` | root | GameStream over HTTP / HTTPS: serverinfo, PIN pairing, the app list, launch / resume, quit. The host's certificate from pairing is pinned on every HTTPS request after |
-| `moonlight-core` | root | C, on [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c): the stream itself (RTSP, the control stream, video and audio over UDP with FEC). H.264 Annex B on stdout, audio decoded (Opus) to S16LE 48 kHz stereo on fd 3, events as `@{json}` lines on stderr, commands (the phone pad, keys, quit) on stdin. Reads the gamepads from evdev itself (`core/pads.c`). `gencert` makes the client certificate |
+| `moonlight-core` | root | C, on [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c): the stream itself (RTSP, the control stream, video and audio over UDP with FEC). H.264 Annex B on stdout, audio decoded (Opus) to S16LE 48 kHz stereo on fd 3, events as `@{json}` lines on stderr, commands (the phone pad, keys, quit) on stdin. Reads the gamepads itself, from evdev and XInput USB pads through usbfs (`core/pads.c`). `gencert` makes the client certificate |
 | `ffmpeg` | root | the same static build as Cast's, decoding the H.264 in software (4 slices a frame, decoded on 4 threads) to I420 |
 | `console_out.js` | root | the frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_moonlight`, shown centred in the screen's app area (as Cast's media console) |
 | `pcm_play.py` | root, mgu-python | the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` |
@@ -44,7 +58,7 @@ the client's identity (`identity/`: certificate, key, unique id; the key
 `sh build.sh` builds `build/moonlight-core` in `image/Dockerfile` (Ubuntu
 18.04, gcc 8: the unit's glibc 2.27 and OpenSSL 1.1; libopus linked in) and
 runs `core/pads_test.c` (the evdev mapping: xpad and Bluetooth layouts,
-sticks, triggers, the hat) first. It refuses a binary needing a newer glibc
+sticks, triggers, the hat; the XInput reports, as read on the car) first. It refuses a binary needing a newer glibc
 or a library the unit lacks.
 
 `sh test/run_sunshine_test.sh` runs the tool against a real Sunshine
@@ -59,9 +73,13 @@ null sink) from the head unit in a box (`test/unit`: Ubuntu 18.04 with Node
 - `test/server_test.js`: `server.js` through the phone page's API and the
   iDrive app's socket, with stand-ins for mgu-render and the speakers
   (`test/fake`): add, pair, play (frames in the frame file, audio to the
-  player), the phone pad, stop, resume, quit, off / on; with a virtual USB
-  gamepad (`test/uinput_pad.c`, through `/dev/uinput`): found while idle,
-  announced to the PC while streaming, unplugged mid-stream.
+  player), the phone pad, stop, resume, quit, off / on; with virtual
+  gamepads: an evdev one (`test/uinput_pad.c`, through `/dev/uinput`) and
+  an XInput USB one as the car's (`test/usbip_pad.c`: a USB/IP device on
+  the kernel's `vhci_hcd`, so a real `/dev/bus/usb` node with no driver,
+  read through usbfs): found while idle, announced to the PC while
+  streaming (the USB pad's LED set), the quit combo held on the USB pad,
+  unplugged mid-stream.
 
 What the off-car tests found:
 
@@ -83,8 +101,10 @@ What the off-car tests found:
 - Whether the head unit reaches the PC on the hotspot (root has no route to
   the internet through mgu-uplink, but the hotspot's own subnet should be on
   `wlan0`), and whether the stream's UDP gets in (the host rule above).
-- Which gamepad drivers the unit's kernel has (`xpad`, `hid-microsoft`,
-  `hid-sony`, `hid-generic`), and pairing a Bluetooth pad with the car.
+- The XInput pad through moonlight-core on the car (passes off the car), and
+  the quit combo there. Pads that are not XInput (DualShock / DualSense:
+  HID reports, readable through usbfs too) are not read yet; Bluetooth pads
+  can't be (no HID in the kernel).
 - Only while parked: nothing checks the gear or the speed yet.
 - The control socket is open to every Store app, as Cast's (TODO.md).
 

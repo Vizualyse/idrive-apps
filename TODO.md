@@ -22,6 +22,12 @@ workflow (Actions > Release, the component ids).
   sends the identification (Cinemo's iAP2 stack), add the parameter in the
   harness first.
 - [ ] **Open protocol questions:** what `primaryInputDevice` should contain.
+- [ ] **Cast 0.3.8 on the car (2026-11-05):** centring and the time/distance
+  card work; the **zoom controls do nothing** and the **directions card's
+  on/off does nothing** (the card always shows). Changing many settings in a
+  row can grey out the map while the cards stay (fixed by reconnecting the
+  iPhone; maybe Google Maps itself).
+- [ ] **HUD:** the text could be bigger (both views otherwise look fine).
 
 ## Moonlight (vizualyse-moonlight, vizualyse_moonlight 0.1.0)
 
@@ -34,21 +40,22 @@ after a stop, the stream as uplink uid 12998, recmgr-whitelisted. **Never
 stop or restart a hand-made unit on the car: recmgr restarts the head unit**
 (Learnings, "The head unit").
 
-- [ ] **Controllers on the car:** there is no `/dev/input` at all (no HID
-  drivers loaded); find whether `xpad` / `hid-*` / `uinput` modules exist.
-  The quit combo is untested on the car for that reason.
+- [ ] **Controllers on the car:** XInput USB pads are read through usbfs
+  (no kernel drivers on the car, its README); passes off the car with a
+  USB/IP virtual pad. Next: bump to 0.1.1, release, then on the car the
+  Vader 4 Pro in a stream and the quit combo. Later: DualShock/DualSense
+  over usbfs (HID reports), pads paired to the phone (Gamepad API).
 - [ ] **The cluster and the HUD outputs** on the car (built, tested off the
   car only).
-- [ ] whether the Atom decodes 1280x720@60 in software in time (30 ran at
-  ~5 % CPU for ffmpeg, a clock desktop); the latency end to end.
+- [ ] whether the Atom decodes 1280x720@60 in software in time (streaming
+  from the real PC works); the latency end to end.
 - [ ] **Hardware decoding**, if software isn't enough: the Atom's VA-API
   (libva) or what winston-grabber's `h264_msdk` uses, from moonlight-core.
 
 ## Carried over
 
-- [ ] **Cast 0.3.8** (installed; its socket is now the Cast app's group
-  only): check the Cast page still works, then rotate the phone link's token
-  (it was readable by every Store app until then).
+- [ ] **Rotate the Cast phone link's token** (0.3.8 works on the car; the
+  token was readable by every Store app before it).
 
 
 ## Dropped

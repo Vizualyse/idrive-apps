@@ -5,9 +5,12 @@
  * (test/unit), against a real Sunshine (test/sunshine), driven through the
  * phone page's API and the iDrive app's control socket. The renderer and
  * the speakers are stand-ins (test/fake): the frames land in the frame file
- * as on the car, the audio in a file. With MOONLIGHT_TEST_PAD (test/uinput_pad,
- * needs /dev/uinput and the host's /dev), a virtual USB gamepad too: found
- * while idle, announced to the PC while streaming, gone when unplugged. Run by test/run_sunshine_test.sh:
+ * as on the car, the audio in a file. Virtual gamepads too, each found while
+ * idle, announced to the PC while streaming, gone when unplugged: with
+ * MOONLIGHT_TEST_PAD an evdev one (test/uinput_pad, needs /dev/uinput), with
+ * MOONLIGHT_TEST_USBPAD an XInput USB pad read through usbfs as on the car
+ * (test/usbip_pad, needs vhci_hcd); both need the host's /dev. The quit combo
+ * is held on the USB pad when there is one. Run by test/run_sunshine_test.sh:
  *
  *   node test/server_test.js <sunshine address>
  */
@@ -38,8 +41,10 @@ function holdCapture() {
         .map((l) => l.split(' ')).filter((f) => +f[0] >= 660 && +f[0] <= 1911);
     return lines.map((f) => Math.round((+f[0] - 660) * 2.2) + ' ' + f.slice(1).join(' ')).join('\n') + '\n';
 }
-const PAD = process.env.MOONLIGHT_TEST_PAD;
-const PAD_NAME = 'Test Xbox Pad';
+const PAD_KINDS = [
+    { env: 'MOONLIGHT_TEST_USBPAD', name: 'Test USB Pad', what: 'a USB (XInput, usbfs) gamepad', node: /^ready \/dev\/bus\/usb\/\d{3}\/\d{3}$/, usb: true },
+    { env: 'MOONLIGHT_TEST_PAD', name: 'Test Xbox Pad', what: 'an evdev gamepad', node: /^ready \/dev\/input\/event\d+$/ },
+];
 
 let failed = 0;
 const ok = (what, cond, more) => { console.log((cond ? 'ok   ' : 'FAIL ') + what + (more ? ': ' + more : '')); if (!cond) failed++; };
@@ -124,13 +129,20 @@ function videoSeq() {
 async function main() {
     if (!HOST) { console.error('usage: node test/server_test.js <address>'); process.exit(2); }
     const k = kit();
-    let pad = null;
-    if (PAD) {
-        pad = spawn(PAD, ['300'], { stdio: ['pipe', 'pipe', 'inherit'] });
-        const ready = await new Promise((r) => { pad.stdout.once('data', (d) => r(String(d).trim())); pad.on('exit', (c) => r('exit ' + c)); });
-        if (!/^ready \/dev\/input\/event\d+/.test(ready)) { console.log('skip the gamepad checks: ' + ready); pad = null; } else console.log('     virtual gamepad: ' + ready);
+    let pads = [];
+    for (const kind of PAD_KINDS) {
+        if (!process.env[kind.env]) continue;
+        const proc = spawn(process.env[kind.env], ['300'], { stdio: ['pipe', 'pipe', 'pipe'] });
+        let err = '';
+        proc.stderr.on('data', (d) => { err += String(d); });
+        const ready = await new Promise((r) => { proc.stdout.once('data', (d) => r(String(d).trim())); proc.on('exit', (c) => r('exit ' + c)); });
+        if (!kind.node.test(ready)) { console.log('skip ' + kind.what + ': ' + ready + ' ' + err.trim()); proc.kill(); continue; }
+        console.log('     virtual gamepad: ' + kind.name + ', ' + ready);
+        pads.push(Object.assign({ proc: proc, err: () => err }, kind));
     }
-    const hasPad = (x) => x && x.pads.some((q) => q.name === PAD_NAME);
+    const hasPad = (x, pad) => x && x.pads.some((q) => q.name === pad.name);
+    const hasPads = (x) => pads.every((pad) => hasPad(x, pad));
+    const padNames = (x) => x.pads.map((q) => q.slot === undefined ? q.name : q.slot + ' ' + q.name).join(', ');
     const env = Object.assign({}, process.env, {
         MOONLIGHT_STATE: path.join(TMP, 'state'), MOONLIGHT_PORT: String(PORT), MOONLIGHT_CTL_SOCKET: SOCK, MOONLIGHT_NO_FIREWALL: '1',
         MOONLIGHT_RENDER_CLIENT: path.join(__dirname, 'fake', 'render_client.js'), MOONLIGHT_VIDEO_FILE: VIDEO,
@@ -153,10 +165,8 @@ async function main() {
         ok('the client certificate was made', fs.existsSync(path.join(TMP, 'state', 'identity', 'cert.pem')));
         const key = fs.statSync(path.join(TMP, 'state', 'identity', 'key.pem')).mode & 0o777;
         ok('its key is private', key === 0o600, key.toString(8));
-        if (pad) {
-            s = await until(tok, 'the gamepad found', hasPad, 8000);
-            ok('a USB gamepad is found while idle', hasPad(s), s.pads.map((q) => q.name).join(', '));
-        }
+        if (pads.length) s = await until(tok, 'the gamepads found', hasPads, 8000);
+        for (const pad of pads) ok(pad.what + ' is found while idle', hasPad(s, pad), padNames(s));
 
         const bad = await req('POST', '/api/hosts/add', { address: 'a b' }, tok);
         ok('a bad address is refused', bad.code === 400);
@@ -204,9 +214,10 @@ async function main() {
             rlog.split('\n').filter(Boolean).join(', '));
         ok('the console claims no touch (stopping a stream that did restarted the head unit)', !/claim/.test(rlog));
         ok('the phone pad: accepted while streaming', (await req('POST', '/api/pad', { b: 4096 }, tok)).code === 200 && (await req('POST', '/api/pad', { b: 0 }, tok)).code === 200);
-        if (pad) {
-            s = await until(tok, 'the gamepad announced', hasPad, 6000);
-            ok('the gamepad is announced to the PC while streaming', hasPad(s), s.pads.map((q) => q.slot + ' ' + q.name).join(', '));
+        if (pads.length) s = await until(tok, 'the gamepads announced', hasPads, 6000);
+        for (const pad of pads) {
+            ok(pad.what + ' is announced to the PC while streaming', hasPad(s, pad), padNames(s));
+            if (pad.usb) ok('the USB pad\'s LED set to its player (01 03 06..09 on its OUT endpoint)', /usbip_pad: out 01 03 0[6-9]/.test(pad.err()), pad.err().trim().split('\n').pop());
         }
         s = await until(tok, 'the phone pad listed', (x) => x.pads.some((q) => q.name === 'Phone'), 5000);
         ok('the phone pad is listed as a controller', s.pads.some((q) => q.name === 'Phone'));
@@ -240,22 +251,23 @@ async function main() {
         await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
         s = await until(tok, 'streaming after the hold', (x) => x.state === 'streaming' && x.frames > 30, 25000);
         /* and the controller's quit combo */
-        if (pad) {
+        if (pads.length) {
+            const pad = pads.filter((q) => q.usb)[0] || pads[0];
             await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
-            s = await until(tok, 'streaming for the combo', (x) => x.state === 'streaming' && hasPad(x), 25000);
-            pad.stdin.write('combo\n');
+            s = await until(tok, 'streaming for the combo', (x) => x.state === 'streaming' && hasPad(x, pad), 25000);
+            pad.proc.stdin.write('combo\n');
             s = await until(tok, 'stopped by the combo', (x) => x.state === 'ended', 8000);
-            ok('Start + Back + LB + RB held 2 s stops the stream', s.state === 'ended' && /Start \+ Back/.test(s.note || ''), s.note);
+            ok('Start + Back + LB + RB held 2 s on ' + pad.what + ' stops the stream', s.state === 'ended' && /Start \+ Back/.test(s.note || ''), s.note);
             await sleep(3500);   /* the pad lets go */
         }
         await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
         s = await until(tok, 'streaming again', (x) => x.state === 'streaming' && x.frames > 30, 25000);
-        if (pad) {
-            s = await until(tok, 'the gamepad in the resumed stream', hasPad, 6000);
-            pad.stdin.end();
-            s = await until(tok, 'the gamepad gone', (x) => !hasPad(x), 8000);
-            ok('unplugged mid-stream: the gamepad leaves the stream, the stream goes on', !hasPad(s) && s.state === 'streaming');
-            pad = null;
+        if (pads.length) {
+            s = await until(tok, 'the gamepads in the resumed stream', hasPads, 6000);
+            for (const pad of pads) pad.proc.stdin.end();
+            s = await until(tok, 'the gamepads gone', (x) => pads.every((pad) => !hasPad(x, pad)), 8000);
+            for (const pad of pads) ok('unplugged mid-stream: ' + pad.what + ' leaves the stream, the stream goes on', !hasPad(s, pad) && s.state === 'streaming', padNames(s));
+            pads = [];
         }
 
         const q = await req('POST', '/api/quit', {}, tok);
@@ -274,7 +286,7 @@ async function main() {
         const hosts = JSON.parse(fs.readFileSync(path.join(TMP, 'state', 'hosts.json'), 'utf8'));
         ok('the pairing is kept across restarts', hosts[0] && /BEGIN CERTIFICATE/.test(hosts[0].serverCert));
     } finally {
-        if (pad) pad.kill();
+        for (const pad of pads) pad.proc.kill();
         srv.kill('SIGTERM');
         await sleep(1200);
         if (failed) console.log(out.join('').split('\n').filter((l) => !/ core: (done|Stopping|Cleaning|Starting|Initializing|Received)/.test(l)).slice(-80).join('\n'));

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 /*
- * Game controllers from evdev (/dev/input/event*), mapped to Moonlight's
- * Xbox-style gamepad state. The mapping (pad_event) is pure, so the tests
- * feed it events without a device.
+ * Game controllers, mapped to Moonlight's Xbox-style gamepad state: from
+ * evdev (/dev/input/event*), or straight from USB through usbfs for XInput
+ * (Xbox 360) pads, as on the car, whose kernel has no input drivers. The
+ * mappings (pad_event, pad_xinput_report) are pure, so the tests feed them
+ * events and reports without a device.
  */
 #pragma once
 #include <stdint.h>
@@ -20,8 +22,11 @@ struct pad_state {
     short lx, ly, rx, ry;        /* -32768..32767, up positive */
 };
 
+enum pad_kind { PAD_EVDEV, PAD_XINPUT };
+
 struct pad {
     int fd;                      /* -1 when free */
+    enum pad_kind kind;
     char path[64];
     char name[128];
     /* axes by role, after the layout below is chosen */
@@ -63,3 +68,16 @@ void pad_sent(struct pad *p);
 
 /* Whether a device with these key and abs bits is a gamepad. */
 bool pad_is_gamepad(const unsigned long *keybits, const unsigned long *absbits);
+
+/* XInput over usbfs: the vendor interface class ff, subclass 5d, protocol 01
+ * (Xbox 360 pads and the many pads that act as one, e.g. a Flydigi Vader 4
+ * Pro wired: 045e:028e). */
+bool pad_xinput_match(int iclass, int isubclass, int iprotocol);
+
+/* One report from the pad's interrupt IN endpoint. Input reports (type 0x00,
+ * 20 bytes) set the state; others (LED status, ...) are ignored. Returns true
+ * when the state changed since the last pad_sent(). */
+bool pad_xinput_report(struct pad *p, const unsigned char *r, int len);
+
+/* The LED command for a player slot 0..3 (3 bytes, on the OUT endpoint). */
+void pad_xinput_led(int slot, unsigned char out[3]);

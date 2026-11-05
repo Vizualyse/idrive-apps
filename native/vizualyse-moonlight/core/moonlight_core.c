@@ -24,7 +24,7 @@
  * --uid / --gid: the stream's threads run as that user, the tool's uplink
  * uid: mgu-uplink routes only listed uids through wlan0, root has no route
  * to the PC there (seen on the car). The gamepad thread stays root, to open
- * hot-plugged /dev/input devices: the drop is per thread (raw setresuid,
+ * hot-plugged /dev/input and /dev/bus/usb devices: the drop is per thread (raw setresuid,
  * not glibc's process-wide setuid), made after that thread starts and before
  * moonlight-common-c starts its own, which inherit it.
  *
@@ -38,6 +38,13 @@
  *   quit
  * End of stdin stops the stream too (the tool went away). Start + Back + LB +
  * RB held 2 s on a gamepad sends @{"ev":"exit-combo"}: the tool stops.
+ *
+ * Gamepads: evdev ones, and XInput (Xbox 360) USB pads read straight through
+ * usbfs, with no kernel driver: the car's kernel has no evdev, HID or xpad
+ * and loads only BMW-signed modules. A USB pad is an interface ff/5d/01 under
+ * /sys/bus/usb/devices that no driver holds; while streaming it is claimed,
+ * its LED set to its player, and its interrupt IN endpoint read with one
+ * URB at a time (the fd polls POLLOUT when it completes).
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -62,7 +69,9 @@
 #include <linux/if_packet.h>
 #include <time.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <linux/input.h>
+#include <linux/usbdevice_fs.h>
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -171,6 +180,14 @@ static pthread_mutex_t pad_lock = PTHREAD_MUTEX_INITIALIZER;
 static int phone_slot = -1;           /* the phone page's pad, or -1 */
 static struct pad_state phone_state;
 
+/* A USB pad's usbfs side, by slot. The URB is the kernel's while submitted;
+ * closing the fd kills it and releases the interface. */
+static struct usbio {
+    struct usbdevfs_urb *urb;    /* allocated once per slot, kept */
+    unsigned char buf[64];
+    unsigned char ep_in;
+} usbio[PADS_MAX];
+
 static int active_mask(void) {
     int m = 0;
     for (int i = 0; i < PADS_MAX; i++) if (pads[i].fd >= 0 || i == phone_slot) m |= 1 << i;
@@ -246,20 +263,167 @@ static void pad_close(int slot, const char *why) {
     pad_send(slot, &zero);
 }
 
+/* ---- USB pads through usbfs ---- */
+
+#define USB_SYS "/sys/bus/usb/devices"
+
+/* A sysfs attribute, without its newline: 0, or -1. */
+static int sysfs_read(const char *dir, const char *name, char *buf, size_t n) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t got = read(fd, buf, n - 1);
+    close(fd);
+    if (got < 0) return -1;
+    buf[got] = 0;
+    while (got > 0 && (buf[got - 1] == '\n' || buf[got - 1] == ' ')) buf[--got] = 0;
+    return 0;
+}
+
+static int sysfs_num(const char *dir, const char *name, int base) {
+    char b[32];
+    if (sysfs_read(dir, name, b, sizeof(b)) < 0 || !b[0]) return -1;
+    return (int)strtol(b, NULL, base);
+}
+
+struct usb_found {
+    char node[64];               /* /dev/bus/usb/BBB/DDD */
+    char name[128];
+    int iface;
+    int ep_in, ep_out;           /* interrupt endpoints, -1 when none */
+};
+
+/* The XInput interfaces no driver holds, up to max. */
+static int usb_xinput_find(struct usb_found *out, int max) {
+    DIR *d = opendir(USB_SYS);
+    if (!d) return 0;
+    int n = 0;
+    struct dirent *e;
+    while (n < max && (e = readdir(d)) != NULL) {
+        const char *colon = strchr(e->d_name, ':');
+        if (!colon) continue;
+        char ifdir[300], devdir[300], path[320];
+        snprintf(ifdir, sizeof(ifdir), USB_SYS "/%s", e->d_name);
+        if (!pad_xinput_match(sysfs_num(ifdir, "bInterfaceClass", 16), sysfs_num(ifdir, "bInterfaceSubClass", 16),
+                              sysfs_num(ifdir, "bInterfaceProtocol", 16))) continue;
+        snprintf(path, sizeof(path), "%s/driver", ifdir);
+        if (access(path, F_OK) == 0) continue;            /* a kernel driver has it (xpad) */
+        snprintf(devdir, sizeof(devdir), USB_SYS "/%.*s", (int)(colon - e->d_name), e->d_name);
+        int bus = sysfs_num(devdir, "busnum", 10), dev = sysfs_num(devdir, "devnum", 10);
+        if (bus < 0 || dev < 0) continue;
+        struct usb_found *f = &out[n];
+        memset(f, 0, sizeof(*f));
+        snprintf(f->node, sizeof(f->node), "/dev/bus/usb/%03d/%03d", bus, dev);
+        f->iface = sysfs_num(ifdir, "bInterfaceNumber", 16);
+        if (sysfs_read(devdir, "product", f->name, sizeof(f->name)) < 0 || !f->name[0]) {
+            char v[8] = "?", pr[8] = "?";
+            sysfs_read(devdir, "idVendor", v, sizeof(v));
+            sysfs_read(devdir, "idProduct", pr, sizeof(pr));
+            snprintf(f->name, sizeof(f->name), "USB gamepad %s:%s", v, pr);
+        }
+        f->ep_in = f->ep_out = -1;
+        DIR *ed = opendir(ifdir);
+        struct dirent *ee;
+        while (ed && (ee = readdir(ed)) != NULL) {
+            if (strncmp(ee->d_name, "ep_", 3) != 0) continue;
+            char epdir[600], type[32];
+            snprintf(epdir, sizeof(epdir), "%s/%s", ifdir, ee->d_name);
+            if (sysfs_read(epdir, "type", type, sizeof(type)) < 0 || strcmp(type, "Interrupt") != 0) continue;
+            int addr = sysfs_num(epdir, "bEndpointAddress", 16);
+            if (addr < 0) continue;
+            if (addr & 0x80) { if (f->ep_in < 0) f->ep_in = addr; }
+            else if (f->ep_out < 0) f->ep_out = addr;
+        }
+        if (ed) closedir(ed);
+        if (f->iface < 0 || f->ep_in < 0) continue;
+        n++;
+    }
+    closedir(d);
+    return n;
+}
+
+static int usb_submit(int slot) {
+    struct usbio *u = &usbio[slot];
+    memset(u->urb, 0, sizeof(*u->urb));
+    u->urb->type = USBDEVFS_URB_TYPE_INTERRUPT;
+    u->urb->endpoint = u->ep_in;
+    u->urb->buffer = u->buf;
+    u->urb->buffer_length = sizeof(u->buf);
+    return ioctl(pads[slot].fd, USBDEVFS_SUBMITURB, u->urb);
+}
+
+/* Claim the pad, light its LED, start reading: its slot, or -1. */
+static int usb_pad_open(const struct usb_found *f) {
+    int slot = -1;
+    for (int i = 0; i < PADS_MAX; i++) if (pads[i].fd < 0 && i != phone_slot) { slot = i; break; }
+    if (slot < 0) return -1;
+    if (!usbio[slot].urb && !(usbio[slot].urb = calloc(1, sizeof(struct usbdevfs_urb)))) return -1;
+    int fd = open(f->node, O_RDWR | O_CLOEXEC);
+    if (fd < 0) return -1;
+    unsigned int iface = (unsigned int)f->iface;
+    if (ioctl(fd, USBDEVFS_CLAIMINTERFACE, &iface) < 0) { close(fd); return -1; }
+    if (f->ep_out >= 0) {
+        unsigned char led[3];
+        pad_xinput_led(slot, led);
+        struct usbdevfs_bulktransfer bt = { (unsigned int)f->ep_out, sizeof(led), 100, led };
+        ioctl(fd, USBDEVFS_BULK, &bt);   /* only the LED: a pad that refuses it still works */
+    }
+    struct pad *p = &pads[slot];
+    memset(p, 0, sizeof(*p));
+    p->fd = fd;
+    p->kind = PAD_XINPUT;
+    snprintf(p->path, sizeof(p->path), "%s", f->node);
+    snprintf(p->name, sizeof(p->name), "%s", f->name);
+    usbio[slot].ep_in = (unsigned char)f->ep_in;
+    if (usb_submit(slot) < 0) { close(fd); p->fd = -1; return -1; }
+    return slot;
+}
+
+/* Completed reads: map them, send, read again. False when the pad is gone. */
+static bool usb_pad_read(int slot) {
+    struct pad *p = &pads[slot];
+    struct usbdevfs_urb *done;
+    while (ioctl(p->fd, USBDEVFS_REAPURBNDELAY, &done) == 0) {
+        if (done->status == 0) {
+            if (connected && !p->announced) pad_announce(slot);
+            if (pad_xinput_report(p, usbio[slot].buf, done->actual_length)) { pad_send(slot, &p->st); pad_sent(p); }
+        } else if (done->status == -ENODEV || done->status == -ESHUTDOWN) {
+            pad_close(slot, "gone");
+            return false;
+        }
+        /* anything else (a CRC or babble error): read on */
+        if (usb_submit(slot) < 0) { pad_close(slot, errno == ENODEV ? "gone" : "read failed"); return false; }
+    }
+    if (errno != EAGAIN) { pad_close(slot, errno == ENODEV ? "gone" : "read failed"); return false; }
+    return true;
+}
+
+static void pad_found(int slot, const char *name, const char *path) {
+    char n[256];
+    jstr(n, sizeof(n), name);
+    event("{\"ev\":\"pad\",\"slot\":%d,\"name\":\"%s\",\"path\":\"%s\",\"present\":true}", slot, n, path);
+    pad_announce(slot);
+}
+
 static void pads_scan(void) {
     glob_t g;
-    if (glob("/dev/input/event*", 0, NULL, &g) != 0) return;
-    for (size_t i = 0; i < g.gl_pathc; i++) {
-        if (path_open(g.gl_pathv[i])) continue;
-        char name[128];
-        int slot = pad_probe(g.gl_pathv[i], name, sizeof(name), 1);
-        if (slot < 0) continue;
-        char n[256];
-        jstr(n, sizeof(n), name);
-        event("{\"ev\":\"pad\",\"slot\":%d,\"name\":\"%s\",\"path\":\"%s\",\"present\":true}", slot, n, g.gl_pathv[i]);
-        pad_announce(slot);
+    if (glob("/dev/input/event*", 0, NULL, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc; i++) {
+            if (path_open(g.gl_pathv[i])) continue;
+            char name[128];
+            int slot = pad_probe(g.gl_pathv[i], name, sizeof(name), 1);
+            if (slot >= 0) pad_found(slot, name, g.gl_pathv[i]);
+        }
+        globfree(&g);
     }
-    globfree(&g);
+    struct usb_found f[PADS_MAX];
+    int n = usb_xinput_find(f, PADS_MAX);
+    for (int i = 0; i < n; i++) {
+        if (path_open(f[i].node)) continue;
+        int slot = usb_pad_open(&f[i]);
+        if (slot >= 0) pad_found(slot, f[i].name, f[i].node);
+    }
 }
 
 static long now_ms(void) {
@@ -277,7 +441,10 @@ static void *pads_thread(void *arg) {
         if (now - last_scan >= 2) { pads_scan(); last_scan = now; }
         struct pollfd pf[PADS_MAX];
         int slot_of[PADS_MAX], n = 0;
-        for (int i = 0; i < PADS_MAX; i++) if (pads[i].fd >= 0) { pf[n].fd = pads[i].fd; pf[n].events = POLLIN; slot_of[n++] = i; }
+        for (int i = 0; i < PADS_MAX; i++) if (pads[i].fd >= 0) {
+            /* usbfs: POLLOUT when a URB has completed */
+            pf[n].fd = pads[i].fd; pf[n].events = pads[i].kind == PAD_XINPUT ? POLLOUT : POLLIN; slot_of[n++] = i;
+        }
         pthread_mutex_unlock(&pad_lock);
 
         int r = poll(pf, (nfds_t)n, 200);
@@ -293,6 +460,7 @@ static void *pads_thread(void *arg) {
             struct pad *p = &pads[slot_of[k]];
             if (p->fd < 0) continue;
             if (pf[k].revents & (POLLERR | POLLHUP | POLLNVAL)) { pad_close(slot_of[k], "gone"); continue; }
+            if (p->kind == PAD_XINPUT) { if (pf[k].revents & POLLOUT) usb_pad_read(slot_of[k]); continue; }
             if (!(pf[k].revents & POLLIN)) continue;
             struct input_event ev[64];
             ssize_t got = read(p->fd, ev, sizeof(ev));
@@ -309,14 +477,23 @@ static void *pads_thread(void *arg) {
 
 static int list_pads(void) {
     glob_t g;
-    if (glob("/dev/input/event*", 0, NULL, &g) != 0) return 0;
-    for (size_t i = 0; i < g.gl_pathc; i++) {
-        char name[128], n[256];
-        if (pad_probe(g.gl_pathv[i], name, sizeof(name), 0) < 0) continue;
-        jstr(n, sizeof(n), name);
-        printf("{\"name\":\"%s\",\"path\":\"%s\"}\n", n, g.gl_pathv[i]);
+    if (glob("/dev/input/event*", 0, NULL, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc; i++) {
+            char name[128], n[256];
+            if (pad_probe(g.gl_pathv[i], name, sizeof(name), 0) < 0) continue;
+            jstr(n, sizeof(n), name);
+            printf("{\"name\":\"%s\",\"path\":\"%s\"}\n", n, g.gl_pathv[i]);
+        }
+        globfree(&g);
     }
-    globfree(&g);
+    /* only listed: claimed while streaming */
+    struct usb_found f[PADS_MAX];
+    int n = usb_xinput_find(f, PADS_MAX);
+    for (int i = 0; i < n; i++) {
+        char nm[256];
+        jstr(nm, sizeof(nm), f[i].name);
+        printf("{\"name\":\"%s\",\"path\":\"%s\"}\n", nm, f[i].node);
+    }
     return 0;
 }
 

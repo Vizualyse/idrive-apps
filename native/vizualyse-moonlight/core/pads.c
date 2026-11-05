@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
-/* The evdev to Moonlight gamepad mapping (pads.h). No I/O here. */
+/* The evdev and XInput to Moonlight gamepad mappings (pads.h). No I/O here. */
 #include "pads.h"
 #include <string.h>
 #include <linux/input.h>
@@ -149,4 +149,43 @@ bool pad_combo(struct pad *p, long now_ms) {
 void pad_sent(struct pad *p) {
     p->sent = p->st;
     p->dirty = false;
+}
+
+bool pad_xinput_match(int iclass, int isubclass, int iprotocol) {
+    return iclass == 0xff && isubclass == 0x5d && iprotocol == 0x01;
+}
+
+/* The report's button bits, in order (bit 11 is unused). */
+static const int xinput_buttons[16] = {
+    UP_FLAG, DOWN_FLAG, LEFT_FLAG, RIGHT_FLAG, PLAY_FLAG, BACK_FLAG, LS_CLK_FLAG, RS_CLK_FLAG,
+    LB_FLAG, RB_FLAG, SPECIAL_FLAG, 0, A_FLAG, B_FLAG, X_FLAG, Y_FLAG,
+};
+
+/* As xpad's flat: a stick at rest reads a little off centre (seen on the car). */
+#define XINPUT_FLAT 128
+
+static short xstick(const unsigned char *b) {
+    short v = (short)(b[0] | b[1] << 8);
+    return (v <= XINPUT_FLAT && v >= -XINPUT_FLAT) ? 0 : v;
+}
+
+bool pad_xinput_report(struct pad *p, const unsigned char *r, int len) {
+    if (len < 14 || r[0] != 0x00 || r[1] < 14) return false;
+    int bits = r[2] | r[3] << 8, b = 0;
+    for (int i = 0; i < 16; i++) if (bits >> i & 1) b |= xinput_buttons[i];
+    p->st.buttons = b;
+    p->st.lt = r[4];
+    p->st.rt = r[5];
+    /* already up positive, as Moonlight's */
+    p->st.lx = xstick(r + 6);
+    p->st.ly = xstick(r + 8);
+    p->st.rx = xstick(r + 10);
+    p->st.ry = xstick(r + 12);
+    if (memcmp(&p->st, &p->sent, sizeof(p->st)) != 0) p->dirty = true;
+    return p->dirty;
+}
+
+void pad_xinput_led(int slot, unsigned char out[3]) {
+    out[0] = 0x01; out[1] = 0x03;
+    out[2] = (unsigned char)(0x06 + (slot & 3));   /* 6..9: the ring's quarter for players 1..4 */
 }

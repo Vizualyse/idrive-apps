@@ -125,6 +125,50 @@ int main(void) {
     abs[0] |= 1UL << ABS_X | 1UL << ABS_Y;
     OK("A and two axes is a gamepad", pad_is_gamepad(keys, abs));
 
+    /* XInput over usbfs: reports as the car read them from a Vader 4 Pro (x360 mode) */
+    OK("ff/5d/01 is XInput", pad_xinput_match(0xff, 0x5d, 0x01));
+    OK("other vendor interfaces are not", !pad_xinput_match(0xff, 0xff, 0xff) && !pad_xinput_match(0xff, 0x47, 0xd0) && !pad_xinput_match(0x03, 0x00, 0x00));
+    struct pad x;
+    memset(&x, 0, sizeof(x));
+    unsigned char r[20] = { 0x00, 0x14 };
+    #define REPORT(btn, lt, rt, lx, ly, rx, ry) do { r[2] = (btn) & 0xff; r[3] = (btn) >> 8; r[4] = (lt); r[5] = (rt); \
+        short v_[4] = { (lx), (ly), (rx), (ry) }; for (int i_ = 0; i_ < 4; i_++) { r[6 + 2 * i_] = v_[i_] & 0xff; r[7 + 2 * i_] = (v_[i_] >> 8) & 0xff; } } while (0)
+    REPORT(0, 0, 0, 128, -128, -128, 0);
+    OK("the first report at rest: nothing to send (inside the flat)", !pad_xinput_report(&x, r, 20) && x.st.lx == 0 && x.st.ly == 0 && x.st.rx == 0);
+    REPORT(0, 0, 0, 128, -128, -128, 384);
+    OK("a resting stick at 384 is past the flat: sent", pad_xinput_report(&x, r, 20) && x.st.ry == 384);
+    pad_sent(&x);
+    REPORT(0x1000 | 0x4000, 0, 27, -64, 192, -128, -64);
+    OK("A + X with RT and a stick: a change", pad_xinput_report(&x, r, 20));
+    OK("A + X", x.st.buttons == (A_FLAG | X_FLAG));
+    OK("RT 27, LT 0", x.st.rt == 27 && x.st.lt == 0);
+    OK("left stick 192 up", x.st.lx == 0 && x.st.ly == 192);
+    pad_sent(&x);
+    OK("the same report again: no change", !pad_xinput_report(&x, r, 20));
+    REPORT(0x0001 | 0x0004, 255, 0, -32768, 32767, 16128, -18560);
+    pad_xinput_report(&x, r, 20); pad_sent(&x);
+    OK("up + left (the d-pad)", x.st.buttons == (UP_FLAG | LEFT_FLAG));
+    OK("full LT; sticks pass through, up positive", x.st.lt == 255 && x.st.lx == -32768 && x.st.ly == 32767 && x.st.rx == 16128 && x.st.ry == -18560);
+    REPORT(0x0002 | 0x0008 | 0x0040 | 0x0080 | 0x0400 | 0x2000 | 0x8000, 0, 0, 0, 0, 0, 0);
+    pad_xinput_report(&x, r, 20); pad_sent(&x);
+    OK("down, right, both stick clicks, guide, B, Y",
+       x.st.buttons == (DOWN_FLAG | RIGHT_FLAG | LS_CLK_FLAG | RS_CLK_FLAG | SPECIAL_FLAG | B_FLAG | Y_FLAG));
+    REPORT(0x0010 | 0x0020 | 0x0100 | 0x0200, 0, 0, 0, 0, 0, 0);
+    pad_xinput_report(&x, r, 20);
+    OK("start + back + LB + RB is the quit combo's set", x.st.buttons == (PLAY_FLAG | BACK_FLAG | LB_FLAG | RB_FLAG));
+    OK("...and held 2 s it fires", !pad_combo(&x, 1000) && pad_combo(&x, 3000));
+    pad_sent(&x);
+    const unsigned char led[3] = { 0x01, 0x03, 0x02 };
+    OK("an LED status report is ignored", !pad_xinput_report(&x, led, 3) && x.st.buttons == (PLAY_FLAG | BACK_FLAG | LB_FLAG | RB_FLAG));
+    unsigned char odd[20] = { 0x08, 0x03 };
+    OK("other report types are ignored", !pad_xinput_report(&x, odd, 20));
+    OK("a short input report is ignored", !pad_xinput_report(&x, r, 13));
+    unsigned char cmd[3];
+    pad_xinput_led(0, cmd);
+    OK("player 1's LED: 01 03 06 (what the car's pad accepted)", cmd[0] == 1 && cmd[1] == 3 && cmd[2] == 6);
+    pad_xinput_led(3, cmd);
+    OK("player 4's LED: 01 03 09", cmd[2] == 9);
+
     printf("pads_test: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
