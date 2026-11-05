@@ -35,12 +35,14 @@ jobs:
         run: node apps/vizualyse_cast/tools/test_page.js
       - name: Moonlight page
         run: node apps/vizualyse_moonlight/tools/test_page.js
+      - name: Browser page
+        run: node apps/vizualyse_chromium/tools/test_page.js
       - name: Release tooling
         run: node release/test/release_test.js
       - name: Node 8 syntax (the head unit's)
         run: |
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine sh -c '
-            for f in native/vizualyse-cast/src/*.js apps/vizualyse_cast/src/*.js apps/vizualyse_moonlight/src/*.js native/vizualyse-moonlight/src/*.js samples/*/*.js; do node -c "$f" || exit 1; done'
+            for f in native/vizualyse-cast/src/*.js apps/vizualyse_cast/src/*.js apps/vizualyse_moonlight/src/*.js native/vizualyse-moonlight/src/*.js apps/vizualyse_chromium/src/*.js native/vizualyse-chromium/src/*.js native/vizualyse-chromium/test/*.js samples/*/*.js; do node -c "$f" || exit 1; done'
       - name: CarPlay second screen source (Node 8, the kit's ffmpeg)
         run: |
           node native/vizualyse-cast/tools/fetch_ffmpeg.js
@@ -50,7 +52,8 @@ jobs:
           docker build -q -t ml-unit:18.04-node8 native/vizualyse-moonlight/test/unit
           docker run --rm -v "$PWD:/repo:ro" -w /repo ml-unit:18.04-node8 sh -c '
             node native/vizualyse-cast/test/control_test.js &&
-            node native/vizualyse-cast/test/control_test.js native/vizualyse-moonlight/src/control.js vizualyse_moonlight'
+            node native/vizualyse-cast/test/control_test.js native/vizualyse-moonlight/src/control.js vizualyse_moonlight &&
+            node native/vizualyse-cast/test/control_test.js native/vizualyse-chromium/src/control.js vizualyse_chromium'
       - name: Moonlight against Sunshine (the head unit in a box, Node 8)
         timeout-minutes: 20
         run: |
@@ -58,5 +61,8 @@ jobs:
           sudo modprobe vhci-hcd || true
           sh native/vizualyse-moonlight/build.sh
           sh native/vizualyse-moonlight/test/run_sunshine_test.sh
+      - name: Browser bundle (Chromium and Mesa for the unit; the sink's colour test)
+        timeout-minutes: 30
+        run: sh native/vizualyse-chromium/build.sh
       - name: Reproducible builds
         run: node release/release.js check

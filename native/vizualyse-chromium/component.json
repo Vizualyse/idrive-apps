@@ -1,0 +1,67 @@
+{
+  "id": "vizualyse-chromium",
+  "kind": "tool",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "title": "Browser",
+  "description": "EXPERIMENTAL. A web browser (Chromium 156) running on the car's own GPU, with WebGL 2, WebGPU and WebAssembly JSPI, shown on the central screen while parked and driven by touch. Type addresses on the phone page: scan the QR code on the iDrive Browser page. About 250 MB to download, 650 MB on the unit.",
+  "requires": {
+    "mgu-deploy": "0.7.0",
+    "mgu-render": "0.6.11"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "internet": true,
+  "uids": [
+    12997
+  ],
+  "deactivate": [
+    "node",
+    "firewall.js",
+    "remove"
+  ],
+  "build": [
+    "sh",
+    "build.sh"
+  ],
+  "files": [
+    { "path": "server.js", "from": "src/server.js", "mode": "0644" },
+    { "path": "env.js", "from": "src/env.js", "mode": "0644" },
+    { "path": "unpack.js", "from": "src/unpack.js", "mode": "0644" },
+    { "path": "browser.js", "from": "src/browser.js", "mode": "0644" },
+    { "path": "screen.js", "from": "src/screen.js", "mode": "0644" },
+    { "path": "firewall.js", "from": "src/firewall.js", "mode": "0644" },
+    { "path": "control.js", "from": "src/control.js", "mode": "0644" },
+    { "path": "proxy.js", "from": "src/proxy.js", "mode": "0644" },
+    { "path": "page.html", "from": "src/page.html", "mode": "0644" },
+    { "path": "chromium.tgz", "from": "build/chromium.tgz", "mode": "0644" },
+    { "path": "bundle-VERSION.txt", "from": "build/bundle-VERSION.txt", "mode": "0644" },
+    { "path": "THIRD-PARTY.md", "from": "THIRD-PARTY.md", "mode": "0644" },
+    { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }
+  ],
+  "units": [
+    {
+      "name": "vizualyse-chromium.service",
+      "from": "systemd/vizualyse-chromium.service"
+    }
+  ],
+  "enable": [
+    {
+      "unit": "vizualyse-chromium.service",
+      "target": "multi-user.target"
+    }
+  ],
+  "recmgr": [
+    "vizualyse-chromium"
+  ],
+  "crashNames": [
+    "chromium",
+    "chrome_crashpad_handler",
+    "chromium-sink"
+  ],
+  "restart": [
+    "vizualyse-chromium.service"
+  ]
+}

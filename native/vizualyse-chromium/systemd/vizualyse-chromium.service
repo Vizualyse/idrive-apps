@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+[Unit]
+Description=vizualyse-chromium: a web browser (WebGL, WebGPU) on the car's GPU, on the central screen while parked
+RequiresMountsFor=/var/opt
+After=mgu-render.service mgu-uplink.service
+Wants=mgu-render.service
+
+[Service]
+# Root: the renderer, the display's touch (AF_PACKET), nftables, the memory
+# cgroup. Chromium itself runs as uid 12997 / group video, capped by that cgroup.
+ExecStart=/usr/bin/node /var/opt/vizualyse-chromium/current/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

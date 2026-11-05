@@ -2,6 +2,11 @@
 
 Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says otherwise. Index: [index.md](index.md).
 
+- **The unit's root filesystem runs as a container**: `docker import
+  ../idrive-rootfs/20.40.2/rootfs.tar idrive-rootfs:I_21w12.2-1-4`, then
+  `/usr/bin/node` (8.16.2), BusyBox and the unit's loader as on the car (no
+  `/var/opt`, no `/tmp`: make them). No GPU, no SOME/IP, no HMI
+  (vizualyse-chromium's `test/run_unit_test.sh`).
 - Test frames and filter graphs on a PC first: a still from
   `winston-grabber -n 1 x.jpg` or a few seconds of its UDP stream through the
   same ffmpeg build in a Linux container, then the unit.

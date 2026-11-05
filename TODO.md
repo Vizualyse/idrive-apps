@@ -96,36 +96,34 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Chromium (a browser on the car's GPU)
+## Browser (vizualyse-chromium, vizualyse_chromium 0.1.0)
 
-Goal: WebGL/WebGPU pages running on the unit itself, e.g. a browser game
-with streamed assets. The Atom A3960's GPU is an Intel HD 505 (Gen9), which
-Mesa's iris/ANV drive with GL 4.6 and Vulkan on a normal kernel; the unit
-has ~5.6 GB RAM in all and 9 GB free on `/var/opt` ([knowledge/head-unit.md](knowledge/head-unit.md)). Until it
-works, streaming such a page from a PC through Moonlight does the job.
+Chromium 156 with its own Mesa 25 (ANV) and glibc, headless, its pictures
+through mgu-render in the app area, touch read passively, only while parked
+([`native/vizualyse-chromium`](native/vizualyse-chromium),
+[knowledge/browser.md](knowledge/browser.md)). Built and tested off the car on
+the unit's own root filesystem (JSPI, WebGL 2 and WebGPU on SwiftShader there).
+**Ask before running anything on the unit.**
 
-- [ ] **What the image has (read-only on the car):** `free -m` while the
-  car runs, `df -h`, `/dev/dri` and its permissions, Mesa / `libvulkan` /
-  `libEGL` / `libgbm`, and which process holds the GPU (the render service?).
-  mgu-store's read-only `probe.js` (`globals`, `gpu`) answers most of it.
-  Known from the reference repos: EGL/GLES2 (Mesa i915, dmabuf import),
-  `libgbm.so.1`, Wayland + ivi-extension 1.11, no Vulkan named
-  ([knowledge/video-decoding.md](knowledge/video-decoding.md)).
-- [ ] **How a second client gets the GPU:** DRM render node (`renderD128`)
-  next to the render service, or only through it (render to a dmabuf /
-  shared buffer and hand frames over as a video layer). Leads: a native
-  Winston (`wayland-0`) ivi client, as idrive7-apps' renderer does
-  ([knowledge/head-unit.md](knowledge/head-unit.md)); check whether Winston
-  has `xdg_wm_base` / `zwp_linux_dmabuf` for Ozone/Wayland.
-- [ ] **A Chromium build for the unit:** Ozone headless/GBM, glibc and
-  kernel 4.14 compatibility, bundling its own Mesa if the image has none;
-  install size under `/var/opt`, a cap on its disk cache.
-- [ ] **Memory:** a cgroup / limit so it can't starve the car's processes,
-  and a Store unit recmgr won't restart the head unit over ([knowledge/head-unit.md](knowledge/head-unit.md)).
-  cgroup v1 limits in the unit work (upstream's waze-on-cluster journal
-  unit).
-- [ ] **Input:** touch / iDrive controller and the usbfs gamepads from
-  Moonlight, as the Gamepad API.
+- [ ] **Release** vizualyse-chromium 0.1.0 and vizualyse_chromium 0.1.0
+  (the tool kit is ~250 MB: check the Store downloads and installs it, and
+  how long the first unpack takes on the Atom).
+- [ ] **On the car, read-only:** `state/gpu.json`, `gpu.txt` and the
+  journal's `@gpu`: WebGPU should be `intel / gen-9` and WebGL 2 on ANV,
+  not SwiftShader; if not, why (ANV's `kernel missing ...`, the render node
+  as uid 12997 / gid 44). Then https://webglreport.com/?v=2 on the screen.
+- [ ] **On the car:** the app area's place and touch (taps, scrolling), the
+  back arrow and a pop-up hiding it, the phone page, pages loading through
+  the proxy, the pictures per second and the sink's ms (`status`), CPU and
+  memory of Chromium (the cgroup's `memory.max_usage_in_bytes`).
+- [ ] **Faster pictures:** the screencast is a JPEG round trip on the CPU.
+  Next: Winston's globals (`xdg_wm_base`, `zwp_linux_dmabuf`; mgu-store's
+  read-only `probe.js`) for Ozone/Wayland straight onto the screen, or a
+  dmabuf handed to mgu-render.
+- [ ] **Input:** the iDrive controller (FrontCCU) as arrow keys / scrolling,
+  and the usbfs gamepads from Moonlight as the Gamepad API (Chromium has no
+  evdev to read on the unit).
+- [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
 ## Dropped
 

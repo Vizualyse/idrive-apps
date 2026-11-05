@@ -62,6 +62,7 @@ async function main() {
     process.env.CTL_OAP_DIR = OAP;
     process.env.CAST_CTL_SOCKET = SOCK;
     process.env.MOONLIGHT_CTL_SOCKET = SOCK;
+    process.env.CHROMIUM_CTL_SOCKET = SOCK;
     install(12225, APP);
     install(12224, 'doom');
     const logs = [];

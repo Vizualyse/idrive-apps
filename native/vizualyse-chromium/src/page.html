@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Yousaf Khan -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser</title>
+<style>
+  :root { --bg: #111; --fg: #eee; --dim: #999; --card: #1d1d1d; --acc: #3b82f6; --bad: #f87171; --ok: #4ade80; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .card { background: var(--card); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input[type=text] { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: var(--fg); font-size: 16px; }
+  button { padding: 12px 14px; border-radius: 8px; border: 0; background: #2a2a2a; color: var(--fg); font-size: 15px; }
+  button.acc { background: var(--acc); }
+  button:disabled { opacity: .4; }
+  .dim { color: var(--dim); font-size: 14px; }
+  .err { color: var(--bad); }
+  .ok { color: var(--ok); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; margin: 0; font-size: 14px; }
+  dt { color: var(--dim); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  a { color: var(--acc); }
+</style>
+</head>
+<body>
+<h1>Browser</h1>
+<div class="card">
+  <div class="row"><input id="url" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Address or search"><button class="acc" id="go">Go</button></div>
+  <div class="row" style="margin-top:8px">
+    <button data-api="back">Back</button><button data-api="forward">Forward</button><button data-api="reload">Reload</button>
+    <button data-api="home">Home</button><button data-api="sethome">Make home</button>
+  </div>
+  <p class="dim" id="page"></p>
+</div>
+<div class="card">
+  <div class="row"><button class="acc" id="show">Show on the screen</button><button id="hide">Hide</button></div>
+  <p class="dim">Only while parked. The iDrive back arrow (left of the page) hides it too.</p>
+</div>
+<div class="card">
+  <div class="row"><input id="text" type="text" autocapitalize="off" placeholder="Type into the page"><button id="send">Send</button></div>
+  <div class="row" style="margin-top:8px"><button data-key="Enter">Enter</button><button data-key="Backspace">⌫</button><button data-key="Tab">Tab</button><button data-key="Escape">Esc</button></div>
+</div>
+<div class="card">
+  <dl id="info"></dl>
+  <div class="row" style="margin-top:8px"><button data-api="probe">Check the GPU again</button><a id="gpu" target="_blank">chrome://gpu</a><button data-api="restart">Restart the browser</button></div>
+</div>
+<p id="msg" class="err"></p>
+<script>
+'use strict';
+const T = new URLSearchParams(location.search).get('t') || '';
+const $ = (id) => document.getElementById(id);
+$('gpu').href = '/api/gpu.txt?t=' + encodeURIComponent(T);
+let typing = false;
+$('url').addEventListener('focus', () => { typing = true; });
+$('url').addEventListener('blur', () => { setTimeout(() => { typing = false; }, 300); });
+
+function api(p, body) {
+  $('msg').textContent = '';
+  return fetch(p, { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Chromium-Token': T, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+    .then((r) => r.json().then((j) => { if (!r.ok) { $('msg').textContent = j.error || r.status; if (j.status) render(j.status); throw new Error(j.error); } return j; }))
+    .then((s) => { render(s); return s; });
+}
+
+function row(k, v, cls) { return '<dt>' + k + '</dt><dd' + (cls ? ' class="' + cls + '"' : '') + '>' + String(v === null || v === undefined ? '-' : v).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</dd>'; }
+
+function render(s) {
+  if (!typing && document.activeElement !== $('url')) $('url').value = s.url || '';
+  $('page').textContent = s.title || '';
+  $('show').disabled = s.shown || s.moving || s.browser !== 'running';
+  $('hide').disabled = !s.shown;
+  const g = s.gpu || {};
+  const gpuOk = g.webgpu && !/^no |error/.test(g.webgpu) && !g.webgpuFallback;
+  $('info').innerHTML =
+    row('Browser', s.browser + (s.shown ? ', on the screen' : '') + (s.bundle !== 'ready' ? ' (bundle ' + s.bundle + ')' : '')) +
+    row('WebGPU', g.webgpu ? g.webgpu + (g.webgpuFallback ? ' (software fallback)' : '') + (g.webgpuCompute ? ', compute ' + g.webgpuCompute : '') : 'not checked yet', g.webgpu ? (gpuOk ? 'ok' : 'err') : '') +
+    row('WebGL 2', g.webgl2) +
+    row('JSPI', g.jspi, g.jspi === 'ok' ? 'ok' : g.jspi ? 'err' : '') +
+    row('Speed', s.speed === null ? 'unknown (counts as parked)' : s.speed + ' km/h' + (s.moving ? ', moving' : '')) +
+    row('Pictures', s.pictures + (s.decodeMs ? ', ' + s.decodeMs + ' ms each' : '')) +
+    row('Uplink', s.uplink) +
+    (s.error ? row('Error', s.error, 'err') : '');
+}
+
+$('go').onclick = () => api('/api/go', { url: $('url').value }).then(() => $('url').blur(), () => null);
+$('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('go').click(); });
+$('show').onclick = () => api('/api/show', {}).catch(() => null);
+$('hide').onclick = () => api('/api/hide', {}).catch(() => null);
+$('send').onclick = () => api('/api/text', { text: $('text').value }).then(() => { $('text').value = ''; }, () => null);
+$('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });
+document.querySelectorAll('[data-api]').forEach((b) => { b.onclick = () => api('/api/' + b.dataset.api, {}).catch(() => null); });
+document.querySelectorAll('[data-key]').forEach((b) => { b.onclick = () => api('/api/key', { key: b.dataset.key }).catch(() => null); });
+const poll = () => api('/api/status').catch(() => null).then(() => setTimeout(poll, 2000));
+poll();
+</script>
+</body>
+</html>
