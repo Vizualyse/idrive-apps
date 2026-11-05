@@ -60,6 +60,28 @@ stop or restart a hand-made unit on the car: recmgr restarts the head unit**
 - [ ] **Hardware decoding**, if software isn't enough: the Atom's VA-API
   (libva) or what winston-grabber's `h264_msdk` uses, from moonlight-core.
 
+## Chromium (a browser on the car's GPU)
+
+Goal: WebGL/WebGPU pages running on the unit itself, e.g. a browser game
+with streamed assets. The Atom A3960's GPU is an Intel HD 505 (Gen9), which
+Mesa's iris/ANV drive with GL 4.6 and Vulkan on a normal kernel; the unit
+has ~5.6 GB RAM in all and 9 GB free on `/var/opt` (Learnings). Until it
+works, streaming such a page from a PC through Moonlight does the job.
+
+- [ ] **What the image has (read-only on the car):** `free -m` while the
+  car runs, `df -h`, `/dev/dri` and its permissions, Mesa / `libvulkan` /
+  `libEGL` / `libgbm`, and which process holds the GPU (the render service?).
+- [ ] **How a second client gets the GPU:** DRM render node (`renderD128`)
+  next to the render service, or only through it (render to a dmabuf /
+  shared buffer and hand frames over as a video layer).
+- [ ] **A Chromium build for the unit:** Ozone headless/GBM, glibc and
+  kernel 4.14 compatibility, bundling its own Mesa if the image has none;
+  install size under `/var/opt`, a cap on its disk cache.
+- [ ] **Memory:** a cgroup / limit so it can't starve the car's processes,
+  and a Store unit recmgr won't restart the head unit over (Learnings).
+- [ ] **Input:** touch / iDrive controller and the usbfs gamepads from
+  Moonlight, as the Gamepad API.
+
 ## Carried over
 
 - [ ] **Rotate the Cast phone link's token** (0.3.8 works on the car; the
