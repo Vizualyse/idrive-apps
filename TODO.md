@@ -45,6 +45,14 @@ stop or restart a hand-made unit on the car: recmgr restarts the head unit**
   USB/IP virtual pad. Next: bump to 0.1.1, release, then on the car the
   Vader 4 Pro in a stream and the quit combo. Later: DualShock/DualSense
   over usbfs (HID reports), pads paired to the phone (Gamepad API).
+- [ ] **The car's volume does nothing until a CarPlay phone connects:** the
+  sound goes into SmartXbar's `CarPlayMain_CF_48_STEREO`, which the audio
+  manager only makes a source (with the iDrive volume on it) while CarPlay
+  is connected. Every 48 kHz stereo input in `SmartXMGU.bin` belongs to a
+  projection (CarPlay, Android Auto, CarLife) except `IP_CF_48_STEREO`: find
+  what that one is and how a source is activated (audiomanager over
+  SOME/IP). OAP's "audioFocus" is only an app priority. Until then: the
+  phone page's volume slider (0-150 %, live from 0.1.2).
 - [ ] **The cluster and the HUD outputs** on the car (built, tested off the
   car only).
 - [ ] whether the Atom decodes 1280x720@60 in software in time (streaming
