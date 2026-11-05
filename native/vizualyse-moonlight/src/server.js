@@ -13,8 +13,15 @@
  * - gamestream.js: serverinfo, pairing, the app list, launch and quit.
  * - moonlight-core (C, moonlight-common-c): the stream; H.264 on its stdout,
  *   decoded audio on fd 3, the controllers (evdev) itself.
- * - ffmpeg (static, the same build as Cast's) decodes the H.264 to I420;
- *   console_out.js puts the frames on the central screen through mgu-render.
+ * - ffmpeg (static, the same build as Cast's) decodes the H.264 to I420, at
+ *   the stream's size for the central screen (console_out.js, mgu-render,
+ *   black bars at the sides) or scaled down for the cluster or the HUD
+ *   (cluster-render, within its upload budget).
+ * - The picture on the central screen covers the iDrive's own controls, so
+ *   it stops from there too: hold the screen 2 s (moonlight-core reads the
+ *   display's touch passively, core/touch.h; nothing is claimed or
+ *   diverted), or hold Start + Back + LB + RB 2 s on a controller, or Stop on
+ *   the phone page. For the first 10 s ffmpeg burns in a line saying so.
  * - pcm_play.py (mgu-python) plays the audio into SmartXbar.
  *
  *   node server.js     (root: /dev/input, the renderer, ALSA, nftables)
@@ -31,7 +38,8 @@ const { URL } = require('url');
 const firewall = require('./firewall.js');
 const consoleOut = require('./console_out.js');
 const { startControl } = require('./control.js');
-const { GameStream } = require('./gamestream.js');
+const { fork } = require('child_process');
+const { ClusterRender } = require('./cluster_render_client.js');
 
 const HERE = __dirname;
 const STATE_DIR = process.env.MOONLIGHT_STATE || '/var/opt/vizualyse-moonlight/state';
@@ -43,6 +51,19 @@ const PYTHON = process.env.MOONLIGHT_PYTHON || '/var/opt/mgu-python/current/bin/
 const LEASE = '/run/mgu-uplink/lease.json';
 const UPLINK_STATUS = '/run/mgu-uplink/status.json';
 const NO_FIREWALL = process.env.MOONLIGHT_NO_FIREWALL === '1';
+/* The tool's uplink uid (component.json "uids"): mgu-uplink routes only the
+ * listed uids through wlan0, and root has no route to the PC there. The
+ * GameStream requests (gs_worker.js) and moonlight-core's stream run as it. */
+const NET_UID = Number(process.env.MOONLIGHT_NET_UID) || 12998;
+/* Where the centre display's touch arrives (the car: vlan73, from the display
+ * 160.48.199.115); MOONLIGHT_TOUCH_IFACE= turns it off, MOONLIGHT_TOUCH_FILE
+ * replays a capture instead (the tests). */
+const TOUCH_IFACE = process.env.MOONLIGHT_TOUCH_IFACE !== undefined ? process.env.MOONLIGHT_TOUCH_IFACE : 'vlan73';
+const TOUCH_SRC = process.env.MOONLIGHT_TOUCH_SRC || '160.48.199.115';
+const TOUCH_FILE = process.env.MOONLIGHT_TOUCH_FILE || '';
+const FONT = path.join(HERE, 'DejaVuSans-Bold.ttf');
+const HINT_SECONDS = 10;
+const HINT_TEXT = 'To stop: hold the screen for 2 s  ·  or hold Start + Back + LB + RB  ·  or Stop on the phone';
 
 /* What the phone page offers. The Atom decodes in software: 720p is the
  * default; 60 fps is the one to try on the car. */
@@ -50,6 +71,17 @@ const MODES = [
     { id: '1280x720', w: 1280, h: 720 }, { id: '960x540', w: 960, h: 540 }, { id: '1920x1080', w: 1920, h: 1080 },
 ];
 const RATES = [30, 60];
+
+/* Where the picture goes. The cluster and the HUD go through cluster-render,
+ * which uploads at most ~5500 KB/s: a smaller frame at 15 fps, scaled up by
+ * the renderer (Learnings, "The cluster and the HUD"). */
+const OUTPUTS = {
+    console: { title: 'Centre console', console: true },
+    map: { title: 'Cluster', target: 'map', W: 1088, H: 480, w: 640, h: 360, fps: 15 },
+    /* band: the part of the HUD's height clear of its clipped top and the
+     * speed; xband: the part of its width the optics show */
+    hud: { title: 'HUD', target: 'hud', W: 800, H: 480, w: 480, h: 270, fps: 15, band: [0.25, 0.65], xband: [0.17, 0.83] },
+};
 
 const log = (s) => console.log(new Date().toISOString() + ' ' + s);
 
@@ -98,7 +130,7 @@ function link() { const ip = uplinkIp(); return ip ? 'http://' + ip + ':' + PORT
 
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
 const HOSTS_FILE = path.join(STATE_DIR, 'hosts.json');
-const settings = Object.assign({ enabled: true, mode: '1280x720', fps: 30, bitrate: 8000, audio: true, volume: 100, sops: true,
+const settings = Object.assign({ enabled: true, output: 'console', mode: '1280x720', fps: 30, bitrate: 8000, audio: true, volume: 100, sops: true,
     localAudio: false, last: null }, readJson(SETTINGS_FILE) || {});
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
 
@@ -106,8 +138,49 @@ function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) 
 let hosts = readJson(HOSTS_FILE) || [];
 function saveHosts() { try { writeJson(HOSTS_FILE, hosts); } catch (e) { log('hosts: ' + e.message); } }
 function hostById(id) { return hosts.filter((h) => h.id === id)[0] || null; }
+/* GameStream through the worker, as NET_UID: the same methods as
+ * gamestream.js's GameStream, each a promise; the host's httpsPort and
+ * serverCert come back into h. */
+let worker = null, workerSeq = 0;
+const pending = new Map();
+function startWorker() {
+    const w = fork(path.join(HERE, 'gs_worker.js'), [], { uid: NET_UID, gid: NET_UID, execArgv: [], stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    w.on('message', (m) => {
+        if (m.log) return log('gamestream: ' + m.log);
+        const p = pending.get(m.id);
+        if (!p) return;
+        pending.delete(m.id);
+        if (m.host) { if (m.host.httpsPort) p.h.httpsPort = m.host.httpsPort; }
+        if (m.error) p.reject(new Error(m.error)); else p.resolve(m.result);
+    });
+    w.on('exit', (code, sig) => {
+        log('gamestream: worker ended (' + (sig || code) + ')');
+        if (worker === w) worker = null;
+        pending.forEach((p) => p.reject(new Error('the network worker ended')));
+        pending.clear();
+    });
+    w.on('error', (e) => log('gamestream: worker: ' + e.message));
+    return w;
+}
+function call(h, op, args, timeout) {
+    if (!ID) return Promise.reject(new Error('no client certificate (see the log)'));
+    if (!worker) worker = startWorker();
+    const id = ++workerSeq;
+    return new Promise((resolve, reject) => {
+        const t = setTimeout(() => { if (pending.delete(id)) reject(new Error('no answer from the network worker')); }, timeout || 30000);
+        pending.set(id, { h: h, resolve: (r) => { clearTimeout(t); resolve(r); }, reject: (e) => { clearTimeout(t); reject(e); } });
+        worker.send({ id: id, op: op, ident: ID, args: args,
+            host: { address: h.address, httpPort: h.httpPort, httpsPort: h.httpsPort, serverCert: h.serverCert } });
+    });
+}
 function client(h) {
-    return new GameStream(ID, h, { log: (s) => log(h.name + ': ' + s) });
+    return {
+        serverInfo: () => call(h, 'serverInfo', []),
+        pair: (pin, wait) => call(h, 'pair', [pin, wait], (wait || 120000) + 30000),
+        appList: () => call(h, 'appList', []),
+        launch: (appId, cfg) => call(h, 'launch', [appId, cfg], 60000),
+        quit: () => call(h, 'quit', [], 30000),
+    };
 }
 /* What the page sees of a host: never its certificate. */
 function hostView(h) {
@@ -166,6 +239,59 @@ let session = null;   /* { host, app, core, ff, py, frames, fps, started, events
 let last = { state: 'idle' };
 let pads = [];        /* found while idle: moonlight-core pads */
 const consoleVideo = new consoleOut.ConsoleVideo(log);
+const cr = new ClusterRender('vizualyse_moonlight');
+
+/* I420 to cluster-render's 4:2:0 atlas: the Y plane, then each chroma row as
+ * its U half followed by its V half (as Cast). */
+function atlas(i420, w, h, out) {
+    const ySize = w * h, cw = w / 2, ch = h / 2, cSize = cw * ch;
+    i420.copy(out, 0, 0, ySize);
+    for (let y = 0; y < ch; y++) {
+        const row = ySize + y * w;
+        i420.copy(out, row, ySize + y * cw, ySize + (y + 1) * cw);
+        i420.copy(out, row + cw, ySize + cSize + y * cw, ySize + cSize + (y + 1) * cw);
+    }
+    return out;
+}
+/* The largest rect of w:h inside the output's shown part, centred. */
+function placement(o) {
+    const ax = o.xband ? Math.round(o.W * o.xband[0]) : 0, ay = o.band ? Math.round(o.H * o.band[0]) : 0;
+    const aw = o.xband ? Math.round(o.W * (o.xband[1] - o.xband[0])) : o.W, ah = o.band ? Math.round(o.H * (o.band[1] - o.band[0])) : o.H;
+    const k = Math.min(aw / o.w, ah / o.h), dw = Math.round(o.w * k), dh = Math.round(o.h * k);
+    return { x: ax + Math.round((aw - dw) / 2), y: ay + Math.round((ah - dh) / 2), w: dw, h: dh };
+}
+/* The stop hint for the centre console: an ASS subtitle at the stream's size,
+ * shown for HINT_SECONDS, and libass's fonts folder (the font alone in it:
+ * libass tries every file in that folder). ffmpeg -vf arguments, or [] when
+ * the font is missing. */
+function hintFilter(w, h) {
+    try {
+        const dir = path.join(STATE_DIR, 'fonts');
+        mkdirp(dir);
+        const font = path.join(dir, path.basename(FONT));
+        if (!fs.existsSync(font) || fs.statSync(font).size !== fs.statSync(FONT).size) fs.copyFileSync(FONT, font);
+        const size = Math.max(16, Math.round(h / 26)), margin = Math.round(h / 18);
+        const ass = path.join(STATE_DIR, 'hint.ass');
+        const end = '0:00:' + (HINT_SECONDS < 10 ? '0' : '') + HINT_SECONDS + '.00';
+        fs.writeFileSync(ass, ['[Script Info]', 'ScriptType: v4.00+', 'PlayResX: ' + w, 'PlayResY: ' + h, 'WrapStyle: 2', '',
+            '[V4+ Styles]',
+            'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+            /* white on a half-transparent black box, bottom centre */
+            'Style: Hint,DejaVu Sans,' + size + ',&H00FFFFFF,&H00FFFFFF,&H60000000,&H60000000,-1,0,0,0,100,100,0,0,3,' + Math.round(size / 3) + ',0,2,' + margin + ',' + margin + ',' + margin + ',1', '',
+            '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+            'Dialogue: 0,0:00:00.00,' + end + ',Hint,,0,0,0,,' + HINT_TEXT, ''].join('\n'));
+        return ['-vf', 'subtitles=filename=' + ass + ':fontsdir=' + dir];
+    } catch (e) {
+        log('stream: no stop hint: ' + e.message);
+        return [];
+    }
+}
+
+function outputReady(id) {
+    const o = OUTPUTS[id];
+    if (!o) return false;
+    return o.console ? consoleOut.available() : cr.ready;
+}
 
 const STAGE_HELP = {
     'RTSP handshake': 'the PC refused the stream (is Sunshine running, and the game started?)',
@@ -211,8 +337,17 @@ function stopSession(why, then) {
 function teardown(s) {
     try { s.ff.stdin.end(); } catch (e) { /* gone */ }
     setTimeout(() => { try { s.ff.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000);
-    if (s.py) { try { s.py.stdin.end(); } catch (e) { /* gone */ } }
-    consoleVideo.stop();
+    /* killed, not drained: what it still holds would play after Stop (SmartXbar can take a long
+     * time to connect at first, so seconds of buffered sound came out minutes later on the car) */
+    if (s.py) {
+        /* SIGTERM, then SIGKILL: pcm_play.py can sit in a blocking ALSA write (while SmartXbar connects) where
+         * Python never runs its SIGTERM handler; it kept playing after Stop on the car */
+        const py = s.py;
+        try { py.kill('SIGTERM'); } catch (e) { /* gone */ }
+        setTimeout(() => { try { py.kill('SIGKILL'); } catch (e) { /* gone */ } }, 500);
+    }
+    if (s.out.console) consoleVideo.stop();
+    else if (s.layer) cr.drop(s.layer);
     if (!NO_FIREWALL) { try { firewall.host(null); } catch (e) { log('firewall: ' + e.message); } }
 }
 
@@ -222,17 +357,33 @@ function startStream(h, app, launch, retried) {
     if (!NO_FIREWALL) { try { firewall.host(h.address); } catch (e) { log('firewall: ' + e.message); } }
     const args = ['stream', '--address', h.address, '--appversion', h.appversion || '7.1.431.-1', '--gfeversion', h.gfeversion || '',
         '--rtsp', launch.rtsp || '', '--codecs', String(h.codecs || 1), '--width', String(w), '--height', String(hgt),
-        '--fps', String(fps), '--bitrate', String(settings.bitrate), '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid)];
+        '--fps', String(fps), '--bitrate', String(settings.bitrate), '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid),
+        '--uid', String(NET_UID), '--gid', String(NET_UID)];
+    /* hold-to-stop, while the picture covers the centre screen */
+    if ((OUTPUTS[settings.output] || OUTPUTS.console).console) {
+        if (TOUCH_FILE) args.push('--touch-file', TOUCH_FILE);
+        else if (TOUCH_IFACE) args.push('--touch-iface', TOUCH_IFACE, '--touch-src', TOUCH_SRC);
+    }
     const core = spawn(CORE, args, { stdio: ['pipe', 'pipe', 'pipe', settings.audio ? 'pipe' : 'ignore'] });
     /* low delay: a small probe (Learnings: -fflags nobuffer gave no frames
      * through a filter), slice threads (the core asks the PC for 4 slices) */
+    const out = OUTPUTS[settings.output] || OUTPUTS.console;
+    /* the console takes the stream's own size; the cluster and the HUD a
+     * smaller frame at their rate (an fps filter is fine without -fflags
+     * nobuffer, Learnings) */
+    const fw = out.console ? w : out.w, fh = out.console ? hgt : out.h, ffps = out.console ? fps : out.fps;
+    /* the console: the stop hint for its first seconds; -framerate gives the
+     * raw H.264 its clock, which the subtitle is timed by */
+    const vf = out.console ? hintFilter(w, hgt) : ['-vf', 'fps=' + out.fps + ',scale=' + fw + ':' + fh + ':force_original_aspect_ratio=decrease:flags=bilinear,pad=' + fw + ':' + fh + ':-1:-1'];
     const ff = spawn(FFMPEG, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-flags', 'low_delay', '-thread_type', 'slice', '-threads', '4',
-        '-probesize', '32768', '-analyzeduration', '0', '-f', 'h264', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'yuv420p', 'pipe:1'],
+        '-probesize', '32768', '-analyzeduration', '0', '-f', 'h264', '-framerate', String(fps), '-i', 'pipe:0'].concat(vf, ['-f', 'rawvideo', '-pix_fmt', 'yuv420p', 'pipe:1']),
     { stdio: ['pipe', 'pipe', 'pipe'] });
     const s = { host: { id: h.id, name: h.name, address: h.address }, app: { id: app.id, name: app.name }, core: core, ff: ff, py: null,
-        frames: 0, fps: 0, rtt: 0, poor: false, started: Date.now(), connected: false, error: null, pads: {}, w: w, h: hgt, fpsWanted: fps };
+        frames: 0, fps: 0, rtt: 0, poor: false, started: Date.now(), connected: false, error: null, pads: {}, w: w, h: hgt, fpsWanted: fps,
+        out: out, output: OUTPUTS[settings.output] ? settings.output : 'console', layer: null };
     session = s;
-    log('stream: ' + app.name + ' from ' + h.name + ' at ' + w + 'x' + hgt + '@' + fps + ', ' + settings.bitrate + ' kbps' + (settings.audio ? ', sound ' + settings.volume + '%' : ', no sound'));
+    log('stream: ' + app.name + ' from ' + h.name + ' at ' + w + 'x' + hgt + '@' + fps + ', ' + settings.bitrate + ' kbps' + (settings.audio ? ', sound ' + settings.volume + '%' : ', no sound') +
+        ', on the ' + out.title + (out.console ? '' : ' (' + fw + 'x' + fh + '@' + ffps + ')'));
 
     core.on('error', (e) => { s.error = 'moonlight-core: ' + e.message; });
     ff.on('error', (e) => { s.error = 'ffmpeg: ' + e.message; });
@@ -240,14 +391,20 @@ function startStream(h, app, launch, retried) {
     ff.stdin.on('error', () => { /* ffmpeg gone: the core's write fails and it stops */ });
     ff.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => log('ffmpeg: ' + l.trim())));
 
-    const size = w * hgt * 3 / 2;
-    consoleVideo.start(w, hgt, fps);
+    const size = fw * fh * 3 / 2, packed = out.console ? null : Buffer.alloc(size);
+    if (out.console) consoleVideo.start(w, hgt, fps);
+    else {
+        const r = placement(out);
+        /* prewarm: the slot before the first frame; contend: from the stock content (as Cast) */
+        s.layer = cr.video({ target: out.target, z: 1, contend: true, prewarm: true, x: r.x, y: r.y, w: r.w, h: r.h, vw: fw, vh: fh, fps: ffps });
+    }
     let parts = [], have = 0;
     ff.stdout.on('data', (d) => {
         parts.push(d); have += d.length;
         while (have >= size) {
             const all = parts.length === 1 ? parts[0] : Buffer.concat(parts, have);
-            consoleVideo.frame(all.slice(0, size));
+            if (out.console) consoleVideo.frame(all.slice(0, size));
+            else cr.frame(s.layer, atlas(all.slice(0, size), fw, fh, packed), s.frames + 1);
             if (++s.frames === 1) log('stream: first frame');
             parts = have > size ? [all.slice(size)] : [];
             have -= size;
@@ -277,6 +434,8 @@ function startStream(h, app, launch, retried) {
             if (e.ev === 'stats') { s.fps = e.fps; s.rtt = e.rtt; continue; }
             if (e.ev === 'status') { s.poor = e.poor; continue; }
             if (e.ev === 'rumble') continue;
+            if (e.ev === 'exit-hold') { log('stream: the screen held at ' + e.x + ',' + e.y); stopSession('the screen was held'); continue; }
+            if (e.ev === 'exit-combo') { log('stream: the quit combo on controller ' + e.slot); stopSession('Start + Back + LB + RB held'); continue; }
             log('core: ' + JSON.stringify(e));
             if (e.ev === 'started') s.connected = true;
             else if (e.ev === 'pad') { if (e.present) s.pads[e.slot] = e.name; else delete s.pads[e.slot]; }
@@ -373,11 +532,13 @@ function status() {
     const padList = s ? Object.keys(s.pads).map((k) => ({ slot: Number(k), name: s.pads[k] })) : pads.map((p, i) => ({ slot: i, name: p.name }));
     const cur = s || last;
     return {
-        enabled: settings.enabled, link: link(), uplink: up.state || 'unknown', render: consoleOut.available() ? 'mgu-render' : 'not installed',
+        enabled: settings.enabled, link: link(), uplink: up.state || 'unknown', render: (consoleOut.available() ? 'mgu-render' : 'no mgu-render') + ', ' + (cr.ready ? 'cluster-render' : 'no cluster-render'),
         state: state(), host: cur.host ? { name: cur.host.name, address: cur.host.address } : null,
         app: cur.app ? { id: cur.app.id, name: cur.app.name } : null,
         frames: s ? s.frames : (last.frames || 0), fps: s ? s.fps : 0, rtt: s ? s.rtt : 0, poor: s ? s.poor : false,
         seconds: s ? Math.round((Date.now() - s.started) / 1000) : 0, size: s ? s.w + 'x' + s.h + '@' + s.fpsWanted : null,
+        output: s ? s.output : settings.output,
+        outputs: Object.keys(OUTPUTS).map((k) => ({ id: k, title: OUTPUTS[k].title, ready: outputReady(k) })),
         pads: padList, canResume: !!settings.last && !s, last: settings.last ? { host: settings.last.host, app: settings.last.app } : null,
         error: s ? s.error : last.error || null, note: s ? null : last.note || null,
         hosts: hosts.map(hostView), pairing: pairing && pairing.state === 'waiting' || (pairing && Date.now() - pairing.started < 60000) ? pairing : null,
@@ -403,6 +564,19 @@ function readBody(req, cb) {
 function authorised(req, u) {
     const t = req.headers['x-moonlight-token'] || u.searchParams.get('t') || '';
     return t.length === TOKEN.length && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(TOKEN));
+}
+
+/* The output: kept for the next play; while streaming, the picture moves
+ * now (the game keeps running on the PC, so the stream is started again). */
+function setOutput(id) {
+    if (!OUTPUTS[id]) return Promise.reject(new Error('the centre console, the cluster or the HUD'));
+    if (!outputReady(id)) return Promise.reject(new Error('the ' + OUTPUTS[id].title + ' is not available (' + (OUTPUTS[id].console ? 'mgu-render' : 'cluster-render') + ' is not connected)'));
+    settings.output = id;
+    saveSettings();
+    const s = session;
+    if (!s || s.output === id) return Promise.resolve(null);
+    log('stream: moving to the ' + OUTPUTS[id].title);
+    return new Promise((r) => stopSession('moved to the ' + OUTPUTS[id].title, r)).then(() => play(s.host.id, s.app.id)).then(() => null);
 }
 
 function setSettings(b) {
@@ -440,6 +614,7 @@ const ROUTES = {
     '/api/stop': () => new Promise((r) => stopSession('stopped from the phone', () => r(null))),
     '/api/quit': () => quitGame().then(() => null),
     '/api/settings': (b) => { setSettings(b); return Promise.resolve(null); },
+    '/api/output': (b) => setOutput(b.output),
     '/api/pad': (b) => { const e = phonePad(b); return e ? Promise.reject(new Error(e)) : Promise.resolve(null); },
     '/api/idr': () => { if (session) session.core.stdin.write('idr\n'); return Promise.resolve(null); },
 };
@@ -495,8 +670,10 @@ function shutdown(sig) {
     log('stopping (' + sig + ')');
     stopSession('shutting down');
     consoleVideo.stop();
+    cr.close();
     if (!NO_FIREWALL) { try { log('firewall: removed ' + firewall.remove() + ' rule(s)'); } catch (e) { log('firewall: ' + e.message); } }
     if (control) control.close();
+    if (worker) worker.kill();
     web.close();
     setTimeout(() => process.exit(0), 800);
 }
@@ -508,7 +685,13 @@ if (settings.enabled && !NO_FIREWALL) {
     try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); }
 }
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
-control = startControl({ status: status, command: command, log: log });
+cr.on('ready', () => log('render: cluster-render connected (' + cr.backend + ')'));
+cr.on('disconnected', () => log('render: cluster-render disconnected'));
+cr.on('layer', (ref, state, reason) => log('render: layer ' + ref + ' ' + state + (reason ? ': ' + reason : '')));
+cr.on('target', (t, state, holder, reason) => log('render: target ' + t + ' ' + state + (holder && holder !== 'none' ? ' (holder ' + holder + ')' : '') + (reason ? ': ' + reason : '')));
+cr.on('refused', (op, ref, reason) => log('render: refused ' + op + ' ' + ref + (reason ? ': ' + reason : '')));
+cr.connect();
+control = startControl({ app: 'vizualyse_moonlight', status: status, command: command, log: log });
 scanPads();
 setInterval(scanPads, 5000);
 /* the PCs' state (online, paired, a game running), for the page */

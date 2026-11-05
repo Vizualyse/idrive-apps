@@ -29,6 +29,15 @@ const SOCK = path.join(TMP, 'ctl.sock');
 const VIDEO = path.join(TMP, 'mgu-video');
 const PCM = path.join(TMP, 'pcm');
 const RENDER_LOG = path.join(TMP, 'render.log');
+const TOUCH = path.join(TMP, 'touch');
+
+/* A 2.75 s hold, from the hold captured on the car (test/fixtures: 1.25 s at
+ * 1280,274) slowed down: the same PDUs, 2.2 times further apart. */
+function holdCapture() {
+    const lines = fs.readFileSync(path.join(__dirname, 'fixtures', 'id7-touch-capture.txt'), 'utf8').split('\n').filter(Boolean)
+        .map((l) => l.split(' ')).filter((f) => +f[0] >= 660 && +f[0] <= 1911);
+    return lines.map((f) => Math.round((+f[0] - 660) * 2.2) + ' ' + f.slice(1).join(' ')).join('\n') + '\n';
+}
 const PAD = process.env.MOONLIGHT_TEST_PAD;
 const PAD_NAME = 'Test Xbox Pad';
 
@@ -40,8 +49,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function kit() {
     const k = path.join(TMP, 'kit');
     fs.mkdirSync(k);
-    ['server.js', 'gamestream.js', 'firewall.js', 'console_out.js', 'control.js', 'page.html', 'pcm_play.py']
+    /* as on the car (/var/opt/<tool>/current): readable by the uplink uid */
+    fs.chmodSync(TMP, 0o755);
+    fs.chmodSync(k, 0o755);
+    ['server.js', 'gamestream.js', 'gs_worker.js', 'firewall.js', 'console_out.js', 'cluster_render_client.js', 'control.js', 'page.html', 'pcm_play.py']
         .forEach((f) => fs.copyFileSync(path.join(HERE, 'src', f), path.join(k, f)));
+    fs.copyFileSync(path.join(HERE, 'build', 'DejaVuSans-Bold.ttf'), path.join(k, 'DejaVuSans-Bold.ttf'));
     ['moonlight-core', 'ffmpeg'].forEach((f) => { fs.copyFileSync(path.join(HERE, 'build', f), path.join(k, f)); fs.chmodSync(path.join(k, f), 0o755); });
     fs.copyFileSync(path.join(__dirname, 'fake', 'python.sh'), path.join(TMP, 'python'));
     fs.chmodSync(path.join(TMP, 'python'), 0o755);
@@ -93,6 +106,17 @@ async function until(tok, what, test, ms) {
     return s;
 }
 
+/* The mean luma of the newest frame's bottom band (where the stop hint is). */
+function bottomBand() {
+    try {
+        const b = fs.readFileSync(VIDEO), w = b.readUInt32LE(8), h = b.readUInt32LE(12), slot = b.readUInt32LE(20);
+        const base = 64 + slot * w * h * 3 / 2;
+        let sum = 0, n = 0;
+        for (let y = Math.round(h * 0.86); y < Math.round(h * 0.97); y++) for (let x = 0; x < w; x += 4) { sum += b[base + y * w + x]; n++; }
+        return sum / n;
+    } catch (e) { return null; }
+}
+
 function videoSeq() {
     try { const b = fs.readFileSync(VIDEO).slice(0, 24); return { magic: b.readUInt32LE(0), w: b.readUInt32LE(8), h: b.readUInt32LE(12), seq: b.readUInt32LE(16) }; } catch (e) { return null; }
 }
@@ -110,7 +134,7 @@ async function main() {
     const env = Object.assign({}, process.env, {
         MOONLIGHT_STATE: path.join(TMP, 'state'), MOONLIGHT_PORT: String(PORT), MOONLIGHT_CTL_SOCKET: SOCK, MOONLIGHT_NO_FIREWALL: '1',
         MOONLIGHT_RENDER_CLIENT: path.join(__dirname, 'fake', 'render_client.js'), MOONLIGHT_VIDEO_FILE: VIDEO,
-        MOONLIGHT_PYTHON: path.join(TMP, 'python'), MOONLIGHT_TEST_PCM: PCM, MOONLIGHT_TEST_RENDER_LOG: RENDER_LOG,
+        MOONLIGHT_PYTHON: path.join(TMP, 'python'), MOONLIGHT_TEST_PCM: PCM, MOONLIGHT_TEST_RENDER_LOG: RENDER_LOG, MOONLIGHT_TOUCH_FILE: TOUCH,
         MOONLIGHT_LINK_IP: '192.0.2.10',
     });
     const srv = spawn(process.execPath, [path.join(k, 'server.js')], { env: env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -148,6 +172,10 @@ async function main() {
         ok('the host\'s certificate is not shown to the page', JSON.stringify(s).indexOf('CERTIFICATE') < 0);
         const app = s.hosts[0].apps.filter((a) => a.name === 'Desktop')[0];
 
+        const o = await req('POST', '/api/output', { output: 'map' }, tok);
+        ok('the cluster refused without cluster-render', o.code === 400 && /not available/.test(o.json.error), o.json.error);
+        const outs = o.json.status.outputs.map((x) => x.id + (x.ready ? '+' : '-')).join();
+        ok('the outputs listed, the centre console chosen', o.json.status.output === 'console' && outs === 'console+,map-,hud-', outs);
         s = (await req('POST', '/api/settings', { mode: '1280x720', fps: 30, bitrate: 6000, audio: true, volume: 50 }, tok)).json;
         ok('stream settings kept', s.settings.mode === '1280x720' && s.settings.fps === 30 && s.settings.volume === 50);
 
@@ -155,14 +183,26 @@ async function main() {
         ok('play', p.code === 200, p.json && p.json.error);
         s = await until(tok, 'streaming', (x) => x.state === 'streaming' && x.frames > 60, 25000);
         ok('streaming, frames decoded', s.state === 'streaming' && s.frames > 60, s.frames + ' frames, ' + s.fps + ' fps, ' + s.size);
+        const all = out.join('');
+        ok('the stream runs as the uplink uid (12998), the gamepad thread as root', /"ev":"uid","uid":12998,"gid":12998/.test(all));
+        ok('the GameStream requests come from the worker (as 12998)', /gamestream: pair: getservercert/.test(all));
         /* Sunshine's audio starts a couple of seconds into a session */
         const pcmSize = () => (fs.existsSync(PCM) ? fs.statSync(PCM).size : 0);
         for (let i = 0; i < 40 && pcmSize() < 48000 * 4; i++) await sleep(250);
         ok('audio reached the player', pcmSize() >= 48000 * 4, pcmSize() + ' bytes of S16LE stereo');
+        const during = bottomBand();
+        s = await until(tok, '11 s into the stream', (x) => x.seconds >= 11, 15000);
+        await sleep(500);
+        const after = bottomBand();
+        ok('the stop hint is burnt in for the first 10 s, then gone', during !== null && after !== null && Math.abs(during - after) > 10,
+            'bottom band luma ' + (during || 0).toFixed(1) + ' with it, ' + (after || 0).toFixed(1) + ' after');
         const v = videoSeq();
         ok('the frames are in the renderer\'s frame file', v && v.magic === 0x4656474d && v.w === 1280 && v.h === 720 && v.seq > 60, JSON.stringify(v));
         const rlog = fs.readFileSync(RENDER_LOG, 'utf8');
-        ok('the renderer placed the video, centred, and shows it', /place 1280x720\+320\+0/.test(rlog) && /show true/.test(rlog), rlog.split('\n').filter(Boolean).join(', '));
+        ok('the console: the whole area, black under the picture, the video fitted on top',
+            /place 1920x720\+0\+0/.test(rlog) && /pixmap 2 4x4 rgbx/.test(rlog) && /frame ops 18,19/.test(rlog) && /show true/.test(rlog),
+            rlog.split('\n').filter(Boolean).join(', '));
+        ok('the console claims no touch (stopping a stream that did restarted the head unit)', !/claim/.test(rlog));
         ok('the phone pad: accepted while streaming', (await req('POST', '/api/pad', { b: 4096 }, tok)).code === 200 && (await req('POST', '/api/pad', { b: 0 }, tok)).code === 200);
         if (pad) {
             s = await until(tok, 'the gamepad announced', hasPad, 6000);
@@ -175,6 +215,11 @@ async function main() {
         ok('the iDrive app: status first, then stop', st[0].ev === 'status' && st[0].state === 'streaming' && st[1].ev === 'status');
         s = await until(tok, 'ended', (x) => x.state === 'ended', 10000);
         ok('stopped: ended, the game still runs on the PC', s.state === 'ended' && s.canResume, s.note);
+        /* the player too, though it ignores SIGTERM (as pcm_play.py blocked in ALSA): nothing plays after Stop */
+        const pids = fs.readFileSync(PCM + '.pids', 'utf8').split('\n').filter(Boolean);
+        const alive = () => pids.filter((p) => fs.existsSync('/proc/' + p) && !/^\S+ \(\S+\) Z/.test(fs.readFileSync('/proc/' + p + '/stat', 'utf8')));
+        for (let i = 0; i < 20 && alive().length; i++) await sleep(100);
+        ok('the audio player is gone within 2 s of Stop', alive().length === 0, pids.length + ' started, alive: ' + alive().join(' '));
         for (let i = 0; i < 20 && fs.existsSync(VIDEO); i++) await sleep(200);
         ok('the frame file is gone', !fs.existsSync(VIDEO));
         s = await until(tok, 'the PC busy', (x) => x.hosts[0].busy, 6000);
@@ -184,6 +229,27 @@ async function main() {
         ok('the iDrive app: resume', st[1].ev === 'status');
         s = await until(tok, 'streaming again', (x) => x.state === 'streaming' && x.frames > 30, 25000);
         ok('resumed: streaming again', s.state === 'streaming' && s.frames > 30, s.frames + ' frames');
+        ok('the pad endpoint refuses nothing-to-do junk safely', (await req('POST', '/api/pad', { b: 'x', lx: 1e9 }, tok)).code === 200);
+
+        /* the ways out when the picture covers the screen: holding it (the touch PDUs, read passively) */
+        fs.writeFileSync(TOUCH + '.tmp', holdCapture());
+        fs.renameSync(TOUCH + '.tmp', TOUCH);
+        s = await until(tok, 'stopped by holding the screen', (x) => x.state === 'ended', 10000);
+        ok('holding the screen 2 s stops the stream (the car\'s touch PDUs, replayed)', s.state === 'ended' && /screen was held/.test(s.note || ''), s.note);
+        ok('a held screen: the core read it from the PDUs, at the hold\'s place', /the screen held at 128\d,2\d\d/.test(out.join('')));
+        await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
+        s = await until(tok, 'streaming after the hold', (x) => x.state === 'streaming' && x.frames > 30, 25000);
+        /* and the controller's quit combo */
+        if (pad) {
+            await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
+            s = await until(tok, 'streaming for the combo', (x) => x.state === 'streaming' && hasPad(x), 25000);
+            pad.stdin.write('combo\n');
+            s = await until(tok, 'stopped by the combo', (x) => x.state === 'ended', 8000);
+            ok('Start + Back + LB + RB held 2 s stops the stream', s.state === 'ended' && /Start \+ Back/.test(s.note || ''), s.note);
+            await sleep(3500);   /* the pad lets go */
+        }
+        await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
+        s = await until(tok, 'streaming again', (x) => x.state === 'streaming' && x.frames > 30, 25000);
         if (pad) {
             s = await until(tok, 'the gamepad in the resumed stream', hasPad, 6000);
             pad.stdin.end();
@@ -191,7 +257,6 @@ async function main() {
             ok('unplugged mid-stream: the gamepad leaves the stream, the stream goes on', !hasPad(s) && s.state === 'streaming');
             pad = null;
         }
-        ok('the pad endpoint refuses nothing-to-do junk safely', (await req('POST', '/api/pad', { b: 'x', lx: 1e9 }, tok)).code === 200);
 
         const q = await req('POST', '/api/quit', {}, tok);
         ok('quit game', q.code === 200, q.json && q.json.error);

@@ -614,7 +614,7 @@ if (settings.enabled) {
 }
 startProxy();
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
-control = startControl({ status: status, command: command, log: log });
+control = startControl({ app: 'vizualyse_cast', status: status, command: command, log: log });
 cr.connect();
 /* The address changes with the hotspot: keep the QR code current. hook111's
  * run directory can appear after this tool starts: keep its view current. */

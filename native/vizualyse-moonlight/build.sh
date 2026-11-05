@@ -12,7 +12,7 @@ set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
-IMG=idrive-moonlight-build:18.04-gcc8
+IMG=idrive-moonlight-build:18.04-gcc8-fonts
 docker image inspect $IMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $IMG "$WIN_HERE/image" >/dev/null
 mkdir -p "$HERE/build"
 docker run --rm --platform linux/amd64 -v "$WIN_HERE:/m" -w /m $IMG sh -c '
@@ -24,15 +24,22 @@ docker run --rm --platform linux/amd64 -v "$WIN_HERE:/m" -w /m $IMG sh -c '
     SRCS="$(ls $MCC/src/*.c) $MCC/enet/callbacks.c $MCC/enet/compress.c $MCC/enet/host.c $MCC/enet/list.c $MCC/enet/packet.c $MCC/enet/peer.c $MCC/enet/protocol.c $MCC/enet/unix.c $MCC/nanors/rs.c $MCC/nanors/deps/obl/oblas_common.c"
     gcc-8 $CF $INC $DEFS -Wextra -Wno-unused-parameter -Wno-maybe-uninitialized -Werror -o /tmp/pads_test core/pads_test.c core/pads.c
     /tmp/pads_test
+    gcc-8 $CF $INC $DEFS -Wextra -Werror -o /tmp/touch_test core/touch_test.c core/touch.c
+    /tmp/touch_test test/fixtures/id7-touch-capture.txt
     # nanors'"'"' SIMD file needs intrinsics newer than gcc 8 (core/compat_gcc8.h)
     gcc-8 $CF $INC $DEFS -include core/compat_gcc8.h -c -o /tmp/oblas_lite.o $MCC/nanors/deps/obl/oblas_lite.c
-    gcc-8 $CF $INC $DEFS -no-pie -Wl,--build-id=sha1 -Wl,-z,relro,-z,now -Wl,--as-needed -o build/moonlight-core \
-        core/moonlight_core.c core/pads.c $SRCS /tmp/oblas_lite.o -Wl,-Bstatic -lopus -Wl,-Bdynamic -lcrypto -lpthread -lm
+    gcc-8 $CF $INC $DEFS -no-pie -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 -Wl,--build-id=sha1 -Wl,-z,relro,-z,now -Wl,--as-needed -o build/moonlight-core \
+        core/moonlight_core.c core/pads.c core/touch.c $SRCS /tmp/oblas_lite.o -Wl,-Bstatic -lopus -Wl,-Bdynamic -lcrypto -lpthread -lm
     strip --strip-unneeded build/moonlight-core
     v=$(objdump -T build/moonlight-core | grep -o "GLIBC_[0-9.]*" | sort -t. -k1,1 -k2,2n -k3,3n -u | tail -1)
     case $v in GLIBC_2.[0-9]|GLIBC_2.1[0-9]|GLIBC_2.2[0-7]|GLIBC_2.[0-9].*|GLIBC_2.1[0-9].*|GLIBC_2.2[0-7].*) ;;
     *) echo "moonlight-core needs $v, newer than the unit'"'"'s glibc 2.27" >&2; exit 1 ;; esac
+    # the unit has its loader in /lib, no /lib64 (seen on the car)
+    interp=$(readelf -l build/moonlight-core | sed -n "s/.*program interpreter: \(.*\)\]/\1/p")
+    [ "$interp" = /lib/ld-linux-x86-64.so.2 ] || { echo "moonlight-core asks for the loader \"$interp\", not the unit'"'"'s /lib/ld-linux-x86-64.so.2" >&2; exit 1; }
     needed=$(objdump -p build/moonlight-core | awk "/NEEDED/ {print \$2}" | sort | tr "\n" " ")
     for l in $needed; do case $l in libc.so.6|libm.so.6|libpthread.so.0|libcrypto.so.1.1) ;; *) echo "moonlight-core needs $l" >&2; exit 1 ;; esac; done
-    echo "moonlight-core: glibc up to $v; needs $needed"'
+    echo "moonlight-core: glibc up to $v; loader $interp; needs $needed"
+    cp /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf build/DejaVuSans-Bold.ttf
+    cp /usr/share/doc/fonts-dejavu-core/copyright build/DejaVu-LICENSE.txt'
 cd "$HERE" && node tools/fetch_ffmpeg.js

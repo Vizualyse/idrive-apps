@@ -5,8 +5,9 @@
  * (robertnisipeanu/mgu-store native/mgu-render, PROTOCOL.md "Video"): the
  * frames go into a shared-memory frame file, /dev/shm/mgu-video-<name> (a
  * 64-byte MGVF header, then 3 slots of I420), and an mgu-render client in
- * layer mode draws the file's newest frame in the screen's app area,
- * letterboxed. Root, so the renderer's foreground gate does not apply: the
+ * layer mode covers the screen's app area in black and draws the file's
+ * newest frame over it, fitted and centred (black bars where the shapes
+ * differ: a 16:9 game on the 8:3 screen has them at the sides). Root, so the renderer's foreground gate does not apply: the
  * picture stays up until stop().
  */
 'use strict';
@@ -19,8 +20,14 @@ const NAME = 'vizualyse_moonlight';
 const FILE = process.env.MOONLIGHT_VIDEO_FILE || '/dev/shm/mgu-video-' + NAME;
 const MAGIC = 0x4656474d, NSLOT = 3, HEADER = 64;
 const VIDEO_ID = 1;
+const BLACK_ID = 2;   /* a 4x4 black pixmap, stretched over the area: the bars */
 
 function available() { try { return fs.statSync(CLIENT).isFile(); } catch (e) { return false; } }
+
+/* No touch claim (mgu-render CLAIM): the head unit restarted twice as a
+ * console stream that had claimed touch was stopped (2026-11-05). The
+ * ways out of a full-screen picture are the controller's quit combo and the
+ * phone page's Stop; the burnt-in hint says so. */
 
 class ConsoleVideo {
     constructor(log) {
@@ -42,20 +49,31 @@ class ConsoleVideo {
         this.seq = 0; this.slot = 0;
         this._header();
 
-        const { RenderClient, videoOp } = require(CLIENT);
+        const { RenderClient, videoOp, imageOp } = require(CLIENT);
         this.videoOp = videoOp;
+        this.imageOp = imageOp;
         const say = (s) => this.log('console: ' + s);
         const gpu = new RenderClient(NAME, { info: say, warn: say, error: say }, { mode: 'layer' });
         this.gpu = gpu;
         gpu.on('ready', (screen, info) => {
-            const area = info && info.appArea && info.appArea.w ? info.appArea : { x: 0, y: 0, w: screen.w, h: screen.h };
-            const s = Math.min(area.w / w, area.h / h), bw = Math.round(w * s / 2) * 2, bh = Math.round(h * s / 2) * 2;
-            this.box = { x: area.x + Math.round((area.w - bw) / 2), y: area.y + Math.round((area.h - bh) / 2), w: bw, h: bh };
-            say('ready: modes ' + (info ? info.modes.join(',') : '?') + ', video ' + !!(info && info.video) +
-                ', app area ' + area.w + 'x' + area.h + '+' + area.x + '+' + area.y + ', video at ' +
-                this.box.w + 'x' + this.box.h + '+' + this.box.x + '+' + this.box.y);
+            /* The whole screen, not the app area: that leaves out the HMI's top
+             * bar and left strip (on the car: 1790x638+108+82 of 1920x720), and
+             * the picture should fill the screen's height with black bars at
+             * the sides. The video is fitted into it by the VIDEO op. */
+            const area = { x: 0, y: 0, w: screen.w, h: screen.h };
+            this.box = { x: area.x, y: area.y, w: area.w, h: area.h };
+            const s = Math.min(area.w / w, area.h / h);
+            this.picture = { w: Math.round(w * s), h: Math.round(h * s) };
+            say('ready: screen ' + screen.w + 'x' + screen.h + ', modes ' + (info ? info.modes.join(',') : '?') + ', video ' + !!(info && info.video) +
+                ', touch ' + !!(info && info.touch) + (info && info.appArea ? ', app area ' + info.appArea.w + 'x' + info.appArea.h + '+' + info.appArea.x + '+' + info.appArea.y : '') + ', placed ' + area.w + 'x' + area.h +
+                (info && info.embedBox ? ', embed box ' + info.embedBox.w + 'x' + info.embedBox.h + '+' + info.embedBox.x + '+' + info.embedBox.y : '') +
+                ', video ' + this.picture.w + 'x' + this.picture.h + ' centred, black around it');
             gpu.mode('layer');
             gpu.place({ x: this.box.x, y: this.box.y, w: this.box.w, h: this.box.h, scale: 1, ox: 0, oy: 0 });
+            gpu.pixmap(BLACK_ID, 4, 4, 'rgbx', 'nearest');
+            const black = Buffer.alloc(4 * 4 * 4);
+            for (let i = 3; i < black.length; i += 4) black[i] = 255;
+            gpu.pixels(BLACK_ID, [{ x: 0, y: 0, w: 4, h: 4 }], black);
             gpu.video(VIDEO_ID, FILE);
             if (fps) gpu.fps(fps);
             gpu.show(true);
@@ -76,7 +94,11 @@ class ConsoleVideo {
     }
 
     _draw() {
-        if (this.gpu && this.box) this.gpu.frameWords(this.videoOp(VIDEO_ID, 0, 0, this.box.w, this.box.h, 0));
+        if (!this.gpu || !this.box) return;
+        const bars = this.imageOp(BLACK_ID, 0, 0, this.box.w, this.box.h, 0), pic = this.videoOp(VIDEO_ID, 0, 0, this.box.w, this.box.h, 0);
+        const ops = new Uint32Array(bars.length + pic.length);
+        ops.set(bars, 0); ops.set(pic, bars.length);
+        this.gpu.frameWords(ops);
     }
 
     /* One I420 frame: fill the next slot, then publish slot, then seq. */

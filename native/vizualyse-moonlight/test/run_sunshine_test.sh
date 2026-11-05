@@ -20,7 +20,7 @@ IP=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$NET\").IPAddress}}
 # Sunshine is ready when it answers serverinfo
 docker run --rm --network $NET ml-unit:18.04-node8 sh -c "for i in \$(seq 1 40); do curl -s -m 2 http://$IP:47989/serverinfo >/dev/null && exit 0; sleep 1; done; exit 1"
 PADOPT=""
-if [ "${NO_UINPUT:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" -w /m idrive-moonlight-build:18.04-gcc8         gcc-8 -O2 -Wall -Werror -o build/test-uinput-pad test/uinput_pad.c; then
+if [ "${NO_UINPUT:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" -w /m idrive-moonlight-build:18.04-gcc8-fonts gcc-8 -O2 -Wall -Werror -o build/test-uinput-pad test/uinput_pad.c; then
     PADOPT="--privileged -v /dev:/dev -e MOONLIGHT_TEST_PAD=/m/build/test-uinput-pad"
 fi
 rc=0

@@ -45,6 +45,12 @@ jobs:
         run: |
           node native/vizualyse-cast/tools/fetch_ffmpeg.js
           docker run --rm -v "$PWD/native:/n:ro" -w /n/vizualyse-cast node:8.16.2-alpine node test/carplay_test.js
+      - name: Control sockets open to their own app only (both tools, as root, glibc Node 8)
+        run: |
+          docker build -q -t ml-unit:18.04-node8 native/vizualyse-moonlight/test/unit
+          docker run --rm -v "$PWD:/repo:ro" -w /repo ml-unit:18.04-node8 sh -c '
+            node native/vizualyse-cast/test/control_test.js &&
+            node native/vizualyse-cast/test/control_test.js native/vizualyse-moonlight/src/control.js vizualyse_moonlight'
       - name: Moonlight against Sunshine (the head unit in a box, Node 8)
         run: |
           sudo modprobe uinput || true

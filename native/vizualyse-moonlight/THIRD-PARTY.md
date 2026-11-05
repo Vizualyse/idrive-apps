@@ -141,6 +141,19 @@ includes this binary, the complete corresponding source for it is available
 on request, at no charge beyond the cost of providing it, from the
 maintainer of this repository (https://github.com/Vizualyse).
 
+## DejaVu Sans Bold (Bitstream Vera license; DejaVu changes public domain)
+
+`DejaVuSans-Bold.ttf`, unmodified, from Ubuntu 18.04's `fonts-dejavu-core`
+(DejaVu fonts 2.37, https://dejavu-fonts.github.io/): the font the stop hint
+on the centre console is drawn in. Its license is shipped beside it,
+`DejaVu-LICENSE.txt`.
+
+## cluster_render_client.js (MPL-2.0)
+
+Robert Nisipeanu's client for
+[cluster-render](https://github.com/robertnisipeanu/idrive-apps/tree/main/native/cluster-render),
+as in Cast (`LICENSES/MPL-2.0.txt` at the repository's root).
+
 ## The protocol
 
 `gamestream.js` (pairing, the app list, launch) is this tool's own code; it

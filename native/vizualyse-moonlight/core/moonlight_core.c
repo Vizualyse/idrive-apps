@@ -12,7 +12,21 @@
  *   moonlight-core stream --address A --appversion V --gfeversion G
  *       --rtsp URL --codecs N --width W --height H --fps F --bitrate KBPS
  *       --rikey HEX32 --rikeyid N [--packet-size N] [--remote 0|1|2]
- *       [--no-pads]
+ *       [--no-pads] [--uid N --gid N]
+ *       [--touch-iface vlan73 --touch-src 160.48.199.115 | --touch-file F]
+ *
+ * --touch-*: hold-to-stop on the centre screen (touch.h): a copy of the
+ * display's touch PDUs, read passively on that interface (the HMI still gets
+ * every one); a finger held still 2 s sends @{"ev":"exit-hold"}. --touch-file:
+ * the tests' stand-in; when F appears, its "t_ms src len hex" lines (as
+ * test/fixtures) are replayed at their times, then F is removed.
+ *
+ * --uid / --gid: the stream's threads run as that user, the tool's uplink
+ * uid: mgu-uplink routes only listed uids through wlan0, root has no route
+ * to the PC there (seen on the car). The gamepad thread stays root, to open
+ * hot-plugged /dev/input devices: the drop is per thread (raw setresuid,
+ * not glibc's process-wide setuid), made after that thread starts and before
+ * moonlight-common-c starts its own, which inherit it.
  *
  * While streaming: H.264 Annex B on stdout (fd 1); S16LE 48 kHz stereo on
  * fd 3 when it is open; on stderr log lines and events, each event one line
@@ -22,7 +36,8 @@
  *   key <code> <0|1> <modifiers>
  *   idr
  *   quit
- * End of stdin stops the stream too (the tool went away).
+ * End of stdin stops the stream too (the tool went away). Start + Back + LB +
+ * RB held 2 s on a gamepad sends @{"ev":"exit-combo"}: the tool stops.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -38,6 +53,13 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
 #include <time.h>
 #include <unistd.h>
 #include <linux/input.h>
@@ -50,6 +72,7 @@
 
 #include <Limelight.h>
 #include "pads.h"
+#include "touch.h"
 
 #define AUDIO_FD 3
 #define NBITS(x) ((((x) - 1) / (8 * sizeof(long))) + 1)
@@ -239,6 +262,12 @@ static void pads_scan(void) {
     globfree(&g);
 }
 
+static long now_ms(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000L + t.tv_nsec / 1000000L;
+}
+
 static void *pads_thread(void *arg) {
     (void)arg;
     time_t last_scan = 0;
@@ -251,9 +280,15 @@ static void *pads_thread(void *arg) {
         for (int i = 0; i < PADS_MAX; i++) if (pads[i].fd >= 0) { pf[n].fd = pads[i].fd; pf[n].events = POLLIN; slot_of[n++] = i; }
         pthread_mutex_unlock(&pad_lock);
 
-        int r = poll(pf, (nfds_t)n, 500);
-        if (r <= 0) continue;
+        int r = poll(pf, (nfds_t)n, 200);
         pthread_mutex_lock(&pad_lock);
+        /* the quit combo, held: checked on every wake, events or not */
+        for (int k = 0; k < n; k++) {
+            if (pads[slot_of[k]].fd >= 0 && pad_combo(&pads[slot_of[k]], now_ms())) {
+                event("{\"ev\":\"exit-combo\",\"slot\":%d}", slot_of[k]);
+            }
+        }
+        if (r <= 0) { pthread_mutex_unlock(&pad_lock); continue; }
         for (int k = 0; k < n; k++) {
             struct pad *p = &pads[slot_of[k]];
             if (p->fd < 0) continue;
@@ -283,6 +318,77 @@ static int list_pads(void) {
     }
     globfree(&g);
     return 0;
+}
+
+/* ---- touch: hold-to-stop, read passively ---------------------------------- */
+
+static int touch_sock = -1;              /* AF_PACKET on the display's interface, opened as root */
+static unsigned touch_saddr = 0;         /* network order; 0 = any sender */
+static const char *touch_file = NULL;
+
+/* A packet socket on iface for IPv4 (no link header): -1 when it can't be had. */
+static int touch_open(const char *iface) {
+    int fd = socket(AF_PACKET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, htons(ETH_P_IP));
+    if (fd < 0) return -1;
+    struct sockaddr_ll a;
+    memset(&a, 0, sizeof(a));
+    a.sll_family = AF_PACKET;
+    a.sll_protocol = htons(ETH_P_IP);
+    a.sll_ifindex = (int)if_nametoindex(iface);
+    if (!a.sll_ifindex || bind(fd, (struct sockaddr *)&a, sizeof(a)) < 0) { close(fd); return -1; }
+    return fd;
+}
+
+static void touch_feed(struct touch_hold *h, const unsigned char *udp, int len, long now) {
+    int ph, x, y;
+    if (!touch_decode(udp, len, &ph, &x, &y)) return;
+    if (touch_step(h, ph, x, y, now)) event("{\"ev\":\"exit-hold\",\"x\":%d,\"y\":%d}", x, y);
+}
+
+static void *touch_thread(void *arg) {
+    (void)arg;
+    struct touch_hold h;
+    memset(&h, 0, sizeof(h));
+    unsigned char pkt[2048];
+    while (!stopping && !terminated) {
+        if (touch_file) {
+            /* the tests' replay */
+            FILE *f = fopen(touch_file, "r");
+            if (!f) { struct timespec ts = { 0, 100 * 1000 * 1000 }; nanosleep(&ts, NULL); continue; }
+            char line[1024], src[64], hex[600];
+            int t, len;
+            long start = now_ms(), first = -1;
+            while (!stopping && fgets(line, sizeof line, f)) {
+                if (sscanf(line, "%d %63s %d %599s", &t, src, &len, hex) != 4) continue;
+                if (first < 0) first = t;
+                long due = start + (t - first);
+                while (now_ms() < due) { struct timespec ts = { 0, 2 * 1000 * 1000 }; nanosleep(&ts, NULL); }
+                int n = 0;
+                for (const char *q = hex; q[0] && q[1] && n < (int)sizeof(pkt); q += 2) { unsigned v; sscanf(q, "%2x", &v); pkt[n++] = (unsigned char)v; }
+                touch_feed(&h, pkt, n, now_ms());
+            }
+            fclose(f);
+            unlink(touch_file);
+            continue;
+        }
+        struct pollfd pf = { touch_sock, POLLIN, 0 };
+        if (poll(&pf, 1, 100) > 0) {
+            ssize_t n;
+            while ((n = recv(touch_sock, pkt, sizeof(pkt), 0)) > 0) {
+                /* IPv4, UDP, to the HMI's touch port, from the display */
+                if (n < 28 || (pkt[0] >> 4) != 4 || pkt[9] != 17) continue;
+                int ihl = (pkt[0] & 15) * 4;
+                if (n < ihl + 8) continue;
+                unsigned saddr;
+                memcpy(&saddr, pkt + 12, 4);
+                if (touch_saddr && saddr != touch_saddr) continue;
+                if ((pkt[ihl + 2] << 8 | pkt[ihl + 3]) != TOUCH_PORT) continue;
+                touch_feed(&h, pkt + ihl + 8, (int)n - ihl - 8, now_ms());
+            }
+        }
+        if (touch_tick(&h, now_ms())) event("{\"ev\":\"exit-hold\",\"x\":%d,\"y\":%d}", h.x0, h.y0);
+    }
+    return NULL;
 }
 
 /* ---- video --------------------------------------------------------------- */
@@ -440,12 +546,15 @@ static int stream(int argc, char **argv) {
     int use_pads = 1;
     const char *rikey = NULL;
     long rikeyid = 0;
+    long run_uid = -1, run_gid = -1;
+    const char *touch_iface = NULL;
 
     static struct option opts[] = {
         { "address", 1, 0, 'a' }, { "appversion", 1, 0, 'v' }, { "gfeversion", 1, 0, 'g' }, { "rtsp", 1, 0, 'r' },
         { "codecs", 1, 0, 'c' }, { "width", 1, 0, 'W' }, { "height", 1, 0, 'H' }, { "fps", 1, 0, 'f' },
         { "bitrate", 1, 0, 'b' }, { "packet-size", 1, 0, 'p' }, { "remote", 1, 0, 'R' }, { "rikey", 1, 0, 'k' },
-        { "rikeyid", 1, 0, 'i' }, { "no-pads", 0, 0, 'n' }, { 0, 0, 0, 0 }
+        { "rikeyid", 1, 0, 'i' }, { "no-pads", 0, 0, 'n' }, { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'G' },
+        { "touch-iface", 1, 0, 'T' }, { "touch-src", 1, 0, 'S' }, { "touch-file", 1, 0, 'F' }, { 0, 0, 0, 0 }
     };
     int o;
     optind = 2;
@@ -465,6 +574,11 @@ static int stream(int argc, char **argv) {
         case 'k': rikey = optarg; break;
         case 'i': rikeyid = strtol(optarg, NULL, 10); break;
         case 'n': use_pads = 0; break;
+        case 'u': run_uid = strtol(optarg, NULL, 10); break;
+        case 'G': run_gid = strtol(optarg, NULL, 10); break;
+        case 'T': touch_iface = optarg; break;
+        case 'S': touch_saddr = inet_addr(optarg); break;
+        case 'F': touch_file = optarg; break;
         default: return 2;
         }
     }
@@ -510,6 +624,30 @@ static int stream(int argc, char **argv) {
     pthread_create(&tin, NULL, stdin_thread, NULL);
     pthread_detach(tin);
     if (use_pads) { pthread_create(&tpads, NULL, pads_thread, NULL); }
+    /* the touch watch: its socket needs root (CAP_NET_RAW), so before the drop below */
+    pthread_t ttouch;
+    int use_touch = 0;
+    if (touch_iface) {
+        touch_sock = touch_open(touch_iface);
+        if (touch_sock < 0) event("{\"ev\":\"touch\",\"ok\":false,\"why\":\"%s: %s\"}", touch_iface, strerror(errno));
+        else { event("{\"ev\":\"touch\",\"ok\":true,\"iface\":\"%s\"}", touch_iface); use_touch = 1; }
+    } else if (touch_file) {
+        event("{\"ev\":\"touch\",\"ok\":true,\"file\":true}");
+        use_touch = 1;
+    }
+    if (use_touch) pthread_create(&ttouch, NULL, touch_thread, NULL);
+    /* this thread (and the threads it starts) as the uplink uid; the pads
+     * thread above keeps root */
+    if (run_uid >= 0) {
+        long g = run_gid >= 0 ? run_gid : run_uid;
+        if (syscall(SYS_setgroups, 0, NULL) != 0 || syscall(SYS_setresgid, g, g, g) != 0 || syscall(SYS_setresuid, run_uid, run_uid, run_uid) != 0) {
+            event("{\"ev\":\"failed\",\"code\":-1,\"why\":\"setresuid %ld: %s\"}", run_uid, strerror(errno));
+            stopping = 1;
+            if (use_pads) pthread_join(tpads, NULL);
+            return 1;
+        }
+        event("{\"ev\":\"uid\",\"uid\":%ld,\"gid\":%ld}", (long)syscall(SYS_getuid), (long)syscall(SYS_getgid));
+    }
 
     event("{\"ev\":\"connecting\",\"width\":%d,\"height\":%d,\"fps\":%d,\"bitrate\":%d}", sc.width, sc.height, sc.fps, sc.bitrate);
     int rc = LiStartConnection(&si, &sc, &cl, &dr, &ar, NULL, 0, NULL, 0);
@@ -533,7 +671,10 @@ static int stream(int argc, char **argv) {
         }
     }
     LiStopConnection();
-    if (use_pads) { stopping = 1; pthread_join(tpads, NULL); }
+    stopping = 1;
+    if (use_pads) pthread_join(tpads, NULL);
+    if (use_touch) pthread_join(ttouch, NULL);
+    if (touch_sock >= 0) close(touch_sock);
     event("{\"ev\":\"stopped\",\"frames\":%lu,\"code\":%d}", frames, term_code);
     return terminated && term_code != ML_ERROR_GRACEFUL_TERMINATION ? 3 : 0;
 }

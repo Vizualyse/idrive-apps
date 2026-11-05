@@ -30,7 +30,7 @@ One `LT_State_Wide` page:
 ## The socket
 
 `/dev/shm/vizualyse-cast/ctl.sock` (the tool's `control.js`), a Unix stream
-socket in group `tm_oap_app`, newline-delimited JSON. The tool sends
+socket in the Cast app's own group (only it and root can connect), newline-delimited JSON. The tool sends
 `{"ev":"status", state, output, audio, seconds, error, uplink, render, qr,
 link, canReplay, outputs, url}` on connect, after each command and once a
 second (with `enabled` and `carplay`); the app sends `{"cmd":"stop"}`,

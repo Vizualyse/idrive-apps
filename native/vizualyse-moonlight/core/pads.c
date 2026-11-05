@@ -136,6 +136,16 @@ bool pad_event(struct pad *p, int type, int code, int value) {
     return false;
 }
 
+#define COMBO_FLAGS (PLAY_FLAG | BACK_FLAG | LB_FLAG | RB_FLAG)
+
+bool pad_combo(struct pad *p, long now_ms) {
+    if ((p->st.buttons & COMBO_FLAGS) != COMBO_FLAGS) { p->combo_since = 0; p->combo_fired = false; return false; }
+    if (!p->combo_since) p->combo_since = now_ms ? now_ms : 1;
+    if (p->combo_fired || now_ms - p->combo_since < PAD_COMBO_MS) return false;
+    p->combo_fired = true;
+    return true;
+}
+
 void pad_sent(struct pad *p) {
     p->sent = p->st;
     p->dirty = false;

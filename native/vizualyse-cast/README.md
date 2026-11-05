@@ -102,7 +102,7 @@ layouts) was removed in 0.3.0.
 | `pcm_play.py` | root, mgu-python | plays the audio into SmartXbar's `CarPlayMain_CF_48_STEREO` source |
 | `console_out.js` | root | the media console output: frames into mgu-render's frame file `/dev/shm/mgu-video-vizualyse_cast` (MGVF, 3 slots), drawn by an mgu-render client in layer mode in the screen's app area |
 | `firewall.js` | root | one in-memory nftables rule letting the phone reach port 8480 on `wlan0`; added at start (while on), removed at stop, when turned off and by the tool's `deactivate` |
-| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock` (group tm_oap_app): status, stop, replay, carplay, hook111, carplayCards, carplayZoom, carplayCentre, carplayHudAlt, enable, disable, the cluster QR code |
+| `control.js` | root | the iDrive app's socket, `/dev/shm/vizualyse-cast/ctl.sock`, mode 0660 in the Cast app's own group (found by its package name under `/var/opt/public/oap`; root only until it is installed; every Store app shares `tm_oap_app`, so that group was open to all of them before 0.3.8): status, stop, replay, carplay, hook111, carplayCards, carplayZoom, carplayCentre, carplayHudAlt, enable, disable, the cluster QR code |
 | `carplay_screen.js` | root | the CarPlay second screen: hook111's state, the size and the cluster view to ask for, ffmpeg's arguments |
 
 Frame sizes keep within cluster-render's 5500 KB/s upload ceiling: for a

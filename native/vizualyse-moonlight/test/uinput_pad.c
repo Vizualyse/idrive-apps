@@ -5,7 +5,8 @@
  * pad ("Test Xbox Pad": A/B/X/Y, shoulders, start/back/guide, sticks
  * -32768..32767, triggers Z/RZ 0..255, the hat). Prints "ready <event node>",
  * then presses A and pushes the left stick once a second until stdin closes
- * or `seconds` pass, then removes the device.
+ * or `seconds` pass, then removes the device. A line "combo" on stdin holds
+ * Start + Back + LB + RB (the quit combo) for 3 s instead.
  *
  *   uinput_pad [seconds]
  */
@@ -73,7 +74,21 @@ int main(int argc, char **argv) {
     int on = 0;
     while (time(NULL) < end) {
         struct pollfd p = { 0, POLLIN, 0 };
-        if (poll(&p, 1, 1000) > 0) { char c; if (read(0, &c, 1) <= 0) break; }
+        if (poll(&p, 1, 1000) > 0) {
+            char line[32];
+            ssize_t n = read(0, line, sizeof(line) - 1);
+            if (n <= 0) break;
+            line[n] = 0;
+            if (strncmp(line, "combo", 5) == 0) {
+                int combo[] = { BTN_START, BTN_SELECT, BTN_TL, BTN_TR };
+                for (int i = 0; i < 4; i++) emit(fd, EV_KEY, combo[i], 1);
+                emit(fd, EV_SYN, SYN_REPORT, 0);
+                sleep(3);
+                for (int i = 0; i < 4; i++) emit(fd, EV_KEY, combo[i], 0);
+                emit(fd, EV_SYN, SYN_REPORT, 0);
+                continue;
+            }
+        }
         on = !on;
         emit(fd, EV_KEY, BTN_SOUTH, on);
         emit(fd, EV_ABS, ABS_X, on ? 32767 : 0);

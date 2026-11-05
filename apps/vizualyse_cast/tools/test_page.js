@@ -128,7 +128,7 @@ let st = { state: 'idle', uplink: 'online', render: 'connected', qr: true, link:
 const received = [];
 let control = null;
 function serve() {
-    control = startControl({ status: () => st, command: (c) => { received.push(c); return null; }, log: () => {} });
+    control = startControl({ app: 'vizualyse_cast', status: () => st, command: (c) => { received.push(c); return null; }, log: () => {} });
 }
 
 async function main() {

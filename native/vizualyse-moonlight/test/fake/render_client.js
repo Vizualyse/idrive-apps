@@ -10,13 +10,19 @@ const LOG = process.env.MOONLIGHT_TEST_RENDER_LOG;
 function note(s) { if (LOG) fs.appendFileSync(LOG, s + '\n'); }
 class RenderClient extends EventEmitter {
     constructor(name) { super(); this.name = name; note('new ' + name); }
-    connect() { setTimeout(() => this.emit('ready', { w: 1920, h: 720 }, { modes: ['layer'], video: true, appArea: { x: 0, y: 0, w: 1920, h: 720 } }), 50); }
+    connect() {
+        setTimeout(() => this.emit('ready', { w: 1920, h: 720 }, { modes: ['layer'], video: true, appArea: { x: 108, y: 82, w: 1790, h: 638 }, embedBox: { x: 104, y: 88, w: 1796, h: 632 } }), 50);   /* the car's (2026-11-05) */
+    }
     mode(m) { note('mode ' + m); }
     place(p) { note('place ' + p.w + 'x' + p.h + '+' + p.x + '+' + p.y); }
     video(id, file) { note('video ' + id + ' ' + file); }
     fps(f) { note('fps ' + f); }
     show(on) { note('show ' + on); }
-    frameWords() { this.draws = (this.draws || 0) + 1; }
+    claim(r) { note('claim ' + JSON.stringify(r)); }
+    pixmap(id, w, h, f) { note('pixmap ' + id + ' ' + w + 'x' + h + ' ' + f); }
+    pixels(id) { note('pixels ' + id); }
+    frameWords(u32) { if (!this.noted) { this.noted = true; note('frame ops ' + Array.from(u32).filter((v, i) => i % 7 === 0).join(',')); } }
     close() { note('close'); }
 }
-module.exports = { RenderClient, videoOp: (id, x, y, w, h) => [id, x, y, w, h] };
+function op(code) { return (id, x, y, w, h) => { const u = new Uint32Array(7); u[0] = code; u[1] = x; u[2] = y; u[3] = w; u[4] = h; u[6] = id; return u; }; }
+module.exports = { RenderClient, videoOp: op(19), imageOp: op(18) };

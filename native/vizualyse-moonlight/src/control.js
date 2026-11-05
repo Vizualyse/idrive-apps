@@ -2,15 +2,14 @@
 // Copyright (C) 2026 Yousaf Khan
 /**
  * The control socket for the vizualyse_moonlight iDrive app:
- * /dev/shm/vizualyse-moonlight/ctl.sock, a Unix stream socket, mode 0660, group
- * tm_oap_app (the group of the renderers' sockets, which apps already use),
+ * /dev/shm/vizualyse-moonlight/ctl.sock, a Unix stream socket, mode 0660, in the group of
+ * the vizualyse_moonlight app alone (appGid below; root only until it is installed),
  * newline-delimited JSON. Every client gets {"ev":"status", ...} on connect,
  * after each command and once a second. Commands: {"cmd":"enable"},
  * {"cmd":"disable"}, {"cmd":"stop"} (the stream; the game keeps running on
  * the PC), {"cmd":"quit"} (stop and close the game), {"cmd":"resume"} (the
  * last host and game again); anything else, or a command that can't run, is
- * answered with {"ev":"error","error":...}. Who may connect: see TODO.md,
- * "Control-socket hardening" (the same as Cast's for now).
+ * answered with {"ev":"error","error":...}.
  */
 'use strict';
 
@@ -19,15 +18,30 @@ const fs = require('fs');
 const path = require('path');
 
 const PATH = process.env.MOONLIGHT_CTL_SOCKET || '/dev/shm/vizualyse-moonlight/ctl.sock';
-const GROUP_FROM = ['/dev/shm/cluster-render/render.sock', '/run/mgu-render/render.sock', '/run/mgu-renderd/renderd.sock'];
+const OAP_DIR = process.env.CTL_OAP_DIR || '/var/opt/public/oap';
 const MAX_LINE = 4096;
+const RECHECK_MS = 10000;
 
-function appGroup() {
-    for (const p of GROUP_FROM) { try { return fs.statSync(p).gid; } catch (e) { /* next */ } }
+/* Who may connect: only the tool's own iDrive app. Every Store app runs as
+ * its own uid, with that uid as its primary group, installed under
+ * OAP_DIR/oap_<uid>/source; all of them share the group tm_oap_app, so a
+ * socket in that group is open to every app (found on the car, 2026-11-05).
+ * The socket gets the app's own group instead, found by its package name:
+ * the gid, or null while the app is not installed. */
+function appGid(appName) {
+    let dirs = [];
+    try { dirs = fs.readdirSync(OAP_DIR).filter((d) => /^oap_\d+$/.test(d)); } catch (e) { return null; }
+    for (const d of dirs) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync(path.join(OAP_DIR, d, 'source', 'package.json'), 'utf8'));
+            if (pkg.name === appName) return fs.statSync(path.join(OAP_DIR, d)).gid;
+        } catch (e) { /* not an app, or unreadable */ }
+    }
     return null;
 }
 
-/* opts: { status() -> object, command(cmd) -> error string or null, log } */
+/* opts: { app (the iDrive app's package name), status() -> object,
+ * command(cmd) -> error string or null, log } */
 function startControl(opts) {
     const clients = new Set();
     const send = (sock, obj) => { try { sock.write(JSON.stringify(obj) + '\n'); } catch (e) { /* gone */ } };
@@ -68,24 +82,37 @@ function startControl(opts) {
         try { fs.unlinkSync(PATH); } catch (e) { /* none */ }
     }
     server.on('error', (e) => opts.log('control: ' + e.message));
+    /* The socket's group: the app's (0660), or root only (0600) while the app
+     * is not installed; looked up again every RECHECK_MS (an app reinstalled
+     * can get a new uid). */
+    let gid;
+    const secure = () => {
+        if (!unixPath) return;
+        const g = appGid(opts.app);
+        if (g === gid) return;
+        gid = g;
+        try {
+            if (g === null) { fs.chmodSync(PATH, 0o600); fs.chownSync(PATH, 0, 0); }
+            else { fs.chownSync(PATH, 0, g); fs.chmodSync(PATH, 0o660); }
+        } catch (e) { opts.log('control: ' + e.message); }
+        opts.log('control: ' + PATH + (g === null ? ' root only (' + opts.app + ' is not installed)' : ' for ' + opts.app + ' (group ' + g + ')'));
+    };
     server.listen(PATH, () => {
         if (unixPath) {
-            const gid = appGroup();
-            try {
-                fs.chmodSync(PATH, 0o660);
-                if (gid !== null) fs.chownSync(PATH, 0, gid);
-            } catch (e) { opts.log('control: ' + e.message); }
-            opts.log('control: listening on ' + PATH + (gid !== null ? ' (group ' + gid + ')' : ''));
-        } else {
-            opts.log('control: listening on ' + PATH);
+            /* root only first, then the app's group */
+            try { fs.chmodSync(PATH, 0o600); } catch (e) { opts.log('control: ' + e.message); }
+            secure();
         }
+        opts.log('control: listening on ' + PATH);
     });
     const timer = setInterval(broadcast, 1000);
+    const recheck = setInterval(secure, RECHECK_MS);
 
     return {
         broadcast: broadcast,
         close() {
             clearInterval(timer);
+            clearInterval(recheck);
             clients.forEach((s) => s.destroy());
             server.close();
             if (unixPath) { try { fs.unlinkSync(PATH); } catch (e) { /* gone */ } }

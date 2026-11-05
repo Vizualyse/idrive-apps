@@ -24,8 +24,26 @@ line says otherwise.
 - An unlisted program that dumps core can make the crash handler restart the
   head unit. Run hand-started test processes with `RLIMIT_CORE=1`; Store
   tools get it from the deploy tool's drop-in.
+- **Stopping a systemd service that is not on recmgr's whitelist restarts
+  the head unit** (`/etc/recmgr.ini`: EnableWhitelistRestartList and
+  EnableExitSuccessWhitelist; an orderly shutdown, no core dump, nothing in
+  the journal from recmgr itself). Store tools are listed through
+  `component.json` `"recmgr"` (mgu-deploy writes the list at boot,
+  `/var/opt/mgu-deploy/recmgr-at-boot.json`). A hand-made trial unit (e.g. in
+  `/run/systemd/system`) must not be stopped or restarted: four restarts on
+  2026-11-05 until this was found.
 - Firewall: nftables `ip filter input` ends in a drop. New ports from the
   phone's hotspot (`wlan0`) need a rule; an inserted rule is in memory only.
+- The dynamic loader is `/lib/ld-linux-x86-64.so.2`; there is no `/lib64`.
+  An executable linked on a stock distro (which asks for `/lib64/...`) fails
+  with "not found"; link with `-Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2`.
+  Shared libraries (hook111) and static binaries (ffmpeg) are not affected.
+- No `systemd-run`, BusyBox `ps` / `ip` (no `ip rule`), no `getent`. A unit
+  file in `/run/systemd/system/` is a trial that is gone at reboot.
+- Store apps run each as their own uid (`/var/opt/public/oap/oap_<uid>/`,
+  primary group = that uid), all in the group `tm_oap_app` (12202): a socket
+  in that group is open to every app. Give a tool's socket its app's own
+  group (found by the package name in `oap_<uid>/source/package.json`).
 - `nft` prints well-known ports by name (`tcp dport ssh`, not `22`). The
   MGU-SSH firewall keeper matched the number, so it added a duplicate rule
   every 15 s (641 per chain); fixed locally to match both spellings.
@@ -35,6 +53,9 @@ line says otherwise.
 - mgu-uplink puts the head unit on the phone's hotspot, but routes **only
   listed uids** (`/var/opt/mgu-uplink/uids.d/`, a policy-routing table).
   It deliberately ignores uid 0: root never gets the internet.
+  Root has no route to the hotspot's own subnet either ("Network is
+  unreachable" to a PC next to the phone): a tool that talks to a device on
+  the hotspot does it as its listed uid too.
 - The unit's own resolver (127.0.0.1) does not resolve internet names. Use
   the uplink's DNS (the phone, from `/run/mgu-uplink/lease.json`).
 - The firmware has no public CA bundle (only BMW's). Node carries its own;
@@ -111,6 +132,14 @@ line says otherwise.
   plus a draw op at least once a second. Root clients are exempt from its
   foreground gate. Worked on this unit (its docs listed iDrive 7 video as
   untested).
+- mgu-render's app area is 1790x638 at +108+82 of the 1920x720 screen (the
+  HMI's top bar and left strip outside it). A layer placed at 0,0 1920x720
+  covers the whole screen, HMI included.
+- mgu-render decodes touch PDUs in iDrive 8's layout: on iDrive 7 the fields
+  sit 16 bytes later (X u16 BE at 54, Y at 60, the event in the high nibble
+  of 63; 112-byte PDUs every 8 ms while a finger is down, from
+  160.48.199.115 to UDP 30567 on vlan73), so a CLAIM gets no touch here. A
+  root tool can read a copy of them passively (AF_PACKET on vlan73).
 - An iDrive app page shows a PNG through `LT_Label_1Graphic_Scalable`: write
   it world-readable in `/dev/shm`, `createResourceHandles`, then
   `setValue(0, 'Graphic', file, 'ResourceId')`; a new file name for each new

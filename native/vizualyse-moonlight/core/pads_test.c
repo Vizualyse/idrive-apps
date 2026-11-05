@@ -99,6 +99,26 @@ int main(void) {
     syn(&d);
     OK("digital LT is a full pull", d.st.lt == 255 && d.st.rt == 0);
 
+    /* the quit combo: Start + Back + LB + RB held PAD_COMBO_MS, once per hold */
+    struct pad c;
+    memset(&c, 0, sizeof(c));
+    pad_layout(&c, has_rx, NULL);
+    pad_event(&c, EV_KEY, BTN_START, 1); pad_event(&c, EV_KEY, BTN_SELECT, 1); pad_event(&c, EV_KEY, BTN_TL, 1);
+    syn(&c);
+    OK("three of the four is not the combo", !pad_combo(&c, 1000) && !pad_combo(&c, 9000));
+    pad_event(&c, EV_KEY, BTN_TR, 1);
+    syn(&c);
+    OK("the combo just pressed: not yet", !pad_combo(&c, 10000));
+    OK("held 1.9 s: not yet", !pad_combo(&c, 11900));
+    OK("held 2 s: stop", pad_combo(&c, 12000));
+    OK("still held: only once", !pad_combo(&c, 15000));
+    pad_event(&c, EV_KEY, BTN_TR, 0);
+    syn(&c);
+    OK("let go: reset", !pad_combo(&c, 16000));
+    pad_event(&c, EV_KEY, BTN_TR, 1);
+    syn(&c);
+    OK("pressed again: a new hold", !pad_combo(&c, 17000) && pad_combo(&c, 19000));
+
     unsigned long keys[(KEY_CNT + 63) / 64] = { 0 }, abs[(ABS_CNT + 63) / 64] = { 0 };
     OK("no buttons is not a gamepad", !pad_is_gamepad(keys, abs));
     keys[BTN_SOUTH / 64] |= 1UL << (BTN_SOUTH % 64);

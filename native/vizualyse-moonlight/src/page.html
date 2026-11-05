@@ -82,6 +82,12 @@
 </div>
 
 <div class="card">
+  <label class="t">Picture on</label>
+  <div class="seg" id="outputs"></div>
+  <div class="small" id="outHint" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
   <label class="t">Stream</label>
   <div class="seg" id="modes"></div>
   <div class="seg" id="rates" style="margin-top:8px"></div>
@@ -179,6 +185,14 @@
   }
   function drawSettings(s) {
     var st = s.settings;
+    seg($('outputs'), s.outputs.map(function (o) { return { v: o.id, label: o.title }; }), s.output, function (v) { $('err').textContent = ''; api('/api/output', { output: v }).then(show).catch(fail); });
+    Array.prototype.forEach.call($('outputs').children, function (b) {
+      var o = s.outputs.filter(function (x) { return x.id === b.dataset.v; })[0];
+      b.disabled = !o || !o.ready;
+    });
+    $('outHint').textContent = s.output === 'console'
+      ? 'The picture covers the whole centre screen. To stop it: hold the screen for 2 s, or hold Start + Back + LB + RB on a controller for 2 s, or Stop here.'
+      : 'Smaller and at 15 fps: the cluster and the HUD take ~5.5 MB/s at most. Changing this while playing reconnects to the game.';
     seg($('modes'), s.modes.map(function (m) { return { v: m, label: m.replace('x', '×') }; }), st.mode, function (v) { api('/api/settings', { mode: v }).then(show).catch(fail); });
     seg($('rates'), s.rates.map(function (r) { return { v: String(r), label: r + ' fps' }; }), st.fps, function (v) { api('/api/settings', { fps: Number(v) }).then(show).catch(fail); });
     if (document.activeElement !== $('br')) { $('br').value = Math.round(st.bitrate / 1000); $('brv').textContent = $('br').value; }

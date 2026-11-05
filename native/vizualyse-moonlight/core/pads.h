@@ -32,7 +32,17 @@ struct pad {
     bool digital_lt, digital_rt; /* BTN_TL2 / BTN_TR2 held (no analogue trigger) */
     struct pad_state st, sent;
     bool dirty, announced;
+    long combo_since;            /* ms when the quit combo was first held, or 0 */
+    bool combo_fired;
 };
+
+/* The quit combo (as Moonlight's): Start + Back + LB + RB held this long
+ * stops the stream; the picture can cover the iDrive's own controls. */
+#define PAD_COMBO_MS 2000
+
+/* Whether the quit combo has now been held PAD_COMBO_MS (once per hold);
+ * now_ms is a monotonic clock in ms. */
+bool pad_combo(struct pad *p, long now_ms);
 
 /* Choose which evdev codes are the right stick and the triggers from the
  * axes a device has: with ABS_RX the right stick is RX/RY and the triggers
