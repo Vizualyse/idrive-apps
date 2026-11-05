@@ -5,7 +5,8 @@
  * this process answers the kernel's vhci_hcd as the device (one end of a
  * socketpair handed to vhci's attach), so a real USB device appears, with a
  * /dev/bus/usb node and no driver bound, as the car's Vader 4 Pro: interface
- * ff/5d/01, interrupt IN 0x81 and OUT 0x05, 20-byte input reports.
+ * ff/5d/01, interrupt IN 0x81 and OUT 0x05, 20-byte input reports. Where
+ * the kernel has xpad, its interface is unbound from it first.
  * Needs vhci_hcd in the running kernel (modprobe vhci-hcd) and its sysfs.
  *
  * As uinput_pad: prints "ready /dev/bus/usb/BBB/DDD", then presses A and
@@ -204,6 +205,14 @@ static int find_node(char *node, size_t n) {
         if (sysread(path, v, sizeof(v)) < 0 || strcmp(v, PRODUCT) != 0) continue;
         snprintf(path, sizeof(path), "/sys/bus/usb/devices/%d-%d/%d-%d:1.0", bus, port, bus, port);
         if (access(path, F_OK) != 0) continue;
+        /* a kernel with xpad (GitHub's runners) takes it at once: let go, as on the car, where nothing holds it */
+        char drv[400], ifname[32];
+        snprintf(ifname, sizeof(ifname), "%d-%d:1.0", bus, port);
+        snprintf(drv, sizeof(drv), "%s/driver/unbind", path);
+        if (access(drv, F_OK) == 0) {
+            if (syswrite(drv, ifname) < 0) { fprintf(stderr, "usbip_pad: unbind %s: %s\n", ifname, strerror(errno)); continue; }
+            fprintf(stderr, "usbip_pad: %s unbound from its kernel driver\n", ifname);
+        }
         char b[16], d[16];
         snprintf(path, sizeof(path), "/sys/bus/usb/devices/%d-%d/busnum", bus, port);
         if (sysread(path, b, sizeof(b)) < 0) continue;
@@ -239,7 +248,8 @@ int main(int argc, char **argv) {
     int ready = 0, on = 0;
     for (;;) {
         long now = ms();
-        if (!ready && find_node(node, sizeof(node)) == 0) { printf("ready %s\n", node); fflush(stdout); ready = 1; next = now + 1000; }
+        /* twice, a moment apart: a driver can bind just after the interface appears */
+        if (!ready && find_node(node, sizeof(node)) == 0 && (usleep(300000), find_node(node, sizeof(node)) == 0)) { printf("ready %s\n", node); fflush(stdout); ready = 1; next = now + 1000; }
         if (!ready && now > until) { printf("the device did not appear\n"); fflush(stdout); break; }
         if (ready && now >= end) break;
         if (ready && combo_end && now >= combo_end) { buttons = 0; changed = 1; combo_end = 0; next = now + 1000; send_report(); }
