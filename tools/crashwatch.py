@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Yousaf Khan
 """A recorder that survives the head unit restarting: the journal (journalctl -f), the kernel log (/dev/kmsg)
 and a stats line every 5 s (load, memory, the busiest processes, nftables rules), into
-/var/opt/crashwatch/<boot>-*.log, each fsynced every second. The journal is in RAM on the unit (Learnings), so
+/var/opt/crashwatch/<boot>-*.log, each fsynced every second. The journal is in RAM on the unit (knowledge/head-unit.md), so
 after a restart this is what is left of the moments before it. Read-only towards the system.
 
     /var/opt/mgu-python/current/bin/python3 crashwatch.py [dir]

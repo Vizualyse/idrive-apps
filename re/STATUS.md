@@ -143,7 +143,7 @@ The capture shows a real location; it stays off the repository.
 ## Risks
 
 - **Cluster take-over has broken the cluster before,** until a full car
-  restart (`Learnings.md`). Test with navigation running or the cluster's
+  restart (`knowledge/cluster-and-hud.md`). Test with navigation running or the cluster's
   central area off.
 - **A crash in the hook takes down `carplay`.** The prologue and build-id
   checks refuse anything unexpected; the arm step goes stock after two failed

@@ -19,7 +19,7 @@ A tech demo, built and tested on a bench head unit.
 | [`native/hook111`](native/hook111) | **CarPlay cluster map (stream 111)**, a tool: a hook preloaded into the stock 2020 `carplay` that adds CarPlay's second screen and hands it to Cast to cluster. Experimental |
 | [`re`](re) | the off-car reverse engineering and harnesses behind hook111 ([status](re/STATUS.md)) |
 
-What's next: [`TODO.md`](TODO.md). What we learned about the unit: [`Learnings.md`](Learnings.md).
+What's next: [`TODO.md`](TODO.md). What we learned about the unit: [`knowledge/`](knowledge/index.md).
 
 ## Install
 

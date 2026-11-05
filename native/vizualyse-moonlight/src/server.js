@@ -74,7 +74,7 @@ const RATES = [30, 60];
 
 /* Where the picture goes. The cluster and the HUD go through cluster-render,
  * which uploads at most ~5500 KB/s: a smaller frame at 15 fps, scaled up by
- * the renderer (Learnings, "The cluster and the HUD"). */
+ * the renderer (knowledge/cluster-and-hud.md). */
 const OUTPUTS = {
     console: { title: 'Centre console', console: true },
     map: { title: 'Cluster', target: 'map', W: 1088, H: 480, w: 640, h: 360, fps: 15 },
@@ -365,12 +365,12 @@ function startStream(h, app, launch, retried) {
         else if (TOUCH_IFACE) args.push('--touch-iface', TOUCH_IFACE, '--touch-src', TOUCH_SRC);
     }
     const core = spawn(CORE, args, { stdio: ['pipe', 'pipe', 'pipe', settings.audio ? 'pipe' : 'ignore'] });
-    /* low delay: a small probe (Learnings: -fflags nobuffer gave no frames
+    /* low delay: a small probe (knowledge/video-decoding.md: -fflags nobuffer gave no frames
      * through a filter), slice threads (the core asks the PC for 4 slices) */
     const out = OUTPUTS[settings.output] || OUTPUTS.console;
     /* the console takes the stream's own size; the cluster and the HUD a
      * smaller frame at their rate (an fps filter is fine without -fflags
-     * nobuffer, Learnings) */
+     * nobuffer, knowledge/video-decoding.md) */
     const fw = out.console ? w : out.w, fh = out.console ? hgt : out.h, ffps = out.console ? fps : out.fps;
     /* the console: the stop hint for its first seconds; -framerate gives the
      * raw H.264 its clock, which the subtitle is timed by */
