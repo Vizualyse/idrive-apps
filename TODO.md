@@ -27,19 +27,13 @@ workflow (Actions > Release, the component ids).
 
 Built and tested off the car against a real Sunshine
 ([`native/vizualyse-moonlight`](native/vizualyse-moonlight), "Off the car").
-Tried on the car (2026-11-05) from a hand-made unit in /run: pairing over
-the hotspot, the centre console full screen with black bars, the stop hint,
-hold-to-stop (the touch PDUs read passively), audio. **Never stop or
-restart a hand-made unit on the car: recmgr restarts the head unit**
-(Learnings, "The head unit"); test through a real install.
+Installed from the Store on the car (2026-11-05): pairing over the hotspot,
+a stream on the centre console (full screen, black bars, the stop hint),
+hold-to-stop, Play / Stop / Quit game / Resume last, sound, the player gone
+after a stop, the stream as uplink uid 12998, recmgr-whitelisted. **Never
+stop or restart a hand-made unit on the car: recmgr restarts the head unit**
+(Learnings, "The head unit").
 
-- [ ] **Install from the Store on the car** (published 2026-11-05; its
-  `recmgr` entry whitelists it) and try again there: a stream on the
-  console, hold-to-stop, Stop / Quit game, a stop and start of the service,
-  and that the audio player is gone after Stop (killed now; it kept playing
-  for minutes before).
-- [ ] **The uplink uid 12998** (component.json `internet`, `uids`): check the
-  Store writes its `uids.d` entry; the car trial borrowed Cast's 12999.
 - [ ] **Controllers on the car:** there is no `/dev/input` at all (no HID
   drivers loaded); find whether `xpad` / `hid-*` / `uinput` modules exist.
   The quit combo is untested on the car for that reason.
@@ -47,24 +41,14 @@ restart a hand-made unit on the car: recmgr restarts the head unit**
   car only).
 - [ ] whether the Atom decodes 1280x720@60 in software in time (30 ran at
   ~5 % CPU for ffmpeg, a clock desktop); the latency end to end.
-- [ ] **Only while parked:** nothing checks the gear or the speed yet; find
-  where a root tool can read them, and stop (or refuse) the stream when
-  moving.
 - [ ] **Hardware decoding**, if software isn't enough: the Atom's VA-API
   (libva) or what winston-grabber's `h264_msdk` uses, from moonlight-core.
-- [ ] Finding the PC on its own (mDNS `_nvstream._tcp`) instead of typing
-  its address; Wake-on-LAN (serverinfo gives the MAC).
-- [ ] Tell mgu-render's author: its touch decode reads iDrive 8's PDU layout;
-  on iDrive 7 the fields are 16 bytes later (Learnings, "The central
-  screen"), so a CLAIM gets no touch there.
-- [ ] `tools/crashwatch.py`: the recorder that found the recmgr restarts;
-  maybe a Store tool of its own for debugging on the car.
 
 ## Carried over
 
-- [ ] **Cast 0.3.8** (the control-socket fix, published 2026-11-05): install
-  it on the car, check the Cast page still works, then rotate the phone
-  link's token (it was readable by every Store app until then).
+- [ ] **Cast 0.3.8** (installed; its socket is now the Cast app's group
+  only): check the Cast page still works, then rotate the phone link's token
+  (it was readable by every Store app until then).
 
 
 ## Dropped
