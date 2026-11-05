@@ -4,8 +4,10 @@
  * The tool end to end off the car: server.js in the head unit in a box
  * (test/unit), against a real Sunshine (test/sunshine), driven through the
  * phone page's API and the iDrive app's control socket. The renderer and
- * the speakers are stand-ins (test/fake): the frames land in the frame file
- * as on the car, the audio in a file. Virtual gamepads too, each found while
+ * the speakers are stand-ins (test/fake): moonlight-core decodes into the
+ * frame file as on the car (the GPU's code, on the unit's software Media
+ * SDK: test/firmware), the audio lands in a file. The car's speed comes as
+ * the iDrive app sends it. Virtual gamepads too, each found while
  * idle, announced to the PC while streaming, gone when unplugged: with
  * MOONLIGHT_TEST_PAD an evdev one (test/uinput_pad, needs /dev/uinput), with
  * MOONLIGHT_TEST_USBPAD an XInput USB pad read through usbfs as on the car
@@ -59,8 +61,9 @@ function kit() {
     fs.chmodSync(k, 0o755);
     ['server.js', 'gamestream.js', 'gs_worker.js', 'firewall.js', 'console_out.js', 'cluster_render_client.js', 'control.js', 'page.html', 'pcm_play.py']
         .forEach((f) => fs.copyFileSync(path.join(HERE, 'src', f), path.join(k, f)));
-    fs.copyFileSync(path.join(HERE, 'build', 'DejaVuSans-Bold.ttf'), path.join(k, 'DejaVuSans-Bold.ttf'));
-    ['moonlight-core', 'ffmpeg'].forEach((f) => { fs.copyFileSync(path.join(HERE, 'build', f), path.join(k, f)); fs.chmodSync(path.join(k, f), 0o755); });
+    fs.copyFileSync(path.join(HERE, 'build', 'hint.rgba'), path.join(k, 'hint.rgba'));
+    fs.copyFileSync(path.join(HERE, 'build', 'moonlight-core'), path.join(k, 'moonlight-core'));
+    fs.chmodSync(path.join(k, 'moonlight-core'), 0o755);
     fs.copyFileSync(path.join(__dirname, 'fake', 'python.sh'), path.join(TMP, 'python'));
     fs.chmodSync(path.join(TMP, 'python'), 0o755);
     return k;
@@ -111,17 +114,6 @@ async function until(tok, what, test, ms) {
     return s;
 }
 
-/* The mean luma of the newest frame's bottom band (where the stop hint is). */
-function bottomBand() {
-    try {
-        const b = fs.readFileSync(VIDEO), w = b.readUInt32LE(8), h = b.readUInt32LE(12), slot = b.readUInt32LE(20);
-        const base = 64 + slot * w * h * 3 / 2;
-        let sum = 0, n = 0;
-        for (let y = Math.round(h * 0.86); y < Math.round(h * 0.97); y++) for (let x = 0; x < w; x += 4) { sum += b[base + y * w + x]; n++; }
-        return sum / n;
-    } catch (e) { return null; }
-}
-
 function videoSeq() {
     try { const b = fs.readFileSync(VIDEO).slice(0, 24); return { magic: b.readUInt32LE(0), w: b.readUInt32LE(8), h: b.readUInt32LE(12), seq: b.readUInt32LE(16) }; } catch (e) { return null; }
 }
@@ -147,7 +139,7 @@ async function main() {
         MOONLIGHT_STATE: path.join(TMP, 'state'), MOONLIGHT_PORT: String(PORT), MOONLIGHT_CTL_SOCKET: SOCK, MOONLIGHT_NO_FIREWALL: '1',
         MOONLIGHT_RENDER_CLIENT: path.join(__dirname, 'fake', 'render_client.js'), MOONLIGHT_VIDEO_FILE: VIDEO,
         MOONLIGHT_PYTHON: path.join(TMP, 'python'), MOONLIGHT_TEST_PCM: PCM, MOONLIGHT_TEST_RENDER_LOG: RENDER_LOG, MOONLIGHT_TOUCH_FILE: TOUCH,
-        MOONLIGHT_LINK_IP: '192.0.2.10',
+        MOONLIGHT_LINK_IP: '192.0.2.10', MOONLIGHT_DECODER: process.env.MOONLIGHT_TEST_MSDK === '1' ? 'msdk-sw' : 'av', MOONLIGHT_SMALL_DIR: path.join(TMP, 'small'),
     });
     const srv = spawn(process.execPath, [path.join(k, 'server.js')], { env: env, stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [];
@@ -186,13 +178,26 @@ async function main() {
         ok('the cluster refused without cluster-render', o.code === 400 && /not available/.test(o.json.error), o.json.error);
         const outs = o.json.status.outputs.map((x) => x.id + (x.ready ? '+' : '-')).join();
         ok('the outputs listed, the centre console chosen', o.json.status.output === 'console' && outs === 'console+,map-,hud-', outs);
+        ok('the bitrate on auto at first: 5 Mbps for 720p30', s.settings.bitrateAuto && s.settings.bitrate === 5000, s.settings.bitrate);
+        s = (await req('POST', '/api/settings', { mode: '960x540', fps: 60 }, tok)).json;
+        ok('auto follows the size and rate: 5 Mbps for 540p60', s.settings.bitrateAuto && s.settings.bitrate === 5000 && s.modes[0] === '960x540', s.settings.bitrate);
+        s = (await req('POST', '/api/settings', { fps: 30 }, tok)).json;
+        ok('auto: 3 Mbps for 540p30', s.settings.bitrate === 3000, s.settings.bitrate);
         s = (await req('POST', '/api/settings', { mode: '1280x720', fps: 30, bitrate: 6000, audio: true, volume: 50 }, tok)).json;
-        ok('stream settings kept', s.settings.mode === '1280x720' && s.settings.fps === 30 && s.settings.volume === 50);
+        ok('stream settings kept, a bitrate set by hand', s.settings.mode === '1280x720' && s.settings.fps === 30 && s.settings.volume === 50 &&
+            !s.settings.bitrateAuto && s.settings.bitrate === 6000);
+        let st = await control({ cmd: 'output', output: 'map' });
+        ok('the iDrive app\'s output: the cluster refused without cluster-render', st.some((m) => m.ev === 'error' && /not available/.test(m.error)));
+        st = await control({ cmd: 'output', output: 'console' });
+        ok('the iDrive app\'s output: the centre console', !st.some((m) => m.ev === 'error') && st[1].output === 'console');
 
         const p = await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
         ok('play', p.code === 200, p.json && p.json.error);
         s = await until(tok, 'streaming', (x) => x.state === 'streaming' && x.frames > 60, 25000);
         ok('streaming, frames decoded', s.state === 'streaming' && s.frames > 60, s.frames + ' frames, ' + s.fps + ' fps, ' + s.size);
+        ok('decoded by moonlight-core, no ffmpeg', (process.env.MOONLIGHT_TEST_MSDK === '1' ? /^msdk \(software/ : /^av /).test(s.decoder || '') && s.decodeMs > 0,
+            s.decoder + ', ' + s.decodeMs + ' ms');
+        ok('the bitrate asked of the PC: 6 Mbps', s.kbps === 6000);
         const all = out.join('');
         ok('the stream runs as the uplink uid (12998), the gamepad thread as root', /"ev":"uid","uid":12998,"gid":12998/.test(all));
         ok('the GameStream requests come from the worker (as 12998)', /gamestream: pair: getservercert/.test(all));
@@ -200,18 +205,16 @@ async function main() {
         const pcmSize = () => (fs.existsSync(PCM) ? fs.statSync(PCM).size : 0);
         for (let i = 0; i < 40 && pcmSize() < 48000 * 4; i++) await sleep(250);
         ok('audio reached the player', pcmSize() >= 48000 * 4, pcmSize() + ' bytes of S16LE stereo');
-        const during = bottomBand();
-        s = await until(tok, '11 s into the stream', (x) => x.seconds >= 11, 15000);
+        s = await until(tok, '12 s into the stream', (x) => x.seconds >= 12, 15000);
         await sleep(500);
-        const after = bottomBand();
-        ok('the stop hint is burnt in for the first 10 s, then gone', during !== null && after !== null && Math.abs(during - after) > 10,
-            'bottom band luma ' + (during || 0).toFixed(1) + ' with it, ' + (after || 0).toFixed(1) + ' after');
         const v = videoSeq();
         ok('the frames are in the renderer\'s frame file', v && v.magic === 0x4656474d && v.w === 1280 && v.h === 720 && v.seq > 60, JSON.stringify(v));
         const rlog = fs.readFileSync(RENDER_LOG, 'utf8');
         ok('the console: the whole area, black under the picture, the video fitted on top',
             /place 1920x720\+0\+0/.test(rlog) && /pixmap 2 4x4 rgbx/.test(rlog) && /frame ops 18,19/.test(rlog) && /show true/.test(rlog),
             rlog.split('\n').filter(Boolean).join(', '));
+        ok('the stop hint: a picture over the video for the first 10 s, then the video alone',
+            /pixmap 3 900x100 rgba/.test(rlog) && /frame ops 18,19,18\nframe ops 18,19\n/.test(rlog));
         ok('the console claims no touch (stopping a stream that did restarted the head unit)', !/claim/.test(rlog));
         ok('the phone pad: accepted while streaming', (await req('POST', '/api/pad', { b: 4096 }, tok)).code === 200 && (await req('POST', '/api/pad', { b: 0 }, tok)).code === 200);
         if (pads.length) s = await until(tok, 'the gamepads announced', hasPads, 6000);
@@ -222,7 +225,7 @@ async function main() {
         s = await until(tok, 'the phone pad listed', (x) => x.pads.some((q) => q.name === 'Phone'), 5000);
         ok('the phone pad is listed as a controller', s.pads.some((q) => q.name === 'Phone'));
 
-        let st = await control({ cmd: 'stop' });
+        st = await control({ cmd: 'stop' });
         ok('the iDrive app: status first, then stop', st[0].ev === 'status' && st[0].state === 'streaming' && st[1].ev === 'status');
         s = await until(tok, 'ended', (x) => x.state === 'ended', 10000);
         ok('stopped: ended, the game still runs on the PC', s.state === 'ended' && s.canResume, s.note);
@@ -250,6 +253,16 @@ async function main() {
         ok('a held screen: the core read it from the PDUs, at the hold\'s place', /the screen held at 128\d,2\d\d/.test(out.join('')));
         await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
         s = await until(tok, 'streaming after the hold', (x) => x.state === 'streaming' && x.frames > 30, 25000);
+        /* only while parked: the iDrive app sends the car's speed */
+        await control({ cmd: 'speed', kmh: 1.5 });
+        s = (await req('GET', '/api/status', null, tok)).json;
+        ok('1.5 km/h: still parked, still streaming', s.state === 'streaming' && !s.moving && s.speed === 1.5);
+        await control({ cmd: 'speed', kmh: 20 });
+        s = await until(tok, 'stopped by driving off', (x) => x.state === 'ended', 8000);
+        ok('20 km/h: the stream stops', s.state === 'ended' && /car is moving/.test(s.note || ''), s.note);
+        const refused = await req('POST', '/api/play', { id: h.id, app: app.id }, tok);
+        ok('moving: no stream starts', refused.code === 400 && /only while parked/.test(refused.json.error), refused.json.error);
+        await control({ cmd: 'speed', kmh: 0 });
         /* and the controller's quit combo */
         if (pads.length) {
             const pad = pads.filter((q) => q.usb)[0] || pads[0];

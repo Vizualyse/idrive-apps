@@ -7,11 +7,17 @@
  *
  * One LT_State_Wide page: the status; the phone page's link as a QR code
  * (LT_Label_1Graphic_Scalable, a PNG in /dev/shm the HMI can read) and as
- * text; Moonlight on or off; Stop (the game keeps running on the PC); Quit
- * game (closes it on the PC); Resume last (the last host and game again);
- * and an info line (host, game, fps, controllers). The app holds the tool's
- * control socket while its page is visible (moonlight_control.js); the tool
- * keeps running without it. The structure follows vizualyse_cast.
+ * text; Moonlight on or off; where the picture goes (a drop-down: centre
+ * console, cluster, HUD; a stream moves there); Stop (the game keeps running
+ * on the PC); Quit game (closes it on the PC); Resume last (the last host
+ * and game again); and an info line (host, game, fps, controllers).
+ *
+ * Only while parked: the app reads the car's speed once a second
+ * (vehicle_speed.js) and hands it to the tool, which stops a stream above
+ * 3 km/h and starts none. So the app holds the tool's control socket while
+ * it runs (moonlight_control.js), not only while its page shows: a stream
+ * covers the page. The tool keeps running without it. The structure follows
+ * vizualyse_cast.
  */
 'use strict';
 
@@ -20,6 +26,7 @@ const path = require('path');
 const OnlineApp = require('oap-sdk/src/core/OnlineApp.js');
 const logging = require('oap-sdk/src/logging/logging');
 const { MoonlightControl } = require('./moonlight_control.js');
+const { watchSpeed } = require('./vehicle_speed.js');
 const { qrPng } = require('./qr_png.js');
 
 const logger = logging.getSDKLogger();
@@ -27,8 +34,10 @@ const logger = logging.getSDKLogger();
 const STATE_NAME = 'ST_OnlineApps_VizualyseMoonlight';
 const N = {
     status: 'moonlightStatus', qr: 'moonlightQr', link: 'moonlightLink', hint: 'moonlightHint', info: 'moonlightInfo',
-    enable: 'moonlightEnable', stop: 'moonlightStop', quit: 'moonlightQuit', resume: 'moonlightResume',
+    enable: 'moonlightEnable', stop: 'moonlightStop', quit: 'moonlightQuit', resume: 'moonlightResume', output: 'moonlightOutput',
 };
+/* the drop-down's rows (tools/make_page.js), as the tool names them */
+const OUTPUTS = ['console', 'map', 'hud'];
 const PRESS_DEDUPE_MS = 400;
 const ROW_CHARS = 90;
 const QR_PX = 360;
@@ -65,6 +74,7 @@ class MoonlightApp extends OnlineApp {
         this._qr = { key: null, file: null, chain: Promise.resolve() };
         this._control = new MoonlightControl({ log: logger });
         this._control.on('change', () => this._render());
+        this._stopSpeed = null;
 
         this.on('initialized', () => {
             this._appInitialized()
@@ -85,6 +95,9 @@ class MoonlightApp extends OnlineApp {
             return this.initialized();
         }
         const foregroundStart = this._startedForeground();
+        /* the tool hears from the app while it runs: the speed, whatever the page */
+        this._control.open();
+        this._startSpeed();
         return this._setupRhmi()
             .then(() => this._registerEntryPoints())
             .then(() => {
@@ -99,6 +112,15 @@ class MoonlightApp extends OnlineApp {
                 const lastUuid = this.getLastExecutedEntryPointUuid && this.getLastExecutedEntryPointUuid();
                 return lastUuid ? this._onEntryPointExecute(lastUuid) : undefined;
             });
+    }
+
+    _startSpeed() {
+        let builders = null;
+        try { builders = require('oap-sdk/src/someip/someipBuilders'); } catch (err) {
+            logger.warn('speed: no SOME/IP in this SDK (' + (err && err.message) + '): the tool cannot tell parked from driving');
+            return;
+        }
+        this._stopSpeed = watchSpeed(builders, logger, (kmh) => this._control.speed(kmh));
     }
 
     _startedForeground() {
@@ -122,6 +144,14 @@ class MoonlightApp extends OnlineApp {
         this._bind(N.stop, () => this._control.stop());
         this._bind(N.quit, () => this._control.quit());
         this._bind(N.resume, () => this._control.resume());
+        /* the drop-down: the HMI moves its choice itself; the tool's answer decides what it shows */
+        this._components[N.output].on('action', (ev) => this._press(N.output, () => {
+            const id = OUTPUTS[ev && ev.row];
+            delete this._written['selected:' + N.output];
+            const r = id ? this._control.output(id) : false;
+            this._render();
+            return r;
+        }));
         rhmi.on('userEvent', (ev) => {
             const entry = ev && ev.eventType === 'ACTION' && this._actionById[Number(ev.sourceId)];
             if (entry) this._press(entry.name, entry.handler);
@@ -204,8 +234,6 @@ class MoonlightApp extends OnlineApp {
         this._visible = visible;
         logger.info('page ' + (visible ? 'visible' : 'hidden'));
         this._reportVisibilityStatus(visible);
-        if (visible) this._control.open();
-        else this._control.close();
     }
 
     _reportVisibilityStatus(visible) {
@@ -230,8 +258,20 @@ class MoonlightApp extends OnlineApp {
         const key = 'enabled:' + name;
         if (this._written[key] !== enabled) {
             this._written[key] = enabled;
-            Promise.resolve(this._components[name].setEnabled(enabled))
+            /* a drop-down has no setEnabled, only the property (upstream's Waze) */
+            const comp = this._components[name];
+            Promise.resolve(comp.setEnabled ? comp.setEnabled(enabled) : comp.setProperty('Enabled', enabled ? 1 : 0, 'UInt'))
                 .catch((err) => logger.warn(name + ' enable failed: ' + (err && err.message)));
+        }
+    }
+
+    /* A drop-down's choice (three arguments: no row) */
+    _select(name, index) {
+        const key = 'selected:' + name;
+        if (this._written[key] !== index) {
+            this._written[key] = index;
+            Promise.resolve(this._components[name].setValue('SelectedItem', index, 'UInt'))
+                .catch((err) => logger.warn(name + ' selection failed: ' + (err && err.message)));
         }
     }
 
@@ -256,6 +296,8 @@ class MoonlightApp extends OnlineApp {
         this._setEnabled(N.stop, on && c.active());
         this._setEnabled(N.quit, on && c.active());
         this._setEnabled(N.resume, on && !c.active() && c.canResume());
+        this._setEnabled(N.output, on);
+        this._select(N.output, Math.max(0, OUTPUTS.indexOf(c.currentOutput())));
         this._showQr(link);
     }
 
@@ -305,6 +347,7 @@ class MoonlightApp extends OnlineApp {
     _handleShutdown(reason) {
         if (this._shutdownPromise) return this._shutdownPromise;
         logger.info('vizualyse_moonlight shutdown: ' + JSON.stringify(reason));
+        if (this._stopSpeed) this._stopSpeed();
         this._control.close();
         const bundle = this.rhmiApplication && this.rhmiApplication.getResourceBundle();
         this._shutdownPromise = Promise.resolve()

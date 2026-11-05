@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 /* A stand-in for mgu-render's client (mgu_render_client.js) in the off-car
- * tests: it says ready with a 1920x720 screen and an app area, and counts
- * what it is asked to draw in MOONLIGHT_TEST_RENDER_LOG. */
+ * tests: it says ready with a 1920x720 screen and an app area, and notes
+ * what it is asked to draw in MOONLIGHT_TEST_RENDER_LOG (the draw ops each
+ * time they change). */
 'use strict';
 const EventEmitter = require('events');
 const fs = require('fs');
@@ -21,7 +22,11 @@ class RenderClient extends EventEmitter {
     claim(r) { note('claim ' + JSON.stringify(r)); }
     pixmap(id, w, h, f) { note('pixmap ' + id + ' ' + w + 'x' + h + ' ' + f); }
     pixels(id) { note('pixels ' + id); }
-    frameWords(u32) { if (!this.noted) { this.noted = true; note('frame ops ' + Array.from(u32).filter((v, i) => i % 7 === 0).join(',')); } }
+    /* each new list of ops (not every frame) */
+    frameWords(u32) {
+        const ops = Array.from(u32).filter((v, i) => i % 7 === 0).join(',');
+        if (ops !== this.ops) { this.ops = ops; note('frame ops ' + ops); }
+    }
     close() { note('close'); }
 }
 function op(code) { return (id, x, y, w, h) => { const u = new Uint32Array(7); u[0] = code; u[1] = x; u[2] = y; u[3] = w; u[4] = h; u[6] = id; return u; }; }

@@ -1,10 +1,10 @@
 {
   "id": "vizualyse-moonlight",
   "kind": "tool",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "license": "GPL-3.0-or-later",
   "title": "Moonlight",
-  "description": "EXPERIMENTAL. Streams games from a PC running Sunshine (GameStream) to the central screen (or the cluster or the HUD) while parked, with the sound through the speakers and game controllers (a wired Xbox 360-style USB pad, or the phone as a pad; no Bluetooth pads). Pair the PC and pick a game on the phone page: scan the QR code on the iDrive Moonlight page.",
+  "description": "EXPERIMENTAL. Streams games from a PC running Sunshine (GameStream) to the central screen (or the cluster or the HUD) while parked, decoded on the car's GPU, with the sound through the speakers and game controllers (a wired Xbox 360-style USB pad, or the phone as a pad; no Bluetooth pads). Pair the PC and pick a game on the phone page: scan the QR code on the iDrive Moonlight page.",
   "requires": {
     "mgu-deploy": "0.7.0",
     "cluster-render": "0.3.3",
@@ -80,23 +80,13 @@
       "mode": "0755"
     },
     {
-      "path": "ffmpeg",
-      "from": "build/ffmpeg",
-      "mode": "0755"
-    },
-    {
-      "path": "ffmpeg-GPLv3.txt",
-      "from": "build/ffmpeg-GPLv3.txt",
+      "path": "hint.rgba",
+      "from": "build/hint.rgba",
       "mode": "0644"
     },
     {
-      "path": "DejaVuSans-Bold.ttf",
-      "from": "build/DejaVuSans-Bold.ttf",
-      "mode": "0644"
-    },
-    {
-      "path": "DejaVu-LICENSE.txt",
-      "from": "build/DejaVu-LICENSE.txt",
+      "path": "ffmpeg-LGPL-2.1.txt",
+      "from": "build/ffmpeg-LGPL-2.1.txt",
       "mode": "0644"
     },
     {
@@ -124,6 +114,9 @@
   ],
   "recmgr": [
     "vizualyse-moonlight"
+  ],
+  "crashNames": [
+    "moonlight-core"
   ],
   "restart": [
     "vizualyse-moonlight.service"

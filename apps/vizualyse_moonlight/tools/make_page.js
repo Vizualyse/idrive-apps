@@ -13,6 +13,8 @@ const C = [
     [22, 'label', 'LT_Label_1Row', 'moonlightLink', 0, ''],
     [23, 'label', 'LT_Label_1Row', 'moonlightHint', 0, ''],
     [30, 'button', 'LT_Button_1Row', 'moonlightEnable', 3, 'Moonlight: on'],
+    /* where the picture goes; rows: OUTPUTS in vizualyse_moonlight.js */
+    [34, 'dropDownMenu', 'LT_DropDownMenu_1Row_2Col3070', 'moonlightOutput', 3, 'Picture on', ['Centre console', 'Cluster', 'HUD']],
     [31, 'button', 'LT_Button_1Row', 'moonlightStop', 3, 'Stop'],
     [32, 'button', 'LT_Button_1Row', 'moonlightQuit', 3, 'Quit game'],
     [33, 'button', 'LT_Button_1Row', 'moonlightResume', 3, 'Resume last'],
@@ -30,9 +32,13 @@ xml += '        </layoutGroup>\n    </container>\n</application>\n';
 fs.writeFileSync(path.join(dir, 'application.xml'), xml);
 const vis = { Visible: { value: 1, type: 'UInt' } };
 const comps = { 10: { type: 'title', name: 'moonlightTitle', properties: vis, rows: [{ Text: { value: 'SID_MOONLIGHT_TITLE', type: 'StringId' } }] } };
-C.forEach(([id, type, , name, focus, text]) => {
-    comps[id] = { type: type, name: name, properties: Object.assign({}, vis, { Focusable: { value: focus, type: 'UInt' } }),
-        rows: [text === null ? {} : { Text: { value: text, type: 'Text' } }] };
+C.forEach(([id, type, , name, focus, text, items]) => {
+    const properties = Object.assign({}, vis, { Focusable: { value: focus, type: 'UInt' } });
+    /* a drop-down: its header and choice in cells, one row per item (as upstream's Waze "Show on") */
+    comps[id] = items ? { type: type, name: name, properties: properties,
+        cells: { HeaderText: { value: text, type: 'Text' }, SelectedItem: { value: 0, type: 'UInt' } },
+        rows: items.map((t) => ({ ItemText: { value: t, type: 'Text' } })) }
+        : { type: type, name: name, properties: properties, rows: [text === null ? {} : { Text: { value: text, type: 'Text' } }] };
 });
 fs.writeFileSync(path.join(dir, 'uiDescription.json'),
     JSON.stringify({ schemaVersion: '1.3.0', containers: { 1: { type: 'state', name: 'ST_OnlineApps_VizualyseMoonlight', components: comps } } }, null, 2) + '\n');

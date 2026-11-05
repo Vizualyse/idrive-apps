@@ -1,6 +1,6 @@
 # Third-party software in Moonlight (vizualyse-moonlight)
 
-## moonlight-core: moonlight-common-c (GPL-3.0), ENet (MIT), nanors (MIT), Opus (BSD-3-Clause)
+## moonlight-core: moonlight-common-c (GPL-3.0), ENet (MIT), nanors (MIT), Opus (BSD-3-Clause), FFmpeg (LGPL-2.1+), Intel Media SDK headers (MIT)
 
 `moonlight-core` is built from `core/` (this tool's own code, GPL-3.0-or-later)
 and the vendored sources in `third_party/moonlight-common-c`, unmodified
@@ -12,9 +12,20 @@ and the vendored sources in `third_party/moonlight-common-c`, unmodified
 | ENet (moonlight's fork, a submodule of the above) | commit `aca87840b57f045a1f7f9299e4b1b9b8e2a5e2f1` | MIT | https://github.com/cgutman/enet |
 | nanors (a submodule of the above) | commit `a9b1636f9c98dbfdd0daeaf6982ccd24d1c30f29` | MIT | https://github.com/sleepybishop/nanors |
 | libopus, linked in statically | 1.1.2 (Ubuntu 18.04's `libopus-dev 1.1.2-1ubuntu1`) | BSD-3-Clause | https://opus-codec.org/, http://archive.ubuntu.com/ubuntu/pool/main/o/opus/ |
+| FFmpeg's libavcodec and libavutil, linked in statically: the H.264 decoder alone (`configure --disable-everything --enable-decoder=h264`, `image/Dockerfile`), unmodified | 6.1.2 (GitHub's archive of tag `n6.1.2`, SHA-256 `9cbefd67b7e4fffde3846699ec03324b7ef789a81c2e9b1059e93719b5b8d189`) | GNU LGPL version 2.1 or later (`ffmpeg-LGPL-2.1.txt`, shipped next to the binary) | https://ffmpeg.org/releases/ffmpeg-6.1.2.tar.xz, https://github.com/FFmpeg/FFmpeg/tree/n6.1.2 |
+| Intel Media SDK API headers, a subset (`core/mfx/`, as upstream's `native/waze-on-cluster/abi/include/mfx`) | API 1.24 | MIT (`core/mfx/LICENSE`) | https://github.com/Intel-Media-SDK/MediaSDK |
 
 It links dynamically against the head unit's own glibc 2.27 and OpenSSL 1.1
-(`libcrypto.so.1.1`); neither is shipped. Built with gcc 8.4.0
+(`libcrypto.so.1.1`), and loads the unit's own Intel Media SDK
+(`libmfxhw64.so`) and libva (`libva.so.1`, `libva-drm.so.1`) at run time
+for decoding on the GPU; none of them is shipped. `core/decode_msdk.c` is
+ported from Robert Nisipeanu's `native/waze-on-cluster/src/decoder_msdk.cpp`
+(GPL-3.0-or-later, https://github.com/robertnisipeanu/idrive-apps, commit
+`daaa3f7`).
+
+Relinking: moonlight-core is built from source by `build.sh`; replacing
+FFmpeg's libraries means building them (as `image/Dockerfile` does) and
+running `build.sh`, which links them in. Built with gcc 8.4.0
 (`gcc-8 8.4.0-1ubuntu1~18.04`) in `image/Dockerfile`.
 
 The ENet, nanors and Opus license texts:
@@ -93,60 +104,11 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ```
 
-## ffmpeg (GPL-3.0)
+## The stop hint
 
-The tool kit ships `ffmpeg`, the unmodified static x86-64 Linux build by
-John Van Sickle (https://johnvansickle.com/ffmpeg/). `tools/fetch_ffmpeg.js`
-downloads it at build time and checks it against a pinned hash.
-
-| | |
-|---|---|
-| Archive | `ffmpeg-7.0.2-amd64-static.tar.xz` |
-| SHA-256 | `abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67` |
-| MD5 | `7fa72b652e19bf84c9461e332ea1cdf3` |
-| ffmpeg | 7.0.2 |
-| License | GNU GPL version 3 (`ffmpeg-GPLv3.txt`, shipped next to the binary) |
-
-The build statically links these libraries (from the archive's `readme.txt`):
-
-| Library | Version | | Library | Version |
-|---|---|---|---|---|
-| libaom | 3.2.0-393-g402e264b94 | | libgnutls | 3.7.2 |
-| libass | 0.17.3 | | libtheora | 1.2.0alpha1+git |
-| libgme | 0.6.3 | | libfrei0r | 1.6.1-2 |
-| libsrt | 1.4.4 | | libvidstab | 1.20 |
-| libvpx | 1.11.0-30-g888bafc78 | | libfreetype | 2.9.1-3+deb10u1 |
-| libvmaf | 2.3.0 | | libharfbuzz | 3.1.1 |
-| libx264 | 0.164.3191 | | libopenjpeg | 2.4.0 |
-| libx265 | 3.5+1-f0c1022b6 | | libalsa | 1.2.4 |
-| libxvid | 1.3.7 | | libsoxr | 0.1.3 |
-| libwebp | 0.6.1 | | libopus | 1.3.1 |
-| libzimg | 3.0.3 | | libspeex | 1.2 |
-| libzvbi | 0.2.36 | | libvorbis | 1.3.7 |
-| libdav1d | 1.4.2 | | libmp3lame | 3.100 |
-| librubberband | 1.8.2 | | libvo-amrwbenc | 0.1.3-1+b1 |
-| libopencore-amrnb | 0.1.3-2.1+b2 | | libopencore-amrwb | 0.1.3-2.1+b2 |
-
-Built with gcc 8.3.0, yasm 1.3.0.36.ge2569 and nasm 2.15.05.
-
-### Source code
-
-- ffmpeg 7.0.2: https://ffmpeg.org/releases/ffmpeg-7.0.2.tar.xz
-  (git tag `n7.0.2` at https://git.ffmpeg.org/ffmpeg.git)
-- The libraries above: each project's upstream source at the version listed.
-- The build itself: https://johnvansickle.com/ffmpeg/
-
-**Written offer.** For at least three years after the last release that
-includes this binary, the complete corresponding source for it is available
-on request, at no charge beyond the cost of providing it, from the
-maintainer of this repository (https://github.com/Vizualyse).
-
-## DejaVu Sans Bold (Bitstream Vera license; DejaVu changes public domain)
-
-`DejaVuSans-Bold.ttf`, unmodified, from Ubuntu 18.04's `fonts-dejavu-core`
-(DejaVu fonts 2.37, https://dejavu-fonts.github.io/): the font the stop hint
-on the centre console is drawn in. Its license is shipped beside it,
-`DejaVu-LICENSE.txt`.
+`hint.rgba` is a picture drawn at build time (`tools/make_hint.py`) with
+DejaVu Sans Bold (Bitstream Vera license; DejaVu's changes public domain,
+https://dejavu-fonts.github.io/); the font itself is not shipped.
 
 ## cluster_render_client.js (MPL-2.0)
 

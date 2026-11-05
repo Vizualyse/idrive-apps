@@ -8,8 +8,11 @@
  * after each command and once a second. Commands: {"cmd":"enable"},
  * {"cmd":"disable"}, {"cmd":"stop"} (the stream; the game keeps running on
  * the PC), {"cmd":"quit"} (stop and close the game), {"cmd":"resume"} (the
- * last host and game again); anything else, or a command that can't run, is
- * answered with {"ev":"error","error":...}.
+ * last host and game again), {"cmd":"output","output":"console"|"map"|"hud"}
+ * (where the picture goes; a stream moves there), {"cmd":"speed","kmh":N}
+ * (the car's speed, about once a second: answered with nothing); anything
+ * else, or a command that can't run, is answered with
+ * {"ev":"error","error":...}.
  */
 'use strict';
 
@@ -66,7 +69,8 @@ function startControl(opts) {
                 try { cmd = JSON.parse(line); } catch (e) { send(sock, { ev: 'error', error: 'bad JSON' }); continue; }
                 const err = opts.command(cmd || {});
                 if (err) send(sock, { ev: 'error', error: err });
-                broadcast();
+                /* the speed comes every second: the status goes out once a second anyway */
+                if (err || !cmd || cmd.cmd !== 'speed') broadcast();
             }
         });
         sock.on('error', () => { /* close follows */ });

@@ -43,16 +43,12 @@ Built and tested off the car against a real Sunshine
 ([`native/vizualyse-moonlight`](native/vizualyse-moonlight), "Off the car").
 Installed from the Store on the car (2026-11-05): pairing over the hotspot,
 a stream on the centre console (full screen, black bars, the stop hint),
-hold-to-stop, Play / Stop / Quit game / Resume last, sound, the player gone
-after a stop, the stream as uplink uid 12998, recmgr-whitelisted. **Never
-stop or restart a hand-made unit on the car: recmgr restarts the head unit**
+the cluster and the HUD, hold-to-stop, USB pads (Vader 4 Pro), Play / Stop /
+Quit game / Resume last, sound, the player gone after a stop, the stream as
+uplink uid 12998, recmgr-whitelisted. **Never stop or restart a hand-made
+unit on the car: recmgr restarts the head unit**
 ([knowledge/head-unit.md](knowledge/head-unit.md)).
 
-- [ ] **Controllers on the car:** XInput USB pads are read through usbfs
-  (no kernel drivers on the car, its README); passes off the car with a
-  USB/IP virtual pad. Next: bump to 0.1.1, release, then on the car the
-  Vader 4 Pro in a stream and the quit combo. Later: DualShock/DualSense
-  over usbfs (HID reports), pads paired to the phone (Gamepad API).
 - [ ] **The car's volume does nothing until a CarPlay phone connects:** the
   sound goes into SmartXbar's `CarPlayMain_CF_48_STEREO`, which the audio
   manager only makes a source (with the iDrive volume on it) while CarPlay
@@ -63,92 +59,37 @@ stop or restart a hand-made unit on the car: recmgr restarts the head unit**
   phone page's volume slider (0-150 %, live from 0.1.2).
   Lead: oap-sdk's OAP media player (`OapGenericMedia`,
   [knowledge/sound.md](knowledge/sound.md)).
-- [ ] **The cluster and the HUD outputs** on the car (built, tested off the
-  car only). The HUD shows black as transparent and runs at ~10 fps; the
-  cluster's atlas wants full-range levels
-  ([knowledge/cluster-and-hud.md](knowledge/cluster-and-hud.md)).
 
-### Moonlight next: a real game is far slower than the desktop (2026-11-05)
+### Moonlight 0.2.0 on the car (built and tested off the car, 2026-11-05)
 
-With a game every frame changes and the stream runs at the full bitrate.
-The Atom decodes in software in ffmpeg, the H.264 and every decoded frame
-(1.38 MB at 720p) pass through Node, and nothing drops a late frame, so the
-picture falls behind. Agreed order: **3 first, with hardware decoding**, plus
-the smaller items; the counters (1) later. The ffmpeg decoder flags
-(`-skip_loop_filter`, `-flags2 fast`) were turned down. One version bump for
-the lot (`server.js` already has comment-only changes since 0.1.2).
+Decoding on the GPU in moonlight-core (no ffmpeg), the stop hint as an
+mgu-render image, the Output drop-down, auto bitrate by size and rate, only
+while parked (the app sends the speed). **Ask before running anything on the
+unit.**
 
-- [ ] **Read-only on the car first (ask before running anything):**
-  `ls -l /dev/dri /usr/lib/dri`, `ls /usr/lib*/ | grep -iE 'libva|mfx|igfx|iHD|i965'`,
-  `ldd /usr/bin/winston-grabber` and `dasvideo`; mgu-store's
-  `native/mgu-render/tools/car-test/probe.js gpu`. Copy `libmfxsw64`,
-  `libmfxhw64-p.so.1.24`, `libva.so.1`, `libva-drm.so.1` off the unit for
-  the off-car build and tests ([knowledge/video-decoding.md](knowledge/video-decoding.md)).
-- [ ] **Decode in moonlight-core, on the GPU** (3): port upstream's
-  `native/waze-on-cluster/src/decoder_msdk.cpp` (GPL-3.0, keep the
-  attribution): VA display on `/dev/dri/renderD128` → MSDK
-  (`MFX_IMPL_HARDWARE | VIA_VAAPI`), `AsyncDepth=1`, `DecodedOrder=1`, one
-  decode unit per `DecodeFrameAsync` with `COMPLETE_FRAME`, a new session
-  per sequence; VPP scales on the GPU to the output's size; `GPUCopy` if
-  the CM runtime starts on the car.
-  - moonlight-core mmaps the mgu-render frame file and writes each frame
-    straight into the next slot (NV12 → I420 while copying, unless VPP at
-    API 1.24 outputs YV12/I420), then slot, then seq. No ffmpeg process, no
-    frames through Node; `dr_submit` decodes, so a late frame is replaced,
-    never queued. The header's matrix/range words from the stream (Sunshine
-    asks BT.601/709, limited/full: set `colorSpace`/`colorRange` in the
-    stream config and write the same).
-  - The cluster and the HUD: VPP scales to their size; the core hands the
-    small I420 frames to `server.js` (a second frame file or the pipe) for
-    the atlas, or packs the atlas itself.
-  - Fallback when there's no `/dev/dri` or MSDK fails: libavcodec's
-    software H.264 built into moonlight-core (as IterioDev's player is), same
-    output path. Keep the stock ffmpeg only if that turns out simpler.
-  - Build: link against stubs with the unit's SONAMEs (`libva.so.1`,
-    `libva-drm.so.1`, `libmfxhw64.so`) and check imports, as upstream's
-    `Makefile:241-280` / `tools/woc_abi.py`; the glibc 2.27 check as now.
-  - Tests off the car: the firmware's `libmfxsw64` (software MSDK) in the
-    Ubuntu 18.04 image against the real Sunshine; frames compared with
-    ffmpeg's; a busy test pattern instead of the desktop.
-  - `component.json`: `crashNames` for `moonlight-core` (a core dump
-    otherwise restarts the unit), the `video` group if it ever stops being
-    root.
-- [ ] **The stop hint as an mgu-render overlay**, not burnt in: rasterise the
-  text once to a premultiplied RGBA picture (IMAGE, ≤ 1024²), draw
-  `[VIDEO][IMAGE]` for 10 s then `[VIDEO]` only (the renderer redraws the
-  app's frame on every video frame). Drop the `subtitles` filter, the ASS
-  file and the font's copy ([knowledge/central-screen.md](knowledge/central-screen.md)).
-- [ ] **The output in the iDrive app:** a drop-down "Output: Centre
-  console / Cluster / HUD" on the Moonlight page (`type="dropDownMenu"`,
-  `on('action', ev => ev.row)`, `setValue('SelectedItem', i, 'UInt')`,
-  upstream's Waze "Show on" as the model,
-  [knowledge/idrive-app-ui.md](knowledge/idrive-app-ui.md)); a control
-  socket command `output <console|map|hud>` in `control.js` that sets
-  `settings.output` (the phone page keeps its own); greyed out while
-  streaming, or it restarts the stream on the new output. Off-car test
-  through the socket.
-- [ ] **Bitrate and size defaults:** a default bitrate per mode (e.g. 5 Mbps
-  at 720p30, 10 at 720p60) instead of 8 Mbps for all; 960x540 easy to pick.
-  Until 3 lands: the core's stdout straight into ffmpeg's stdin
-  (`stdio: ['pipe', ff.stdin, …]`), not through Node.
+- [ ] **Release** vizualyse-moonlight 0.2.0 and vizualyse_moonlight 0.2.0,
+  install from the Store, and read the journal: the core's `decoder` event
+  should say `msdk (GPU, …)`; a `"fallback":true` one means the GPU failed
+  (likely the MSDK session as uid 12998) and software took over. Then
+  `stats`: `decodeMs`, `skipped`, `pps` with a real game at 720p60, and the
+  CPU of moonlight-core (`top`).
+- [ ] **Read-only on the car:** `ls -l /dev/dri`, `id` of the tool's
+  process, and whether `igfxcmrt64` gets mapped (GPU copy: the decoder
+  event says `GPU copy` or `CPU copy`).
+- [ ] **The speed:** the app's log `speed: reading …` with the ignition on;
+  a stream stops on driving off (or a test with the page's info).
+- [ ] **The Output drop-down** on the iDrive page, and the stop hint's
+  place and size on the screen.
+- [ ] **Check on the car:** the `…`, `—`, `·` in our RHMI texts (Unicode
+  isn't reliable there); `nft list table inet mgu_uplink` (a final drop for
+  new inbound on Wi-Fi, though the phone page works).
 - [ ] **Pop-ups and calls:** when the Moonlight page loses focus while still
   visible (an HMI pop-up, a call) hide the full-screen picture, and show it
   again on focus ([knowledge/idrive-app-ui.md](knowledge/idrive-app-ui.md),
   "Visibility"). The reversing camera already hides it (mgu-render).
-- [ ] **Only while parked:** the app reads `Vehicle2` speed (poll every 1-2 s;
-  add it to the manifest) and tells the tool over the socket; the tool
-  stops or refuses a stream above 3 km/h ([knowledge/vehicle-data.md](knowledge/vehicle-data.md)).
-- [ ] **Check on the car:** the `…`, `—`, `·` in our RHMI texts (Unicode
-  isn't reliable there); `nft list table inet mgu_uplink` (a final drop for
-  new inbound on Wi-Fi, though the phone page works).
-- [ ] **Later (1): where the time goes**, side by side every second: frames
+- [ ] **Later: where the time goes**, side by side every second: frames
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
-- [ ] Touch claim: mgu-render's touch guard SIGKILLs the renderer after
-  1.5 s without a heartbeat while touch is diverted, and teardown runs `nft`
-  before the next beat: the likely cause of the two reboots
-  ([knowledge/central-screen.md](knowledge/central-screen.md)). Raise it with
-  mgu-render before claiming touch again.
 
 ## Chromium (a browser on the car's GPU)
 
@@ -181,16 +122,11 @@ works, streaming such a page from a PC through Moonlight does the job.
 - [ ] **Input:** touch / iDrive controller and the usbfs gamepads from
   Moonlight, as the Gamepad API.
 
-## Carried over
-
-- [ ] **Rotate the Cast phone link's token** (0.3.8 works on the car; the
-  token was readable by every Store app before it).
-
-
 ## Dropped
 
 The old `stories/` (in git history before this file) also had a background
 CarPlay test, auto mode for the mirror, the HMI pop-ups over the mirror, a
 libva-based CarPlay feed and the grabber's encoder quality. The CarPlay second
 screen replaces the mirror and avoids the pop-ups; whether it streams in the
-background is the open protocol question above.
+background is the open protocol question above. Rotating the Cast phone link's
+token was skipped.

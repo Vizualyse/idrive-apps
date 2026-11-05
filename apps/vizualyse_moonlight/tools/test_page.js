@@ -15,9 +15,11 @@
  * per link, the old handle released); Resume last follows canResume and
  * sends resume; Stop and Quit game follow the stream and send stop and quit;
  * the info line shows host, game, fps and controllers; a failed command's
- * error shows; on / off sends disable and enable, off hides the QR; hiding
- * the page closes the socket and showing it again reconnects; the tool going
- * away is shown.
+ * error shows; on / off sends disable and enable, off hides the QR; the
+ * output drop-down shows the tool's choice and sends a new one; the car's
+ * speed (a fake Vehicle2) goes to the tool once a second, and keeps going
+ * with the page hidden (the socket stays open); "only while parked" shows;
+ * the tool going away is shown.
  */
 const assert = require('assert');
 const EventEmitter = require('events');
@@ -59,11 +61,15 @@ class FakeComponent extends EventEmitter {
     constructor(id, desc) {
         super();
         this.id = Number(id);
-        this.text = null; this.graphic = null; this.enabled = null;
+        this.text = null; this.graphic = null; this.enabled = null; this.cells = {};
         this.visible = desc && desc.properties && desc.properties.Visible ? desc.properties.Visible.value === 1 : null;
     }
     getId() { return this.id; }
-    setValue(row, cell, value, type) { if (cell === 'Graphic') this.graphic = { value, type }; else this.text = value; return Promise.resolve(); }
+    setValue(row, cell, value, type) {
+        if (arguments.length === 3) { this.cells[row] = cell; return Promise.resolve(); }   /* a drop-down's cell */
+        if (cell === 'Graphic') this.graphic = { value, type }; else this.text = value;
+        return Promise.resolve();
+    }
     setEnabled(v) { this.enabled = v; return Promise.resolve(); }
     setVisible(v) { this.visible = v; return Promise.resolve(); }
     updateResources() { return Promise.resolve(); }
@@ -114,10 +120,20 @@ class OnlineApp extends EventEmitter {
     unregisterHmiVisible() { return Promise.resolve(); }
     destroyBundles() { return Promise.resolve(); }
 }
+/* Vehicle2's speed, raw (km/h x 64; 65535 invalid) */
+let speedRaw = 65535;
+const someipBuilders = {
+    buildTypedProxy(iface, instance) {
+        assert.strictEqual(iface, 'de.bmw.infotainment.vehicle.Vehicle2');
+        assert.strictEqual(instance, '1');
+        return Promise.resolve({ init: () => Promise.resolve(), statusCarSpeed2: { getValue: () => Promise.resolve({ speedVehicleCentreOfGravity: speedRaw }) } });
+    },
+};
 function runSource() {
     const Module = require('module');
     const load = Module._load;
-    const FAKES = { 'oap-sdk/src/core/OnlineApp.js': OnlineApp, 'oap-sdk/src/logging/logging': { getSDKLogger: () => logger } };
+    const FAKES = { 'oap-sdk/src/core/OnlineApp.js': OnlineApp, 'oap-sdk/src/logging/logging': { getSDKLogger: () => logger },
+        'oap-sdk/src/someip/someipBuilders': someipBuilders };
     Module._load = function (req, parent, isMain) { return FAKES[req] || load.call(this, req, parent, isMain); };
     require(path.join(ROOT, MANIFEST.modules[0]));
 }
@@ -168,7 +184,7 @@ const received = [];
 let refuse = null;
 let tool = null;
 function serve() {
-    tool = startFakeTool({ status: () => st, command: (c) => { received.push(c); const r = refuse; refuse = null; return r; } });
+    tool = startFakeTool({ status: () => st, command: (c) => { received.push(c); if (c.cmd === 'speed') return null; const r = refuse; refuse = null; return r; } });
 }
 const sent = (cmd) => received.some((c) => c.cmd === cmd);
 
@@ -187,7 +203,14 @@ async function main() {
     assert.strictEqual(strings[ep.textId], 'Moonlight');
     const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));
     pkg.files.filter((f) => f !== 'javascript').forEach((f) => assert(fs.existsSync(path.join(PKG, f)), 'files[] names ' + f + ', which is missing'));
-    console.log('ok   page: 4 buttons, a QR graphic, xml and uiDescription agree; tile text, icon and files[] present');
+    const dd = Object.keys(comps).map((id) => comps[id]).filter((c) => c.type === 'dropDownMenu');
+    assert(dd.length === 1 && dd[0].name === 'moonlightOutput' && dd[0].rows.map((r) => r.ItemText.value).join() === 'Centre console,Cluster,HUD' &&
+        dd[0].cells.HeaderText.value === 'Picture on', 'the output drop-down');
+    assert(/type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070"/.test(XML), 'the drop-down widget upstream proved on cars');
+    const manifest = JSON.parse(fs.readFileSync(path.join(PKG, 'manifest.json'), 'utf8'));
+    const v2 = manifest.proxies['de.bmw.infotainment.vehicle.Vehicle2'];
+    assert(v2 && v2.instances[0] === '1' && v2.attributes.statusCarSpeed2 === 'r', 'the manifest asks to read Vehicle2.statusCarSpeed2');
+    console.log('ok   page: 4 buttons, the output drop-down, a QR graphic, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -214,7 +237,33 @@ async function main() {
     assert.strictEqual(byName.moonlightStop.enabled, false);
     assert.strictEqual(byName.moonlightQuit.enabled, false);
     assert(/no controllers/.test(I.text) && /Uplink online/.test(I.text), I.text);
+    await until('output shown', () => byName.moonlightOutput.cells.SelectedItem === 0 && byName.moonlightOutput.enabled === true);
     console.log('ok   connected: "' + S.text + '", link and hint written, QR ' + path.basename(qr1) + '; info "' + I.text + '"');
+
+    st = Object.assign({}, st, { output: 'hud' });
+    tool.broadcast();
+    await until('the HUD chosen', () => byName.moonlightOutput.cells.SelectedItem === 2);
+    byName.moonlightOutput.emit('action', { row: 1 });
+    await until('output sent', () => received.some((c) => c.cmd === 'output' && c.output === 'map'));
+    st = Object.assign({}, st, { output: 'map' });
+    tool.broadcast();
+    await until('the cluster chosen', () => byName.moonlightOutput.cells.SelectedItem === 1);
+    console.log('ok   the output drop-down shows the tool\'s choice and sends a new one (row 1: map)');
+
+    await sleep(1200);
+    assert(!received.some((c) => c.cmd === 'speed'), 'no speed sent while the car gives none (65535)');
+    speedRaw = 0;
+    await until('speed 0 sent', () => received.some((c) => c.cmd === 'speed' && c.kmh === 0), 3000);
+    speedRaw = 30 * 64;
+    await until('speed 30 sent', () => received.some((c) => c.cmd === 'speed' && c.kmh === 30), 3000);
+    st = Object.assign({}, st, { moving: true, speed: 30 });
+    tool.broadcast();
+    await until('moving shown', () => /^Only while parked — the car is moving \(30 km\/h\)/.test(S.text || ''));
+    st = Object.assign({}, st, { moving: false, speed: 0 });
+    speedRaw = 0;
+    tool.broadcast();
+    await until('ready again', () => /^Ready/.test(S.text || ''));
+    console.log('ok   the speed goes to the tool once a second (none while invalid); "only while parked" shows');
 
     st = Object.assign({}, st, { canResume: true, last: { host: 'GAMING-PC', app: 'Forza Horizon 5' } });
     tool.broadcast();
@@ -229,10 +278,11 @@ async function main() {
     assert.strictEqual(byName.moonlightStop.enabled, true);
     console.log('ok   Resume last: enabled with canResume, sends resume; "' + S.text + '"');
 
-    st = Object.assign({}, st, { state: 'streaming', frames: 1200, fps: 59, seconds: 20, pads: [{ name: 'Xbox Wireless Controller' }, { name: 'DualSense' }] });
+    st = Object.assign({}, st, { state: 'streaming', frames: 1200, fps: 59, seconds: 20, pads: [{ name: 'Xbox Wireless Controller' }, { name: 'DualSense' }],
+        decoder: 'msdk (GPU, API 1.24, GPU copy, Intel iHD driver)' });
     tool.broadcast();
     await until('streaming', () => /^Streaming Forza Horizon 5 from GAMING-PC — 20 s/.test(S.text || ''));
-    await until('info', () => /^GAMING-PC \(172\.20\.10\.5\) · Forza Horizon 5 · 59 fps · 2 controllers: Xbox/.test(I.text || ''));
+    await until('info', () => /^GAMING-PC \(172\.20\.10\.5\) · Forza Horizon 5 · 59 fps \(GPU\) · 2 controllers: Xbox/.test(I.text || ''));
     assert(I.text.length <= 90, 'the info line is one row');
     assert.strictEqual(byName.moonlightStop.enabled, true);
     assert.strictEqual(byName.moonlightQuit.enabled, true);
@@ -297,12 +347,13 @@ async function main() {
     console.log('ok   no link: "Waiting for the phone’s hotspot", the QR hidden');
 
     byName[STATE].emit('visible', { visible: false });
-    await until('closed on hide', () => /not running/.test(S.text || '') && tool.clients() === 0);
-    const n = received.length;
+    const n = received.filter((c) => c.cmd === 'speed').length;
+    await sleep(1500);
+    assert.strictEqual(tool.clients(), 1, 'the socket stays open with the page hidden');
+    assert(received.filter((c) => c.cmd === 'speed').length > n, 'the speed goes on with the page hidden');
     byName[STATE].emit('visible', { visible: true });
-    await until('reconnected on show', () => /^Ready/.test(S.text || ''));
-    assert.strictEqual(received.length, n, 'showing the page sends nothing');
-    console.log('ok   hiding the page closes the socket, showing it reconnects');
+    assert(!received.some((c) => !/^(speed|output|resume|stop|quit|enable|disable)$/.test(c.cmd)), 'nothing else sent');
+    console.log('ok   hiding the page keeps the socket and the speed going');
 
     tool.close();
     await until('tool gone', () => /not running/.test(S.text || ''));

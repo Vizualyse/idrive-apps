@@ -194,6 +194,50 @@
             }
           ]
         },
+        "34": {
+          "type": "dropDownMenu",
+          "name": "moonlightOutput",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Picture on",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Centre console",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Cluster",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "HUD",
+                "type": "Text"
+              }
+            }
+          ]
+        },
         "40": {
           "type": "label",
           "name": "moonlightInfo",

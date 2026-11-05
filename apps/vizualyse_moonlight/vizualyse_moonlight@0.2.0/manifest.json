@@ -54,6 +54,14 @@
       ]
     },
     "de.bmw.infotainment.vehicle.Vehicle": "*",
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusCarSpeed2": "r"
+      }
+    },
     "de.bmw.infrastructure.EnvironmentalInformation": "*",
     "de.bmw.infotainment.certification.Certification": "*"
   },

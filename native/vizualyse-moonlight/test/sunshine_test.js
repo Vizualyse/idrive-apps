@@ -6,8 +6,10 @@
  * Node 8.16.2): moonlight-core's certificate, PIN pairing through
  * gamestream.js (the PIN typed into Sunshine's web API, as a person would on
  * its PIN page), the pinned certificate, the app list, a launch, a stream
- * through moonlight-core and the kit's ffmpeg (frames decoded, audio
- * decoded), and quit. Run by test/run_sunshine_test.sh:
+ * through moonlight-core decoding into an mgu-render frame file (the GPU's
+ * code on the unit's software Media SDK, test/firmware; the resumed stream
+ * with the built-in FFmpeg, scaled to the cluster's size at 15 fps), audio
+ * decoded, and quit. Run by test/run_sunshine_test.sh:
  *
  *   node test/sunshine_test.js <sunshine address>
  */
@@ -24,28 +26,33 @@ const sunshine = require('./sunshine_web.js');
 const HOST = process.argv[2];
 const HERE = path.join(__dirname, '..');
 const CORE = path.join(HERE, 'build', 'moonlight-core');
-const FFMPEG = path.join(HERE, 'build', 'ffmpeg');
+const { frameFile } = require('../src/console_out.js');
 const W = 1280, H = 720, FPS = 30;
+/* the unit's software Media SDK when the runner found it (test/firmware), else the built-in FFmpeg */
+const MSDK = process.env.MOONLIGHT_TEST_MSDK === '1';
 
 let failed = 0;
 const ok = (what, cond, more) => { console.log((cond ? 'ok   ' : 'FAIL ') + what + (more ? ': ' + more : '')); if (!cond) failed++; };
 
-function stream(launch, info, seconds) {
+/* The frame file's header and its newest picture. */
+function readFrameFile(file) {
+    const b = fs.readFileSync(file);
+    const w = b.readUInt32LE(8), h = b.readUInt32LE(12), slot = b.readUInt32LE(20), size = w * h * 3 / 2;
+    return { magic: b.readUInt32LE(0), w: w, h: h, seq: b.readUInt32LE(16), matrix: b.readUInt32LE(28), range: b.readUInt32LE(32),
+        pic: b.slice(64 + slot * size, 64 + (slot + 1) * size) };
+}
+
+/* opts: { decoder, w, h (the frame file's), outFps } */
+function stream(launch, info, seconds, opts) {
     return new Promise((resolve) => {
+        const file = path.join(os.tmpdir(), 'ml-frames-' + process.pid);
+        frameFile(file, opts.w, opts.h);
         const args = ['stream', '--address', HOST, '--appversion', info.appversion, '--gfeversion', info.gfeversion,
             '--rtsp', launch.rtsp || '', '--codecs', String(info.codecs), '--width', String(W), '--height', String(H),
-            '--fps', String(FPS), '--bitrate', '6000', '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid), '--no-pads'];
-        const core = spawn(CORE, args, { stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
-        const ff = spawn(FFMPEG, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-probesize', '32768', '-analyzeduration', '0',
-            '-f', 'h264', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'yuv420p', 'pipe:1'], { stdio: ['pipe', 'pipe', 'pipe'] });
-        core.stdout.pipe(ff.stdin);
-        ff.stdin.on('error', () => {});
-        const r = { events: [], decoded: 0, h264: 0, pcm: 0, log: [] };
-        let rawBytes = 0;
-        const frame = W * H * 3 / 2;
-        core.stdout.on('data', (d) => { r.h264 += d.length; });
-        ff.stdout.on('data', (d) => { rawBytes += d.length; r.decoded = Math.floor(rawBytes / frame); });
-        ff.stderr.on('data', (d) => r.log.push('ffmpeg: ' + String(d).trim()));
+            '--fps', String(FPS), '--bitrate', '6000', '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid), '--no-pads',
+            '--frame-file', file, '--decoder', opts.decoder, '--bt709'].concat(opts.outFps ? ['--out-fps', String(opts.outFps)] : []);
+        const core = spawn(CORE, args, { stdio: ['pipe', 'ignore', 'pipe', 'pipe'] });
+        const r = { events: [], pcm: 0, log: [] };
         core.stdio[3].on('data', (d) => { r.pcm += d.length; });
         let buf = '';
         core.stderr.on('data', (d) => {
@@ -60,9 +67,11 @@ function stream(launch, info, seconds) {
         setTimeout(() => core.stdin.write('quit\n'), seconds * 1000);
         core.on('exit', (code) => {
             r.code = code;
-            ff.stdin.end();
-            ff.on('exit', () => resolve(r));
-            setTimeout(() => { try { ff.kill(); } catch (e) { /* gone */ } }, 3000);
+            r.file = readFrameFile(file);
+            fs.unlinkSync(file);
+            const st = r.events.filter((e) => e.ev === 'stopped')[0];
+            r.pictures = st ? st.pictures : 0;
+            resolve(r);
         });
     });
 }
@@ -113,13 +122,19 @@ async function main() {
     const launch = await gs.launch(app.id, { width: W, height: H, fps: FPS, sops: false, localAudio: false, gamepadMask: 1 });
     ok('launch: an RTSP session', !!launch.rtsp, launch.rtsp + ' rikeyid ' + launch.rikeyid);
 
-    const r = await stream(launch, info, 10);
+    const r = await stream(launch, info, 10, { decoder: MSDK ? 'msdk-sw' : 'av', w: W, h: H });
     const ev = (n) => r.events.filter((e) => e.ev === n);
     const stats = ev('stats');
     ok('moonlight-core: connection started', ev('started').length === 1, ev('stage-failed').map((e) => e.stage + ' ' + e.code + ' ' + e.ports).join('; '));
     ok('moonlight-core: H.264 at the asked size', ev('video').some((e) => e.width === W && e.height === H));
-    ok('ffmpeg decodes it', r.decoded >= FPS * 3, r.decoded + ' frames decoded from ' + Math.round(r.h264 / 1024) + ' KB of H.264');
-    ok('moonlight-core: stats each second', stats.length >= 5, stats.map((e) => e.fps).join(' '));
+    ok('moonlight-core: decoded with the ' + (MSDK ? 'Media SDK' : 'built-in FFmpeg'), ev('decoder').some((e) => (MSDK ? /^msdk \(software/ : /^av /).test(e.name)),
+        JSON.stringify(ev('decoder')[0] || {}));
+    ok('the pictures go into the frame file', r.pictures >= FPS * 3 && r.file.seq === r.pictures && r.file.w === W && r.file.h === H,
+        r.pictures + ' pictures, seq ' + r.file.seq);
+    ok('the frame file says BT.709, limited range, as asked of the PC', r.file.matrix === 1 && r.file.range === 0);
+    ok('a picture with something in it', r.file.pic.some((v) => v !== 0));
+    ok('moonlight-core: stats each second', stats.length >= 5, stats.map((e) => e.fps + '/' + e.pps + ' ' + e.decodeMs + 'ms').join(' '));
+    ok('no frame failed to decode', stats.length && stats[stats.length - 1].failed === 0);
     ok('the audio stream opens', ev('audio').some((e) => e.ok && e.channels === 2), JSON.stringify(ev('audio')[0] || {}) + ', ' + r.pcm + ' bytes of PCM');
     ok('the phone pad arrives as a controller', ev('pad').some((e) => e.name === 'Phone' && e.present));
     ok('quit stops it cleanly', r.code === 0 && ev('stopped').length === 1, 'exit ' + r.code);
@@ -129,8 +144,13 @@ async function main() {
     ok('the game is still running after a stop', info.currentGame === app.id, 'currentgame ' + info.currentGame);
     const resume = await gs.launch(app.id, { width: W, height: H, fps: FPS, resume: true, gamepadMask: 1 });
     ok('resume: a new session for the running game', !!resume.rtsp);
-    const r2 = await stream(resume, info, 4);
-    ok('the resumed session streams', r2.decoded >= FPS, r2.decoded + ' frames');
+    const r2 = await stream(resume, info, 5, { decoder: 'av', w: 640, h: 360, outFps: 15 });
+    const ev2 = (n) => r2.events.filter((e) => e.ev === n);
+    ok('the resumed session streams, decoded by the built-in FFmpeg', r2.pictures >= 15 && ev2('decoder').some((e) => /^av /.test(e.name)),
+        r2.pictures + ' pictures, ' + (ev2('decoder')[0] || {}).name);
+    const s2 = ev2('stats');
+    ok('scaled to the cluster\'s 640x360, at most 15 pictures a second', r2.file.w === 640 && s2.length && s2.every((e) => e.pps <= 16),
+        s2.map((e) => e.fps + '/' + e.pps).join(' '));
     await gs.quit();
     info = await gs.serverInfo();
     ok('quit closes the game on the host', info.currentGame === 0);

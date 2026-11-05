@@ -91,7 +91,8 @@
   <label class="t">Stream</label>
   <div class="seg" id="modes"></div>
   <div class="seg" id="rates" style="margin-top:8px"></div>
-  <div class="row"><span>Bitrate <span id="brv">8</span> Mbps</span><input id="br" type="range" min="2" max="30" value="8"></div>
+  <div class="row"><span>Bitrate: as the size and rate need <span class="small">(auto)</span></span><input id="brauto" type="checkbox" checked></div>
+  <div class="row"><span>Bitrate <span id="brv">5</span> Mbps</span><input id="br" type="range" min="2" max="30" value="5"></div>
   <div class="row"><span>Sound through the speakers</span><input id="audio" type="checkbox" checked></div>
   <div class="row"><span>Volume <span id="volv">100</span>%</span><input id="vol" type="range" min="0" max="150" value="100"></div>
   <div class="row"><span>Let the PC change its resolution <span class="small">(Sunshine: optimise game settings)</span></span><input id="sops" type="checkbox" checked></div>
@@ -196,6 +197,7 @@
     seg($('modes'), s.modes.map(function (m) { return { v: m, label: m.replace('x', '×') }; }), st.mode, function (v) { api('/api/settings', { mode: v }).then(show).catch(fail); });
     seg($('rates'), s.rates.map(function (r) { return { v: String(r), label: r + ' fps' }; }), st.fps, function (v) { api('/api/settings', { fps: Number(v) }).then(show).catch(fail); });
     if (document.activeElement !== $('br')) { $('br').value = Math.round(st.bitrate / 1000); $('brv').textContent = $('br').value; }
+    $('brauto').checked = st.bitrateAuto; $('br').disabled = st.bitrateAuto;
     if (document.activeElement !== $('vol')) { $('vol').value = st.volume; $('volv').textContent = st.volume; }
     $('audio').checked = st.audio; $('sops').checked = st.sops;
   }
@@ -216,7 +218,9 @@
     $('state').textContent = NAMES[s.state] || s.state;
     var m = [];
     if (s.app) m.push(s.app.name + (s.host ? ' from ' + s.host.name : ''));
-    if (s.state === 'streaming') m.push(s.size + ' · ' + s.fps + ' fps · ' + s.rtt + ' ms' + (s.poor ? ' · poor connection' : '') + ' · ' + s.seconds + ' s');
+    if (s.state === 'streaming') m.push(s.size + ' · ' + Math.round(s.kbps / 1000) + ' Mbps · ' + s.fps + ' fps in, ' + s.pps + ' shown · ' + s.rtt + ' ms' + (s.poor ? ' · poor connection' : '') + ' · ' + s.seconds + ' s');
+    if (live && s.decoder) m.push((s.decoder.indexOf('msdk (GPU') === 0 ? 'decoded on the GPU' : 'decoded in software') + ', ' + s.decodeMs + ' ms a frame');
+    if (s.moving) m.push('the car is moving (' + s.speed + ' km/h): games only while parked');
     if (!live && s.note) m.push(s.note);
     $('meta').textContent = m.join(' · ');
     $('pads').textContent = s.pads.length ? 'Controllers: ' + s.pads.map(function (x) { return x.name; }).join(', ') : 'No controller connected to the car';
@@ -239,6 +243,7 @@
   $('refresh').onclick = function () { api('/api/hosts/refresh', {}).then(show).catch(fail); };
   $('br').oninput = function () { $('brv').textContent = this.value; };
   $('br').onchange = function () { api('/api/settings', { bitrate: Number(this.value) * 1000 }).then(show).catch(fail); };
+  $('brauto').onchange = function () { api('/api/settings', { bitrate: this.checked ? 0 : Number($('br').value) * 1000 }).then(show).catch(fail); };
   $('vol').oninput = function () { $('volv').textContent = this.value; };
   $('vol').onchange = function () { api('/api/settings', { volume: Number(this.value) }).then(show).catch(fail); };
   $('audio').onchange = function () { api('/api/settings', { audio: this.checked }).then(show).catch(fail); };

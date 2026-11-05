@@ -7,9 +7,12 @@
  * after every command and once a second, and {"ev":"error","error":…} for a
  * failed command; the app sends {"cmd":"enable"}, {"cmd":"disable"},
  * {"cmd":"stop"} (stop streaming, the game keeps running on the PC),
- * {"cmd":"quit"} (stop and close the game on the PC) and {"cmd":"resume"}
- * (the last host and game again). Connected while the page is visible,
- * retried once a second; the tool keeps running without it.
+ * {"cmd":"quit"} (stop and close the game on the PC), {"cmd":"resume"}
+ * (the last host and game again), {"cmd":"output","output":...} (where the
+ * picture goes: console, map or hud) and {"cmd":"speed","kmh":...} (the car's
+ * speed, about once a second, for "only while parked"). Connected while the
+ * app runs (the speed goes on while a stream covers the page), retried once
+ * a second; the tool keeps running without it.
  */
 'use strict';
 
@@ -91,6 +94,13 @@ class MoonlightControl extends EventEmitter {
     stop() { return this._send({ cmd: 'stop' }); }
     quit() { return this._send({ cmd: 'quit' }); }
     resume() { return this._send({ cmd: 'resume' }); }
+    output(id) { return this._send({ cmd: 'output', output: id }); }
+    /* not a button: it leaves a button's error on the status line alone */
+    speed(kmh) {
+        if (!this.sock || !this.status) return false;
+        this.sock.write(JSON.stringify({ cmd: 'speed', kmh: Math.round(kmh * 10) / 10 }) + '\n');
+        return true;
+    }
 
     connected() { return !!this.status; }
     enabled() { return !(this.status && this.status.enabled === false); }
@@ -99,6 +109,8 @@ class MoonlightControl extends EventEmitter {
     /* a stream is up or on its way: Stop and Quit game apply */
     active() { const st = this.state(); return st === 'streaming' || st === 'starting'; }
     canResume() { return !!(this.status && this.status.canResume); }
+    /* where the picture goes: 'console', 'map' or 'hud' */
+    currentOutput() { return (this.status && this.status.output) || 'console'; }
 
     _commandError() {
         const e = this.lastError;
@@ -118,6 +130,7 @@ class MoonlightControl extends EventEmitter {
         if (s.state === 'starting') return 'Starting ' + (what || 'the stream') + '…';
         if (s.state === 'error') return 'Error: ' + (s.error || 'the stream failed');
         if (s.state === 'ended') return 'Ended' + (what ? ': ' + what : '') + (s.note ? ' — ' + s.note : '');
+        if (s.moving) return 'Only while parked — the car is moving (' + s.speed + ' km/h)';
         if (!s.link) return 'Waiting for the phone’s hotspot (uplink ' + (s.uplink || 'unknown') + ')';
         if (s.note) return s.note;
         return 'Ready — scan the QR code to pair and pick a game';
@@ -133,7 +146,7 @@ class MoonlightControl extends EventEmitter {
         if (s.host) {
             const parts = [(s.host.name || '?') + (s.host.address ? ' (' + s.host.address + ')' : '')];
             if (s.app) parts.push(s.app.name || '?');
-            if (s.state === 'streaming') parts.push((s.fps || 0) + ' fps');
+            if (s.state === 'streaming') parts.push((s.fps || 0) + ' fps' + (s.decoder ? (/^msdk \(GPU/.test(s.decoder) ? ' (GPU)' : ' (software)') : ''));
             parts.push(padText);
             return parts.join(' · ');
         }

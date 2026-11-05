@@ -13,10 +13,33 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   0`): the first frame within a second, where default probing held it back
   3 s.
 
+- **The unit's own `libavcodec.so.57`** (FFmpeg 3.4.7, `/usr/lib`, with
+  libavutil 55 and libavformat 57) has **AAC decoders only** (`aac`,
+  `aac_fixed`, `aac_latm`; listed with `av_codec_next` from the rootfs copy):
+  no H.264. Moonlight builds FFmpeg 6.1.2's H.264 decoder into its own
+  binary instead (decoder only, static, ~1.1 ms a 720p frame on a desktop
+  CPU).
+
 ## Hardware decoding (the GPU)
 
 *(ref)* unless a line says otherwise: not yet tried on our unit.
 Sources: [reference-repos.md](reference-repos.md).
+
+- **On our firmware (rootfs copy of `I_21w12.2-1-4`, `../idrive-rootfs`):**
+  `/usr/lib/libmfxhw64-p.so.1.24` (`libmfxhw64.so`), `libmfxsw64-p.so.1.24`,
+  `libva.so.1` / `libva-drm.so.1` / `libva-wayland.so.1` 1.9900.0,
+  `libdrm.so.2`, `dri/iHD_drv_video.so` (and `i965_drv_video.so`, a link to
+  it: the VA driver is **iHD**), `libigfxcmrt64.so` (the CM runtime GPU copy
+  needs), `mediasdk/` plugins (HEVC, VP8/9). **Our CarPlay maps Cinemo's
+  `libNmeVideoMSDK.so` and `iHD_drv_video.so`**: it decodes on the GPU
+  through MSDK on this unit. libmfx needs libva.so.1, libstdc++, libdl;
+  libva-drm needs libdrm.so.2.
+- **Moonlight 0.2.0 decodes this way** (`native/vizualyse-moonlight/core/decode_msdk.c`,
+  a C port of upstream's decoder, libraries by dlopen). Off the car on the
+  unit's `libmfxsw64` (Ubuntu 18.04 box): a busy 1280x720@60 x264 stream,
+  240 of 240 pictures byte-equal to ffmpeg's decode, through opaque surfaces
+  and VPP to system memory; also when only every 3rd frame gets a picture.
+  `MFX_IMPL_SOFTWARE` needs no VA display. Not yet run on the car.
 
 - **Proven on iDrive 7 by upstream's waze-on-cluster** (`native/waze-on-cluster/src/decoder_msdk.cpp`, `.h`; GPL-3.0): Intel **Media SDK**, not libavcodec. Open `/dev/dri/renderD128`, `vaGetDisplayDRM` + `vaInitialize`, `MFXInit(MFX_IMPL_HARDWARE | MFX_IMPL_VIA_VAAPI)` + `SetHandle(VA_DISPLAY)`, decode, then VPP scales / converts NV12 into page-aligned system-memory surfaces (pitch a multiple of 64) and the CPU packs the output.
   - Low latency: `AsyncDepth=1`, **`DecodedOrder=1`** (in display order MSDK held up to 11 frames for an SPS without VUI), one whole access unit per call with `MFX_BITSTREAM_COMPLETE_FRAME`.

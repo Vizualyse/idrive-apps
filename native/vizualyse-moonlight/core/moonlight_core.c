@@ -11,9 +11,19 @@
  *       the game controllers found, one JSON object a line
  *   moonlight-core stream --address A --appversion V --gfeversion G
  *       --rtsp URL --codecs N --width W --height H --fps F --bitrate KBPS
- *       --rikey HEX32 --rikeyid N [--packet-size N] [--remote 0|1|2]
- *       [--no-pads] [--uid N --gid N]
+ *       --rikey HEX32 --rikeyid N --frame-file F [--decoder auto|msdk|msdk-sw|av]
+ *       [--out-fps N] [--bt709] [--full-range]
+ *       [--packet-size N] [--remote 0|1|2] [--no-pads] [--uid N --gid N]
  *       [--touch-iface vlan73 --touch-src 160.48.199.115 | --touch-file F]
+ *
+ * --frame-file: mgu-render's frame file (frame_out.h), made by server.js at
+ * the size the pictures should have; the video is decoded here (decode.h:
+ * the GPU through Intel Media SDK, else the unit's libavcodec) and each
+ * picture written straight into its next slot, scaled to that size. A frame
+ * gets no picture (decoded only) while moonlight-common-c holds more frames
+ * behind it, so a late frame is replaced, never queued; --out-fps caps the
+ * pictures a second (the cluster and the HUD want 15). --bt709 /
+ * --full-range: the colours asked of the PC, written into the file's header.
  *
  * --touch-*: hold-to-stop on the centre screen (touch.h): a copy of the
  * display's touch PDUs, read passively on that interface (the HMI still gets
@@ -28,9 +38,10 @@
  * not glibc's process-wide setuid), made after that thread starts and before
  * moonlight-common-c starts its own, which inherit it.
  *
- * While streaming: H.264 Annex B on stdout (fd 1); S16LE 48 kHz stereo on
- * fd 3 when it is open; on stderr log lines and events, each event one line
- * "@{json}". Commands on stdin, one a line:
+ * While streaming: S16LE 48 kHz stereo on fd 3 when it is open; on stderr
+ * log lines and events, each event one line "@{json}" (a "stats" one every
+ * second: frames received, pictures written, frames decoded without one,
+ * failures, ms per decode). Commands on stdin, one a line:
  *   phonepad <buttons> <lt> <rt> <lx> <ly> <rx> <ry>   the phone page's pad
  *   phonepad off
  *   key <code> <0|1> <modifiers>
@@ -80,6 +91,8 @@
 #include <opus/opus_multistream.h>
 
 #include <Limelight.h>
+#include "decode.h"
+#include "frame_out.h"
 #include "pads.h"
 #include "touch.h"
 
@@ -570,25 +583,72 @@ static void *touch_thread(void *arg) {
 
 /* ---- video --------------------------------------------------------------- */
 
-static unsigned long frames = 0, idr_frames = 0;
+static struct decoder *dec = NULL;
+static struct frame_out fout;
+static const char *dec_which = "auto";
+static int out_fps = 0;                  /* pictures a second at most; 0: every frame */
+static unsigned char *au_buf = NULL;     /* the access unit, its buffers joined */
+static size_t au_cap = 0;
+/* the decoder's thread writes these, the main thread reads them once a second */
+static volatile unsigned long frames = 0, pictures = 0, skipped = 0, dec_failed = 0, dec_us = 0;
+static int dec_fail_run = 0, dec_had_picture = 0;
+static long last_pic_ms = -100000;
 
 static int dr_setup(int fmt, int w, int h, int rate, void *ctx, int flags) {
     (void)ctx; (void)flags;
-    event("{\"ev\":\"video\",\"format\":%d,\"width\":%d,\"height\":%d,\"fps\":%d}", fmt, w, h, rate);
+    event("{\"ev\":\"video\",\"format\":%d,\"width\":%d,\"height\":%d,\"fps\":%d,\"out\":\"%dx%d\"}", fmt, w, h, rate, fout.w, fout.h);
     return (fmt & VIDEO_FORMAT_MASK_H264) ? 0 : -1;
 }
 
+/* The GPU's decoder failed from the start (it can't once its session runs
+ * as the uplink uid, say): libavcodec instead, for the rest of the stream. */
+static void dec_fallback(const char *why) {
+    char err[256], w[256], n[256];
+    struct decoder *av = av_open(fout.w, fout.h, err, sizeof(err));
+    jstr(w, sizeof(w), why);
+    if (!av) { jstr(n, sizeof(n), err); event("{\"ev\":\"decoder\",\"fallback\":false,\"why\":\"%s\",\"error\":\"%s\"}", w, n); return; }
+    decoder_close(dec);
+    dec = av;
+    jstr(n, sizeof(n), decoder_name(dec));
+    event("{\"ev\":\"decoder\",\"name\":\"%s\",\"fallback\":true,\"why\":\"%s\"}", n, w);
+}
+
 static int dr_submit(PDECODE_UNIT du) {
-    for (PLENTRY e = du->bufferList; e; e = e->next) {
-        if (write_all(STDOUT_FILENO, e->data, (size_t)e->length) < 0) {
-            if (!stopping) log_message("video: write failed: %s", strerror(errno));
-            stopping = 1;
-            return DR_OK;
-        }
+    if ((size_t)du->fullLength > au_cap) {
+        size_t c = (size_t)du->fullLength + 65536;
+        unsigned char *b = realloc(au_buf, c);
+        if (!b) return DR_NEED_IDR;
+        au_buf = b; au_cap = c;
     }
+    size_t len = 0;
+    for (PLENTRY e = du->bufferList; e; e = e->next) { memcpy(au_buf + len, e->data, (size_t)e->length); len += (size_t)e->length; }
     frames++;
-    if (du->frameType == FRAME_TYPE_IDR) idr_frames++;
-    return DR_OK;
+    /* a picture only when nothing waits behind this frame, at most out_fps a second */
+    long now = now_ms();
+    int want = LiGetPendingVideoFrames() == 0 && (!out_fps || now - last_pic_ms >= 1000 / out_fps - 2);
+    char err[512];
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    int r = decoder_decode(dec, au_buf, len, want ? frame_out_next(&fout) : NULL, err, sizeof(err));
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    dec_us += (unsigned long)((t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000);
+    if (r > 0) {
+        frame_out_publish(&fout);
+        last_pic_ms = now;
+        if (!pictures++) event("{\"ev\":\"first-picture\",\"frame\":%lu}", frames);
+        dec_had_picture = 1;
+    } else if (r == 0 && !want) {
+        skipped++;
+    }
+    if (r >= 0) { dec_fail_run = 0; return DR_OK; }
+    dec_failed++;
+    if (dec_fail_run++ < 3 || dec_fail_run % 30 == 0) {
+        char e[600];
+        jstr(e, sizeof(e), err);
+        event("{\"ev\":\"decode-failed\",\"frame\":%lu,\"run\":%d,\"error\":\"%s\"}", frames, dec_fail_run, e);
+    }
+    if (!dec_had_picture && dec_fail_run >= 5 && strncmp(decoder_name(dec), "msdk", 4) == 0) dec_fallback(err);
+    return DR_NEED_IDR;
 }
 
 /* ---- audio --------------------------------------------------------------- */
@@ -725,13 +785,16 @@ static int stream(int argc, char **argv) {
     long rikeyid = 0;
     long run_uid = -1, run_gid = -1;
     const char *touch_iface = NULL;
+    const char *frame_file = NULL;
 
     static struct option opts[] = {
         { "address", 1, 0, 'a' }, { "appversion", 1, 0, 'v' }, { "gfeversion", 1, 0, 'g' }, { "rtsp", 1, 0, 'r' },
         { "codecs", 1, 0, 'c' }, { "width", 1, 0, 'W' }, { "height", 1, 0, 'H' }, { "fps", 1, 0, 'f' },
         { "bitrate", 1, 0, 'b' }, { "packet-size", 1, 0, 'p' }, { "remote", 1, 0, 'R' }, { "rikey", 1, 0, 'k' },
         { "rikeyid", 1, 0, 'i' }, { "no-pads", 0, 0, 'n' }, { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'G' },
-        { "touch-iface", 1, 0, 'T' }, { "touch-src", 1, 0, 'S' }, { "touch-file", 1, 0, 'F' }, { 0, 0, 0, 0 }
+        { "touch-iface", 1, 0, 'T' }, { "touch-src", 1, 0, 'S' }, { "touch-file", 1, 0, 'F' },
+        { "frame-file", 1, 0, 'o' }, { "decoder", 1, 0, 'd' }, { "out-fps", 1, 0, 'O' }, { "bt709", 0, 0, '7' },
+        { "full-range", 0, 0, 'X' }, { 0, 0, 0, 0 }
     };
     int o;
     optind = 2;
@@ -756,11 +819,16 @@ static int stream(int argc, char **argv) {
         case 'T': touch_iface = optarg; break;
         case 'S': touch_saddr = inet_addr(optarg); break;
         case 'F': touch_file = optarg; break;
+        case 'o': frame_file = optarg; break;
+        case 'd': dec_which = optarg; break;
+        case 'O': out_fps = atoi(optarg); break;
+        case '7': sc.colorSpace = COLORSPACE_REC_709; break;
+        case 'X': sc.colorRange = COLOR_RANGE_FULL; break;
         default: return 2;
         }
     }
-    if (!si.address || !si.serverInfoAppVersion || !rikey || hexbytes(rikey, sc.remoteInputAesKey, 16) < 0) {
-        fprintf(stderr, "stream: --address, --appversion and --rikey (32 hex digits) are required\n");
+    if (!si.address || !si.serverInfoAppVersion || !rikey || hexbytes(rikey, sc.remoteInputAesKey, 16) < 0 || !frame_file) {
+        fprintf(stderr, "stream: --address, --appversion, --rikey (32 hex digits) and --frame-file are required\n");
         return 2;
     }
     /* The launch's rikeyid is the IV's first 4 bytes, big-endian. */
@@ -776,11 +844,25 @@ static int stream(int argc, char **argv) {
     signal(SIGINT, on_signal);
     for (int i = 0; i < PADS_MAX; i++) pads[i].fd = -1;
 
+    /* the picture's way out, opened as root: the frame file (root's), the
+     * render node (group video) and the decoder's libraries */
+    char err[512], e[600];
+    if (frame_out_open(&fout, frame_file, err, sizeof(err)) < 0) {
+        jstr(e, sizeof(e), err);
+        event("{\"ev\":\"failed\",\"code\":-1,\"why\":\"%s\"}", e);
+        return 1;
+    }
+    frame_out_colour(&fout, sc.colorSpace == COLORSPACE_REC_709, sc.colorRange == COLOR_RANGE_FULL);
+    dec = decoder_open(dec_which, fout.w, fout.h, err, sizeof(err));
+    jstr(e, sizeof(e), dec ? decoder_name(dec) : err);
+    if (!dec) { event("{\"ev\":\"failed\",\"code\":-1,\"why\":\"no decoder: %s\"}", e); return 1; }
+    event("{\"ev\":\"decoder\",\"name\":\"%s\",\"out\":\"%dx%d\",\"outFps\":%d}", e, fout.w, fout.h, out_fps);
+
     DECODER_RENDERER_CALLBACKS dr;
     LiInitializeVideoCallbacks(&dr);
     dr.setup = dr_setup;
     dr.submitDecodeUnit = dr_submit;
-    /* slices, so ffmpeg decodes each frame on several cores */
+    /* slices: libavcodec decodes each frame on several threads */
     dr.capabilities = CAPABILITY_SLICES_PER_FRAME(4);
     AUDIO_RENDERER_CALLBACKS ar;
     LiInitializeAudioCallbacks(&ar);
@@ -834,7 +916,7 @@ static int stream(int argc, char **argv) {
         if (use_pads) pthread_join(tpads, NULL);
         return 1;
     }
-    unsigned long last = 0;
+    unsigned long last = 0, last_pics = 0, last_us = 0;
     time_t t0 = time(NULL), tl = t0;
     while (!stopping && !terminated) {
         struct timespec ts = { 0, 200 * 1000 * 1000 };
@@ -843,8 +925,11 @@ static int stream(int argc, char **argv) {
         if (now - tl >= 1) {
             uint32_t rtt = 0, var = 0;
             LiGetEstimatedRttInfo(&rtt, &var);
-            event("{\"ev\":\"stats\",\"frames\":%lu,\"fps\":%lu,\"rtt\":%u}", frames, (frames - last) / (unsigned long)(now - tl), rtt);
-            last = frames; tl = now;
+            unsigned long f = frames, p = pictures, us = dec_us, dt = (unsigned long)(now - tl);
+            event("{\"ev\":\"stats\",\"frames\":%lu,\"fps\":%lu,\"pictures\":%lu,\"pps\":%lu,\"skipped\":%lu,\"failed\":%lu,\"decodeMs\":%.1f,\"rtt\":%u}",
+                  f, (f - last) / dt, p, (p - last_pics) / dt, skipped, dec_failed,
+                  f > last ? (double)(us - last_us) / 1000.0 / (double)(f - last) : 0.0, rtt);
+            last = f; last_pics = p; last_us = us; tl = now;
         }
     }
     LiStopConnection();
@@ -852,7 +937,9 @@ static int stream(int argc, char **argv) {
     if (use_pads) pthread_join(tpads, NULL);
     if (use_touch) pthread_join(ttouch, NULL);
     if (touch_sock >= 0) close(touch_sock);
-    event("{\"ev\":\"stopped\",\"frames\":%lu,\"code\":%d}", frames, term_code);
+    decoder_close(dec);
+    frame_out_close(&fout);
+    event("{\"ev\":\"stopped\",\"frames\":%lu,\"pictures\":%lu,\"code\":%d}", frames, pictures, term_code);
     return terminated && term_code != ML_ERROR_GRACEFUL_TERMINATION ? 3 : 0;
 }
 

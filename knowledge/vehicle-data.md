@@ -21,8 +21,14 @@ on our unit. Index: [index.md](index.md).
   so speed is the signal to trust, gear/brake extra.
 - Enum values arrive as names or numbers.
 - Most vehicle data needs the ignition on.
-- From an app: add the interface to `manifest.json` (Moonlight lists only
-  `Vehicle`; speed needs `Vehicle2`), `someipBuilders.buildAndInitTypedProxy(iface, '1', {timeoutMs: 10000})`.
+- From an app: add the interface to `manifest.json`'s `proxies` as
+  `"de.bmw.infotainment.vehicle.Vehicle2": {"instances": ["1"], "attributes": {"statusCarSpeed2": "r"}}`
+  (upstream's Waze declares `HmiContext` this way), list
+  `oap-sdk/src/someip/someipBuilders` in `mgu-app.json` `sdk`, then
+  `someipBuilders.buildTypedProxy(iface, '1')`, `init()`,
+  `proxy.statusCarSpeed2.getValue()` (Moonlight 0.2.0's
+  `apps/vizualyse_moonlight/src/vehicle_speed.js`; not yet run on the car).
+  Our firmware's catalog has a getter for `statusCarSpeed2` (id 8).
   The installer refuses a read flag on a field without a getter: check
   `/etc/oap/someip/someip-interfaces.json`.
 - From a root tool: Node 8 `require('/usr/lib/someip.node')` with an interface

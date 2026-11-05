@@ -11,20 +11,23 @@
  *   8490, behind a token: add a PC, pair it (a PIN to type on Sunshine's
  *   page), pick a game, stream settings, an on-screen pad.
  * - gamestream.js: serverinfo, pairing, the app list, launch and quit.
- * - moonlight-core (C, moonlight-common-c): the stream; H.264 on its stdout,
- *   decoded audio on fd 3, the controllers (evdev) itself.
- * - ffmpeg (static, the same build as Cast's) decodes the H.264 to I420, at
- *   the stream's size for the central screen (console_out.js, mgu-render,
- *   black bars at the sides) or scaled down for the cluster or the HUD
- *   (cluster-render, within its upload budget).
+ * - moonlight-core (C, moonlight-common-c): the stream; it decodes the video
+ *   itself (on the GPU through Intel Media SDK, else FFmpeg's decoder built
+ *   in) straight into mgu-render's frame file, at the stream's size for the
+ *   central screen (console_out.js, black bars at the sides) or scaled down
+ *   for the cluster or the HUD (a small frame file this side packs for
+ *   cluster-render, within its upload budget); decoded audio on fd 3; the
+ *   controllers itself.
  * - The picture on the central screen covers the iDrive's own controls, so
  *   it stops from there too: hold the screen 2 s (moonlight-core reads the
  *   display's touch passively, core/touch.h; nothing is claimed or
  *   diverted), or hold Start + Back + LB + RB 2 s on a controller, or Stop on
- *   the phone page. For the first 10 s ffmpeg burns in a line saying so.
+ *   the phone page. For the first 10 s a hint over the picture says so.
+ * - Only while parked: the iDrive app reads the car's speed and sends it
+ *   over the control socket; above 3 km/h a stream stops and none starts.
  * - pcm_play.py (mgu-python) plays the audio into SmartXbar.
  *
- *   node server.js     (root: /dev/input, the renderer, ALSA, nftables)
+ *   node server.js     (root: /dev/input, /dev/dri, the renderer, ALSA, nftables)
  */
 'use strict';
 
@@ -46,7 +49,10 @@ const STATE_DIR = process.env.MOONLIGHT_STATE || '/var/opt/vizualyse-moonlight/s
 const PORT = Number(process.env.MOONLIGHT_PORT) || 8490;
 const IFNAME = 'wlan0';
 const CORE = process.env.MOONLIGHT_CORE || path.join(HERE, 'moonlight-core');
-const FFMPEG = process.env.MOONLIGHT_FFMPEG || path.join(HERE, 'ffmpeg');
+/* auto: the GPU, else software; the tests pick msdk-sw (decode.h) */
+const DECODER = process.env.MOONLIGHT_DECODER || 'auto';
+/* the cluster's and the HUD's small frames, from moonlight-core */
+const SMALL_DIR = process.env.MOONLIGHT_SMALL_DIR || '/dev/shm/vizualyse-moonlight';
 const PYTHON = process.env.MOONLIGHT_PYTHON || '/var/opt/mgu-python/current/bin/python3';
 const LEASE = '/run/mgu-uplink/lease.json';
 const UPLINK_STATUS = '/run/mgu-uplink/status.json';
@@ -61,16 +67,18 @@ const NET_UID = Number(process.env.MOONLIGHT_NET_UID) || 12998;
 const TOUCH_IFACE = process.env.MOONLIGHT_TOUCH_IFACE !== undefined ? process.env.MOONLIGHT_TOUCH_IFACE : 'vlan73';
 const TOUCH_SRC = process.env.MOONLIGHT_TOUCH_SRC || '160.48.199.115';
 const TOUCH_FILE = process.env.MOONLIGHT_TOUCH_FILE || '';
-const FONT = path.join(HERE, 'DejaVuSans-Bold.ttf');
-const HINT_SECONDS = 10;
-const HINT_TEXT = 'To stop: hold the screen for 2 s  ·  or hold Start + Back + LB + RB  ·  or Stop on the phone';
+/* Only while parked: faster than this (km/h, the iDrive app's reading) stops
+ * a stream (knowledge/vehicle-data.md) */
+const MAX_KMH = 3;
 
-/* What the phone page offers. The Atom decodes in software: 720p is the
- * default; 60 fps is the one to try on the car. */
+/* What the phone page offers, smallest first; 720p is the default. */
 const MODES = [
-    { id: '1280x720', w: 1280, h: 720 }, { id: '960x540', w: 960, h: 540 }, { id: '1920x1080', w: 1920, h: 1080 },
+    { id: '960x540', w: 960, h: 540 }, { id: '1280x720', w: 1280, h: 720 }, { id: '1920x1080', w: 1920, h: 1080 },
 ];
 const RATES = [30, 60];
+/* The bitrate when it is left on auto (kbps), by size and rate: enough for a
+ * game's picture without asking more of the hotspot than it needs. */
+const AUTO_KBPS = { '960x540': { 30: 3000, 60: 5000 }, '1280x720': { 30: 5000, 60: 10000 }, '1920x1080': { 30: 10000, 60: 20000 } };
 
 /* Where the picture goes. The cluster and the HUD go through cluster-render,
  * which uploads at most ~5500 KB/s: a smaller frame at 15 fps, scaled up by
@@ -130,9 +138,17 @@ function link() { const ip = uplinkIp(); return ip ? 'http://' + ip + ':' + PORT
 
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
 const HOSTS_FILE = path.join(STATE_DIR, 'hosts.json');
-const settings = Object.assign({ enabled: true, output: 'console', mode: '1280x720', fps: 30, bitrate: 8000, audio: true, volume: 100, sops: true,
+/* bitrate 0: auto (AUTO_KBPS) */
+const settings = Object.assign({ enabled: true, output: 'console', mode: '1280x720', fps: 30, bitrate: 0, audio: true, volume: 100, sops: true,
     localAudio: false, last: null }, readJson(SETTINGS_FILE) || {});
+/* 0.1.x saved 8000 for everyone (its default): auto from 0.2.0, once */
+if (!settings.v) { if (settings.bitrate === 8000) settings.bitrate = 0; settings.v = 2; }
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
+function bitrate() {
+    if (settings.bitrate) return settings.bitrate;
+    const m = AUTO_KBPS[settings.mode] || AUTO_KBPS['1280x720'];
+    return m[settings.fps] || m[30];
+}
 
 /* [{ id, name, address, httpsPort, serverCert, paired, appversion, ... }] */
 let hosts = readJson(HOSTS_FILE) || [];
@@ -233,9 +249,26 @@ function startPairing(h) {
     return Promise.resolve(p);
 }
 
+/* ---- parked ------------------------------------------------------------------ */
+
+/* The car's speed as the iDrive app last read it: km/h, or null (no app, or
+ * no signal: a bench). When the app goes quiet the last reading stands: a
+ * car last seen moving counts as moving until it says otherwise. */
+const vehicle = { kmh: null, at: 0 };
+function moving() { return vehicle.kmh !== null && vehicle.kmh > MAX_KMH; }
+function setSpeed(kmh) {
+    const v = Number(kmh);
+    if (kmh === null || !isFinite(v) || v < 0) return;
+    const was = moving();
+    vehicle.kmh = Math.round(v * 10) / 10;
+    vehicle.at = Date.now();
+    if (moving() !== was) log('parked: ' + (moving() ? 'moving, ' + vehicle.kmh + ' km/h' : 'standing, ' + vehicle.kmh + ' km/h'));
+    if (moving() && session) stopSession('the car is moving (' + vehicle.kmh + ' km/h): only while parked');
+}
+
 /* ---- the stream ------------------------------------------------------------ */
 
-let session = null;   /* { host, app, core, ff, py, frames, fps, started, events, stopping } */
+let session = null;   /* { host, app, core, py, frames, fps, started, stopping, ... } */
 let last = { state: 'idle' };
 let pads = [];        /* found while idle: moonlight-core pads */
 const consoleVideo = new consoleOut.ConsoleVideo(log);
@@ -260,33 +293,6 @@ function placement(o) {
     const k = Math.min(aw / o.w, ah / o.h), dw = Math.round(o.w * k), dh = Math.round(o.h * k);
     return { x: ax + Math.round((aw - dw) / 2), y: ay + Math.round((ah - dh) / 2), w: dw, h: dh };
 }
-/* The stop hint for the centre console: an ASS subtitle at the stream's size,
- * shown for HINT_SECONDS, and libass's fonts folder (the font alone in it:
- * libass tries every file in that folder). ffmpeg -vf arguments, or [] when
- * the font is missing. */
-function hintFilter(w, h) {
-    try {
-        const dir = path.join(STATE_DIR, 'fonts');
-        mkdirp(dir);
-        const font = path.join(dir, path.basename(FONT));
-        if (!fs.existsSync(font) || fs.statSync(font).size !== fs.statSync(FONT).size) fs.copyFileSync(FONT, font);
-        const size = Math.max(16, Math.round(h / 26)), margin = Math.round(h / 18);
-        const ass = path.join(STATE_DIR, 'hint.ass');
-        const end = '0:00:' + (HINT_SECONDS < 10 ? '0' : '') + HINT_SECONDS + '.00';
-        fs.writeFileSync(ass, ['[Script Info]', 'ScriptType: v4.00+', 'PlayResX: ' + w, 'PlayResY: ' + h, 'WrapStyle: 2', '',
-            '[V4+ Styles]',
-            'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-            /* white on a half-transparent black box, bottom centre */
-            'Style: Hint,DejaVu Sans,' + size + ',&H00FFFFFF,&H00FFFFFF,&H60000000,&H60000000,-1,0,0,0,100,100,0,0,3,' + Math.round(size / 3) + ',0,2,' + margin + ',' + margin + ',' + margin + ',1', '',
-            '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
-            'Dialogue: 0,0:00:00.00,' + end + ',Hint,,0,0,0,,' + HINT_TEXT, ''].join('\n'));
-        return ['-vf', 'subtitles=filename=' + ass + ':fontsdir=' + dir];
-    } catch (e) {
-        log('stream: no stop hint: ' + e.message);
-        return [];
-    }
-}
-
 function outputReady(id) {
     const o = OUTPUTS[id];
     if (!o) return false;
@@ -333,10 +339,8 @@ function stopSession(why, then) {
     last = { state: 'ended', host: s.host, app: s.app, frames: s.frames, note: why, error: s.error || null };
 }
 
-/* After the core: ffmpeg and the audio player go, the picture comes down. */
+/* After the core: the audio player goes, the picture comes down. */
 function teardown(s) {
-    try { s.ff.stdin.end(); } catch (e) { /* gone */ }
-    setTimeout(() => { try { s.ff.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000);
     /* killed, not drained: what it still holds would play after Stop (SmartXbar can take a long
      * time to connect at first, so seconds of buffered sound came out minutes later on the car) */
     if (s.py) {
@@ -347,69 +351,65 @@ function teardown(s) {
         setTimeout(() => { try { py.kill('SIGKILL'); } catch (e) { /* gone */ } }, 500);
     }
     if (s.out.console) consoleVideo.stop();
-    else if (s.layer) cr.drop(s.layer);
+    else {
+        if (s.pump) clearInterval(s.pump);
+        if (s.reader) s.reader.close();
+        try { fs.unlinkSync(s.small); } catch (e) { /* gone */ }
+        if (s.layer) cr.drop(s.layer);
+    }
     if (!NO_FIREWALL) { try { firewall.host(null); } catch (e) { log('firewall: ' + e.message); } }
 }
 
 function startStream(h, app, launch, retried) {
     const mode = MODES.filter((m) => m.id === settings.mode)[0] || MODES[0];
-    const fps = settings.fps, w = mode.w, hgt = mode.h;
+    const fps = settings.fps, w = mode.w, hgt = mode.h, kbps = bitrate();
+    const out = OUTPUTS[settings.output] || OUTPUTS.console;
+    /* the console takes the stream's own size; the cluster and the HUD a
+     * smaller frame at their rate, which moonlight-core scales to (on the
+     * GPU when it decodes there) */
+    const fw = out.console ? w : out.w, fh = out.console ? hgt : out.h, ffps = out.console ? fps : out.fps;
+    /* the frame file first: moonlight-core opens it as it starts */
+    let small = null;
+    if (out.console) consoleVideo.start(w, hgt, fps);
+    else {
+        mkdirp(SMALL_DIR);
+        small = path.join(SMALL_DIR, 'small-' + out.target);
+        consoleOut.frameFile(small, fw, fh);
+    }
     if (!NO_FIREWALL) { try { firewall.host(h.address); } catch (e) { log('firewall: ' + e.message); } }
     const args = ['stream', '--address', h.address, '--appversion', h.appversion || '7.1.431.-1', '--gfeversion', h.gfeversion || '',
         '--rtsp', launch.rtsp || '', '--codecs', String(h.codecs || 1), '--width', String(w), '--height', String(hgt),
-        '--fps', String(fps), '--bitrate', String(settings.bitrate), '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid),
-        '--uid', String(NET_UID), '--gid', String(NET_UID)];
+        '--fps', String(fps), '--bitrate', String(kbps), '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid),
+        '--uid', String(NET_UID), '--gid', String(NET_UID), '--frame-file', out.console ? consoleOut.FILE : small, '--decoder', DECODER];
+    if (!out.console) args.push('--out-fps', String(out.fps));
     /* hold-to-stop, while the picture covers the centre screen */
-    if ((OUTPUTS[settings.output] || OUTPUTS.console).console) {
+    if (out.console) {
         if (TOUCH_FILE) args.push('--touch-file', TOUCH_FILE);
         else if (TOUCH_IFACE) args.push('--touch-iface', TOUCH_IFACE, '--touch-src', TOUCH_SRC);
     }
-    const core = spawn(CORE, args, { stdio: ['pipe', 'pipe', 'pipe', settings.audio ? 'pipe' : 'ignore'] });
-    /* low delay: a small probe (knowledge/video-decoding.md: -fflags nobuffer gave no frames
-     * through a filter), slice threads (the core asks the PC for 4 slices) */
-    const out = OUTPUTS[settings.output] || OUTPUTS.console;
-    /* the console takes the stream's own size; the cluster and the HUD a
-     * smaller frame at their rate (an fps filter is fine without -fflags
-     * nobuffer, knowledge/video-decoding.md) */
-    const fw = out.console ? w : out.w, fh = out.console ? hgt : out.h, ffps = out.console ? fps : out.fps;
-    /* the console: the stop hint for its first seconds; -framerate gives the
-     * raw H.264 its clock, which the subtitle is timed by */
-    const vf = out.console ? hintFilter(w, hgt) : ['-vf', 'fps=' + out.fps + ',scale=' + fw + ':' + fh + ':force_original_aspect_ratio=decrease:flags=bilinear,pad=' + fw + ':' + fh + ':-1:-1'];
-    const ff = spawn(FFMPEG, ['-nostdin', '-hide_banner', '-loglevel', 'error', '-flags', 'low_delay', '-thread_type', 'slice', '-threads', '4',
-        '-probesize', '32768', '-analyzeduration', '0', '-f', 'h264', '-framerate', String(fps), '-i', 'pipe:0'].concat(vf, ['-f', 'rawvideo', '-pix_fmt', 'yuv420p', 'pipe:1']),
-    { stdio: ['pipe', 'pipe', 'pipe'] });
-    const s = { host: { id: h.id, name: h.name, address: h.address }, app: { id: app.id, name: app.name }, core: core, ff: ff, py: null,
-        frames: 0, fps: 0, rtt: 0, poor: false, started: Date.now(), connected: false, error: null, pads: {}, w: w, h: hgt, fpsWanted: fps,
-        out: out, output: OUTPUTS[settings.output] ? settings.output : 'console', layer: null };
+    const core = spawn(CORE, args, { stdio: ['pipe', 'ignore', 'pipe', settings.audio ? 'pipe' : 'ignore'] });
+    const s = { host: { id: h.id, name: h.name, address: h.address }, app: { id: app.id, name: app.name }, core: core, py: null,
+        frames: 0, fps: 0, pps: 0, rtt: 0, poor: false, started: Date.now(), connected: false, error: null, pads: {}, w: w, h: hgt, fpsWanted: fps,
+        kbps: kbps, decoder: null, decodeMs: 0, skipped: 0, out: out, output: OUTPUTS[settings.output] ? settings.output : 'console',
+        layer: null, small: small, reader: null, pump: null };
     session = s;
-    log('stream: ' + app.name + ' from ' + h.name + ' at ' + w + 'x' + hgt + '@' + fps + ', ' + settings.bitrate + ' kbps' + (settings.audio ? ', sound ' + settings.volume + '%' : ', no sound') +
-        ', on the ' + out.title + (out.console ? '' : ' (' + fw + 'x' + fh + '@' + ffps + ')'));
+    log('stream: ' + app.name + ' from ' + h.name + ' at ' + w + 'x' + hgt + '@' + fps + ', ' + kbps + ' kbps' + (settings.bitrate ? '' : ' (auto)') +
+        (settings.audio ? ', sound ' + settings.volume + '%' : ', no sound') + ', on the ' + out.title + (out.console ? '' : ' (' + fw + 'x' + fh + '@' + ffps + ')'));
 
     core.on('error', (e) => { s.error = 'moonlight-core: ' + e.message; });
-    ff.on('error', (e) => { s.error = 'ffmpeg: ' + e.message; });
-    core.stdout.pipe(ff.stdin);
-    ff.stdin.on('error', () => { /* ffmpeg gone: the core's write fails and it stops */ });
-    ff.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => log('ffmpeg: ' + l.trim())));
-
-    const size = fw * fh * 3 / 2, packed = out.console ? null : Buffer.alloc(size);
-    if (out.console) consoleVideo.start(w, hgt, fps);
-    else {
+    if (!out.console) {
         const r = placement(out);
         /* prewarm: the slot before the first frame; contend: from the stock content (as Cast) */
         s.layer = cr.video({ target: out.target, z: 1, contend: true, prewarm: true, x: r.x, y: r.y, w: r.w, h: r.h, vw: fw, vh: fh, fps: ffps });
+        const packed = Buffer.alloc(fw * fh * 3 / 2);
+        let sent = 0;
+        try { s.reader = new consoleOut.FrameReader(small); } catch (e) { s.error = 'the small frame file: ' + e.message; }
+        /* the newest small frame, at the output's rate */
+        s.pump = setInterval(() => {
+            const pic = s.reader && s.reader.next();
+            if (pic) cr.frame(s.layer, atlas(pic, fw, fh, packed), ++sent);
+        }, Math.round(1000 / ffps));
     }
-    let parts = [], have = 0;
-    ff.stdout.on('data', (d) => {
-        parts.push(d); have += d.length;
-        while (have >= size) {
-            const all = parts.length === 1 ? parts[0] : Buffer.concat(parts, have);
-            if (out.console) consoleVideo.frame(all.slice(0, size));
-            else cr.frame(s.layer, atlas(all.slice(0, size), fw, fh, packed), s.frames + 1);
-            if (++s.frames === 1) log('stream: first frame');
-            parts = have > size ? [all.slice(size)] : [];
-            have -= size;
-        }
-    });
 
     if (settings.audio) {
         /* --live: it never falls behind (SmartXbar's first connect can block for many seconds) */
@@ -438,20 +438,25 @@ function startStream(h, app, launch, retried) {
             if (l[0] !== '@') { if (l.trim()) log('core: ' + l.trim()); continue; }
             let e;
             try { e = JSON.parse(l.slice(1)); } catch (x) { log('core: ' + l); continue; }
-            if (e.ev === 'stats') { s.fps = e.fps; s.rtt = e.rtt; continue; }
+            if (e.ev === 'stats') {
+                s.fps = e.fps; s.pps = e.pps; s.rtt = e.rtt; s.frames = e.pictures; s.skipped = e.skipped; s.decodeMs = e.decodeMs;
+                continue;
+            }
+            if (e.ev === 'first-picture') { if (!s.frames) s.frames = 1; log('stream: first picture'); continue; }
             if (e.ev === 'status') { s.poor = e.poor; continue; }
             if (e.ev === 'rumble') continue;
             if (e.ev === 'exit-hold') { log('stream: the screen held at ' + e.x + ',' + e.y); stopSession('the screen was held'); continue; }
             if (e.ev === 'exit-combo') { log('stream: the quit combo on controller ' + e.slot); stopSession('Start + Back + LB + RB held'); continue; }
             log('core: ' + JSON.stringify(e));
             if (e.ev === 'started') s.connected = true;
+            else if (e.ev === 'decoder' && e.name) s.decoder = e.name;
             else if (e.ev === 'pad') { if (e.present) s.pads[e.slot] = e.name; else delete s.pads[e.slot]; }
             else if (e.ev === 'stage-failed') {
                 s.rtspFailed = e.stage === 'RTSP handshake';
                 s.error = 'could not start the ' + e.stage + ': ' + (STAGE_HELP[e.stage] || 'error ' + e.code) + (e.ports ? ' (ports ' + e.ports + ')' : '');
             }
             else if (e.ev === 'terminated') s.error = termText(e);
-            else if (e.ev === 'failed' && !s.error) s.error = 'the stream did not start (' + e.code + ')';
+            else if (e.ev === 'failed' && !s.error) s.error = 'the stream did not start' + (e.why ? ': ' + e.why : ' (' + e.code + ')');
         }
     });
 
@@ -483,6 +488,7 @@ function play(hostId, appId, retried) {
     const h = hostById(hostId);
     if (!h) return Promise.reject(new Error('no such PC'));
     if (!h.paired) return Promise.reject(new Error(h.name + ' is not paired: pair it first'));
+    if (moving()) return Promise.reject(new Error('only while parked: the car is moving (' + vehicle.kmh + ' km/h)'));
     return refreshHost(h).then(() => {
         if (h.online === false) throw new Error(h.name + ' is not reachable: ' + h.error);
         if (!h.paired) throw new Error(h.error || h.name + ' is not paired');
@@ -544,12 +550,14 @@ function status() {
         app: cur.app ? { id: cur.app.id, name: cur.app.name } : null,
         frames: s ? s.frames : (last.frames || 0), fps: s ? s.fps : 0, rtt: s ? s.rtt : 0, poor: s ? s.poor : false,
         seconds: s ? Math.round((Date.now() - s.started) / 1000) : 0, size: s ? s.w + 'x' + s.h + '@' + s.fpsWanted : null,
+        kbps: s ? s.kbps : bitrate(), decoder: s ? s.decoder : null, decodeMs: s ? s.decodeMs : 0, skipped: s ? s.skipped : 0, pps: s ? s.pps : 0,
+        speed: vehicle.kmh, moving: moving(),
         output: s ? s.output : settings.output,
         outputs: Object.keys(OUTPUTS).map((k) => ({ id: k, title: OUTPUTS[k].title, ready: outputReady(k) })),
         pads: padList, canResume: !!settings.last && !s, last: settings.last ? { host: settings.last.host, app: settings.last.app } : null,
         error: s ? s.error : last.error || null, note: s ? null : last.note || null,
         hosts: hosts.map(hostView), pairing: pairing && pairing.state === 'waiting' || (pairing && Date.now() - pairing.started < 60000) ? pairing : null,
-        settings: { mode: settings.mode, fps: settings.fps, bitrate: settings.bitrate, audio: settings.audio, volume: settings.volume, sops: settings.sops },
+        settings: { mode: settings.mode, fps: settings.fps, bitrate: bitrate(), bitrateAuto: !settings.bitrate, audio: settings.audio, volume: settings.volume, sops: settings.sops },
         modes: MODES.map((m) => m.id), rates: RATES,
     };
 }
@@ -589,7 +597,8 @@ function setOutput(id) {
 function setSettings(b) {
     if (b.mode && MODES.some((m) => m.id === b.mode)) settings.mode = b.mode;
     if (RATES.indexOf(Number(b.fps)) >= 0) settings.fps = Number(b.fps);
-    if (b.bitrate !== undefined) settings.bitrate = Math.max(1000, Math.min(40000, Math.round(Number(b.bitrate) || 8000)));
+    /* 0 (or "auto"): by size and rate */
+    if (b.bitrate !== undefined) settings.bitrate = !Number(b.bitrate) ? 0 : Math.max(1000, Math.min(40000, Math.round(Number(b.bitrate))));
     if (typeof b.audio === 'boolean') settings.audio = b.audio;
     if (b.volume !== undefined) settings.volume = Math.max(0, Math.min(150, Math.round(Number(b.volume) || 0)));
     if (typeof b.sops === 'boolean') settings.sops = b.sops;
@@ -654,11 +663,18 @@ function setEnabled(on) {
 
 let control = null;
 function command(c) {
+    if (c.cmd === 'speed') { setSpeed(c.kmh); return null; }
     if (c.cmd === 'enable') { setEnabled(true); return null; }
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (!settings.enabled) return 'Moonlight is off';
     if (c.cmd === 'stop') { stopSession('stopped on the iDrive page'); return null; }
     if (c.cmd === 'quit') { quitGame().catch((e) => { last = Object.assign({}, last, { error: e.message }); }).then(() => control && control.broadcast()); return null; }
+    if (c.cmd === 'output') {
+        if (!OUTPUTS[c.output]) return 'the centre console, the cluster or the HUD';
+        if (!outputReady(c.output)) return 'the ' + OUTPUTS[c.output].title + ' is not available';
+        setOutput(c.output).catch((e) => { last = Object.assign({}, last, { error: e.message }); }).then(() => control && control.broadcast());
+        return null;
+    }
     if (c.cmd === 'resume') {
         if (!settings.last) return 'nothing played yet: start a game from the phone first';
         if (session) return 'already streaming';
