@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 /**
- * vizualyse-chromium: a web browser on the iDrive 7 head unit's own GPU,
- * WebGL 2 and WebGPU included (and WebAssembly JSPI), on the central screen
- * while parked. Controlled from a phone page (the address bar, back /
+ * vizualyse-chromium: a web browser on the iDrive 7 head unit, WebGL 2 and
+ * WebGPU included (on the CPU: SwiftShader; the GPU is off, see NET_UID) and
+ * WebAssembly JSPI, on the central screen while parked. Controlled from a phone page (the address bar, back /
  * forward / reload, typing) and from the iDrive app (vizualyse_chromium:
  * show, hide, the page's link as a QR code, the GPU it got).
  *
- * - The bundle (chromium.tgz: Debian's Chromium 156 and Mesa 25 with their
- *   own glibc, tools/bundle.sh) is unpacked once into
+ * - The bundle (chromium.tgz: Debian's Chromium 156 with its own glibc,
+ *   tools/bundle.sh) is unpacked once into
  *   /var/opt/vizualyse-chromium/chromium (unpack.js).
  * - Chromium runs headless as the tool's uid 12997 (mgu-uplink routes it to
- *   the internet, through proxy.js and the phone's DNS) with the group video
- *   (the GPU's render node), in a memory cgroup capped at MEM_MB, driven over
+ *   the internet, through proxy.js and the phone's DNS), in its own group
+ *   (never video: no GPU access), in a memory cgroup capped at MEM_MB, driven over
  *   DevTools on a pipe (browser.js). At each start probe() checks JSPI,
  *   WebGL 2 and WebGPU on a local page and saves what it found, chrome://gpu
  *   too, in STATE_DIR (gpu.json, gpu.txt) and the journal (@gpu).
@@ -50,9 +50,13 @@ const LEASE = '/run/mgu-uplink/lease.json';
 const UPLINK_STATUS = '/run/mgu-uplink/status.json';
 const NO_FIREWALL = process.env.CHROMIUM_NO_FIREWALL === '1';
 const NO_PROXY = process.env.CHROMIUM_NO_PROXY === '1';
-/* The tool's uplink uid (component.json "uids"), and the group of /dev/dri/renderD128 */
+/* The tool's uplink uid (component.json "uids"). Chromium runs in its own
+ * group, NOT video (44, /dev/dri's): 0.1.1's Vulkan driver (Mesa 22.3 ANV)
+ * hung in the kernel opening the GPU (i915_gem_context_open) and held the DRM
+ * lock, so the HMI couldn't draw: a black screen and restarts on every boot
+ * (2026-11-06). Without the group Chromium can't open the GPU at all. */
 const NET_UID = Number(process.env.CHROMIUM_NET_UID) || 12997;
-const VIDEO_GID = Number(process.env.CHROMIUM_VIDEO_GID) || 44;
+const CHROMIUM_GID = NET_UID;
 /* Where the page goes: mgu-render's app area on the car (knowledge/central-screen.md) */
 const VIEW = (function () {
     const m = /^(\d+)x(\d+)\+(\d+)\+(\d+)$/.exec(process.env.CHROMIUM_VIEW || '1790x638+108+82');
@@ -124,7 +128,7 @@ function cgroup() {
         if (!fs.existsSync(CGROUP_ROOT)) return null;
         if (!fs.existsSync(dir)) fs.mkdirSync(dir);
         fs.writeFileSync(path.join(dir, 'memory.limit_in_bytes'), String(MEM_MB * 1024 * 1024));
-        fs.chownSync(path.join(dir, 'cgroup.procs'), NET_UID, VIDEO_GID);
+        fs.chownSync(path.join(dir, 'cgroup.procs'), NET_UID, CHROMIUM_GID);
         return dir;
     } catch (e) {
         log('cgroup: ' + e.message + ' (Chromium runs without a memory cap)');
@@ -172,7 +176,7 @@ let wantShown = false;
 function startBrowser() {
     if (browser || bundle.state !== 'ready' || !settings.enabled || stopping) return;
     startProxy();
-    const b = new Browser({ w: VIEW.w, h: VIEW.h, uid: NET_UID, gid: VIDEO_GID, proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: cgroup(), url: 'about:blank' });
+    const b = new Browser({ w: VIEW.w, h: VIEW.h, uid: NET_UID, gid: CHROMIUM_GID, proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: cgroup(), url: 'about:blank' });
     browser = b;
     browserState = 'starting';
     let quiet = 0;
@@ -209,7 +213,7 @@ function startBrowser() {
     const t0 = Date.now();
     b.start()
         .then(() => {
-            log('chromium: running (' + (Date.now() - t0) + ' ms), ' + VIEW.w + 'x' + VIEW.h + ', Vulkan ' + env.icd());
+            log('chromium: running (' + (Date.now() - t0) + ' ms), ' + VIEW.w + 'x' + VIEW.h + ', Vulkan on the CPU (SwiftShader)');
             browserState = 'running';
             lastError = null;
             return b.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe').then((p) => {

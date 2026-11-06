@@ -14,12 +14,9 @@
 # and server.js starts Chromium with LD_LIBRARY_PATH=$B/lib and the Vulkan and
 # fontconfig paths pointing into $B (env.js).
 #
-# Vulkan: Mesa 22.3's ANV (Gen9+: the A3960's HD 505), from Debian bookworm
-# (image/Dockerfile): newer ANV and iris (25.0 at least) refuse the unit's 4.14
-# kernel (no i915 context isolation, 4.16+; seen on the car). 22.3 asks for
-# gem wait, execbuf2, softpin (4.5) and exec fence arrays (4.14) only, and
-# works around the missing isolation. No iris (GL): ANGLE and Dawn both run
-# on Vulkan. Chromium's own SwiftShader is the software fallback.
+# No GPU driver: Vulkan is Chromium's own SwiftShader (the CPU) only. 0.1.1's
+# Mesa 22.3 ANV hung in the unit's 4.14 i915 and blacked out the HMI
+# (knowledge/browser.md); the check at the end refuses any GPU driver.
 #
 #   sh /m/tools/bundle.sh       (in the image, the tool's folder at /m)
 set -eu
@@ -28,7 +25,7 @@ OUT=/m/build
 STAGE=/tmp/stage
 R=$STAGE$B
 rm -rf "$STAGE"
-mkdir -p "$R/lib" "$R/locales" "$R/share/vulkan/icd.d" "$R/fonts" "$R/etc/fonts" "$R/licenses"
+mkdir -p "$R/lib" "$R/locales" "$R/fonts" "$R/etc/fonts" "$R/licenses"
 
 C=/usr/lib/chromium
 for f in chromium chrome_crashpad_handler chrome_100_percent.pak chrome_200_percent.pak resources.pak icudtl.dat \
@@ -38,23 +35,10 @@ done
 cp "$C/locales/en-US.pak" "$R/locales/"
 
 M=/usr/lib/x86_64-linux-gnu
-A=/opt/anv22/usr/lib/x86_64-linux-gnu
-cp -L "$A/libvulkan_intel.so" "$R/lib/"
-# never an ANV that wants context isolation (25.0 does): it finds no GPU on the unit
-if grep -q "requires context isolation" "$R/lib/libvulkan_intel.so"; then
-    echo "bundle: this ANV refuses kernels without context isolation (the unit's 4.14)" >&2; exit 1
-fi
 # and what is only ever dlopen()ed, so ldd can't see it: NSS's soft token and
 # roots (Chromium aborts without them), libpci (the GPU's PCI ids)
 for l in libEGL.so.1 libGLESv2.so.2 libturbojpeg.so.0 \
          libsoftokn3.so libfreebl3.so libfreeblpriv3.so libnssckbi.so libnssdbm3.so libpci.so.3; do cp -L "$M/$l" "$R/lib/"; done
-python3 - "$B" "$R" <<'PY'
-import json, sys
-b, r = sys.argv[1], sys.argv[2]
-icd = json.load(open('/opt/anv22/usr/share/vulkan/icd.d/intel_icd.x86_64.json'))
-icd['ICD']['library_path'] = b + '/lib/libvulkan_intel.so'
-json.dump(icd, open(r + '/share/vulkan/icd.d/intel_icd.json', 'w'), indent=1)
-PY
 
 # Every library the ELF files load, resolved in this image, under its soname.
 # The loader comes along; nothing of the unit's /usr/lib is needed.
@@ -113,11 +97,10 @@ echo chromium >> /tmp/pkgs; echo fonts-dejavu-core >> /tmp/pkgs; echo fonts-libe
 for p in $(sort -u /tmp/pkgs); do
     [ -f "/usr/share/doc/$p/copyright" ] && cp "/usr/share/doc/$p/copyright" "$R/licenses/$p.txt"
 done
-cp /opt/anv22/usr/share/doc/mesa-vulkan-drivers/copyright "$R/licenses/mesa-vulkan-drivers-bookworm.txt"
 {
     echo "vizualyse-chromium bundle"
     echo "chromium $(dpkg-query -W -f '${Version}' chromium)"
-    echo "anv (vulkan, bookworm) $(cat /opt/anv22/VERSION)"
+    echo "vulkan: swiftshader only (no GPU driver)"
     echo "glibc $(dpkg-query -W -f '${Version}' libc6)"
     echo "packages: $(sort -u /tmp/pkgs | tr '\n' ' ')"
 } > "$R/VERSION"
@@ -131,10 +114,12 @@ for e in $ELFS "$R/chromium-sink"; do
     done
 done
 [ $missing -eq 0 ] || exit 1
-# bookworm's ANV on trixie's libraries: every symbol binds (RTLD_NOW), on the
-# bundle's own loader and libraries only
-"$R/lib/ld-linux-x86-64.so.2" --library-path "$R/lib" /usr/bin/python3 -c \
-    "import ctypes, os; ctypes.CDLL('$R/lib/libvulkan_intel.so', mode=os.RTLD_NOW); print('bundle: ANV binds')"
+# No GPU driver may come along (0.1.1's ANV blacked out the HMI): no Mesa
+# Vulkan, DRI, GBM-backend or VA driver, no Vulkan ICD but SwiftShader's
+# (libgbm.so.1, which chromium links, is only the loader: no backend).
+bad=$(cd "$R" && find . \( -name 'libvulkan_*' -o -name '*_dri.so' -o -name '*_drv_video.so' \
+      -o -name '*_gbm.so' -o -name 'libEGL_mesa*' -o -name '*icd*.json' \) ! -name vk_swiftshader_icd.json)
+[ -z "$bad" ] || { echo "bundle: a GPU driver got in: $bad" >&2; exit 1; }
 
 mkdir -p "$OUT"
 cd "$STAGE"

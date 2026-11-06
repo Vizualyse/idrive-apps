@@ -7,9 +7,12 @@
  * chromium and chromium-sink ask for BUNDLE/lib/ld-linux-x86-64.so.2 by
  * absolute path, so it can live nowhere else. Every library comes from
  * BUNDLE/lib (LD_LIBRARY_PATH): the unit's own Mesa 19 / glibc 2.27 are
- * never loaded. The Vulkan driver is ANV (Mesa 25: WebGPU and ANGLE on the
- * GPU); CHROMIUM_VK_ICD swaps it for Chromium's SwiftShader in the off-car
- * tests (no Intel GPU there).
+ * never loaded.
+ *
+ * Vulkan is Chromium's own SwiftShader (the CPU) only, and nothing else can
+ * be chosen: the bundle has no GPU driver since 0.1.2. 0.1.1's Mesa 22.3 ANV
+ * hung in the unit's 4.14 kernel and blacked out the HMI
+ * (knowledge/browser.md).
  */
 'use strict';
 
@@ -20,14 +23,8 @@ const BUNDLE = ROOT + '/chromium';
 const PROFILE = process.env.CHROMIUM_PROFILE || ROOT + '/profile';
 const STATE_DIR = process.env.CHROMIUM_STATE || ROOT + '/state';
 
-const ICDS = {
-    anv: BUNDLE + '/share/vulkan/icd.d/intel_icd.json',
-    swiftshader: BUNDLE + '/vk_swiftshader_icd.json',
-};
-
 function icd() {
-    const v = process.env.CHROMIUM_VK_ICD || 'anv';
-    return ICDS[v] || v;
+    return BUNDLE + '/vk_swiftshader_icd.json';
 }
 
 function chromiumEnv() {
@@ -42,9 +39,6 @@ function chromiumEnv() {
         VK_ICD_FILENAMES: icd(),
         VK_DRIVER_FILES: icd(),
         FONTCONFIG_FILE: BUNDLE + '/etc/fonts/fonts.conf',
-        /* Mesa's shader cache, in the profile (its cap: the profile's budget) */
-        MESA_SHADER_CACHE_DIR: path.join(PROFILE, 'cache', 'mesa'),
-        MESA_SHADER_CACHE_MAX_SIZE: '64M',
     };
 }
 

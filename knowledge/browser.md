@@ -3,7 +3,29 @@
 What we found building vizualyse-chromium
 ([`native/vizualyse-chromium`](../native/vizualyse-chromium)). From the
 rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
-(2026-11-05), and 0.1.0 on the car (2026-11-05). Index: [index.md](index.md).
+(2026-11-05), 0.1.0 and 0.1.1 on the car (2026-11-05, 2026-11-06). Index: [index.md](index.md).
+
+## Never bring a GPU driver (the black screen, 2026-11-06)
+
+- **0.1.1 with Mesa 22.3's ANV (Vulkan) blacked out the HMI and restarted
+  the unit on every boot.** Chromium's GPU process hung in the kernel
+  opening the GPU (`drm_open` → `i915_driver_open` → `i915_gem_open` →
+  `i915_gem_context_open`, task in D state, unkillable), holding the DRM
+  lock; the HMI's `viewmanager_Map`, `gvviewmanager_G` and `NmeVideoDevice`
+  then blocked in `drm_stub_open` → `mutex_lock` ("blocked for more than 10
+  seconds" in `dmesg`), nothing drew, and the unit restarted about a minute
+  later. The tool starts Chromium at boot, so every boot did it again.
+  Renaming the bundle's ICD (`intel_icd.json`) over SSH ended the loop.
+- The kernel is Intel's own IOTG i915 build (`IOTG i915 driver 2019y-05m-22d`,
+  `[drm] Initialized i915 1.6.0 20170818`, GuC 9.37 loaded), not mainline 4.14:
+  a Mesa written for mainline can't be trusted on it, and the bench (no GPU,
+  no kernel) can't show a hang.
+- Everything of ours that uses the GPU safely uses **the unit's own
+  userspace drivers**: mgu-render (Mesa 19 EGL / GLES, i965, on Winston),
+  Moonlight (MSDK + iHD libva). 0.1.2 has no GPU driver, and Chromium runs
+  without the group `video`, so it can't open `/dev/dri` at all.
+- No persistent journal on the unit: after a restart only the current
+  boot's logs remain (`journalctl -b -1` fails).
 
 ## Touch over the HMI
 
@@ -48,7 +70,8 @@ rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
 - **Mesa 22.3's ANV** (Debian bookworm, `22.3.6-1+deb12u2`) has no such gate:
   it reads the param and, without it, makes constant buffer 0 relative
   (`anv_device.c:794, 963`). Its `libvulkan_intel.so` binds against trixie's
-  newer libraries (checked with `RTLD_NOW`). Not yet seen on the car.
+  newer libraries (checked with `RTLD_NOW`). **On the car it hung the
+  kernel** (above): never again.
 - With no Vulkan device, Chromium's GPU process exits on every start
   (`ANGLE Display::initialize ... Internal Vulkan error (-3)`), and Chromium
   turns WebGL off (webglreport: "supports WebGL but it is disabled or

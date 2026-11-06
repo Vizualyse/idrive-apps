@@ -108,7 +108,7 @@ async function main() {
         CHROMIUM_ARCHIVE: path.join(T, 'build/chromium.tgz'),
         CHROMIUM_RENDER_CLIENT: path.join(T, 'test/fake/render_client.js'),
         CHROMIUM_TEST_RENDER_LOG: RLOG,
-        CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1', CHROMIUM_VK_ICD: 'swiftshader',
+        CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1',
         CHROMIUM_TOUCH_IFACE: '', CHROMIUM_TOUCH_FILE: TOUCH, CHROMIUM_LINK_IP: '127.0.0.1',
     });
     const lines = [];

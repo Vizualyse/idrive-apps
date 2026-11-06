@@ -7,15 +7,15 @@
  * screencast JPEGs ('frame' events) while screencasting; touches and text go
  * in through Input.*.
  *
- * The GPU: ANGLE on Vulkan and WebGPU (Dawn) on Vulkan, both on Mesa's ANV
- * from the bundle (env.js); --enable-unsafe-webgpu because Chromium enables
- * WebGPU on Linux only for newer Intel GPUs than the unit's Gen9 by itself.
- * WebAssembly JSPI is on by default since Chromium 137 (the bundle: 156).
- * probe() reports what a page actually gets (WebGL 2's renderer, the WebGPU
- * adapter, JSPI run for real), so the journal says whether the GPU works.
+ * WebGL and WebGPU: ANGLE on Vulkan and WebGPU (Dawn) on Vulkan, both on
+ * Chromium's SwiftShader (the CPU; env.js: the bundle has no GPU driver since
+ * 0.1.1's ANV hung the unit's kernel); --enable-unsafe-webgpu for Chromium's
+ * WebGPU allow-list. WebAssembly JSPI is on by default since Chromium 137
+ * (the bundle: 156). probe() reports what a page actually gets (WebGL 2's
+ * renderer, the WebGPU adapter, JSPI run for real).
  *
- * Runs as the tool's uid (mgu-uplink routes it, through proxy.js) with the
- * group `video` (the DRI render node), never root; --no-sandbox, since the
+ * Runs as the tool's uid (mgu-uplink routes it, through proxy.js) in its own
+ * group, never `video` (no access to /dev/dri), never root; --no-sandbox, since the
  * unit's kernel and our uid offer neither the setuid sandbox nor (known)
  * user namespaces. In a memory cgroup when there is one (server.js).
  *
@@ -38,10 +38,10 @@ function args(opts) {
         '--headless', '--no-sandbox', '--remote-debugging-pipe',
         '--user-data-dir=' + path.join(env.PROFILE, 'chromium'),
         '--window-size=' + opts.w + ',' + opts.h, '--force-device-scale-factor=1',
-        /* the GPU: ANGLE and Dawn on Vulkan (ANV), WebGPU on Gen9 */
+        /* ANGLE and Dawn on Vulkan: SwiftShader, the only driver (env.js) */
         '--use-angle=vulkan', '--enable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan',
         '--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--disable-vulkan-surface',
-        /* if the GPU fails anyway, WebGL on SwiftShader (the CPU) rather than none */
+        /* WebGL on SwiftShader rather than off */
         '--enable-unsafe-swiftshader',
         '--enable-gpu-rasterization',
         /* the disk: a capped cache in the profile */

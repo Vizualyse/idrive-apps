@@ -3,12 +3,12 @@
 /**
  * The bundle on the head unit's own root filesystem (run_unit_test.sh starts
  * this in a container made from it: glibc 2.27, Mesa 19, Node 8.16.2, the
- * loader in /lib), with Chromium's SwiftShader for Vulkan (no Intel GPU here;
- * on the car it is ANV):
+ * loader in /lib), with Chromium's SwiftShader for Vulkan (as on the car:
+ * no GPU driver in the bundle since 0.1.2):
  *
  * - unpack.js unpacks build/chromium.tgz at /var/opt/vizualyse-chromium/chromium,
  *   and a second ensure() leaves it be;
- * - Chromium starts as uid 12997 / gid 44 (video), headless, over the pipe;
+ * - Chromium starts as uid 12997 / gid 12997 (not video: no GPU), headless, over the pipe;
  * - probe(): JSPI runs, WebGL 2 has a renderer, WebGPU has an adapter and a
  *   compute shader gives the right numbers; chrome://gpu is read;
  * - a page is screencast through chromium-sink into a frame file: frames
@@ -25,7 +25,6 @@ const http = require('http');
 const { spawn } = require('child_process');
 
 const T = process.argv[2] || '/t';
-process.env.CHROMIUM_VK_ICD = 'swiftshader';
 const env = require(path.join(T, 'src/env.js'));
 const unpack = require(path.join(T, 'src/unpack.js'));
 const { Browser } = require(path.join(T, 'src/browser.js'));
@@ -81,7 +80,7 @@ async function main() {
 
     const server = http.createServer((q, s) => { s.writeHead(200, { 'Content-Type': 'text/html' }); s.end(PAGE); }).listen(8999, '127.0.0.1');
     fs.mkdirSync(env.PROFILE, 0o700);
-    const b = new Browser({ w: W, h: H, uid: 12997, gid: 44 });
+    const b = new Browser({ w: W, h: H, uid: 12997, gid: 12997 });
     const chromeLog = [];
     b.on('log', (l) => chromeLog.push(l));
     b.on('exit', (c, s) => { log('chromium exited ' + (s || c)); console.log(chromeLog.slice(-40).join('\n')); });

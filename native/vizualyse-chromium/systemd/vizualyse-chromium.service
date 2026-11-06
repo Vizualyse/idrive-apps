@@ -8,7 +8,7 @@ Wants=mgu-render.service
 
 [Service]
 # Root: the renderer, the display's touch (AF_PACKET), nftables, the memory
-# cgroup. Chromium itself runs as uid 12997 / group video, capped by that cgroup.
+# cgroup. Chromium itself runs as uid 12997 in its own group (not video: no GPU), capped by that cgroup.
 ExecStart=/usr/bin/node /var/opt/vizualyse-chromium/current/server.js
 Restart=always
 RestartSec=5

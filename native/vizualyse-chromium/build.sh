@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Yousaf Khan
 #
-# Builds build/chromium.tgz: Debian trixie's Chromium and Mesa with every
-# library they load, chromium-sink (sink/) beside them, all on their own
+# Builds build/chromium.tgz: Debian trixie's Chromium with every
+# library it loads, chromium-sink (sink/) beside them, all on their own
 # loader, to unpack at /var/opt/vizualyse-chromium/chromium on the unit
 # (tools/bundle.sh says why and what). In the image from image/Dockerfile;
 # fixed paths, sorted and dated tar: two builds give the same bytes.
