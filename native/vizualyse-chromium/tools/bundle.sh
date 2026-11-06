@@ -2,15 +2,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Yousaf Khan
 #
-# Runs inside image/Dockerfile (build.sh starts it): copies Debian's Chromium
-# and Mesa, with every library they load (glibc and its loader too), into
-# one folder that runs as it is at $B on the head unit, and packs it as
-# build/chromium.tgz.
+# Runs inside image/Dockerfile (build.sh starts it): copies Debian's Chromium,
+# with every library it loads (glibc and its loader too), into one folder
+# that runs as it is at $B on the head unit, builds chromium-wl and
+# chromium-touch (sink/) beside it, and packs it as build/chromium.tgz.
 #
 # Why a bundle: the unit has glibc 2.27, Mesa 19.0 (i965, GL only: no Vulkan,
 # so no WebGPU) and no NSS / fontconfig; its loader is /lib/ld-linux-x86-64.so.2
 # (knowledge/head-unit.md). So nothing here uses the unit's libraries:
-# chromium and chromium-sink ask for $B/lib/ld-linux-x86-64.so.2 (PT_INTERP),
+# chromium, chromium-wl and chromium-touch ask for $B/lib/ld-linux-x86-64.so.2 (PT_INTERP),
 # and server.js starts Chromium with LD_LIBRARY_PATH=$B/lib and the Vulkan and
 # fontconfig paths pointing into $B (env.js).
 #
@@ -36,19 +36,37 @@ cp "$C/locales/en-US.pak" "$R/locales/"
 
 M=/usr/lib/x86_64-linux-gnu
 # and what is only ever dlopen()ed, so ldd can't see it: NSS's soft token and
-# roots (Chromium aborts without them), libpci (the GPU's PCI ids)
-for l in libEGL.so.1 libGLESv2.so.2 libturbojpeg.so.0 \
+# roots (Chromium aborts without them), libpci (the GPU's PCI ids),
+# libwayland-client (the unit's Mesa 19 libEGL links it: in chromium-wl's GPU
+# mode it gets 1.23, not the unit's)
+for l in libEGL.so.1 libGLESv2.so.2 libwayland-client.so.0 \
          libsoftokn3.so libfreebl3.so libfreeblpriv3.so libnssckbi.so libnssdbm3.so libpci.so.3 \
          libdl.so.2 libpthread.so.0 librt.so.1; do cp -L "$M/$l" "$R/lib/"; done
 # (libdl, libpthread, librt: glibc 2.41's stubs. The unit's libraries in GPU
 # mode ask for them; without these the unit's 2.27 ones load and fail.)
+
+# chromium-wl (sink/wl.c): the browser's display, a Wayland compositor that
+# puts Chromium's pictures into mgu-render's frame file; on the bundle's
+# loader and libraries (libwayland-server, libyuv: the closure below).
+G=/tmp/wl-gen
+mkdir -p $G
+XDG=/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml
+wayland-scanner server-header $XDG $G/xdg-shell-server-protocol.h
+wayland-scanner private-code $XDG $G/xdg-shell-protocol.c
+wayland-scanner server-header /m/sink/protocol/wayland-drm.xml $G/wayland-drm-server-protocol.h
+wayland-scanner private-code /m/sink/protocol/wayland-drm.xml $G/wayland-drm-protocol.c
+# (its loader is set below, with chromium's: ldd must run it first)
+gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -I/m/sink -I$G -Wl,-rpath,$B/lib -Wl,--build-id=sha1 \
+    -o "$R/chromium-wl" /m/sink/wl.c /m/sink/frame_out.c $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c \
+    $(pkg-config --cflags --libs wayland-server) -lyuv -ldl
+strip --strip-unneeded "$R/chromium-wl"
 
 # Every library the ELF files load, resolved in this image, under its soname.
 # The loader comes along; nothing of the unit's /usr/lib is needed.
 closure() {
     for e in "$@"; do ldd "$e" 2>/dev/null; done | awk '/=> \// {print $1" "$3} /^\s*\/lib.*ld-linux/ {print "ld-linux-x86-64.so.2 "$1}' | sort -u
 }
-ELFS="$R/chromium $R/chrome_crashpad_handler $R/libEGL.so $R/libGLESv2.so $R/libvulkan.so.1 $R/libvk_swiftshader.so $(ls $R/lib/*.so*)"
+ELFS="$R/chromium $R/chromium-wl $R/chrome_crashpad_handler $R/libEGL.so $R/libGLESv2.so $R/libvulkan.so.1 $R/libvk_swiftshader.so $(ls $R/lib/*.so*)"
 pass=0
 while :; do
     added=0
@@ -65,16 +83,15 @@ while :; do
 done
 [ -e "$R/lib/ld-linux-x86-64.so.2" ] || cp -L /lib64/ld-linux-x86-64.so.2 "$R/lib/"
 
-# chromium and its crash handler start on the bundle's own loader (the unit's
-# is glibc 2.27 and lives in /lib, not /lib64)
-for e in chromium chrome_crashpad_handler; do patchelf --set-interpreter "$B/lib/ld-linux-x86-64.so.2" "$R/$e"; done
+# chromium, its crash handler and chromium-wl start on the bundle's own
+# loader (the unit's is glibc 2.27 and lives in /lib, not /lib64)
+for e in chromium chrome_crashpad_handler chromium-wl; do patchelf --set-interpreter "$B/lib/ld-linux-x86-64.so.2" "$R/$e"; done
 
-# The frame and touch helper (sink/), on the same loader and libraries.
+# The touch helper (sink/touch_main.c), on the same loader and libraries.
 gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror \
     -Wl,--dynamic-linker=$B/lib/ld-linux-x86-64.so.2 -Wl,-rpath,$B/lib -Wl,--build-id=sha1 \
-    -o "$R/chromium-sink" /m/sink/sink.c /m/sink/touch.c /m/sink/frame_out.c /m/sink/yuv.c -lturbojpeg -lpthread
-strip --strip-unneeded "$R/chromium-sink"
-gcc -O2 -std=gnu11 -Wall -Wextra -Werror -o /tmp/yuv_test /m/sink/yuv_test.c /m/sink/yuv.c && /tmp/yuv_test
+    -o "$R/chromium-touch" /m/sink/touch_main.c /m/sink/touch.c -lpthread
+strip --strip-unneeded "$R/chromium-touch"
 
 # The GPU mode's libEGL.so.1 (gpu/egl_shim.c): the unit's own Mesa 19 EGL on
 # the render node. Not a driver: it only loads the unit's. Its test runs in
@@ -129,7 +146,7 @@ done
 # Nothing may come from outside the bundle: every NEEDED resolves in $R/lib
 # (or next to chromium), with the bundle's loader, in an empty library path.
 missing=0
-for e in $ELFS "$R/chromium-sink" "$R/gpu/libEGL.so.1"; do
+for e in $ELFS "$R/chromium-touch" "$R/gpu/libEGL.so.1"; do
     for n in $(objdump -p "$e" | awk '/NEEDED/ {print $2}'); do
         [ -e "$R/lib/$n" ] || [ -e "$R/$n" ] || { echo "bundle: $(basename "$e") needs $n, not in the bundle" >&2; missing=1; }
     done

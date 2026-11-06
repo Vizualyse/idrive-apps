@@ -96,9 +96,9 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.4, vizualyse_chromium 0.2.3)
+## Browser (vizualyse-chromium 0.2.5, vizualyse_chromium 0.2.3)
 
-Chromium 156 with its own glibc, headless, WebGL and WebGPU on the CPU
+Chromium 156 with its own glibc, on its own Wayland compositor (chromium-wl), WebGL and WebGPU on the CPU
 (SwiftShader) or, in the GPU mode, on the unit's own Mesa 19 (WebGL 2 on
 the GPU seen on the car with 0.2.1, 2026-11-06), its pictures through mgu-render in the app area, touch read
 passively, only while parked
@@ -132,11 +132,11 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   rather than stopping it (it isn't ours).
 - [ ] **A frames-per-second meter** in the status: how often the page draws
   (requestAnimationFrame) next to pictures reaching the screen, to tell a
-  slow game from the screencast path.
+  slow game from the picture path.
 - [ ] **0.2.3 on the car: the resolution** (phone page or the app's
   Resolution button: full, 3/4 = 1340x476, 1/2 = 892x316, scaled up by
   mgu-render). How it looks, whether touches still land, and the gain on a
-  heavy page on the CPU: the sink's ms and pictures per second (`status`),
+  heavy page on the CPU: chromium-wl's ms and pictures per second (`status`),
   Chromium's CPU in `top`, its memory peak.
 - [ ] **On the car: touches under the browser.** Show should open the
   empty screen state first (the app's log: `screen state visible`; a
@@ -144,12 +144,26 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   HMI didn't open it); touching the browser must press nothing of the HMI.
 - [ ] **On the car:** scrolling by touch, the back arrow and a pop-up
   hiding it, the phone page, pages loading through
-  the proxy, the pictures per second and the sink's ms (`status`), CPU and
+  the proxy, the pictures per second and chromium-wl's ms (`status`), CPU and
   memory of Chromium (the cgroup's `memory.max_usage_in_bytes`).
-- [ ] **Faster pictures:** the screencast is a JPEG round trip on the CPU.
-  Next: Winston's globals (`xdg_wm_base`, `zwp_linux_dmabuf`; mgu-store's
-  read-only `probe.js`) for Ozone/Wayland straight onto the screen, or a
-  dmabuf handed to mgu-render.
+- [ ] **0.2.5 on the car: pictures without JPEG.** Chromium on Wayland into
+  chromium-wl, straight into the frame file (off the car ~5x less CPU per
+  picture than 0.2.4's screencast). Check: `display: ready` in the journal,
+  pages and vel.gg look right (colours, no tearing), `status` pictures per
+  second and ms each, Chromium's CPU in `top`, the resolution setting (the
+  page drawn scaled into a smaller window, touches scaled with it). **The GPU
+  mode is new on this path and untested on a GPU**: Chromium hands its GBM
+  buffers to chromium-wl over wl_drm, read back through the unit's EGL on
+  the render node (the shim now also maps Wayland, surfaceless and
+  device-less GBM displays to the render node, never card0). Try it by hand
+  as before (gpu-trial marker), `dmesg` after. If it fails, frames may come
+  as shared memory instead (software compositing): still no JPEG.
+- [ ] **Faster GPU pictures:** chromium-wl reads each GPU frame back whole
+  (glReadPixels, RGBA) and converts on the CPU; a shader to I420 first would
+  read back 3/8 of it, and a dmabuf handed to mgu-render none.
+- [ ] **Pointer lock for games** (vel.gg's start needs it): chromium-wl
+  could offer `zwp_pointer_constraints_v1` / `zwp_relative_pointer_v1`, the
+  touches driving relative motion.
 - [ ] **Input:** the iDrive controller (FrontCCU) as arrow keys / scrolling,
   and the usbfs gamepads from Moonlight as the Gamepad API (Chromium has no
   evdev to read on the unit).

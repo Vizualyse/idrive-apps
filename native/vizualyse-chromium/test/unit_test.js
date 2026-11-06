@@ -8,12 +8,14 @@
  *
  * - unpack.js unpacks build/chromium.tgz at /var/opt/vizualyse-chromium/chromium,
  *   and a second ensure() leaves it be;
- * - Chromium starts as uid 12997 / gid 12997 (not video: no GPU), headless, over the pipe;
+ * - chromium-wl starts as nobody, then Chromium as uid 12997 / gid 12997 (not
+ *   video: no GPU) on its Wayland backend against it, over the pipe;
  * - probe(): JSPI runs, WebGL 2 has a renderer, WebGPU has an adapter and a
  *   compute shader gives the right numbers; chrome://gpu is read;
- * - a page is screencast through chromium-sink into a frame file: frames
- *   arrive, and the picture is the page's (a red half, a blue half);
- * - a touch replayed from a capture taps a button on the page;
+ * - shown, the page's pictures reach a frame file through chromium-wl (a red
+ *   half, a blue half); hidden, none; at scale 0.5 the window and pictures
+ *   are half size;
+ * - a touch replayed from a capture (chromium-touch) taps a button on the page;
  * - the GPU mode's plumbing: gpu-libs, the EGL shim on the unit's Mesa 19
  *   (build/egl_shim_test), Chromium in the GPU mode loads it and, with no GPU
  *   here, falls back to SwiftShader.
@@ -32,7 +34,7 @@ const env = require(path.join(T, 'src/env.js'));
 const unpack = require(path.join(T, 'src/unpack.js'));
 const { Browser } = require(path.join(T, 'src/browser.js'));
 
-const W = 640, H = 240;
+const W = 1280, H = 480;   /* at scale 0.5 still wider than a Chromium window can be narrow (500) */
 const FRAME = '/dev/shm/mgu-video-test';
 let fails = 0;
 const check = (ok, what) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails++; };
@@ -46,6 +48,7 @@ function frameFile(file, w, h) {
     const b = Buffer.alloc(64);
     [0x4656474d, 1, w, h, 0, 0, 3, 0, 0].forEach((v, i) => b.writeUInt32LE(v >>> 0, i * 4));
     fs.writeSync(fd, b, 0, 64, 0);
+    fs.fchownSync(fd, 65534, 65534);   /* chromium-wl writes it as nobody (screen.js) */
     fs.closeSync(fd);
 }
 
@@ -55,7 +58,7 @@ const PAGE = '<!doctype html><title>start</title><style>body{margin:0}#l,#r{posi
     'button{position:fixed;left:270px;top:90px;width:100px;height:60px}</style><div id=l></div><div id=r></div>' +
     '<button onclick="document.title=\'tapped\'">tap</button>';
 
-/* A touch capture for the sink: down / up at screen x, y (the PDU layout of touch.c). */
+/* A touch capture for chromium-touch: down / up at screen x, y (the PDU layout of touch.c). */
 function touchCapture(file, x, y) {
     const pdu = (ev) => {
         const b = Buffer.alloc(112);
@@ -64,7 +67,7 @@ function touchCapture(file, x, y) {
         return b.toString('hex');
     };
     fs.writeFileSync(file + '.tmp', ['0 160.48.199.115 112 ' + pdu(1), '40 160.48.199.115 112 ' + pdu(3)].join('\n') + '\n');
-    fs.chownSync(file + '.tmp', 65534, 65534);   /* the sink (nobody by then) deletes it after one replay */
+    fs.chownSync(file + '.tmp', 65534, 65534);   /* chromium-touch (nobody by then) deletes it after one replay */
     fs.renameSync(file + '.tmp', file);
 }
 
@@ -86,6 +89,8 @@ async function main() {
     const b = new Browser({ w: W, h: H, uid: 12997, gid: 12997 });
     const chromeLog = [];
     b.on('log', (l) => chromeLog.push(l));
+    const displayEvents = [];
+    b.on('display', (e) => displayEvents.push(e));
     b.on('exit', (c, s) => { log('chromium exited ' + (s || c)); console.log(chromeLog.slice(-40).join('\n')); });
     const t0 = Date.now();
     try {
@@ -109,70 +114,87 @@ async function main() {
     if (process.env.GPU_PAGE) fs.writeFileSync('/out/gpu.txt', p.gpuPage);
     check(gpuLines.length > 0, 'chrome://gpu is read');
 
-    /* the screencast through the sink */
+    /* the pictures: Chromium draws into chromium-wl, which fills the frame file while shown */
+    const ready =displayEvents.filter((e) => e.ev === 'ready')[0] || {};
+    check(ready.uid === 65534 && ready.drm === false, 'chromium-wl runs as nobody, shared memory only (' + JSON.stringify(ready) + ')');
+    const sock = fs.statSync(path.join(env.WL_DIR, env.WL_SOCKET));
+    check(sock.uid === 65534 && sock.gid === 12997 && (sock.mode & 0o777) === 0o660, 'its socket is nobody:12997 0660 (' + sock.uid + ':' + sock.gid + ' ' + (sock.mode & 0o777).toString(8) + ')');
     frameFile(FRAME, W, H);
     const touchFile = '/dev/shm/touch.txt';
-    const sink = spawn(path.join(env.BUNDLE, 'chromium-sink'), ['--frame', FRAME, '--touch-file', touchFile], { stdio: ['pipe', 'pipe', 'inherit'] });
+    const touch = spawn(path.join(env.BUNDLE, 'chromium-touch'), ['--touch-file', touchFile], { stdio: ['pipe', 'pipe', 'inherit'] });
     const events = [];
     let rest = '';
-    sink.stdout.setEncoding('utf8');
-    sink.stdout.on('data', (d) => { rest += d; let i; while ((i = rest.indexOf('\n')) >= 0) { const l = rest.slice(0, i); rest = rest.slice(i + 1); try { events.push(JSON.parse(l)); } catch (e) { log('sink: ' + l); } } });
-    b.on('frame', (jpeg, meta, ack) => {
-        const h = Buffer.alloc(4);
-        h.writeUInt32LE(jpeg.length, 0);
-        sink.stdin.write(h);
-        sink.stdin.write(jpeg, ack);
-    });
+    touch.stdout.setEncoding('utf8');
+    touch.stdout.on('data', (d) => { rest += d; let i; while ((i = rest.indexOf('\n')) >= 0) { const l = rest.slice(0, i); rest = rest.slice(i + 1); try { events.push(JSON.parse(l)); } catch (e) { log('touch: ' + l); } } });
     /* touches into the page, as server.js does (screen = viewport here) */
     const touches = [];
     const taps = [];
     const feed = setInterval(() => {
         events.splice(0).forEach((e) => {
             if (e.ev === 'touch') { touches.push(e); taps.push(b.touch(e.p, e.x, e.y).catch((x) => log('touch: ' + x.message))); }
-            else if (e.ev !== 'stats') log('sink: ' + JSON.stringify(e));
-            else log('sink stats: ' + JSON.stringify(e));
+            else log('touch: ' + JSON.stringify(e));
         });
     }, 20);
     await b.navigate('http://127.0.0.1:8999/');
     await wait(1500);
-    await b.screencast(true, 80);
+    b.show(FRAME);
     await wait(2500);
-    const buf = fs.readFileSync(FRAME);
-    const seq = buf.readUInt32LE(16), slot = buf.readUInt32LE(20);
-    check(seq > 0, 'frames reach the frame file (seq ' + seq + ')');
-    check(buf.readUInt32LE(32) === 1, 'the frame file says full range');
-    const pic = buf.slice(64 + slot * W * H * 3 / 2, 64 + (slot + 1) * W * H * 3 / 2);
-    const left = i420At(pic, W, H, 40, 30), right = i420At(pic, W, H, 600, 210);
+    const picture = (w, h) => {
+        const buf = fs.readFileSync(FRAME);
+        const slot = buf.readUInt32LE(20);
+        return { seq: buf.readUInt32LE(16), full: buf.readUInt32LE(32), pic: buf.slice(64 + slot * w * h * 3 / 2, 64 + (slot + 1) * w * h * 3 / 2) };
+    };
+    const f1 = picture(W, H);
+    check(f1.seq > 0, 'pictures reach the frame file (seq ' + f1.seq + ')');
+    check(f1.full === 1, 'the frame file says full range');
+    const left = i420At(f1.pic, W, H, 40, 30), right = i420At(f1.pic, W, H, 1200, 420);
     log('left ' + JSON.stringify(left) + ', right ' + JSON.stringify(right));
     /* red: V high, U low; blue: U high */
     check(left.V > 200 && left.U < 120, 'the left half is red');
     check(right.U > 200 && right.V < 140, 'the right half is blue');
+    const st1 = displayEvents.filter((e) => e.ev === 'stats');
+    log('display stats: ' + JSON.stringify(st1.slice(-2)));
+    check(st1.length > 0 && st1.every((e) => e.drm === 0), 'chromium-wl counts its pictures, from shared memory');
 
     touchCapture(touchFile, 320, 120);
     await wait(1500);
     await Promise.all(taps);
     const title = await b.send('Runtime.evaluate', { expression: 'document.title', returnByValue: true });
-    check(touches.length >= 2, 'the sink reads the touches (' + touches.map((t) => t.p).join(',') + ')');
+    check(touches.length >= 2, 'chromium-touch reads the touches (' + touches.map((t) => t.p).join(',') + ')');
     check(title.result.value === 'tapped', 'a tap presses the page\'s button (title ' + title.result.value + ')');
 
-    /* the resolution: a device scale factor of 0.5, the layout unchanged, the pictures half size */
-    await b.screencast(false);
-    await b.setScale(0.5, { w: 320, h: 120 });
+    /* hidden, nothing more goes into the file */
+    b.hide();
+    await wait(500);
+    const h0 = picture(W, H).seq;
+    await b.send('Runtime.evaluate', { expression: 'document.title = "hidden"' });
+    await wait(1000);
+    check(picture(W, H).seq === h0, 'hidden: no pictures into the frame file');
+
+    /* the resolution: a device scale factor of 0.5, the layout unchanged, the window and pictures half size */
+    await b.setScale(0.5, { w: 640, h: 240 });
     const seen = await b.send('Runtime.evaluate', { expression: '[devicePixelRatio, innerWidth, innerHeight].join(",")', returnByValue: true });
-    check(seen.result.value === '0.5,640,240', 'scale 0.5: the page keeps 640x240 CSS pixels at devicePixelRatio 0.5 (' + seen.result.value + ')');
-    let small = null;
-    const grab = (jpeg) => { if (!small) { const i = jpeg.indexOf(Buffer.from([0xFF, 0xC0])); small = i > 0 ? jpeg.readUInt16BE(i + 7) + 'x' + jpeg.readUInt16BE(i + 5) : '?'; } };
-    b.on('frame', grab);
-    await b.screencast(true, 80);
+    check(seen.result.value === '0.5,1280,480', 'scale 0.5: the page keeps 1280x480 CSS pixels at devicePixelRatio 0.5 (' + seen.result.value + ')');
+    frameFile(FRAME, 640, 240);
+    b.show(FRAME);
+    await b.send('Runtime.evaluate', { expression: 'document.querySelector("button").textContent = "half"' });
+    await wait(2000);
+    const f2 = picture(640, 240);
+    const hl = i420At(f2.pic, 640, 240, 20, 15), hr = i420At(f2.pic, 640, 240, 600, 225);
+    log('half: seq ' + f2.seq + ', left ' + JSON.stringify(hl) + ', right ' + JSON.stringify(hr));
+    check(f2.seq > 0 && hl.V > 200 && hr.U > 200, 'at 0.5 the whole page fills a 640x240 frame (red left, blue right)');
+    /* touches keep their CSS coordinates: the button's middle */
     await b.send('Runtime.evaluate', { expression: 'document.title = "half"' });
-    await wait(1500);
-    b.removeListener('frame', grab);
-    check(small === '320x120', 'its screencast pictures are 320x120 (' + small + ')');
-    await b.setScale(1, null);
+    await b.touch(1, 320, 120);
+    await b.touch(3, 320, 120);
+    await wait(300);
+    const t2 = await b.send('Runtime.evaluate', { expression: 'document.title', returnByValue: true });
+    check(t2.result.value === 'tapped', 'at 0.5 a tap at the button\'s CSS place presses it (title ' + t2.result.value + ')');
+    b.hide();
+    await b.setScale(1, { w: W, h: H });
 
     clearInterval(feed);
-    await b.screencast(false);
-    sink.stdin.end();
+    touch.stdin.end();
     b.stop();
     await wait(1500);
 

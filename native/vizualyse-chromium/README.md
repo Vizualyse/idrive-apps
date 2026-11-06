@@ -89,26 +89,34 @@ filesystem (`../idrive-rootfs`):
   `--enable-features=Vulkan,...`). **JSPI** is on by
   default since Chromium 137; every start runs a real JSPI call
   (`WebAssembly.Suspending` / `promising`) to prove it.
-- **Headless, through mgu-render**: Chromium can't own the display (Winston
-  and the HMI do) and its Wayland backend needs `xdg_wm_base`, which Winston
-  isn't known to offer. So it runs headless, and its
-  **screencast** (JPEG per changed picture) goes through `chromium-sink`
-  into mgu-render's I420 frame file, as Moonlight's video does. The CPU cost
-  is the JPEG round trip, fine for pages, not yet for 60 fps games.
+- **Its own display, through mgu-render (0.2.5)**: Chromium can't own the
+  screen (Winston and the HMI do). It runs on its Wayland backend
+  (`--ozone-platform=wayland --kiosk`) against **`chromium-wl`**, our own
+  minimal compositor (`sink/wl.c`), which converts each frame straight into
+  mgu-render's I420 frame file (libyuv), as Moonlight's video does. It
+  answers Chromium's frame callbacks no faster than 30 a second while shown
+  (5 while hidden), so Chromium never draws more than the screen takes. Until
+  0.2.4 Chromium ran headless and its screencast JPEGs were encoded in the
+  browser process and decoded again by `chromium-sink`: off the car, the same
+  animated page at 1790x638 took ~143 % of a core for 59 pictures a second
+  that way, ~29 % for 62 now (0.5 ms per conversion). On Wayland Chromium
+  composites in software in the CPU mode (its Wayland backend refuses
+  Vulkan); WebGL and WebGPU still run on SwiftShader.
 - **The app area, not the whole screen**: 1790x638 at +108+82 leaves the
   HMI's title bar and left strip (with its back arrow) uncovered, so the
   driver can always leave; the app hides the browser when its page loses
   visibility or focus (pop-ups, calls: knowledge/idrive-app-ui.md).
 - **The resolution (0.2.3)**: full, 3/4 or 1/2 (the phone page, the app's
-  Resolution button; kept). Chromium draws at that device scale factor
-  (`Emulation.setDeviceMetricsOverride`): the page keeps its 1790x638 CSS
-  layout and sees `devicePixelRatio` 0.75 / 0.5, so touches map as they
-  are; the screencast comes at 1341x478 / 892x318, the frame file is
-  1340x476 / 892x316 (a multiple of 4: the sink crops a row or two), and
-  mgu-render's VIDEO op fits it to the app area (aspect kept, linear
-  filtering). Fewer pixels for SwiftShader to draw, smaller buffers,
-  cheaper JPEGs. It changes live: the frame file and screencast are made
-  again at the new size.
+  Resolution button; kept). Chromium's window is that much smaller
+  (1340x476 / 892x316, a multiple of 4) and the page is drawn scaled into
+  it (`Emulation.setDeviceMetricsOverride` with `deviceScaleFactor` and
+  `scale`: in a window, unlike headless, the scale factor alone doesn't draw
+  smaller): the page keeps its 1790x638 CSS layout and sees
+  `devicePixelRatio` 0.75 / 0.5; touches are scaled into the window. The
+  frame file is the window's size and mgu-render's VIDEO op fits it to the
+  app area (aspect kept, linear filtering). Fewer pixels for SwiftShader to
+  draw, smaller buffers, cheaper conversions. It changes live. (A Chromium
+  window is never narrower than 500 pixels.)
 - **Touch read passively**: an AF_PACKET copy of the display's PDUs on
   vlan73 (Moonlight's decoder). Nothing is claimed: a touch claim through
   mgu-render restarted the unit twice. Touches that start outside the app
@@ -153,7 +161,7 @@ filesystem (`../idrive-rootfs`):
     boot); stopping any other restarts the head unit. BMW's own services
     and the Store's are never touched.
 - **Never a reboot**: the service is on recmgr's whitelist and `chromium`,
-  `chrome_crashpad_handler` and `chromium-sink` on crashhandler's
+  `chrome_crashpad_handler`, `chromium-wl` and `chromium-touch` on crashhandler's
   (component.json `recmgr`, `crashNames`); Chromium's own crashes restart
   only Chromium (5 times in 5 minutes at most).
 
@@ -163,11 +171,12 @@ filesystem (`../idrive-rootfs`):
 |---|---|---|
 | `server.js` | root | unpacks the bundle; starts / restarts Chromium; the phone page on port 8491 (token in the QR link); the iDrive app's socket; show / hide; the touch mapping; only while parked |
 | `unpack.js` | root | `chromium.tgz` into `/var/opt/vizualyse-chromium/chromium`, once per bundle (sha256 stamp), streamed, then swapped in by rename |
-| `browser.js` | - | Chromium over DevTools on a pipe: one tab at 1790x638, screencast, touches, text, keys, history; `probe()`: JSPI, WebGL 2, WebGPU (a compute shader) and `chrome://gpu`, on a local page (a secure context) |
-| `chromium` | uid 12997, group 12997 (GPU mode: group video, 44) | headless, ANGLE and Dawn on SwiftShader (the CPU), in the GPU mode ANGLE on the unit's Mesa 19 GLES; in the memory cgroup, through the proxy |
-| `gpu/libEGL.so.1` | - | C (`gpu/egl_shim.c`), GPU mode only: the default EGL display becomes the unit's Mesa 19 on the render node through GBM |
-| `chromium-sink` | root, then nobody | C (`sink/`): screencast JPEGs into the frame file's next slot as I420 (libjpeg-turbo, BT.601 full range); the display's touches as JSON lines |
-| `screen.js` | root | the frame file `/dev/shm/mgu-video-vizualyse_chromium` and the mgu-render client in layer mode, in the app area |
+| `browser.js` | - | Chromium over DevTools on a pipe, and its display (`chromium-wl`): one tab at 1790x638, show / hide, touches, text, keys, history; `probe()`: JSPI, WebGL 2, WebGPU (a compute shader) and `chrome://gpu`, on a local page (a secure context) |
+| `chromium` | uid 12997, group 12997 (GPU mode: group video, 44) | on its Wayland backend, into `chromium-wl`; ANGLE and Dawn on SwiftShader (the CPU), in the GPU mode ANGLE on the unit's Mesa 19 GLES; in the memory cgroup, through the proxy |
+| `gpu/libEGL.so.1` | - | C (`gpu/egl_shim.c`), GPU mode only: the default, Wayland, surfaceless or device-less GBM EGL display becomes the unit's Mesa 19 on the render node through GBM |
+| `chromium-wl` | root, then nobody in Chromium's group | C (`sink/wl.c`): Chromium's Wayland compositor, as long as Chromium runs (socket `/run/vizualyse-chromium/wayland-0`, 0660); each frame into the frame file's next slot as I420 (libyuv, BT.601 full range) while shown, paced to 30 a second; in the GPU mode Chromium's GBM buffers (wl_drm, PRIME) are read back through the unit's EGL |
+| `chromium-touch` | root, then nobody | C (`sink/touch_main.c`), while shown: the display's touches as JSON lines |
+| `screen.js` | root | the frame file `/dev/shm/mgu-video-vizualyse_chromium` (nobody's, for `chromium-wl`) and the mgu-render client in layer mode, in the app area |
 | `proxy.js` | uid 12997 | HTTP / CONNECT on 127.0.0.1:8483, names through the phone's DNS |
 | `control.js` | root | `/dev/shm/vizualyse-chromium/ctl.sock` for the app only: status; enable, disable, show, hide, home, reload, back, gpu, speed |
 | `firewall.js` | root | the phone page's TCP 8491 on `wlan0`, in memory |
@@ -183,7 +192,7 @@ is in `/var/opt/vizualyse-chromium/profile` (uid 12997). The journal has an
 
 - `sh build.sh` builds `build/chromium.tgz` in `image/Dockerfile` (Debian
   trixie from snapshot.debian.org at a fixed date, so two builds give the same
-  bytes) and runs `sink/yuv_test.c` (the JPEG planes to I420 conversion).
+  bytes).
   It refuses a bundle in which any ELF needs a library the bundle lacks.
 - `sh test/run_unit_test.sh` runs both suites in a container made from the
   **unit's own root filesystem** (`../idrive-rootfs/20.40.2/rootfs.tar`:
@@ -192,9 +201,11 @@ is in `/var/opt/vizualyse-chromium/profile` (uid 12997). The journal has an
   - `test/unit_test.js`: the bundle unpacks (and isn't unpacked again);
     Chromium starts as uid 12997 / group 12997; JSPI runs; WebGL 2 is on
     ANGLE/Vulkan; WebGPU has an adapter and a compute shader returns the
-    right numbers; `chrome://gpu` is read; a page's screencast reaches the
-    frame file with the right colours; a touch replayed from a capture
-    presses a button. The GPU mode's plumbing: `gpu-libs`; `egl_shim_test`
+    right numbers; `chrome://gpu` is read; `chromium-wl` runs as nobody
+    with a 0660 socket; shown, the page's pictures reach the frame file with
+    the right colours, hidden none; at scale 0.5 the window and pictures are
+    half size and a tap still lands; a touch replayed from a capture presses
+    a button. The GPU mode's plumbing: `gpu-libs`; `egl_shim_test`
     (built next to the bundle, not shipped) finds the shim, the unit's Mesa
     19 libEGL behind it (`eglInitialize`, `eglGetPlatformDisplayEXT`, GLES
     entry points through libglapi), only the render node tried, and the

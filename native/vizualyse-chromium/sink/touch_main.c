@@ -1,33 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 /*
- * chromium-sink: the browser's pictures onto mgu-render's frame file, and the
- * centre display's touches back.
+ * chromium-touch: the centre display's touches, while the browser is shown.
  *
- *   chromium-sink --frame FILE [--touch-iface vlan73 --touch-src 160.48.199.115 | --touch-file F]
- *
- * stdin: pictures, each a u32 LE length then a JPEG (Chromium's screencast
- * frames, which server.js takes off the DevTools pipe). Each is decoded
- * (libjpeg-turbo) straight into the frame file's next slot as I420 at the
- * file's size (cut off or black around a picture of another size) and shown.
- * JPEG's YCbCr is BT.601 full range, and the file says so.
+ *   chromium-touch [--touch-iface vlan73 --touch-src 160.48.199.115 | --touch-file F]
  *
  * stdout: one JSON event a line: {"ev":"ready",...}, {"ev":"touch","p":1|2|3,
  * "x":..,"y":..} (down / move / up, screen pixels 1920x720 on the car),
- * {"ev":"stats","frames":n,"ms":avg decode,"bad":n} once a second while
- * pictures come, {"ev":"error",...}.
+ * {"ev":"error",...}. It ends when its stdin closes (server.js hides).
  *
  * Touch is read passively (an AF_PACKET copy of the display's UDP PDUs on
  * vlan73; the HMI still gets every one, nothing is claimed: a claim through
  * mgu-render restarted the head unit, knowledge/central-screen.md). The
- * socket needs root; once it and the frame file are open the sink drops to
- * nobody. --touch-file replays a capture (the tests: "t src len hex" lines,
- * as moonlight's test/fixtures).
+ * socket needs root; once it is open the helper drops to nobody.
+ * --touch-file replays a capture (the tests: "t src len hex" lines, as
+ * moonlight's test/fixtures).
+ *
+ * (Until 0.2.4 this was chromium-sink, which also decoded the screencast's
+ * JPEGs into the frame file; chromium-wl, wl.c, has the pictures now.)
  */
 #define _GNU_SOURCE
-#include "frame_out.h"
 #include "touch.h"
-#include "yuv.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -45,10 +38,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <time.h>
-#include <turbojpeg.h>
 #include <unistd.h>
-
-#define MAX_JPEG (16 << 20)
 
 static pthread_mutex_t out_lock = PTHREAD_MUTEX_INITIALIZER;
 static volatile int done = 0;
@@ -152,17 +142,7 @@ static void *touch_thread(void *arg) {
     return NULL;
 }
 
-/* ---- pictures ---------------------------------------------------------- */
-
-static int read_full(unsigned char *p, size_t n) {
-    while (n) {
-        ssize_t r = read(0, p, n);
-        if (r == 0) return 0;
-        if (r < 0) { if (errno == EINTR) continue; return -1; }
-        p += r; n -= (size_t)r;
-    }
-    return 1;
-}
+/* ---- main -------------------------------------------------------------- */
 
 static void drop_root(void) {
     if (getuid() != 0) return;
@@ -173,27 +153,20 @@ static void drop_root(void) {
 }
 
 int main(int argc, char **argv) {
-    const char *frame = NULL, *iface = NULL;
+    const char *iface = NULL;
     static const struct option opts[] = {
-        { "frame", 1, 0, 'f' }, { "touch-iface", 1, 0, 'T' }, { "touch-src", 1, 0, 'S' }, { "touch-file", 1, 0, 'F' }, { 0, 0, 0, 0 },
+        { "touch-iface", 1, 0, 'T' }, { "touch-src", 1, 0, 'S' }, { "touch-file", 1, 0, 'F' }, { 0, 0, 0, 0 },
     };
     int c;
     while ((c = getopt_long(argc, argv, "", opts, NULL)) != -1) {
         switch (c) {
-        case 'f': frame = optarg; break;
         case 'T': iface = optarg; break;
         case 'S': touch_saddr = inet_addr(optarg); break;
         case 'F': touch_file = optarg; break;
-        default: fprintf(stderr, "usage: chromium-sink --frame FILE [--touch-iface I --touch-src IP | --touch-file F]\n"); return 2;
+        default: fprintf(stderr, "usage: chromium-touch [--touch-iface I --touch-src IP | --touch-file F]\n"); return 2;
         }
     }
-    if (!frame) { fprintf(stderr, "chromium-sink: --frame is needed\n"); return 2; }
     signal(SIGPIPE, SIG_IGN);
-
-    struct frame_out fo;
-    char err[256];
-    if (frame_out_open(&fo, frame, err, sizeof err) < 0) { event("{\"ev\":\"error\",\"error\":\"%s\"}", err); return 1; }
-    frame_out_colour(&fo, 0, 1);
 
     int use_touch = 0;
     if (iface && *iface) {
@@ -206,58 +179,15 @@ int main(int argc, char **argv) {
     drop_root();
     pthread_t tt;
     if (use_touch && pthread_create(&tt, NULL, touch_thread, NULL) != 0) use_touch = 0;
-    event("{\"ev\":\"ready\",\"w\":%d,\"h\":%d,\"touch\":%s,\"uid\":%d}", fo.w, fo.h, use_touch ? "true" : "false", (int)getuid());
+    event("{\"ev\":\"ready\",\"touch\":%s,\"uid\":%d}", use_touch ? "true" : "false", (int)getuid());
 
-    tjhandle tj = tjInitDecompress();
-    unsigned char *jpeg = malloc(MAX_JPEG);
-    size_t ysz = (size_t)fo.w * fo.h * 4;   /* room for a picture up to twice the file's size each way, 4:4:4 */
-    unsigned char *scratch = malloc(ysz * 3);
-    if (!tj || !jpeg || !scratch) { event("{\"ev\":\"error\",\"error\":\"out of memory\"}"); return 1; }
-
-    long tick = now_ms(), spent = 0;
-    int frames = 0, bad = 0;
+    /* until server.js closes stdin */
+    char buf[256];
     for (;;) {
-        unsigned char hdr[4];
-        int r = read_full(hdr, 4);
-        if (r <= 0) break;
-        uint32_t len = (uint32_t)hdr[0] | (uint32_t)hdr[1] << 8 | (uint32_t)hdr[2] << 16 | (uint32_t)hdr[3] << 24;
-        if (len == 0 || len > MAX_JPEG) { event("{\"ev\":\"error\",\"error\":\"picture of %u bytes\"}", len); break; }
-        if (read_full(jpeg, len) <= 0) break;
-
-        long t0 = now_ms();
-        int w, h, sub, cs;
-        if (tjDecompressHeader3(tj, jpeg, len, &w, &h, &sub, &cs) < 0 || w > fo.w * 2 || h > fo.h * 2) { bad++; continue; }
-        int sx = 2, sy = 2;
-        switch (sub) {
-        case TJSAMP_420: break;
-        case TJSAMP_422: sy = 1; break;
-        case TJSAMP_444: sx = 1; sy = 1; break;
-        case TJSAMP_GRAY: break;
-        default: bad++; continue;
-        }
-        unsigned char *dst = frame_out_next(&fo);
-        int cw = tjPlaneWidth(1, w, sub), ch = tjPlaneHeight(1, h, sub);
-        unsigned char *planes[3];
-        int strides[3] = { w, sub == TJSAMP_GRAY ? 0 : cw, sub == TJSAMP_GRAY ? 0 : cw };
-        planes[0] = scratch;
-        planes[1] = sub == TJSAMP_GRAY ? NULL : scratch + (size_t)w * h;
-        planes[2] = sub == TJSAMP_GRAY ? NULL : planes[1] + (size_t)cw * ch;
-        if (tjDecompressToYUVPlanes(tj, jpeg, len, planes, w, strides, h, 0) < 0) { bad++; continue; }
-        struct yuv_src s = { planes[0], planes[1], planes[2], w, cw, w, h, sx, sy };
-        if (yuv_to_i420(&s, dst, fo.w, fo.h) < 0) { bad++; continue; }
-        frame_out_publish(&fo);
-        frames++;
-        spent += now_ms() - t0;
-
-        long now = now_ms();
-        if (now - tick >= 1000) {
-            event("{\"ev\":\"stats\",\"frames\":%d,\"ms\":%.1f,\"bad\":%d,\"w\":%d,\"h\":%d}", frames, frames ? (double)spent / frames : 0.0, bad, w, h);
-            frames = 0; bad = 0; spent = 0; tick = now;
-        }
+        ssize_t r = read(0, buf, sizeof buf);
+        if (r == 0 || (r < 0 && errno != EINTR)) break;
     }
     done = 1;
     if (use_touch) pthread_join(tt, NULL);
-    tjDestroy(tj);
-    frame_out_close(&fo);
     return 0;
 }

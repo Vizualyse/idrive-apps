@@ -1,11 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 /**
- * Chromium, headless, driven over the DevTools protocol on a pipe
+ * Chromium, driven over the DevTools protocol on a pipe
  * (--remote-debugging-pipe: we write NUL-terminated JSON on its fd 3, read
- * its fd 4). One page (tab) at the viewport's size; its pictures come as
- * screencast JPEGs ('frame' events) while screencasting; touches and text go
- * in through Input.*.
+ * its fd 4). One page (tab) at the viewport's size; touches and text go in
+ * through Input.*.
+ *
+ * Its pictures: Chromium runs on its Wayland backend (--ozone-platform=wayland,
+ * --kiosk: one full-screen window, no browser UI) against chromium-wl
+ * (sink/wl.c), our own minimal compositor, started first and ended with it
+ * (a Wayland client dies with its compositor). chromium-wl converts each
+ * frame straight into mgu-render's frame file while shown (show(file),
+ * hide()) and paces Chromium to at most fps frames a second (setFps). Until
+ * 0.2.4 the pictures were headless Chromium's screencast: a JPEG encoded in
+ * the browser process and decoded again for every picture.
  *
  * WebGL and WebGPU: ANGLE on Vulkan and WebGPU (Dawn) on Vulkan, both on
  * Chromium's SwiftShader (the CPU; env.js: the bundle has no GPU driver since
@@ -21,8 +29,13 @@
  * unit's kernel and our uid offer neither the setuid sandbox nor (known)
  * user namespaces. In a memory cgroup when there is one (server.js).
  *
- * Events: 'frame' (Buffer jpeg, metadata), 'exit' (code, signal), 'log'
- * (line), 'navigated' ({url, title}).
+ * chromium-wl starts as root and drops to nobody in Chromium's group: the
+ * Wayland socket (env.WL_DIR) is that group's only, and the frame file is
+ * nobody's (screen.js). In the GPU mode it also reads Chromium's GPU buffers
+ * (wl_drm, PRIME) back through the unit's own EGL on the render node.
+ *
+ * Events: 'exit' (code, signal), 'log' (line), 'navigated' ({url, title}),
+ * 'display' (chromium-wl's events: stats, error, ...).
  */
 'use strict';
 
@@ -31,18 +44,29 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const path = require('path');
 const env = require('./env.js');
+const unpack = require('./unpack.js');
 
 const CHROMIUM = path.join(env.BUNDLE, 'chromium');
+const WL = path.join(env.BUNDLE, 'chromium-wl');
+const NOBODY = 65534;
+const FPS = 30;   /* chromium-wl's pace while shown, by default */
+
+/* the window's size: the pictures' */
+function picOf(opts) { return opts.pic || { w: opts.w, h: opts.h }; }
 
 /* opts: { w, h, uid, gid, gpu (the GPU mode: env.js), scale (the device scale
  * factor, 1 / 0.75 / 0.5: the layout stays w x h CSS pixels, the pictures are
- * smaller), pic ({ w, h }: the screencast's size at that scale), proxy (port),
- * cgroup (dir or null), url, extraArgs } */
+ * smaller), pic ({ w, h }: the pictures' size at that scale), fps (at most,
+ * while shown), proxy (port), cgroup (dir or null), url, extraArgs } */
 function args(opts) {
+    const pic = picOf(opts);
     const a = [
-        '--headless', '--no-sandbox', '--remote-debugging-pipe',
+        '--ozone-platform=wayland', '--kiosk', '--no-sandbox', '--remote-debugging-pipe',
         '--user-data-dir=' + path.join(env.PROFILE, 'chromium'),
-        '--window-size=' + opts.w + ',' + opts.h, '--force-device-scale-factor=1',
+        '--window-size=' + pic.w + ',' + pic.h, '--force-device-scale-factor=1',
+        /* nothing over the page: no "restore pages?" bubble after a kill, no
+         * "unsupported command-line flag" bar (--no-sandbox) */
+        '--hide-crash-restore-bubble', '--test-type',
     ].concat(opts.gpu ? [
         /* GPU mode: ANGLE on the unit's own Mesa 19 GLES (i965), through the
          * EGL shim (env.js, gpu/egl_shim.c); no video engines */
@@ -79,7 +103,7 @@ function args(opts) {
          * --enable-low-end-device-mode: it switches V8 to optimize for size,
          * which slows games. */
         '--disable-site-isolation-trials', '--renderer-process-limit=2',
-        '--disable-features=SpareRendererForSitePerProcess,BackForwardCache',
+        '--disable-features=SpareRendererForSitePerProcess,BackForwardCache,Translate',
         '--force-gpu-mem-available-mb=256', '--force-gpu-mem-discardable-limit-mb=64',
     ]);
     /* loopback (the probe's page) stays direct: Chromium's default */
@@ -95,7 +119,7 @@ class Browser extends EventEmitter {
         this.seq = 0;
         this.pending = new Map();
         this.session = null;
-        this.casting = false;
+        this.wl = null;   /* chromium-wl */
         this.inbuf = '';
         this.url = '';
         this.title = '';
@@ -110,6 +134,58 @@ class Browser extends EventEmitter {
             if (!fs.existsSync(p)) fs.mkdirSync(p, 0o700);
             if (o.uid !== undefined) fs.chownSync(p, o.uid, o.gid);
         });
+        return this._display().then(() => this._chromium());
+    }
+
+    /* chromium-wl, until its socket is up */
+    _display() {
+        const o = this.opts;
+        const pic = picOf(o);
+        /* the socket's folder: chromium-wl (nobody) makes the socket, Chromium's group enters */
+        unpack.mkdirp(path.dirname(env.WL_DIR), 0o755);
+        if (!fs.existsSync(env.WL_DIR)) fs.mkdirSync(env.WL_DIR, 0o750);
+        if (o.uid !== undefined) { fs.chownSync(env.WL_DIR, NOBODY, o.gid); fs.chmodSync(env.WL_DIR, 0o750); }
+        const a = ['--dir', env.WL_DIR, '--socket', env.WL_SOCKET, '--size', pic.w + 'x' + pic.h, '--fps', String(o.fps || FPS)];
+        if (o.uid !== undefined) a.push('--uid', String(NOBODY), '--gid', String(o.gid));
+        if (o.gpu) a.push('--drm', '--device', env.RENDER_NODE, '--unit-lib', env.UNIT_LIB);
+        const w = spawn(WL, a, { env: env.wlEnv(!!o.gpu), stdio: ['pipe', 'pipe', 'pipe'] });
+        this.wl = w;
+        return new Promise((resolve, reject) => {
+            let ready = false, rest = '';
+            w.stdout.setEncoding('utf8');
+            w.stdout.on('data', (d) => {
+                rest += d;
+                let i;
+                while ((i = rest.indexOf('\n')) >= 0) {
+                    const l = rest.slice(0, i);
+                    rest = rest.slice(i + 1);
+                    let e;
+                    try { e = JSON.parse(l); } catch (x) { this.emit('log', 'chromium-wl: ' + l); continue; }
+                    if (e.ev === 'ready' && !ready) { ready = true; resolve(e); }
+                    this.emit('display', e);
+                }
+            });
+            w.stderr.setEncoding('utf8');
+            w.stderr.on('data', (d) => String(d).split('\n').filter((l) => l.trim()).forEach((l) => this.emit('log', 'chromium-wl: ' + l)));
+            w.stdin.on('error', () => { /* it exited: 'exit' says so */ });
+            w.on('error', (e) => { if (!ready) { ready = true; reject(e); } });
+            w.on('exit', (code, sig) => {
+                if (this.wl === w) this.wl = null;
+                if (!ready) { ready = true; reject(new Error('chromium-wl exited (' + (sig || code) + ')')); return; }
+                this.emit('log', 'chromium-wl: exited (' + (sig || code) + ')');
+                /* Chromium can't draw without it */
+                if (this.proc) { try { this.proc.kill('SIGKILL'); } catch (e) { /* gone */ } }
+            });
+        });
+    }
+
+    /* A line for chromium-wl (show FILE, hide, fps N, size WxH). */
+    _wl(line) {
+        if (this.wl) this.wl.stdin.write(line + '\n');
+    }
+
+    _chromium() {
+        const o = this.opts;
         const a = args(o);
         /* into the memory cgroup first, then exec: every Chromium process stays in it */
         const cg = o.cgroup ? 'echo $$ > ' + o.cgroup + '/cgroup.procs 2>/dev/null; ' : '';
@@ -139,7 +215,8 @@ class Browser extends EventEmitter {
         p.on('exit', (code, sig) => {
             this.proc = null;
             this.session = null;
-            this.casting = false;
+            /* its display goes with it */
+            if (this.wl) { try { this.wl.stdin.end(); } catch (e) { /* gone */ } }
             this.pending.forEach((cb) => cb.reject(new Error('chromium exited')));
             this.pending.clear();
             this.emit('exit', code, sig);
@@ -180,13 +257,7 @@ class Browser extends EventEmitter {
     }
 
     _event(m) {
-        if (m.method === 'Page.screencastFrame' && m.sessionId === this.session) {
-            const p = m.params;
-            /* acked once the sink has it (server.js calls ack): Chromium sends the next only then */
-            this.emit('frame', Buffer.from(p.data, 'base64'), p.metadata, () => {
-                this.send('Page.screencastFrameAck', { sessionId: p.sessionId }).catch(() => { /* gone */ });
-            });
-        } else if (m.method === 'Page.frameNavigated' && m.sessionId === this.session && !m.params.frame.parentId) {
+        if (m.method === 'Page.frameNavigated' && m.sessionId === this.session && !m.params.frame.parentId) {
             this.url = m.params.frame.url;
             this.refreshTitle(true);
         } else if (m.method === 'Page.loadEventFired' && m.sessionId === this.session) {
@@ -240,31 +311,42 @@ class Browser extends EventEmitter {
         });
     }
 
-    /* the page's size in CSS pixels, drawn at the scale (devicePixelRatio) */
+    /* the page's size in CSS pixels, drawn at the scale: the page sees it as
+     * devicePixelRatio, and the view is scaled by it into the window (in a
+     * window, unlike headless, deviceScaleFactor alone doesn't draw smaller) */
     _metrics() {
-        return this.send('Emulation.setDeviceMetricsOverride', { width: this.opts.w, height: this.opts.h, deviceScaleFactor: this.opts.scale || 1, mobile: false });
+        const s = this.opts.scale || 1;
+        return this.send('Emulation.setDeviceMetricsOverride', { width: this.opts.w, height: this.opts.h, deviceScaleFactor: s, scale: s, mobile: false });
     }
 
-    /* the resolution, live: touches keep their CSS coordinates; a running
-     * screencast must be restarted for its new size (server.js re-shows) */
+    /* the resolution, live: touches keep their CSS coordinates; the window
+     * takes the pictures' size (a new frame file of that size, when shown,
+     * resizes it too: server.js re-shows) */
     setScale(scale, pic) {
         this.opts.scale = scale;
         this.opts.pic = pic;
+        this._wl('size ' + pic.w + 'x' + pic.h);
         return this.session ? this._metrics() : Promise.resolve();
     }
 
-    screencast(on, quality) {
-        if (on === this.casting || !this.session) return Promise.resolve();
-        this.casting = on;
-        const pic = this.opts.pic || this.opts;
-        return on ? this.send('Page.startScreencast', { format: 'jpeg', quality: quality || 75, maxWidth: pic.w, maxHeight: pic.h, everyNthFrame: 1 })
-            : this.send('Page.stopScreencast');
+    /* Pictures into the frame file (made by screen.js, nobody's) from now on;
+     * its size is the window's. */
+    show(file) { this._wl('show ' + file); }
+    hide() { this._wl('hide'); }
+
+    /* At most fps pictures a second while shown (chromium-wl answers
+     * Chromium's frame callbacks no faster: requestAnimationFrame follows). */
+    setFps(fps) {
+        this.opts.fps = fps;
+        this._wl('fps ' + fps);
     }
 
-    /* phase 1 down, 2 move, 3 up; x, y in the viewport */
+    /* phase 1 down, 2 move, 3 up; x, y in the page's CSS pixels (VIEW's
+     * size), which the window has scaled by the scale (_metrics) */
     touch(phase, x, y) {
         const type = phase === 1 ? 'touchStart' : phase === 2 ? 'touchMove' : 'touchEnd';
-        return this.send('Input.dispatchTouchEvent', { type: type, touchPoints: phase === 3 ? [] : [{ x: x, y: y, id: 1 }] });
+        const s = this.opts.scale || 1;
+        return this.send('Input.dispatchTouchEvent', { type: type, touchPoints: phase === 3 ? [] : [{ x: x * s, y: y * s, id: 1 }] });
     }
 
     text(s) { return this.send('Input.insertText', { text: String(s) }); }
@@ -319,7 +401,10 @@ class Browser extends EventEmitter {
     }
 
     stop() {
-        if (!this.proc) return;
+        if (!this.proc) {
+            if (this.wl) { try { this.wl.stdin.end(); } catch (e) { /* gone */ } }
+            return;
+        }
         const p = this.proc;
         this.send('Browser.close', {}, null).catch(() => { /* gone */ });
         setTimeout(() => { try { p.kill('SIGKILL'); } catch (e) { /* gone */ } }, 5000);

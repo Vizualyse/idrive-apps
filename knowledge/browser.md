@@ -267,6 +267,7 @@ refuse scripts; `git` works) and a web search.
   URL commits: wait for `location.href`.
 - `Page.startScreencast` (JPEG) works headless; pictures come only when the
   page changes, one in flight until acked. Its JPEGs are BT.601 full range.
+  Used until 0.2.4; it cost more than the page (below).
 - `document.title` changed by a script fires no DevTools event: poll it.
 - **A device scale factor below 1 works headless** (rootfs container,
   2026-11-06): `Emulation.setDeviceMetricsOverride` with 1790x638 and 0.75 /
@@ -275,6 +276,44 @@ refuse scripts; `git` works) and a web search.
   rounding). Touches stay in CSS pixels. mgu-render's VIDEO op scales a
   smaller frame up (aspect kept, `GL_LINEAR`: mgu-store `gfx.c`
   `draw_video`).
+- **On its Wayland backend into a compositor of our own (0.2.5,
+  chromium-wl; off the car, 2026-11-06).** Debian's Chromium 156 runs with
+  `--ozone-platform=wayland --kiosk` against a minimal compositor
+  (wl_compositor, wl_subcompositor, wl_shm, xdg_wm_base, wl_output, wl_seat
+  with no keymap): one full-screen toplevel, all of it in one shared-memory
+  buffer per frame (no subsurfaces), committed only after the last frame
+  callback, so answering callbacks no faster than N a second caps
+  requestAnimationFrame at N. Its libwayland is built in (no
+  `libwayland-client` NEEDED). Same animated page at 1790x638, 4 cores:
+  headless + screencast 59 pictures/s for ~143 % of a core (browser process
+  66 %, GPU process 65 %, renderer 12 %, before decoding the JPEGs);
+  Wayland 62/s for ~29 %, libyuv's ARGBToJ420 0.5 ms a picture.
+  - It refuses Vulkan on Wayland (`'--ozone-platform=wayland' is not
+    compatible with Vulkan`): compositing is software; WebGL and WebGPU still
+    run on ANGLE / Dawn over SwiftShader.
+  - A browser window is **never narrower than 500 px** (configured 320 wide,
+    it drew 500).
+  - **In a window `Emulation.setDeviceMetricsOverride`'s `deviceScaleFactor`
+    only changes `devicePixelRatio`**: the page is still drawn at 1 and cut
+    off. With `scale` set to the same factor the 1790x638 CSS page is drawn
+    into the smaller window; `Input.dispatchTouchEvent` then wants window
+    pixels (CSS x scale). `--force-device-scale-factor` works too but needs a
+    restart.
+  - A title change draws nothing: after showing, a still page sends no new
+    frame (chromium-wl keeps the last one from while hidden).
+  - The GPU mode: Ozone Wayland has ANGLE ask for a **GBM platform display on
+    Chromium's own GBM device** (made on the render node it finds with
+    `drmGetDevices2`), or with **no device** when it finds none; Mesa's GBM
+    platform without a device opens `/dev/dri/card0`. ANGLE's
+    `FunctionsEGL::initialize` (main, 2026): Wayland platform only if built
+    with ANGLE_USE_WAYLAND, then the "preferred" device display (needs
+    `EGL_EXT_platform_device`, which Mesa 19 lacks), then
+    `eglGetPlatformDisplayEXT` for surfaceless / GBM / Wayland types (each
+    gated on its client extension), else `eglGetDisplay(native)`; a failure
+    is "Failed to get system egl display". The shim maps surfaceless,
+    Wayland, X11 and device-less GBM displays to its render-node GBM display.
+    Chromium's frames then reach the compositor as GBM buffers over wl_drm
+    (PRIME): **not yet seen on a GPU**.
 - `--proxy-server` keeps loopback direct by default (`<-loopback>` would
   send it through the proxy).
 - Without D-Bus Chromium logs a few dozen `dbus/bus.cc` errors at start:

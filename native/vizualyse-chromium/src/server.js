@@ -10,15 +10,17 @@
  * - The bundle (chromium.tgz: Debian's Chromium 156 with its own glibc,
  *   tools/bundle.sh) is unpacked once into
  *   /var/opt/vizualyse-chromium/chromium (unpack.js).
- * - Chromium runs headless as the tool's uid 12997 (mgu-uplink routes it to
+ * - Chromium runs as the tool's uid 12997 (mgu-uplink routes it to
  *   the internet, through proxy.js and the phone's DNS), in its own group
  *   (never video: no GPU access), in a memory cgroup capped at the memory setting, driven over
  *   DevTools on a pipe (browser.js). At each start probe() checks JSPI,
  *   WebGL 2 and WebGPU on a local page and saves what it found, chrome://gpu
  *   too, in STATE_DIR (gpu.json, gpu.txt) and the journal (@gpu).
- * - Shown: the page's screencast (JPEG) goes through chromium-sink into
- *   mgu-render's frame file, in the app area (screen.js); the display's
- *   touches inside it become the page's touches.
+ * - Its pictures: Chromium draws on its Wayland backend into chromium-wl,
+ *   our own compositor, which puts them straight into mgu-render's frame
+ *   file while shown (browser.js; no JPEG since 0.2.5), in the app area
+ *   (screen.js); the display's touches inside it (chromium-touch) become
+ *   the page's touches.
  * - Only while parked: the iDrive app sends the speed; above 3 km/h the page
  *   is hidden and can't be shown.
  *
@@ -85,10 +87,10 @@ const PRESSURE_MS = 15000;
  * stays VIEW's size in CSS pixels, so touches map as they are) and
  * mgu-render scales the smaller pictures up to the app area. Fewer pixels:
  * less drawing (SwiftShader draws on the CPU), smaller buffers, cheaper
- * JPEGs; a page sees devicePixelRatio 0.75 or 0.5. */
+ * conversions; a page sees devicePixelRatio 0.75 or 0.5. */
 const SCALES = [1, 0.75, 0.5];
 /* the pictures' size at a scale: Chromium rounds its own way (1341x478 at
- * 0.75), the sink crops to the frame: a multiple of 4, at least 16 */
+ * 0.75), chromium-wl crops to the frame: a multiple of 4, at least 16 */
 function picSize(s) {
     if (s === 1) return { w: VIEW.w, h: VIEW.h };
     return { w: Math.max(16, Math.floor(VIEW.w * s) & ~3), h: Math.max(16, Math.floor(VIEW.h * s) & ~3) };
@@ -96,7 +98,6 @@ function picSize(s) {
 const MEM_DEFAULT = Number(process.env.CHROMIUM_MEM_MB) || 1536;
 const MAX_KMH = 3;
 const DEFAULT_URL = 'https://webglreport.com/?v=2';
-const JPEG_QUALITY = 75;
 
 const log = (s) => console.log(new Date().toISOString() + ' ' + s);
 
@@ -197,8 +198,10 @@ let browserState = 'off';                 /* off | starting | running | crashed 
 let restarts = [];                        /* the times of recent unplanned exits */
 let gpu = readJson(path.join(env.STATE_DIR, 'gpu.json'));
 let lastError = null;
+/* pictures into the frame file, and chromium-wl's time for each (decodeMs:
+ * the name from when they were JPEGs, kept for the iDrive app) */
 let stats = { pictures: 0, decodeMs: 0 };
-const screen = new Screen(log, path.join(env.BUNDLE, 'chromium-sink'));
+const screen = new Screen(log, path.join(env.BUNDLE, 'chromium-touch'));
 let wantShown = false;
 
 /* ---- the GPU mode ------------------------------------------------------------ */
@@ -271,9 +274,10 @@ function startBrowser() {
         if (/^https?:/.test(n.url) && n.url !== settings.url) { settings.url = n.url; saveSettings(); }
         if (control) control.broadcast();
     });
-    b.on('frame', (jpeg, meta, ack) => {
-        stats.pictures++;
-        screen.picture(jpeg, ack);
+    b.on('display', (e) => {
+        if (e.ev === 'stats') { stats.pictures += e.pictures; stats.decodeMs = e.ms; }
+        else if (e.ev === 'ready') log('display: ready ' + e.size.join('x') + (e.drm ? ', GPU buffers read through ' + e.device : ', shared memory') + ', uid ' + e.uid);
+        else if (e.ev === 'error') log('display: ' + e.error);
     });
     b.on('exit', (code, sig) => {
         log('chromium: exited (' + (sig || code) + ')' + (quiet ? ', ' + quiet + ' quiet lines' : ''));
@@ -362,10 +366,8 @@ screen.on('touch', (e) => {
     const cx = Math.max(0, Math.min(VIEW.w - 1, x)), cy = Math.max(0, Math.min(VIEW.h - 1, y));
     browser.touch(e.p, cx, cy).catch((err) => log('touch: ' + err.message));
 });
-screen.on('stats', (e) => { stats.decodeMs = e.ms; });
-screen.on('sink-error', (e) => log('sink: ' + e.error));
-screen.on('ready', (e) => log('sink: ready ' + e.w + 'x' + e.h + ', touch ' + e.touch + ', uid ' + e.uid));
-screen.on('gone', () => { if (wantShown && !stopping) { log('screen: the sink went away; hidden'); hide('the sink exited'); } });
+screen.on('touch-error', (e) => log('touch: ' + e.error));
+screen.on('ready', (e) => log('touch: ready, ' + (e.touch ? 'reading' : 'none') + ', uid ' + e.uid));
 
 function show() {
     wantShown = true;
@@ -373,8 +375,7 @@ function show() {
     if (!browser || browserState !== 'running') return null;   /* shown once it runs */
     if (screen.shown()) return null;
     const touch = TOUCH_FILE ? { file: TOUCH_FILE } : TOUCH_IFACE ? { iface: TOUCH_IFACE, src: TOUCH_SRC } : null;
-    screen.show(VIEW, touch, picSize(settings.scale));
-    browser.screencast(true, JPEG_QUALITY).catch((e) => log('screencast: ' + e.message));
+    screen.show(VIEW, touch, picSize(settings.scale), browser);
     log('screen: shown');
     return null;
 }
@@ -382,7 +383,6 @@ function show() {
 function hide(why) {
     wantShown = false;
     touchDown = false;
-    if (browser) browser.screencast(false).catch(() => { /* gone */ });
     if (screen.shown()) { screen.hide(); log('screen: hidden (' + why + ')'); }
 }
 
@@ -513,8 +513,8 @@ function setRoom(on) {
     return null;
 }
 
-/* The resolution, live: the page's scale factor, then (when shown) the frame
- * file and the screencast again at the new size. */
+/* The resolution, live: the page's scale factor and the window's size, then
+ * (when shown) the frame file again at the new size. */
 function setScale(v) {
     v = Number(v);
     if (SCALES.indexOf(v) < 0) return 'the resolution is one of ' + SCALES.join(', ');

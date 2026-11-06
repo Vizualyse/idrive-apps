@@ -3,13 +3,15 @@
 The tool's own code (`src/`, `sink/`, `tools/`, `test/`) is GPL-3.0-or-later
 (`LICENSE`). `chromium.tgz` holds binaries from **Debian 13 (trixie)**,
 unchanged except for the program interpreter that `patchelf` points at the
-bundle's own loader in `chromium` and `chrome_crashpad_handler`:
+bundle's own loader in `chromium`, `chrome_crashpad_handler` and `chromium-wl`:
 
 | What | Debian package (version) | Licence |
 |---|---|---|
 | Chromium | `chromium` 156.0.8078.79-1~deb13u1 | BSD-3-Clause and others (`licenses/chromium.txt`) |
 | GNU C library | `libc6` 2.41 | LGPL-2.1-or-later |
-| libjpeg-turbo (chromium-sink) | `libturbojpeg0` | IJG, BSD-3-Clause, Zlib |
+| libyuv (chromium-wl) | `libyuv0` | BSD-3-Clause |
+| Wayland (chromium-wl) | `libwayland-server0`, `libwayland-client0` | MIT |
+| `sink/protocol/wayland-drm.xml` | Mesa's wl_drm protocol | MIT (Kristian Høgsberg, Intel) |
 | DejaVu and Liberation fonts | `fonts-dejavu-core`, `fonts-liberation` | Bitstream Vera licence; SIL OFL 1.1 |
 | every other library they load | listed in the bundle's `VERSION` | each package's own |
 

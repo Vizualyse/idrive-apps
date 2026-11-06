@@ -4,7 +4,7 @@
  * Where the bundle lives and the environment Chromium runs in.
  *
  * The bundle (build/chromium.tgz, tools/bundle.sh) is unpacked at BUNDLE: its
- * chromium and chromium-sink ask for BUNDLE/lib/ld-linux-x86-64.so.2 by
+ * chromium, chromium-wl and chromium-touch ask for BUNDLE/lib/ld-linux-x86-64.so.2 by
  * absolute path, so it can live nowhere else. Every library comes from
  * BUNDLE/lib (LD_LIBRARY_PATH): the unit's own glibc 2.27 is never loaded.
  *
@@ -32,6 +32,10 @@ const GPU_LIBS = ROOT + '/gpu-libs';
 const UNIT_LIB = process.env.CHROMIUM_UNIT_LIB || '/usr/lib';
 const UNIT_EGL = UNIT_LIB + '/libEGL.so.1';
 const RENDER_NODE = process.env.CHROMIUM_RENDER_NODE || '/dev/dri/renderD128';
+/* The browser's display (chromium-wl): its Wayland socket WL_DIR/WL_SOCKET,
+ * in a folder only it and Chromium's group can enter (a tmpfs on the unit) */
+const WL_DIR = process.env.CHROMIUM_WL_DIR || '/run/vizualyse-chromium';
+const WL_SOCKET = 'wayland-0';
 /* the unit's libraries Mesa 19's libEGL and i965 must get, not the bundle's */
 const UNIT_LIBS = ['libGLESv2.so.2', 'libgbm.so.1', 'libglapi.so.0', 'libwayland-client.so.0', 'libwayland-server.so.0', 'libffi.so.6'];
 
@@ -68,6 +72,9 @@ function chromiumEnv(gpu) {
         VK_ICD_FILENAMES: icd(),
         VK_DRIVER_FILES: icd(),
         FONTCONFIG_FILE: BUNDLE + '/etc/fonts/fonts.conf',
+        /* it draws on chromium-wl (--ozone-platform=wayland) */
+        XDG_RUNTIME_DIR: WL_DIR,
+        WAYLAND_DISPLAY: WL_SOCKET,
     };
     if (gpu) {
         e.LD_LIBRARY_PATH = GPU_LIBS + ':' + BUNDLE + '/lib';
@@ -81,4 +88,15 @@ function chromiumEnv(gpu) {
     return e;
 }
 
-module.exports = { ROOT, BUNDLE, PROFILE, STATE_DIR, GPU_LIBS, UNIT_EGL, RENDER_NODE, chromiumEnv, icd, gpuLibs };
+/* chromium-wl's: the bundle's libraries; in the GPU mode it loads the unit's
+ * Mesa 19 itself, by path (UNIT_LIB), to read Chromium's GPU buffers. */
+function wlEnv(gpu) {
+    const e = { PATH: '/usr/bin:/bin', LD_LIBRARY_PATH: BUNDLE + '/lib' };
+    if (gpu) {
+        e.LIBGL_DRIVERS_PATH = UNIT_LIB + '/dri';
+        e.MESA_GLSL_CACHE_DISABLE = '1';   /* nobody: no cache folder, and no shaders to keep */
+    }
+    return e;
+}
+
+module.exports = { ROOT, BUNDLE, PROFILE, STATE_DIR, GPU_LIBS, UNIT_LIB, UNIT_EGL, RENDER_NODE, WL_DIR, WL_SOCKET, chromiumEnv, wlEnv, icd, gpuLibs };

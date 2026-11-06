@@ -11,7 +11,10 @@
  *    platform, which opens /dev/dri/card0 (the display, Winston's) and has no
  *    surfaceless platform. Here the default display becomes a GBM display on
  *    the render node (/dev/dri/renderD128, group video), as Mesa's
- *    EGL_MESA_platform_gbm offers: no card0, no root, no Wayland.
+ *    EGL_MESA_platform_gbm offers: no card0, no root, no Wayland. Since
+ *    0.2.5 Chromium runs on its Wayland backend and ANGLE passes its
+ *    wl_display instead: that, and a Wayland or X11 platform display, get the
+ *    same GBM display (Chromium's frames reach chromium-wl as GBM buffers).
  *
  * 2. Pbuffers. Chromium wants an EGL config with EGL_PBUFFER_BIT for its
  *    offscreen surfaces (ui/gl/gl_surface_egl.cc ChooseConfig), and ANGLE
@@ -89,8 +92,9 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static void *real;
 static egl_fn (*real_gpa)(const char *);
-static EGLDisplay (*real_get_display)(EGLNativeDisplayType);
 static EGLDisplay (*real_gpd_ext)(EGLenum, void *, const EGLint *);
+static EGLDisplay (*real_gpd)(EGLenum, void *, const intptr_t *);   /* EGL 1.5, EGLAttrib */
+static const char *(*real_query_string)(EGLDisplay, EGLint);
 static EGLBoolean (*real_choose_config)(EGLDisplay, const EGLint *, EGLConfig *, EGLint, EGLint *);
 static EGLBoolean (*real_get_config_attrib)(EGLDisplay, EGLConfig, EGLint, EGLint *);
 static EGLSurface (*real_create_window_surface)(EGLDisplay, EGLConfig, EGLNativeWindowType, const EGLint *);
@@ -131,12 +135,13 @@ static void load(void)
         return;
     }
     real_gpa = (egl_fn (*)(const char *))dlsym(real, "eglGetProcAddress");
-    real_get_display = (EGLDisplay (*)(EGLNativeDisplayType))dlsym(real, "eglGetDisplay");
     if (!real_gpa) {
         say("%s has no eglGetProcAddress", path);
         return;
     }
     REAL(real_gpd_ext, "eglGetPlatformDisplayEXT");
+    REAL(real_gpd, "eglGetPlatformDisplay");
+    REAL(real_query_string, "eglQueryString");
     REAL(real_choose_config, "eglChooseConfig");
     REAL(real_get_config_attrib, "eglGetConfigAttrib");
     REAL(real_create_window_surface, "eglCreateWindowSurface");
@@ -176,19 +181,69 @@ static void *gbm_device(void)
     return gbm_dev;
 }
 
+/* Every native display is the GBM one: headless Chromium asks for the
+ * default display, Chromium on Wayland (0.2.5) passes its own wl_display,
+ * which Mesa's Wayland platform can't use (Chromium's libwayland is its own,
+ * built in) and doesn't need (Chromium hands its GBM buffers to chromium-wl
+ * itself, over wl_drm). */
 static EGLDisplay shim_get_display(EGLNativeDisplayType d)
 {
+    (void)d;
     pthread_once(&once, load);
-    if (!real || !real_get_display)
-        return EGL_NO_DISPLAY;
-    if (d != EGL_DEFAULT_DISPLAY)
-        return real_get_display(d);
-    if (!real_gpd_ext)
+    if (!real || !real_gpd_ext)
         return EGL_NO_DISPLAY;
     pthread_mutex_lock(&lock);
     void *g = gbm_device();
     pthread_mutex_unlock(&lock);
     return g ? real_gpd_ext(EGL_PLATFORM_GBM_MESA, g, NULL) : EGL_NO_DISPLAY;
+}
+
+/* eglGetPlatformDisplay(EXT): a surfaceless, Wayland or X11 display becomes
+ * the GBM one too. Chromium on Wayland asks ANGLE for a surfaceless display
+ * (it draws into GBM buffers of its own); Mesa 19 wasn't built with that
+ * platform, so the client extensions say it is there (shim_query_string). */
+#define EGL_PLATFORM_X11_KHR 0x31D5
+#define EGL_PLATFORM_WAYLAND_KHR 0x31D8
+#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
+#define EGL_EXTENSIONS 0x3055
+typedef intptr_t EGLAttrib;
+/* ...and a GBM display without a device: Chromium on Wayland asks for a GBM
+ * platform display on the GBM device it made on the render node (passed on
+ * as it is), or on none when it found no render node, and Mesa's GBM
+ * platform without a device opens /dev/dri/card0, Winston's. */
+static int ours(EGLenum platform, void *native)
+{
+    return platform == EGL_PLATFORM_SURFACELESS_MESA || platform == EGL_PLATFORM_WAYLAND_KHR || platform == EGL_PLATFORM_X11_KHR
+        || (platform == EGL_PLATFORM_GBM_MESA && !native);
+}
+static EGLDisplay shim_get_platform_display_ext(EGLenum platform, void *native, const EGLint *attribs)
+{
+    pthread_once(&once, load);
+    if (!real_gpd_ext)
+        return EGL_NO_DISPLAY;
+    if (ours(platform, native))
+        return shim_get_display(native);
+    return real_gpd_ext(platform, native, attribs);
+}
+static EGLDisplay shim_get_platform_display(EGLenum platform, void *native, const EGLAttrib *attribs)
+{
+    pthread_once(&once, load);
+    if (ours(platform, native))
+        return shim_get_display(native);
+    return real_gpd ? real_gpd(platform, native, attribs) : EGL_NO_DISPLAY;
+}
+
+static const char *shim_query_string(EGLDisplay dpy, EGLint name)
+{
+    static char ext[4096];
+    const char *s = real_query_string(dpy, name);
+    if (dpy != EGL_NO_DISPLAY || name != EGL_EXTENSIONS || !s || strstr(s, "EGL_MESA_platform_surfaceless"))
+        return s;
+    pthread_mutex_lock(&lock);
+    if (!ext[0])
+        snprintf(ext, sizeof ext, "%s EGL_MESA_platform_surfaceless", s);
+    pthread_mutex_unlock(&lock);
+    return ext;
 }
 
 /* Configs with window surfaces count as pbuffer-capable too (the pbuffers
@@ -333,6 +388,12 @@ VISIBLE egl_fn eglGetProcAddress(const char *name)
         return NULL;
     if (strcmp(name, "eglGetDisplay") == 0)
         return (egl_fn)eglGetDisplay;
+    if (strcmp(name, "eglGetPlatformDisplayEXT") == 0 && real_gpd_ext)
+        return (egl_fn)shim_get_platform_display_ext;
+    if (strcmp(name, "eglGetPlatformDisplay") == 0 && real_gpd_ext)
+        return (egl_fn)shim_get_platform_display;
+    if (strcmp(name, "eglQueryString") == 0 && real_query_string)
+        return (egl_fn)shim_query_string;
     if (strcmp(name, "eglGetConfigAttrib") == 0 && real_get_config_attrib)
         return (egl_fn)shim_get_config_attrib;
     if (strcmp(name, "eglChooseConfig") == 0 && real_choose_config)

@@ -3,11 +3,11 @@
 # Copyright (C) 2026 Yousaf Khan
 #
 # Builds build/chromium.tgz: Debian trixie's Chromium with every
-# library it loads, chromium-sink (sink/) beside them, all on their own
+# library it loads, chromium-wl and chromium-touch (sink/) beside them, all on their own
 # loader, to unpack at /var/opt/vizualyse-chromium/chromium on the unit
 # (tools/bundle.sh says why and what). In the image from image/Dockerfile;
 # fixed paths, sorted and dated tar: two builds give the same bytes.
-# Runs sink/yuv_test.c first. Kept when its inputs haven't changed.
+# Kept when its inputs haven't changed.
 # Run by the packer (component.json "build"), or by hand:
 #   sh native/vizualyse-chromium/build.sh
 set -eu
@@ -31,7 +31,7 @@ if ! docker image inspect $IMG >/dev/null 2>&1; then
 fi
 [ "${1:-}" = image ] && exit 0
 mkdir -p "$HERE/build"
-key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/sink/* "$HERE"/gpu/*; docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
+key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/sink/*.[ch] "$HERE"/sink/protocol/* "$HERE"/gpu/*; docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
 if [ -f "$HERE/build/chromium.tgz" ] && [ "$(cat "$HERE/build/chromium.key" 2>/dev/null)" = "$key" ]; then
     echo "chromium.tgz: up to date ($key)"
     exit 0

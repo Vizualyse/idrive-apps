@@ -4,22 +4,25 @@
  * The browser on the central display through mgu-render (as
  * vizualyse-moonlight's console_out.js): a frame file
  * /dev/shm/mgu-video-vizualyse_chromium (64-byte MGVF header, 3 I420 slots)
- * that chromium-sink fills, and an mgu-render client in layer mode that
- * shows it in the app area (1790x638 at +108+82 of 1920x720 on the car), so
- * the HMI's top bar and left strip stay visible and usable: its back arrow
- * leaves the iDrive page, and the app then hides the browser. Root, so the
- * renderer's foreground gate does not apply; the renderer hides layer apps
- * itself while the reversing camera shows. A draw once a second keeps it
- * up (the renderer redraws the last frame for each new picture).
+ * that the browser's display (chromium-wl, browser.js) fills, and an
+ * mgu-render client in layer mode that shows it in the app area (1790x638
+ * at +108+82 of 1920x720 on the car), so the HMI's top bar and left strip
+ * stay visible and usable: its back arrow leaves the iDrive page, and the
+ * app then hides the browser. Root, so the renderer's foreground gate does
+ * not apply; the renderer hides layer apps itself while the reversing camera
+ * shows. A draw once a second keeps it up (the renderer redraws the last
+ * frame for each new picture).
  *
- * The sink also reads the display's touches (passively, nothing claimed:
- * knowledge/central-screen.md) and says them as events; server.js turns
- * those inside the area into the page's touches.
+ * The frame file is nobody's: chromium-wl runs as nobody (mgu-render takes
+ * a file of the app's uid, root or nobody).
+ *
+ * chromium-touch reads the display's touches while shown (passively,
+ * nothing claimed: knowledge/central-screen.md) and says them as events;
+ * server.js turns those inside the area into the page's touches.
  */
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const { spawn } = require('child_process');
 const EventEmitter = require('events');
 
@@ -28,6 +31,7 @@ const NAME = 'vizualyse_chromium';
 const FILE = process.env.CHROMIUM_VIDEO_FILE || '/dev/shm/mgu-video-' + NAME;
 const MAGIC = 0x4656474d, NSLOT = 3, HEADER = 64;
 const VIDEO_ID = 1;
+const NOBODY = 65534;
 
 function available() { try { return fs.statSync(CLIENT).isFile(); } catch (e) { return false; } }
 
@@ -37,66 +41,43 @@ function frameFile(file, w, h) {
     try {
         fs.ftruncateSync(fd, HEADER + NSLOT * w * h * 3 / 2);
         const b = Buffer.alloc(HEADER);
-        /* JPEG's colours: BT.601, full range (chromium-sink sets them too) */
+        /* BT.601, full range (chromium-wl's libyuv J420; it sets them too) */
         [MAGIC, 1, w, h, 0, 0, NSLOT, 0, 1].forEach((v, i) => b.writeUInt32LE(v >>> 0, i * 4));
         fs.writeSync(fd, b, 0, HEADER, 0);
+        /* chromium-wl writes it as nobody */
+        if (process.getuid && process.getuid() === 0) fs.fchownSync(fd, NOBODY, NOBODY);
     } finally {
         fs.closeSync(fd);
     }
 }
 
-/* view: { x, y, w, h } on the screen; sink: the chromium-sink path;
+/* touchPath: chromium-touch. show(): view { x, y, w, h } on the screen;
  * touch: { iface, src } or { file } or null; frame: { w, h } of the pictures
  * when smaller than the view (the resolution setting: mgu-render's VIDEO op
- * fits them to the view, aspect kept, linear filtering). Events: 'touch' {p, x, y}
- * (screen pixels), 'stats', 'sink-error', 'ready', 'gone' (the sink exited). */
+ * fits them to the view, aspect kept, linear filtering); display: what fills
+ * the frame file ({ show(file), hide() }: the browser). Events: 'touch'
+ * {p, x, y} (screen pixels), 'touch-error', 'ready' (chromium-touch's). */
 class Screen extends EventEmitter {
-    constructor(log, sinkPath) {
+    constructor(log, touchPath) {
         super();
         this.log = log;
-        this.sinkPath = sinkPath;
+        this.touchPath = touchPath;
         this.gpu = null;
-        this.sink = null;
+        this.touch = null;
         this.view = null;
-        this.pending = 0;
+        this.display = null;
     }
 
-    shown() { return !!this.sink; }
+    shown() { return !!this.view; }
 
-    show(view, touch, frame) {
+    show(view, touch, frame, display) {
         this.hide();
         this.view = view;
         const f = frame || view;
         frameFile(FILE, f.w, f.h);
-        const args = ['--frame', FILE];
-        if (touch && touch.iface) args.push('--touch-iface', touch.iface, '--touch-src', touch.src);
-        else if (touch && touch.file) args.push('--touch-file', touch.file);
-        const sink = spawn(this.sinkPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-        this.sink = sink;
-        this.pending = 0;
-        let rest = '';
-        sink.stdout.setEncoding('utf8');
-        sink.stdout.on('data', (d) => {
-            rest += d;
-            let i;
-            while ((i = rest.indexOf('\n')) >= 0) {
-                const l = rest.slice(0, i);
-                rest = rest.slice(i + 1);
-                let e;
-                try { e = JSON.parse(l); } catch (x) { this.log('sink: ' + l); continue; }
-                /* 'error' would throw without a listener */
-                this.emit(e.ev === 'error' ? 'sink-error' : e.ev, e);
-            }
-        });
-        sink.stderr.on('data', (d) => this.log('sink: ' + String(d).trim()));
-        sink.stdin.on('error', () => { /* it exited: 'exit' says so */ });
-        sink.on('exit', (code, sig) => {
-            if (this.sink === sink) {
-                this.log('sink: exited (' + (sig || code) + ')');
-                this.sink = null;
-                this.emit('gone');
-            }
-        });
+        this.display = display;
+        display.show(FILE);
+        if (touch) this._touch(touch);
 
         if (!available()) { this.log('screen: no mgu-render client at ' + CLIENT); return; }
         const { RenderClient, videoOp } = require(CLIENT);
@@ -122,20 +103,36 @@ class Screen extends EventEmitter {
         this.keepAlive = setInterval(() => this._draw(), 1000);
     }
 
+    /* chromium-touch: touches while shown; losing it loses touch, not the picture */
+    _touch(touch) {
+        const args = touch.iface ? ['--touch-iface', touch.iface, '--touch-src', touch.src] : ['--touch-file', touch.file];
+        const t = spawn(this.touchPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        this.touch = t;
+        let rest = '';
+        t.stdout.setEncoding('utf8');
+        t.stdout.on('data', (d) => {
+            rest += d;
+            let i;
+            while ((i = rest.indexOf('\n')) >= 0) {
+                const l = rest.slice(0, i);
+                rest = rest.slice(i + 1);
+                let e;
+                try { e = JSON.parse(l); } catch (x) { this.log('touch: ' + l); continue; }
+                /* 'error' would throw without a listener */
+                this.emit(e.ev === 'error' ? 'touch-error' : e.ev, e);
+            }
+        });
+        t.stderr.on('data', (d) => this.log('touch: ' + String(d).trim()));
+        t.stdin.on('error', () => { /* it exited: 'exit' says so */ });
+        t.on('exit', (code, sig) => {
+            if (this.touch === t) { this.log('touch: exited (' + (sig || code) + ')'); this.touch = null; }
+        });
+    }
+
     _draw() {
         if (!this.gpu || !this.view) return;
         const op = this.videoOp(VIDEO_ID, 0, 0, this.view.w, this.view.h, 0);
         this.gpu.frameWords(op instanceof Uint32Array ? op : Uint32Array.from(op));
-    }
-
-    /* A JPEG for the sink; done() once it has it (the screencast's ack: one
-     * picture in flight, so a slow decode drops pictures in Chromium, not here). */
-    picture(jpeg, done) {
-        if (!this.sink) return done();
-        const h = Buffer.alloc(4);
-        h.writeUInt32LE(jpeg.length, 0);
-        this.sink.stdin.write(h);
-        this.sink.stdin.write(jpeg, () => done());
     }
 
     hide() {
@@ -144,11 +141,12 @@ class Screen extends EventEmitter {
             try { this.gpu.show(false); this.gpu.video(VIDEO_ID, null); this.gpu.close(); } catch (e) { /* gone */ }
             this.gpu = null;
         }
-        if (this.sink) {
-            const s = this.sink;
-            this.sink = null;
-            try { s.stdin.end(); } catch (e) { /* gone */ }
-            setTimeout(() => { try { s.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000);
+        if (this.display) { this.display.hide(); this.display = null; }
+        if (this.touch) {
+            const t = this.touch;
+            this.touch = null;
+            try { t.stdin.end(); } catch (e) { /* gone */ }
+            setTimeout(() => { try { t.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000);
         }
         this.view = null;
         try { fs.unlinkSync(FILE); } catch (e) { /* none */ }

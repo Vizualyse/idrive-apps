@@ -4,7 +4,8 @@
 # Where vizualyse-chromium's bundle comes from: Debian trixie's Chromium
 # (open source, WebGPU through Dawn, JSPI on by default since 137) with every
 # library it loads, glibc included (the unit's is 2.27). build.sh copies them
-# out (tools/bundle.sh).
+# out (tools/bundle.sh). And what chromium-wl (sink/wl.c), the browser's own
+# Wayland display, is built with: libwayland-server, libyuv.
 #
 # **No GPU driver** (since 0.1.2): 0.1.1 bundled Mesa 22.3's ANV (Vulkan),
 # which hung in the unit's 4.14 i915 (i915_gem_context_open) holding the DRM
@@ -26,5 +27,5 @@ RUN rm -f /etc/apt/sources.list.d/* && printf '%s\n' \
         chromium=$CHROMIUM chromium-common=$CHROMIUM \
         libegl1 libgles2 libvulkan1 libpci3 \
         fontconfig fonts-dejavu-core fonts-liberation \
-        gcc libc6-dev libturbojpeg0-dev patchelf file binutils xz-utils ca-certificates python3 \
+        gcc libc6-dev pkg-config libwayland-dev wayland-protocols libyuv-dev patchelf file binutils xz-utils ca-certificates python3 \
     && rm -rf /var/lib/apt/lists/*
