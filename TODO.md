@@ -155,6 +155,51 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   evdev to read on the unit).
 - [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
+## Steam games (vizualyse-steam, off the car only so far)
+
+Windows indie games run on the unit through Proton with
+`PROTON_USE_WINED3D=1` (Direct3D on OpenGL: no Vulkan on the 4.14 kernel)
+and its Wayland driver (the unit's EGL has no X11), into our own compositor
+(`wl-sink`), whose pictures go into an mgu-render frame file. The bench
+([`native/vizualyse-steam`](native/vizualyse-steam), `test/run_bench.sh`)
+runs GE-Proton11-11 on the unit's own Mesa 19 with tools/gpu-bench's
+stand-ins (2026-11-06): GDI and Direct3D 9, 64- and 32-bit (new WoW64,
+`PROTON_USE_WOW64=1`: no 32-bit glibc or Mesa needed), the right pixels on
+`swrast`. **Ask before running anything on the unit.**
+
+- [ ] **GL frames as GPU buffers:** frames reach `wl-sink` as shared-memory
+  copies (`"drm":0`) and Wine uses its generic EGL driver (`egldrv_make_current
+  HACK`), not the Wayland driver's EGL window surfaces; find why, so that
+  frames come as `wl_drm` PRIME buffers (the Atom can't afford the copies).
+- [ ] **32-bit D3D9 on `stub` exits 1 at teardown** after a full run
+  (`wined3d_device_cleanup Context array not freed!`; 64-bit and `swrast`
+  are fine).
+- [ ] **Proton's full-screen gamma shader** doesn't build: GLSL 3.30 on
+  `swrast` (llvmpipe 19 is GL 3.1), "vertex shader lacks main" on i965.
+  Matters for games that set gamma; check what Proton does without it.
+- [ ] **The adapter's name:** WineD3D doesn't know Mesa's "HD Graphics 505
+  (Broxton)" and reports an HD 4000 / GeForce 8800 instead; games choose
+  settings from it. Set it (the `VideoPciDeviceID` / `VideoPciVendorID`
+  registry keys) or teach the table.
+- [ ] **Controllers:** `t_xinput` with test/usbip_pad.c's virtual Vader 4
+  Pro (as Moonlight's tests): Proton's winebus through SDL2 (built with
+  hidapi on libusb, as the car has no evdev / HID / uinput), else an XInput
+  DLL fed by Moonlight's `pads.c`.
+- [ ] **Input and sound:** touch as the pointer (the display's PDUs, as the
+  browser), `wl-sink`'s keyboard has no keymap yet; Wine's ALSA into
+  SmartXbar as Moonlight does.
+- [ ] **The tool:** Proton and its prefix in `/var/opt` (a prefix takes a
+  minute to make even on a PC: make it off the car), its own glibc as the
+  browser's bundle, games downloaded with DepotDownloader (Steam Guard on the
+  phone page), cgroup memory cap, `RLIMIT_CORE=1` (a game's exe name isn't
+  on crashhandler's list), only while parked.
+- [ ] **On the car (asked first):** tools/gpu-bench's `gltest --desktop-gl`
+  on the real HD 505 (desktop GL 4.5 seen only on the shim), then `wl-sink`
+  and `t_d3d9` with pixels;
+  read-only: `df` / `mount` for `/var/opt/hdshare` (an 85 GB disk in our
+  rootfs copy's facts) and a USB stick (udisks2 mounts at `/media/<label>`;
+  vfat, Tuxera exFAT / NTFS, ext4).
+
 ## Dropped
 
 The old `stories/` (in git history before this file) also had a background
