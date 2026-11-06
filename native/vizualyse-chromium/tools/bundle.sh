@@ -88,6 +88,11 @@ strip --strip-unneeded "$R/gpu/libEGL.so.1"
 mkdir -p "$OUT"
 gcc -O2 -std=gnu11 -Wall -Wextra -Werror -Wl,--dynamic-linker=$B/lib/ld-linux-x86-64.so.2 \
     -o "$OUT/egl_shim_test" /m/gpu/egl_shim_test.c -ldl
+# its display and pbuffer emulation, against a stand-in for Mesa 19's GBM EGL
+gcc -O2 -std=gnu11 -Wall -Wextra -Werror -shared -fPIC -o /tmp/fake_egl.so /m/gpu/fake_egl.c
+gcc -O2 -std=gnu11 -Wall -Wextra -Werror -o /tmp/egl_pbuffer_test /m/gpu/egl_pbuffer_test.c -ldl
+/tmp/egl_pbuffer_test "$R/gpu/libEGL.so.1" /tmp/fake_egl.so 2>&1 | sed 's/^/  /'
+/tmp/egl_pbuffer_test "$R/gpu/libEGL.so.1" /tmp/fake_egl.so >/dev/null 2>&1 || { echo "bundle: the EGL shim's pbuffers fail" >&2; exit 1; }
 
 # Fonts: DejaVu and Liberation (Arial / Times / Courier metrics), cached in the profile.
 cp /usr/share/fonts/truetype/dejavu/*.ttf /usr/share/fonts/truetype/liberation/*.ttf "$R/fonts/"

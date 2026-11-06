@@ -68,6 +68,22 @@ it renders.
   newer libdrm, libexpat, libz, libstdc++ serve Mesa 19 fine; libglapi,
   Wayland and libffi 6 come from the unit.
 
+- **On the car (0.2.0, 2026-11-06):** the shim's GBM display on
+  `renderD128` opened (`egl-shim: display: GBM on /dev/dri/renderD128`), no
+  hang, nothing in `dmesg`; then Chromium's GPU process: `No suitable EGL
+  configs found` → `CreateOffscreenGLSurface failed` → `Exiting GPU process`,
+  and the tool went back to the CPU. Chromium's `ChooseConfig`
+  (`ui/gl/gl_surface_egl.cc`) asks for `EGL_SURFACE_TYPE` with
+  `EGL_PBUFFER_BIT` for offscreen surfaces; ANGLE's configs mirror the
+  native ones, and Mesa 19's GBM platform offers window surfaces only. 0.2.1
+  emulates pbuffers in the shim (window configs say pbuffer; a pbuffer is a
+  GBM surface with a window surface on it, its swaps skipped).
+- **WebGPU on the same driver:** `--use-webgpu-adapter=opengles
+  --force-webgpu-compat` give every page a compatibility-mode adapter on
+  Dawn's GLES backend over ANGLE (Linux leaves that backend off otherwise:
+  "Deliberately disable compat on linux"); seen working on ANGLE /
+  SwiftShader in the container. Not on the car yet (TODO.md).
+
 ## Touch over the HMI
 
 - A layer over the app area gets no touch of its own: the tool reads a

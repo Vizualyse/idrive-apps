@@ -59,7 +59,15 @@ filesystem (`../idrive-rootfs`):
   `eglGetDisplay(EGL_DEFAULT_DISPLAY)` into a GBM display on the render node
   (`/dev/dri/renderD128`, group `video`): left alone, Mesa 19 would open
   `/dev/dri/card0`, the display Winston owns, and it has no surfaceless
-  platform. Everything else goes straight to Mesa. The bundle adds glibc's
+  platform. It also **emulates pbuffers** (0.2.1): Chromium's offscreen
+  surfaces need an EGL config with `EGL_PBUFFER_BIT`, and Mesa 19's GBM
+  configs have window surfaces only (0.2.0 on the car: `No suitable EGL
+  configs found`, the GPU process exited, back on the CPU). So window
+  configs say pbuffer too, and each pbuffer is a GBM surface of its size
+  with a window surface on it (never swapped, never shown);
+  `gpu/egl_pbuffer_test.c` checks it against a stand-in Mesa
+  (`gpu/fake_egl.c`) at every build. Everything else goes straight to
+  Mesa. The bundle adds glibc's
   `libdl` / `libpthread` / `librt` stubs, without which the unit's 2.27 ones
   load into our 2.41 process and fail. Safety: **on by hand only** (the
   phone page or the iDrive app), **never kept** (every start of the tool is

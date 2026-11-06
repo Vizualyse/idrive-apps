@@ -96,7 +96,7 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.0, vizualyse_chromium 0.2.0)
+## Browser (vizualyse-chromium 0.2.1, vizualyse_chromium 0.2.0)
 
 Chromium 156 with its own glibc, headless, WebGL and WebGPU on the CPU
 (SwiftShader), its pictures through mgu-render in the app area, touch read
@@ -108,17 +108,26 @@ the unit's own root filesystem. **Ask before running anything on the unit.**
 (2026-11-06): **never ship a GPU driver**; on the car its ICD is renamed
 `intel_icd.json.off` by hand until the next install replaces the bundle.
 
-- [ ] **0.2.0 on the car, CPU:** install, then read-only: `dmesg | grep
-  'blocked for more'` says nothing, `gpu.json` says SwiftShader and JSPI ok,
-  and https://webglreport.com/?v=2 shows WebGL 2 (software).
-- [ ] **0.2.0 on the car, the GPU mode** (the unit's own Mesa 19 GLES through
-  `gpu/egl_shim.c`; built and tested off the car up to opening the render
-  node): turn it on from the iDrive page, browser hidden. Then the
-  journal's `egl-shim:` lines and `gpu:` line, `gpu.txt`, `dmesg` (i915
-  errors, blocked tasks), webglreport on the screen, and whether the HMI
-  and CarPlay stay smooth under a WebGL page. Open: pbuffers on Mesa 19's
-  gbm platform (ANGLE should use `EGL_KHR_surfaceless_context`); WebGPU
-  through Dawn's GLES backend (compatibility mode).
+- [ ] **0.2.1 on the car, the GPU mode.** 0.2.0 (2026-11-06): the shim
+  opened the unit's Mesa 19 on the render node (no hang, nothing in
+  `dmesg`), then Chromium found `No suitable EGL configs` (Mesa 19's GBM
+  configs have no pbuffers) and went back to the CPU by itself. 0.2.1's
+  shim emulates pbuffers with GBM surfaces. Turn it on from the iDrive page,
+  browser hidden; then the journal's `egl-shim:` and `gpu:` lines,
+  `gpu.txt`, `dmesg` (i915 errors, blocked tasks), webglreport on the
+  screen, and whether the HMI and CarPlay stay smooth under a WebGL page.
+- [ ] **WebGPU on the GPU (compatibility mode)**, after WebGL works there:
+  in the GPU mode add `--use-webgpu-adapter=opengles --force-webgpu-compat`
+  (both in Chromium 156: `gpu/command_buffer/service/webgpu_decoder_impl.cc`;
+  Linux keeps Dawn's GLES backend off without the first). Every page then
+  gets a compatibility adapter on Dawn's GLES backend on ANGLE, even when
+  it asks for plain WebGPU; tried in the rootfs container on ANGLE /
+  SwiftShader (2026-11-06): `backend: openGLES`, no
+  `core-features-and-limits`, the compute shader right. Needs ES 3.1 from
+  ANGLE on Mesa 19 (i965 has 3.2). Compatibility mode is reduced WebGPU
+  (lower limits, no storage buffers in vertex shaders, no cube arrays):
+  pages needing core features fail where SwiftShader would run them. The
+  probe should report the backend and core / compatibility.
 - [ ] **On the car: touches under the browser.** Show should open the
   empty screen state first (the app's log: `screen state visible`; a
   `screen state: ... the browser goes over the main page` warning means the
