@@ -106,7 +106,9 @@ passively, only while parked
 [knowledge/browser.md](knowledge/browser.md)). Built and tested off the car on
 the unit's own root filesystem. **Ask before running anything on the unit.**
 0.1.1's bundled Vulkan driver hung the kernel and blacked out the HMI
-(2026-11-06): **never ship a GPU driver**; on the car its ICD is renamed
+(2026-11-06): **never ship a GPU driver known to hang the unit, nor any
+without a safety net** (by hand only, a marker to fall back after a hang:
+[knowledge/browser.md](knowledge/browser.md)); on the car its ICD is renamed
 `intel_icd.json.off` by hand until the next install replaces the bundle.
 
 - [ ] **0.2.2 on the car: WebGPU in the GPU mode** (compatibility mode on

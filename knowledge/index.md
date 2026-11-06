@@ -22,7 +22,7 @@ What's next: [`../TODO.md`](../TODO.md). The CarPlay second screen in depth:
 | [vehicle-data.md](vehicle-data.md) | Speed, gear, parking brake: "only while parked" |
 | [idrive-app-ui.md](idrive-app-ui.md) | RHMI pages: templates, drop-downs and other selections, gotchas, pop-ups and focus |
 | [store.md](store.md) | Releases, catalogs, `component.json` fields, the uplink's firewall |
-| [browser.md](browser.md) | Chromium on the unit: what the image lacks (Vulkan), bringing a newer userland, WebGPU / JSPI in headless Chromium |
+| [browser.md](browser.md) | Chromium on the unit: what the image lacks (Vulkan), **GPU drivers only with a safety net**, Vulkan on the 4.14 kernel (Mesa history), bringing a newer userland, WebGPU / JSPI in headless Chromium |
 | [bench.md](bench.md) | Working off the car: PCs, containers, emulators |
 | [reference-repos.md](reference-repos.md) | The other iDrive repositories we read, their licenses and what each is good for |
 

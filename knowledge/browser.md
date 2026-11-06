@@ -5,7 +5,21 @@ What we found building vizualyse-chromium
 rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
 (2026-11-05), 0.1.0 and 0.1.1 on the car (2026-11-05, 2026-11-06). Index: [index.md](index.md).
 
-## Never bring a GPU driver (the black screen, 2026-11-06)
+## No GPU driver without a safety net (the black screen, 2026-11-06)
+
+**The rule:** never ship a GPU driver that is known to hang the unit (Mesa
+22.3's ANV, below; any Mesa ≥ 23.2's ANV, which needs context isolation).
+Trying another driver is allowed, but only with a recovery path that works
+without us at the car, so a hang costs at most one restart:
+
+- never started at boot or by the tool on its own until it has been seen
+  working; by hand only;
+- a marker in `/var/opt` written before the GPU is opened and cleared after
+  it worked: a marker left over at the next start means the last try hung,
+  so that start uses the CPU or the unit's own Mesa 19 instead (the journal
+  doesn't survive the restart, so the marker is the only witness);
+- tried first on a bench with the same GPU and kernel (below) where one
+  exists, and an SSH way back (renaming the ICD) known before the car try.
 
 - **0.1.1 with Mesa 22.3's ANV (Vulkan) blacked out the HMI and restarted
   the unit on every boot.** Chromium's GPU process hung in the kernel
@@ -16,6 +30,17 @@ rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
   seconds" in `dmesg`), nothing drew, and the unit restarted about a minute
   later. The tool starts Chromium at boot, so every boot did it again.
   Renaming the bundle's ICD (`intel_icd.json`) over SSH ended the loop.
+- **The task stuck in `i915_gem_context_open` was most likely a victim, not
+  the culprit** (read in Intel's public 4.14 tree, not seen on the car):
+  there every open of a DRM node takes `struct_mutex` with an
+  uninterruptible `mutex_lock` (`i915_gem_context.c`, `4.14/base` of
+  [intel/linux-intel-lts](https://github.com/intel/linux-intel-lts)), so a
+  D-state task there is waiting for whoever holds the lock: probably an
+  earlier ANV ioctl of the same process stuck on a GPU hang. We only logged
+  the waiters. Next time `echo w > /proc/sysrq-trigger` (blocked tasks
+  with stacks) would name the holder. That tree also defers hardware setup
+  to the first open (`i915_gem_context_first_open` →
+  `i915_gem_init_hw_late`), which mainline doesn't do.
 - The kernel is Intel's own IOTG i915 build (`IOTG i915 driver 2019y-05m-22d`,
   `[drm] Initialized i915 1.6.0 20170818`, GuC 9.37 loaded), not mainline 4.14:
   a Mesa written for mainline can't be trusted on it, and the bench (no GPU,
@@ -176,12 +201,50 @@ it renders.
   it reads the param and, without it, makes constant buffer 0 relative
   (`anv_device.c:794, 963`). Its `libvulkan_intel.so` binds against trixie's
   newer libraries (checked with `RTLD_NOW`). **On the car it hung the
-  kernel** (above): never again.
+  kernel** (above): never ship it again.
 - With no Vulkan device, Chromium's GPU process exits on every start
   (`ANGLE Display::initialize ... Internal Vulkan error (-3)`), and Chromium
   turns WebGL off (webglreport: "supports WebGL but it is disabled or
   unavailable"); `--enable-unsafe-swiftshader` keeps WebGL on the CPU instead.
 - Gen9 is ANV's (Gen8 went to `hasvk`).
+
+## Vulkan on this kernel: what Mesa's history says (2026-11-06)
+
+From a blobless clone of `gitlab.freedesktop.org/mesa/mesa` (its web pages
+refuse scripts; `git` works) and a web search.
+
+- **ANV ran on Apollo Lake with old vendor kernels.** `3b363d5b552` (2021,
+  "anv: Assume syncobj support") lists ChromeOS's kernels then: "kernel
+  4.4: BYT, KBL, APL", with features back-ported. So ANV on a 4.x kernel
+  without context isolation was a shipped setup, on ChromeOS's kernels.
+- **Context isolation** (`I915_PARAM_HAS_CONTEXT_ISOLATION`, Linux 4.16;
+  absent from Intel's 4.14 tree too) became optional in ANV in Mesa 18.2
+  (`be18d5a0ce8`, `ba2c18763b2`, 2018): without it ANV keeps constant
+  buffer 0 relative and doesn't write `CS_DEBUG_MODE2`. **Mesa 23.2
+  dropped that** (`8a1a49aae40`, May 2023, "anv: assume context isolation
+  support", issue 7265): it refuses the device ("Vulkan requires context
+  isolation") and writes `CS_DEBUG_MODE2` unconditionally, a register that
+  without isolation would leak into other contexts (the HMI's). So **only
+  ANV from Mesa 18.2 to 23.1 could ever be a candidate** here; ≥ 23.2 is
+  out for good. Mesa 25.3 also requires Linux 6.0 and newer i915 features
+  (`affee04bd9c`, `8044f16bd69`, `cb5a2eafd52`, `f28eb1bae66`, Aug 2025).
+- **Candidate if we try again: ANV from Mesa 19.0.6**, the release the
+  unit's own i965 is from (same era as the kernel, no context-isolation
+  dependence), built for the unit's glibc, under the safety net above.
+  Mesa 22.3 hung, and why is not known; an older ANV may hang the same way.
+- **A bench with the same GPU** is the way to see a hang off the car: an
+  Apollo Lake mini PC (Celeron N3350 / Pentium N4200, HD 500 / 505) on
+  Intel's public 4.14 kernel (`intel/linux-intel-lts`, `4.14/base`,
+  `4.14/yocto/base`). The unit's i915 reports its own build (`IOTG i915
+  driver 2019y-05m-22d`), so close but not identical.
+- **Nothing else found:** no Vulkan-over-GLES layer exists (the known ones
+  go the other way: GLOVE, Zink); rpi-vk-driver (a hobby Vulkan for the old
+  Raspberry Pi GPU) and Turnip's KGSL backend (Mesa on Qualcomm's vendor
+  kernels) show a driver fitted to an old or vendor kernel, at years of
+  work. Software Vulkan (lavapipe, SwiftShader) is the only one with no
+  kernel risk, too slow on these 4 Atom cores for DXVK games, hence
+  WineD3D on Mesa 19 GL for Steam games. Intel's own platforms for this
+  chip (ACRN GVT-g, Gordon Peak, Celadon) turned up nothing on Vulkan.
 - Libraries Chromium only `dlopen`s, which `ldd` can't see: NSS's
   `libsoftokn3`, `libfreebl3`, `libfreeblpriv3`, `libnssckbi`, `libnssdbm3`
   (without them Chromium aborts at the first TLS: `nss_util.cc ... -5925`),
