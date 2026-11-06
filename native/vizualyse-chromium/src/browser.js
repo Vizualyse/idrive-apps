@@ -68,8 +68,19 @@ function args(opts) {
         /* nothing the car doesn't need */
         '--no-first-run', '--no-default-browser-check', '--disable-sync', '--disable-component-update',
         '--disable-background-networking', '--disable-breakpad', '--disable-crash-reporter', '--disable-domain-reliability',
-        '--password-store=basic', '--use-mock-keychain', '--mute-audio', '--renderer-process-limit=4',
+        '--password-store=basic', '--use-mock-keychain', '--mute-audio',
         '--js-flags=--max-old-space-size=768',
+        /* Memory (the unit has ~5.6 GB, the HMI already swaps; switches checked
+         * in Chromium 156's source): one page at a time, so no site isolation
+         * (cross-site frames share the page's renderer; it guards a page from
+         * another tab's Spectre-style reads), two renderers at most, no spare
+         * renderer kept warm, no back-forward cache (a left page isn't kept
+         * alive in memory), capped GPU tile and discardable caches. Not
+         * --enable-low-end-device-mode: it switches V8 to optimize for size,
+         * which slows games. */
+        '--disable-site-isolation-trials', '--renderer-process-limit=2',
+        '--disable-features=SpareRendererForSitePerProcess,BackForwardCache',
+        '--force-gpu-mem-available-mb=256', '--force-gpu-mem-discardable-limit-mb=64',
     ]);
     /* loopback (the probe's page) stays direct: Chromium's default */
     if (opts.proxy) a.push('--proxy-server=http://127.0.0.1:' + opts.proxy);

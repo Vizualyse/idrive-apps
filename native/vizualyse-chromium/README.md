@@ -122,14 +122,36 @@ filesystem (`../idrive-rootfs`):
   unit offers neither a setuid sandbox nor known user namespaces; the uid
   has no other rights.
 - **Memory**: Chromium sits in its own cgroup v1 memory group, capped at
-  1536 MB by default, 2048 or 2560 MB from the phone page (the unit has
-  ~5.6 GB, with ~1.4 GB available and 1.6 of its 3 GB zram swap in use on
-  the car: more for the browser means less for the HMI). At the cap the
+  1536 MB by default, 2, 2.5 or 3 GB from the phone page (the unit has
+  ~5.6 GB; with a big game loaded ~0.4 GB was left and the HMI had 200 MB in
+  zram swap: more for the browser means less for the HMI). At the cap the
   kernel ends one of Chromium's processes, never the HMI's; the tool reads
   that from `memory.oom_control` and says so (the app's status line, the
   phone page, `memory:` in the journal), as a big WebGPU game on the CPU did
   (its GPU process killed: the page loses its WebGPU device). Its disk
   cache is capped at 100 MB.
+  - **Less of it (0.2.4)**, each switch checked in Chromium 156's source: no
+    site isolation (`--disable-site-isolation-trials`: cross-site frames
+    share the page's renderer; it protects a page from Spectre-style reads
+    by another site's frames, little use with one page at a time),
+    `--renderer-process-limit=2`, no spare renderer and no back-forward
+    cache (`--disable-features=SpareRendererForSitePerProcess,BackForwardCache`),
+    GPU tile and discardable caches capped
+    (`--force-gpu-mem-available-mb=256`, `--force-gpu-mem-discardable-limit-mb=64`).
+    Not `--enable-low-end-device-mode`: in the renderer it sets V8's
+    `--optimize-for-size`, which slows games.
+  - **Near the cap** (90 % of it, counting what the kernel can't simply drop:
+    usage minus `total_inactive_file`) the tool asks Chromium to free what it
+    can (DevTools `Memory.simulatePressureNotification`, critical: caches,
+    decoded images, tiles, a GC), at most every 15 s.
+  - **Make room** (the phone page, the app): the tool stops the Moonlight
+    and Cast tools' services while the browser is on and starts them again
+    when it goes off, the setting goes off or the tool stops (`room:` in the
+    journal; `state/paused.json` with the boot). Only a unit recmgr loaded
+    at this boot is stopped (`src/recmgr.js`, after mgu-deploy's
+    `recmgrLoaded`: both list sections now and in the list as it stood at
+    boot); stopping any other restarts the head unit. BMW's own services
+    and the Store's are never touched.
 - **Never a reboot**: the service is on recmgr's whitelist and `chromium`,
   `chrome_crashpad_handler` and `chromium-sink` on crashhandler's
   (component.json `recmgr`, `crashNames`); Chromium's own crashes restart

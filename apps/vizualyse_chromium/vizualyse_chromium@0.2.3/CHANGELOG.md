@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+- **Make room** button: while the browser is on, the Moonlight and Cast
+  tools are paused to leave their memory to it (Cast's cluster map too), and
+  start again when it goes off. The button names what is paused.
+- Requires vizualyse-chromium 0.2.4 (which also trims Chromium's own
+  memory, frees memory near the cap and offers a 3 GB cap).
+
 ## 0.2.2
 
 - **Resolution** button: full, 3/4 or 1/2. The browser draws fewer pixels

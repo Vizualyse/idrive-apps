@@ -102,6 +102,35 @@ it renders.
   `memory.oom_control` `oom_kill 1`; Chromium: `GPU process exited
   unexpectedly: exit_code=9`); the page's WebGPU device was lost. The HMI was
   untouched: the kill stays inside the cgroup.
+- **Who uses it** (vel.gg in the GPU mode at a 2.5 GB cap; RSS + swap):
+  Chromium 2.4 GB (game renderer 1.4 GB, GPU process 0.7 GB, 0.8 GB of it
+  shmem); HmiMain3D 216 MB **+202 MB swapped**; navigation (NavigationBasic,
+  NavigationFully, NavController) 355 + 99 MB; BMW's OAP apps ~750 MB
+  (oap-cdc-2018 139, road-ahead 92, smartinterior 92, trigger_service 72,
+  data-collection 60, message_handling 53, connected-onboard 52,
+  ts_diagnostic_service 52, privacy_manager 44, x_call 44, MainApp 48);
+  natp, media, audio, telematics ~250 MB; the Store's `mgu-updater` daemon
+  237 MB and its app 84 MB; Moonlight and Cast ~50 + 40 MB. `MemAvailable`
+  377 MB; zram held 1.2 GB in 300 MB. Everything not BMW's comes to ~550 MB.
+  Per process: `VmRSS` / `VmSwap` in `/proc/<pid>/status`, PSS in
+  `smaps_rollup` (4.14 has it); an OAP app's name in
+  `/var/opt/public/oap/oap_<uid>/source/package.json`.
+- **CPU then:** load 9.9 on 4 cores, 92 % busy: the game's renderer ~30 % of
+  all, the GPU process ~19 % (WebGPU through Dawn GLES, ANGLE and Mesa all on
+  the CPU side), the browser process ~8 % (screencast JPEGs); ~3 pictures
+  per second reached the screen.
+- **Chromium memory switches** (checked in 156's source, not just blogs, which
+  were thin and contradictory): `--disable-site-isolation-trials` (also turns
+  off the default desktop site isolation, despite its name),
+  `--renderer-process-limit`, `--process-per-site` (consolidation, unlike
+  `--site-per-process`), features `SpareRendererForSitePerProcess` and
+  `BackForwardCache`, `--force-gpu-mem-available-mb` (a renderer switch: the
+  compositor's GPU memory) and `--force-gpu-mem-discardable-limit-mb`, both
+  configurable in Fuchsia's WebEngine for small devices.
+  `--enable-low-end-device-mode` makes the renderer set V8
+  `--optimize-for-size` (render_process_impl.cc); Blink's low-end limits are
+  mostly Android-only. DevTools `Memory.simulatePressureNotification` drops
+  caches in all processes on demand.
 
 ## Touch over the HMI
 

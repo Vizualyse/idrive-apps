@@ -54,6 +54,8 @@
   <p class="dim">Lower draws fewer pixels: faster on the car's processor and lighter on memory, a little blurrier. The page keeps its layout.</p>
   <div class="row" style="margin-top:8px"><label for="mem">Memory for the browser</label><select id="mem"></select></div>
   <p class="dim">More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.</p>
+  <div class="row" style="margin-top:8px"><button id="room">Make room: off</button></div>
+  <p class="dim">Make room pauses the Moonlight and Cast tools while the browser is on (Cast's cluster map too) and starts them again when it goes off.</p>
   <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
 </div>
 <p id="msg" class="err"></p>
@@ -92,6 +94,9 @@ function render(s) {
   if (document.activeElement !== $('mem') && m.choices) {
     $('mem').innerHTML = m.choices.map((c) => '<option value="' + c + '"' + (c === m.capMb ? ' selected' : '') + '>' + (c / 1024).toFixed(1).replace('.0', '') + ' GB' + (c === m.choices[0] ? ' (default)' : '') + '</option>').join('');
   }
+  const rm = s.room || {};
+  roomOn = !!rm.on;
+  $('room').textContent = 'Make room: ' + (roomOn ? 'on (turn off)' : 'off (turn on)');
   const gpuOk = g.webgpu && !/^no |error/.test(g.webgpu) && !g.webgpuFallback;
   $('info').innerHTML =
     row('Browser', s.browser + (s.shown ? ', on the screen' : '') + (s.bundle !== 'ready' ? ' (bundle ' + s.bundle + ')' : '')) +
@@ -99,7 +104,8 @@ function render(s) {
     row('WebGL 2', g.webgl2) +
     row('GPU mode', (s.gpuMode ? 'on' : 'off') + (s.gpuNote ? ' - ' + s.gpuNote : ''), s.gpuNote ? 'err' : '') +
     (g.webgpuBackend ? row('WebGPU backend', g.webgpuBackend + (g.webgpuCore === false ? ', compatibility mode' : ', core')) : '') +
-    row('Memory', m.usedMb === null || m.usedMb === undefined ? m.capMb + ' MB cap' : m.usedMb + ' MB used, ' + m.peakMb + ' MB at most, ' + m.capMb + ' MB cap') +
+    row('Memory', m.usedMb === null || m.usedMb === undefined ? m.capMb + ' MB cap' : m.usedMb + ' MB used (' + m.workMb + ' MB not cache), ' + m.peakMb + ' MB at most, ' + m.capMb + ' MB cap' + (m.purges ? '; asked to free memory ' + m.purges + ' times' : '')) +
+    (rm.on || (rm.paused && rm.paused.length) ? row('Make room', (rm.paused && rm.paused.length ? 'paused: ' + rm.paused.join(', ') : 'nothing paused') + (rm.note ? '; ' + rm.note : ''), rm.note ? 'err' : '') : '') +
     (m.note ? row('Memory', m.note + ' (' + String(m.oomAt || '').slice(11, 19) + ')', 'err') : '') +
     row('JSPI', g.jspi, g.jspi === 'ok' ? 'ok' : g.jspi ? 'err' : '') +
     row('Speed', s.speed === null ? 'unknown (counts as parked)' : s.speed + ' km/h' + (s.moving ? ', moving' : '')) +
@@ -114,6 +120,8 @@ $('show').onclick = () => api('/api/show', {}).catch(() => null);
 $('hide').onclick = () => api('/api/hide', {}).catch(() => null);
 let gpuOn = false;
 $('gpumode').onclick = () => api('/api/gpu', { on: !gpuOn }).catch(() => null);
+let roomOn = false;
+$('room').onclick = () => api('/api/room', { on: !roomOn }).catch(() => null);
 $('res').onchange = () => api('/api/scale', { scale: Number($('res').value) }).then(() => $('res').blur(), () => null);
 $('mem').onchange = () => api('/api/memory', { mb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
 $('send').onclick = () => api('/api/text', { text: $('text').value }).then(() => { $('text').value = ''; }, () => null);

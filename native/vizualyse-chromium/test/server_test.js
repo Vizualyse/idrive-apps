@@ -34,6 +34,7 @@ const FRAME = '/dev/shm/mgu-video-vizualyse_chromium';
 const RLOG = '/dev/shm/render.log';
 const TOUCH = '/dev/shm/touch.txt';
 const CTL = '/dev/shm/vizualyse-chromium/ctl.sock';
+const SYSTEMCTL = '/var/opt/fake-systemctl';   /* /dev/shm is noexec in the container */
 let fails = 0;
 const check = (ok, what) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails++; };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -113,7 +114,20 @@ async function main() {
         CHROMIUM_TEST_RENDER_LOG: RLOG,
         CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1', CHROMIUM_CGROUP_ROOT: '/dev/shm/cg',
         CHROMIUM_TOUCH_IFACE: '', CHROMIUM_TOUCH_FILE: TOUCH, CHROMIUM_LINK_IP: '127.0.0.1',
+        CHROMIUM_SYSTEMCTL: SYSTEMCTL, CHROMIUM_RECMGR_INI: '/dev/shm/recmgr.ini', CHROMIUM_RECMGR_AT_BOOT: '/dev/shm/recmgr-at-boot.json',
     });
+    /* a stand-in systemctl (Moonlight and Cast running) and recmgr list:
+     * Moonlight in both sections, Cast in [Whitelist] only, so stopping
+     * Cast would restart the head unit and must not happen */
+    fs.writeFileSync(SYSTEMCTL, ['#!/bin/sh', 'echo "$*" >> /dev/shm/systemctl.log', 'f=/dev/shm/units/$2',
+        'case "$1" in', 'is-active) if [ -f "$f" ]; then echo active; exit 0; fi; echo inactive; exit 3;;',
+        'stop) rm -f "$f";;', 'start) : > "$f";;', 'esac', ''].join('\n'), { mode: 0o755 });
+    try { fs.mkdirSync('/dev/shm/units', 0o755); } catch (e) { /* there */ }
+    ['vizualyse-moonlight.service', 'vizualyse-cast.service'].forEach((u) => fs.writeFileSync('/dev/shm/units/' + u, ''));
+    fs.writeFileSync('/dev/shm/systemctl.log', '');
+    const ini = ['[Whitelist]', 'vizualyse-moonlight', 'vizualyse-cast', '[WhitelistExitSuccess]', 'vizualyse-moonlight', ''].join('\n');
+    fs.writeFileSync('/dev/shm/recmgr.ini', ini);
+    fs.writeFileSync('/dev/shm/recmgr-at-boot.json', JSON.stringify({ boot: fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(), text: ini }));
     /* a stand-in memory cgroup (v1 files) */
     const CG = '/dev/shm/cg/vizualyse-chromium';
     ['/dev/shm/cg', CG].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
@@ -156,7 +170,35 @@ async function main() {
     const m1 = await until('the kill reported', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.memory && r.body.memory.note ? r.body.memory : null)), 6000);
     check(!!m1 && /out of memory: the page needed more than the 2048 MB cap/.test(m1.note) && !!m1.oomAt, 'a process killed at the cap is reported (' + (m1 && m1.note) + ')');
     check(lines.some((l) => /memory: Chromium hit its 2048 MB cap/.test(l)), 'and logged');
+    const three = await req('POST', '/api/memory', { mb: 3072 }, tok);
+    check(three.code === 200 && three.body.memory.capMb === 3072, '3 GB is offered');
     await req('POST', '/api/memory', { mb: 1536 }, tok);
+
+    /* close to the cap (not counting reclaimable file pages): Chromium is asked to free memory */
+    fs.writeFileSync(path.join(CG, 'memory.stat'), ['total_rss 1400000000', 'total_inactive_file 0', ''].join('\n'));
+    fs.writeFileSync(path.join(CG, 'memory.usage_in_bytes'), String(1450 * 1048576));
+    await until('asked to free memory near the cap', () => lines.some((l) => /memory: 1450 of 1536 MB in use: asked Chromium to free memory/.test(l)), 6000);
+    const mp = await req('GET', '/api/status', undefined, tok);
+    check(mp.body.memory.purges >= 1 && mp.body.memory.workMb === 1450 && mp.body.browser === 'running', 'near the cap Chromium is asked to free memory, and keeps running (' + mp.body.memory.purges + ')');
+    fs.writeFileSync(path.join(CG, 'memory.stat'), ['total_inactive_file ' + (800 * 1048576), ''].join('\n'));
+    const n1 = lines.length;
+    await wait(3000);
+    check(!lines.slice(n1).some((l) => /asked Chromium to free memory/.test(l)), 'reclaimable file pages do not count (1450 MB used, 650 not cache)');
+    fs.writeFileSync(path.join(CG, 'memory.usage_in_bytes'), String(700 * 1048576));
+
+    /* make room: Moonlight paused (on recmgr's list at boot), Cast left (half listed), both back when off */
+    const ro = await req('POST', '/api/room', { on: true }, tok);
+    check(ro.code === 200, '/api/room on');
+    const r1 = await until('Moonlight paused', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.room.paused.join() === 'vizualyse-moonlight' && r.body.room.note ? r.body.room : null)), 8000);
+    const calls = () => fs.readFileSync('/dev/shm/systemctl.log', 'utf8');
+    check(/stop vizualyse-moonlight\.service/.test(calls()) && !/stop vizualyse-cast/.test(calls()), 'Moonlight is stopped; Cast, not loaded by recmgr in both lists, is not');
+    check(!!r1 && /vizualyse-cast left running: recmgr did not load it/.test(r1.note), 'and the app is told why (' + (r1 && r1.note) + ')');
+    const pj = JSON.parse(fs.readFileSync(path.join(STATE, 'paused.json'), 'utf8'));
+    check(pj.units.join() === 'vizualyse-moonlight' && !!pj.boot, 'what it paused is kept with the boot');
+    await req('POST', '/api/room', { on: false }, tok);
+    await until('Moonlight started again', () => /start vizualyse-moonlight\.service/.test(calls()) && fs.existsSync('/dev/shm/units/vizualyse-moonlight.service'), 8000);
+    const r2 = await req('GET', '/api/status', undefined, tok);
+    check(r2.body.room.paused.length === 0 && !r2.body.room.on, 'make room off: Moonlight runs again, nothing paused');
 
     const go = await req('POST', '/api/go', { url: 'http://127.0.0.1:8999/' }, tok);
     check(go.code === 200, '/api/go opens the page');

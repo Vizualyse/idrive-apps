@@ -31,7 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const { URL } = require('url');
 const env = require('./env.js');
 const unpack = require('./unpack.js');
@@ -39,6 +39,7 @@ const { Browser } = require('./browser.js');
 const { Screen } = require('./screen.js');
 const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
+const recmgr = require('./recmgr.js');
 
 const HERE = __dirname;
 const ARCHIVE = process.env.CHROMIUM_ARCHIVE || path.join(HERE, 'chromium.tgz');
@@ -74,7 +75,12 @@ const CGROUP_ROOT = process.env.CHROMIUM_CGROUP_ROOT || '/sys/fs/cgroup/memory';
  * load, but leaves less to the HMI and pushes the unit further into its zram
  * swap (2026-11-06: 1.4 GB available, 1.6 of 3 GB swap in use). Within the
  * cap only Chromium's own processes can be killed. */
-const MEM_CHOICES = [1536, 2048, 2560];
+const MEM_CHOICES = [1536, 2048, 2560, 3072];
+/* Near the cap (the working set, not the reclaimable file cache) Chromium is
+ * told to free what it can (DevTools Memory.simulatePressureNotification:
+ * caches, decoded images, tiles, a GC), at most every PRESSURE_MS. */
+const PRESSURE_AT = 0.9;
+const PRESSURE_MS = 15000;
 /* The resolution: Chromium draws at this device scale factor (the layout
  * stays VIEW's size in CSS pixels, so touches map as they are) and
  * mgu-render scales the smaller pictures up to the app area. Fewer pixels:
@@ -398,7 +404,7 @@ function gpuSummary() {
 /* ---- memory: the cap and running into it ------------------------------------ */
 
 let cgroupDir = null;
-const mem = { usedMb: null, peakMb: null, ooms: null, oomAt: null, note: null };
+const mem = { usedMb: null, peakMb: null, workMb: null, ooms: null, oomAt: null, note: null, purgedAt: 0, purges: 0 };
 const mb = (bytes) => Math.round(Number(bytes) / 1048576);
 function readCg(f) { try { return fs.readFileSync(path.join(cgroupDir, f), 'utf8'); } catch (e) { return null; } }
 
@@ -411,6 +417,11 @@ function watchMemory() {
     const used = readCg('memory.usage_in_bytes'), peak = readCg('memory.max_usage_in_bytes'), oc = readCg('memory.oom_control');
     if (used !== null) mem.usedMb = mb(used);
     if (peak !== null) mem.peakMb = mb(peak);
+    /* the working set: what the kernel can't just drop (file pages it can) */
+    const st = readCg('memory.stat') || '';
+    const inactive = /^total_inactive_file (\d+)$/m.exec(st);
+    if (used !== null) mem.workMb = mb(Number(used) - (inactive ? Number(inactive[1]) : 0));
+    relieve();
     const m = oc && /oom_kill (\d+)/.exec(oc);
     if (!m) return;
     const n = Number(m[1]);
@@ -423,6 +434,84 @@ function watchMemory() {
     mem.ooms = n;
 }
 setInterval(watchMemory, 2000);
+
+/* Close to the cap: ask Chromium to drop its caches and collect garbage
+ * before the kernel has to end one of its processes. */
+function relieve() {
+    if (mem.workMb === null || !browser || browserState !== 'running') return;
+    if (mem.workMb < settings.memMb * PRESSURE_AT || Date.now() - mem.purgedAt < PRESSURE_MS) return;
+    mem.purgedAt = Date.now();
+    mem.purges++;
+    log('memory: ' + mem.workMb + ' of ' + settings.memMb + ' MB in use: asked Chromium to free memory (' + mem.purges + ')');
+    browser.send('Memory.simulatePressureNotification', { level: 'critical' }).catch((e) => log('memory: ' + e.message));
+}
+
+/* ---- making room: our other tools paused while the browser runs ---------------- */
+
+/* With "make room" on, the Browser tool stops the Moonlight and Cast tools'
+ * services while the browser is on (some 90 MB on the car with their swap,
+ * 2026-11-06) and starts them again when it goes off, the setting goes off
+ * or the tool stops. Only a unit recmgr loaded at this boot is stopped
+ * (recmgr.js): stopping any other restarts the head unit. */
+const ROOM_UNITS = (process.env.CHROMIUM_ROOM_UNITS || 'vizualyse-moonlight,vizualyse-cast').split(',').filter(Boolean);
+const SYSTEMCTL = process.env.CHROMIUM_SYSTEMCTL || 'systemctl';
+const PAUSED_FILE = path.join(env.STATE_DIR, 'paused.json');
+const BOOT = (function () { try { return fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(); } catch (e) { return ''; } })();
+/* what this tool stopped in this boot (after a restart of the unit they run again) */
+const room = { paused: (function () {
+    const p = readJson(PAUSED_FILE) || {};
+    return p.boot === BOOT ? (p.units || []).filter((u) => ROOM_UNITS.indexOf(u) >= 0) : [];
+})(), note: null, busy: Promise.resolve() };
+
+function systemctl(args) {
+    return new Promise((resolve) => {
+        try {
+            execFile(SYSTEMCTL, args, { timeout: 30000 }, (err, out) => resolve({ ok: !err, out: String(out || '').trim(), err: err }));
+        } catch (e) { resolve({ ok: false, out: '', err: e }); }
+    });
+}
+function savePaused() { try { writeJson(PAUSED_FILE, { boot: BOOT, units: room.paused }); } catch (e) { log('room: ' + e.message); } }
+
+/* one change at a time, in order */
+function roomQueue(fn) { room.busy = room.busy.then(fn, fn).then(() => { if (control) control.broadcast(); }); return room.busy; }
+
+function makeRoom() {
+    return roomQueue(() => ROOM_UNITS.reduce((p, u) => p.then(() => {
+        if (room.paused.indexOf(u) >= 0) return null;
+        return systemctl(['is-active', u + '.service']).then((a) => {
+            if (a.out !== 'active') return null;
+            if (!recmgr.loaded(u)) {
+                room.note = u + ' left running: recmgr did not load it at this boot (stopping it would restart the head unit)';
+                log('room: ' + room.note);
+                return null;
+            }
+            return systemctl(['stop', u + '.service']).then((r) => {
+                if (!r.ok) { log('room: stopping ' + u + ': ' + (r.err && r.err.message)); return; }
+                room.paused.push(u);
+                savePaused();
+                log('room: ' + u + ' paused while the browser runs');
+            });
+        });
+    }), Promise.resolve()));
+}
+
+function giveBack() {
+    return roomQueue(() => room.paused.slice().reduce((p, u) => p.then(() => systemctl(['start', u + '.service']).then((r) => {
+        log('room: ' + u + (r.ok ? ' started again' : ' did not start: ' + (r.err && r.err.message)));
+        room.paused = room.paused.filter((x) => x !== u);
+        savePaused();
+    })), Promise.resolve()).then(() => { room.note = null; }));
+}
+
+function setRoom(on) {
+    on = !!on;
+    if (on === !!settings.room) return null;
+    settings.room = on;
+    saveSettings();
+    log('room: ' + (on ? 'on: Moonlight and Cast pause while the browser is on' : 'off'));
+    if (on && settings.enabled) makeRoom(); else if (!on) giveBack();
+    return null;
+}
 
 /* The resolution, live: the page's scale factor, then (when shown) the frame
  * file and the screencast again at the new size. */
@@ -467,7 +556,8 @@ function status() {
         pictures: stats.pictures, decodeMs: stats.decodeMs,
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
         scale: settings.scale, resolutions: SCALES.map((s) => { const p = picSize(s); return { scale: s, w: p.w, h: p.h }; }),
-        memory: { capMb: settings.memMb, choices: MEM_CHOICES, usedMb: mem.usedMb, peakMb: mem.peakMb, oomAt: mem.oomAt, note: mem.note },
+        memory: { capMb: settings.memMb, choices: MEM_CHOICES, usedMb: mem.usedMb, peakMb: mem.peakMb, workMb: mem.workMb, purges: mem.purges, oomAt: mem.oomAt, note: mem.note },
+        room: { on: !!settings.room, units: ROOM_UNITS, paused: room.paused, note: room.note },
     };
 }
 
@@ -504,6 +594,7 @@ const ROUTES = {
     '/api/key': (b) => need().then((x) => x.key(String(b.key || ''))),
     '/api/probe': () => need().then((x) => x.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe')).then((p) => { delete p.gpuPage; gpu = Object.assign({ at: new Date().toISOString() }, p); console.log('@gpu ' + JSON.stringify(gpu)); }),
     '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
+    '/api/room': (b) => { const e = setRoom(b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/scale': (b) => { const e = setScale(b.scale); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/memory': (b) => { const e = setMemory(b.mb); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/restart': () => { restarts = []; lastError = null; stopBrowser(); setTimeout(startBrowser, 1500); return Promise.resolve(); },
@@ -542,7 +633,7 @@ function setEnabled(on) {
     if (settings.enabled === on) return;
     settings.enabled = on;
     saveSettings();
-    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); } else { gpuMode = false; stopBrowser(); removeFirewall(); }
+    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; stopBrowser(); removeFirewall(); giveBack(); }
     log('browser: ' + (on ? 'on' : 'off'));
 }
 
@@ -557,6 +648,7 @@ function command(c) {
     if (c.cmd === 'gpu') return setGpu(!!c.on);
     if (c.cmd === 'memory') return setMemory(c.mb);
     if (c.cmd === 'scale') return setScale(c.scale);
+    if (c.cmd === 'room') return setRoom(c.on);
     if (!browser || browserState !== 'running') return 'the browser is not running';
     if (c.cmd === 'home') { browser.navigate(settings.home).catch((e) => log('home: ' + e.message)); return null; }
     if (c.cmd === 'reload') { browser.reload().catch((e) => log('reload: ' + e.message)); return null; }
@@ -577,7 +669,10 @@ function shutdown(sig) {
     if (proxy) proxy.kill('SIGTERM');
     web.close();
     local.close();
-    setTimeout(() => process.exit(0), 1500);
+    /* the paused tools run again whenever this one stops */
+    const done = () => process.exit(0);
+    giveBack().then(() => setTimeout(done, 500), done);
+    setTimeout(done, 40000);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
@@ -599,4 +694,6 @@ unpack.ensure(ARCHIVE, log, (err, r) => {
     try { log('bundle: ' + fs.readFileSync(path.join(env.BUNDLE, 'VERSION'), 'utf8').split('\n').slice(1, 4).join(', ')); } catch (e) { /* old */ }
     if (!r.unpacked) log('bundle: up to date');
     startBrowser();
+    if (settings.room && settings.enabled) makeRoom();
+    else if (room.paused.length) giveBack();
 });

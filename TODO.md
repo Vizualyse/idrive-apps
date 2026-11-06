@@ -96,7 +96,7 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.3, vizualyse_chromium 0.2.2)
+## Browser (vizualyse-chromium 0.2.4, vizualyse_chromium 0.2.3)
 
 Chromium 156 with its own glibc, headless, WebGL and WebGPU on the CPU
 (SwiftShader) or, in the GPU mode, on the unit's own Mesa 19 (WebGL 2 on
@@ -118,11 +118,19 @@ the unit's own root filesystem. **Ask before running anything on the unit.**
   is reduced WebGPU: pages needing core features fail where the CPU mode
   runs them (slowly); maybe a per-page switch later. Also whether the HMI
   and CarPlay stay smooth with a WebGL / WebGPU page on the GPU.
-- [ ] **0.2.2 on the car: memory.** The cap setting (phone page: 1.5 / 2 /
-  2.5 GB) and the out-of-memory line (the app's status, `memory:` in the
-  journal). vel.gg needed more than 1.5 GB on the CPU (its GPU process was
-  killed after 454 s of loading; 2026-11-06): try it at 2.5 GB, in the GPU
-  mode, and watch the HMI and `free`.
+- [ ] **0.2.4 on the car: memory.** vel.gg in the GPU mode at 2.5 GB
+  (2026-11-06): 2547 of 2560 MB used, ~0.4 GB left on the unit, the HMI
+  200 MB in swap, ~3 pictures/s, the CPU 92 % busy. With 0.2.4: Chromium's
+  process count and PSS (the trimmed switches), `memory:` lines (asked to
+  free memory near the cap), Make room (`room:` lines: Moonlight paused,
+  Cast too if recmgr loaded it; both back after), then 3 GB, watching the
+  HMI's swap (`VmSwap` of HmiMain3D) and `MemAvailable`.
+- [ ] **The Store's updater daemon** (`mgu-updater` node, 237 MB on the car)
+  is the biggest non-BMW memory user: ask upstream for a lighter idle mode
+  rather than stopping it (it isn't ours).
+- [ ] **A frames-per-second meter** in the status: how often the page draws
+  (requestAnimationFrame) next to pictures reaching the screen, to tell a
+  slow game from the screencast path.
 - [ ] **0.2.3 on the car: the resolution** (phone page or the app's
   Resolution button: full, 3/4 = 1340x476, 1/2 = 892x316, scaled up by
   mgu-render). How it looks, whether touches still land, and the gain on a
