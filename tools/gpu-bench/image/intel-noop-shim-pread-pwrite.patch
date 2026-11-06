@@ -1,0 +1,38 @@
+--- a/src/intel/tools/intel_noop_drm_shim.c	2023-03-08 18:37:09.000000000 +0000
++++ b/src/intel/tools/intel_noop_drm_shim.c	2026-11-06 15:01:44.588924100 +0000
+@@ -489,7 +489,35 @@
+    return 0;
+ }
+ 
++/* i965 (Mesa 19) uploads buffer data with pwrite and reads with pread: keep
++ * the bytes in the BO, as the kernel does. */
++static int
++i915_ioctl_gem_prw(int fd, unsigned long request, void *arg)
++{
++   struct shim_fd *shim_fd = drm_shim_fd_lookup(fd);
++   struct drm_i915_gem_pwrite *rw = arg; /* same layout as drm_i915_gem_pread */
++   struct shim_bo *bo = drm_shim_bo_lookup(shim_fd, rw->handle);
++   int ret = -1;
++
++   if (!bo)
++      return -1;
++   if (rw->offset <= bo->size && rw->size <= bo->size - rw->offset) {
++      void *data = (void *)(uintptr_t)rw->data_ptr;
++      off_t at = bo->mem_addr + rw->offset;
++      ssize_t n = _IOC_NR(request) == DRM_COMMAND_BASE + DRM_I915_GEM_PWRITE ?
++         pwrite(shim_device.mem_fd, data, rw->size, at) :
++         pread(shim_device.mem_fd, data, rw->size, at);
++      if (n == (ssize_t)rw->size)
++         ret = 0;
++   }
++   drm_shim_bo_put(bo);
++   return ret;
++}
++
+ static ioctl_fn_t driver_ioctls[] = {
++   [DRM_I915_GEM_PWRITE] = i915_ioctl_gem_prw,
++   [DRM_I915_GEM_PREAD] = i915_ioctl_gem_prw,
++   [DRM_I915_GEM_THROTTLE] = i915_ioctl_noop,
+    [DRM_I915_GETPARAM] = i915_ioctl_get_param,
+    [DRM_I915_QUERY] = i915_ioctl_query,
+ 

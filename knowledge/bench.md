@@ -7,6 +7,13 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   `/usr/bin/node` (8.16.2), BusyBox and the unit's loader as on the car (no
   `/var/opt`, no `/tmp`: make them). No GPU, no SOME/IP, no HMI
   (vizualyse-chromium's `test/run_unit_test.sh`).
+- **The GPU off the car** ([tools/gpu-bench](../tools/gpu-bench/README.md),
+  2026-11-06): nothing emulates the unit's Gen9 GPU (QEMU offers VGA or
+  virtio-gpu only). In the rootfs container, on the unit's own Mesa 19.0.6:
+  `stub` runs the unit's real `i965_dri.so` on Mesa's no-op DRM shim as an
+  HD Graphics 505 (driver, shader compiler, limits; no pixels), and `swrast`
+  runs Mesa 19.0.6 llvmpipe through the unit's libEGL / libgbm (pixels; not
+  i965). Neither shows the kernel (i915 hangs) or the Atom's speed.
 - Test frames and filter graphs on a PC first: a still from
   `winston-grabber -n 1 x.jpg` or a few seconds of its UDP stream through the
   same ffmpeg build in a Linux container, then the unit.
