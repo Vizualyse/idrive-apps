@@ -47,6 +47,8 @@
 <div class="card">
   <dl id="info"></dl>
   <div class="row" style="margin-top:8px"><button data-api="probe">Check the GPU again</button><a id="gpu" target="_blank">chrome://gpu</a><button data-api="restart">Restart the browser</button></div>
+  <div class="row" style="margin-top:8px"><button id="gpumode">GPU mode: off</button></div>
+  <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
 </div>
 <p id="msg" class="err"></p>
 <script>
@@ -72,12 +74,16 @@ function render(s) {
   $('page').textContent = s.title || '';
   $('show').disabled = s.shown || s.moving || s.browser !== 'running';
   $('hide').disabled = !s.shown;
+  gpuOn = !!s.gpuMode;
+  $('gpumode').textContent = 'GPU mode: ' + (gpuOn ? 'on (turn off)' : 'off (turn on)');
+  $('gpumode').disabled = !gpuOn && (s.browser !== 'running' || s.bundle !== 'ready');
   const g = s.gpu || {};
   const gpuOk = g.webgpu && !/^no |error/.test(g.webgpu) && !g.webgpuFallback;
   $('info').innerHTML =
     row('Browser', s.browser + (s.shown ? ', on the screen' : '') + (s.bundle !== 'ready' ? ' (bundle ' + s.bundle + ')' : '')) +
     row('WebGPU', g.webgpu ? g.webgpu + (g.webgpuFallback ? ' (software fallback)' : '') + (g.webgpuCompute ? ', compute ' + g.webgpuCompute : '') : 'not checked yet', g.webgpu ? (gpuOk ? 'ok' : 'err') : '') +
     row('WebGL 2', g.webgl2) +
+    row('GPU mode', (s.gpuMode ? 'on' : 'off') + (s.gpuNote ? ' - ' + s.gpuNote : ''), s.gpuNote ? 'err' : '') +
     row('JSPI', g.jspi, g.jspi === 'ok' ? 'ok' : g.jspi ? 'err' : '') +
     row('Speed', s.speed === null ? 'unknown (counts as parked)' : s.speed + ' km/h' + (s.moving ? ', moving' : '')) +
     row('Pictures', s.pictures + (s.decodeMs ? ', ' + s.decodeMs + ' ms each' : '')) +
@@ -89,6 +95,8 @@ $('go').onclick = () => api('/api/go', { url: $('url').value }).then(() => $('ur
 $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('go').click(); });
 $('show').onclick = () => api('/api/show', {}).catch(() => null);
 $('hide').onclick = () => api('/api/hide', {}).catch(() => null);
+let gpuOn = false;
+$('gpumode').onclick = () => api('/api/gpu', { on: !gpuOn }).catch(() => null);
 $('send').onclick = () => api('/api/text', { text: $('text').value }).then(() => { $('text').value = ''; }, () => null);
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });
 document.querySelectorAll('[data-api]').forEach((b) => { b.onclick = () => api('/api/' + b.dataset.api, {}).catch(() => null); });

@@ -185,9 +185,11 @@ function startFakeTool(opts) {
 
 const LINK1 = 'http://172.20.10.2:8491/?t=0123456789abcdef';
 const LINK2 = 'http://172.20.10.3:8491/?t=0123456789abcdef';
-const GPU = { webgpu: 'intel / gen-9', webgpuFallback: false, webgpuCompute: 'ok', webgl2: 'ANGLE (Intel, Vulkan 1.3 (Intel(R) HD Graphics 505 (APL 3)), Intel open-source Mesa driver)', jspi: 'ok', at: '2026-11-05T20:00:00Z' };
+const GPU = { mode: 'cpu', webgpu: 'google / swiftshader', webgpuFallback: true, webgpuCompute: 'ok', webgl2: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)', jspi: 'ok', at: '2026-11-05T20:00:00Z' };
+/* the GPU mode on the car: ANGLE on the unit's Mesa 19 GLES */
+const GPU_GLES = Object.assign({}, GPU, { mode: 'gpu', webgl2: 'ANGLE (Intel Open Source Technology Center, Mesa DRI Intel(R) HD Graphics 505 (APL 3) , OpenGL ES 3.2 Mesa 19.0.6)' });
 const BASE = { enabled: true, link: LINK1, uplink: 'online', bundle: 'ready', browser: 'running', shown: false, url: 'https://webglreport.com/?v=2',
-    title: 'WebGL Report', home: 'https://webglreport.com/?v=2', gpu: GPU, speed: null, moving: false, pictures: 0, decodeMs: 0, view: '1790x638', error: null };
+    title: 'WebGL Report', home: 'https://webglreport.com/?v=2', gpu: GPU, gpuMode: false, gpuNote: null, speed: null, moving: false, pictures: 0, decodeMs: 0, view: '1790x638', error: null };
 let st = Object.assign({}, BASE);
 const received = [];
 let refuse = null;
@@ -217,7 +219,7 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'browserQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['browserBack', 'browserEnable', 'browserHome', 'browserReload', 'browserShow']);
+    assert.deepStrictEqual(buttons, ['browserBack', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserShow']);
     const ep = APP_JSON.application.entryPoints[0];
     assert(fs.existsSync(path.join(PKG, 'rhmiData', 'variantGroups', 'Common', 'images', ep.icon)), 'the tile icon ships');
     const strings = JSON.parse(fs.readFileSync(path.join(PKG, 'rhmiData', 'variantGroups', 'Common', 'texts', 'en_GB.json'), 'utf8'));
@@ -229,14 +231,14 @@ async function main() {
     assert(v2 && v2.instances[0] === '1' && v2.attributes.statusCarSpeed2 === 'r', 'the manifest asks to read Vehicle2.statusCarSpeed2');
     /* plain ASCII in every text the page starts with (Unicode is unreliable in RHMI Text) */
     assert(!/[^\x00-\x7f]/.test(JSON.stringify(UI)), 'uiDescription.json is ASCII');
-    console.log('ok   page: 5 buttons, a QR graphic, an empty screen state, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest; ASCII');
+    console.log('ok   page: 6 buttons, a QR graphic, an empty screen state, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest; ASCII');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
     const S = byName.browserStatus, P = byName.browserPage, G = byName.browserGpu;
     await until('no-tool status', () => /not running/.test(S.text || ''));
     assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
-    ['browserShow', 'browserEnable', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
+    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
     assert.strictEqual(byName.browserEnable.text, 'Browser: not running');
     assert.strictEqual(byName.browserQr.visible, false);
     console.log('ok   without the tool: "' + S.text + '", buttons disabled, no QR');
@@ -249,9 +251,9 @@ async function main() {
     const qr1 = byName.browserQr.graphic.value;
     assert(handles.has(qr1) && fs.readFileSync(qr1).slice(1, 4).toString() === 'PNG', 'a PNG with a resource handle');
     assert.strictEqual(byName.browserEnable.text, 'Browser: on');
-    ['browserShow', 'browserEnable', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, true, n + ' enabled'));
+    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, true, n + ' enabled'));
     assert.strictEqual(P.text, 'WebGL Report - https://webglreport.com/?v=2');
-    assert.strictEqual(G.text, 'WebGPU: intel / gen-9 | WebGL 2: Vulkan, Intel HD Graphics 505 (APL 3) | JSPI: ok');
+    assert.strictEqual(G.text, 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
     assert(G.text.length <= 90, 'the GPU line is one row');
     console.log('ok   connected: "' + S.text + '"; page "' + P.text + '"; "' + G.text + '"');
 
@@ -259,13 +261,40 @@ async function main() {
     await until('home, reload, back sent', () => sent('home') && sent('reload') && sent('back'));
     console.log('ok   Home page, Reload, Back send theirs');
 
+    /* the GPU mode: on restarts the browser on the GPU, the row says what it got; off any time */
+    assert.strictEqual(byName.browserGpuMode.text, 'GPU mode: off (WebGL on the CPU)');
+    await sleep(450);
+    byName.browserGpuMode.emit('action');
+    await until('gpu on sent', () => received.some((c) => c.cmd === 'gpu' && c.on === true));
+    st = Object.assign({}, st, { gpuMode: true, browser: 'starting', gpu: null });
+    tool.broadcast();
+    await until('starting on the GPU', () => /^Starting the browser on the GPU/.test(S.text || '') && byName.browserGpuMode.text === 'GPU mode: on (experimental)' &&
+        byName.browserGpuMode.enabled === true && byName.browserShow.enabled === false);
+    st = Object.assign({}, st, { browser: 'running', gpu: GPU });
+    tool.broadcast();
+    await until('not probed on the GPU yet', () => G.text === 'GPU: checking...');
+    st = Object.assign({}, st, { gpu: GPU_GLES });
+    tool.broadcast();
+    await until('WebGL 2 on the GPU', () => G.text === 'WebGPU: CPU (SwiftShader) | WebGL 2: GLES 3.2, Intel HD Graphics 505 (APL 3) | JSPI: ok');
+    assert(G.text.length <= 90, 'the GPU mode line is one row');
+    await sleep(450);
+    byName.browserGpuMode.emit('action');
+    await until('gpu off sent', () => received.some((c) => c.cmd === 'gpu' && c.on === false));
+    st = Object.assign({}, st, { gpuMode: false, gpu: GPU, gpuNote: 'the GPU did not start (WebGL 2: ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0): back on the CPU; chrome://gpu has why' });
+    tool.broadcast();
+    await until('the note shown', () => /^GPU mode: the GPU did not start/.test(G.text || '') && byName.browserGpuMode.text === 'GPU mode: off (WebGL on the CPU)');
+    st = Object.assign({}, st, { gpuNote: null });
+    tool.broadcast();
+    await until('the line back', () => G.text === 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
+    console.log('ok   GPU mode: on / off send gpu; starting on the GPU, WebGL 2 on GLES, the note of a failed try');
+
     /* Show: the empty screen state first, the browser once it is visible */
     await sleep(450);
     byName.browserShow.emit('action');
     await until('the screen state opened', () => opened.length === 1 && opened[0] === byName[SCREEN]);
     await until('show sent once it is visible', () => sent('show'));
     await until('shown', () => /^On the screen/.test(S.text || ''));
-    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
+    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
     await sleep(600);
     assert.strictEqual(count('hide'), 0, 'the main state going away for the screen state does not hide');
     console.log('ok   Show opens the empty screen state, then sends show; the main page\'s buttons are off while covered');
@@ -340,7 +369,7 @@ async function main() {
     await until('starting', () => /^Starting the browser/.test(S.text || '') && G.text === '');
     st = Object.assign({}, st, { browser: 'running', title: 'WebGL Report', gpu: Object.assign({}, GPU, { webgpu: 'google / swiftshader', webgpuFallback: true }) });
     tool.broadcast();
-    await until('software WebGPU said', () => /^WebGPU: google \/ swiftshader \(software\)/.test(G.text || ''));
+    await until('software WebGPU said', () => /^WebGPU: CPU \(SwiftShader\)/.test(G.text || ''));
     console.log('ok   installing / starting shown; a software WebGPU fallback is called so: "' + G.text + '"');
 
     await sleep(450);
@@ -382,7 +411,7 @@ async function main() {
     assert.strictEqual(tool.clients(), 1, 'the socket stays open with the page hidden');
     assert(count('speed') > n, 'the speed goes on with the page hidden');
     byName[STATE].emit('visible', { visible: true });
-    assert(!received.some((c) => !/^(speed|show|hide|home|reload|back|enable|disable)$/.test(c.cmd)), 'nothing else sent');
+    assert(!received.some((c) => !/^(speed|show|hide|home|reload|back|enable|disable|gpu)$/.test(c.cmd)), 'nothing else sent');
     console.log('ok   hiding the page keeps the socket and the speed going');
 
     tool.close();

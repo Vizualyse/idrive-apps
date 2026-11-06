@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- **GPU mode** button (experimental): the tool restarts the browser with
+  WebGL on the car's own graphics driver instead of the CPU, and turns it
+  off again by itself if that fails. Never kept: every start of the tool is
+  on the CPU.
+- The GPU row says what WebGL got in one line (`CPU (SwiftShader)` or
+  `GLES 3.2, Intel HD Graphics 505 (APL 3)`), or what became of the GPU mode.
+- Requires vizualyse-chromium 0.2.0.
+
 ## 0.1.1
 
 - Touches on the browser no longer press the page under it: Show opens an

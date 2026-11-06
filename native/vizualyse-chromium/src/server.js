@@ -57,6 +57,9 @@ const NO_PROXY = process.env.CHROMIUM_NO_PROXY === '1';
  * (2026-11-06). Without the group Chromium can't open the GPU at all. */
 const NET_UID = Number(process.env.CHROMIUM_NET_UID) || 12997;
 const CHROMIUM_GID = NET_UID;
+/* The GPU mode only (turned on by hand, never at start): the render node's
+ * group, for the unit's own Mesa 19 through the EGL shim (env.js). */
+const VIDEO_GID = Number(process.env.CHROMIUM_VIDEO_GID) || 44;
 /* Where the page goes: mgu-render's app area on the car (knowledge/central-screen.md) */
 const VIEW = (function () {
     const m = /^(\d+)x(\d+)\+(\d+)\+(\d+)$/.exec(process.env.CHROMIUM_VIEW || '1790x638+108+82');
@@ -173,10 +176,63 @@ let stats = { pictures: 0, decodeMs: 0 };
 const screen = new Screen(log, path.join(env.BUNDLE, 'chromium-sink'));
 let wantShown = false;
 
+/* ---- the GPU mode ------------------------------------------------------------ */
+
+/* WebGL on the unit's own GPU driver (Mesa 19, i965: env.js). Experimental:
+ * a GPU driver of our own (0.1.1) hung the kernel and blacked out the HMI,
+ * and every boot started it again. So the GPU mode:
+ * - is turned on by hand only (the phone page, the iDrive app) and is never
+ *   kept: every start of the tool is on the CPU, so a hang can't loop;
+ * - leaves GPU_TRIAL while a GPU-mode Chromium runs, removed when it exits:
+ *   found at start, it means the last try never ended (the unit restarted),
+ *   and the app says so;
+ * - goes back to the CPU by itself when the probe finds no GPU renderer or
+ *   Chromium exits in it. */
+const GPU_TRIAL = path.join(env.STATE_DIR, 'gpu-trial');
+let gpuMode = false;
+let gpuNote = null;
+(function () {
+    const t = readJson(GPU_TRIAL);
+    if (!t) return;
+    gpuNote = 'the last GPU try (' + (t.at || '?') + ') never ended: the unit restarted. GPU mode is off';
+    log('gpu: ' + gpuNote);
+    try { fs.unlinkSync(GPU_TRIAL); } catch (e) { /* gone */ }
+})();
+
+/* WebGL 2's renderer from the unit's Mesa (not SwiftShader) */
+function onGpu(p) { const r = String((p && p.webgl2) || ''); return /Mesa|Intel/i.test(r) && !/SwiftShader|llvmpipe|softpipe/i.test(r); }
+
+function setGpu(on, why) {
+    on = !!on;
+    if (on === gpuMode) return null;
+    if (on && !settings.enabled) return 'the browser is off';
+    if (on && bundle.state !== 'ready') return 'the browser is not installed yet';
+    if (on) {
+        let missing;
+        try { missing = env.gpuLibs(); } catch (e) { return 'the GPU libraries: ' + e.message; }
+        if (missing.length) return 'this unit has no ' + missing.join(', ');
+        gpuNote = null;
+    }
+    gpuMode = on;
+    log('gpu: ' + (on ? 'on: Chromium restarts on the unit\'s own GPU driver (Mesa 19, i965); off again at the next start of the tool'
+        : 'off' + (why ? ' (' + why + ')' : '')));
+    restarts = [];
+    lastError = null;
+    stopBrowser();
+    setTimeout(startBrowser, 1500);
+    if (control) control.broadcast();
+    return null;
+}
+
 function startBrowser() {
     if (browser || bundle.state !== 'ready' || !settings.enabled || stopping) return;
     startProxy();
-    const b = new Browser({ w: VIEW.w, h: VIEW.h, uid: NET_UID, gid: CHROMIUM_GID, proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: cgroup(), url: 'about:blank' });
+    const useGpu = gpuMode;
+    if (useGpu) {
+        try { writeJson(GPU_TRIAL, { at: new Date().toISOString() }); } catch (e) { log('gpu: ' + e.message); }
+    }
+    const b = new Browser({ w: VIEW.w, h: VIEW.h, uid: NET_UID, gid: useGpu ? VIDEO_GID : CHROMIUM_GID, gpu: useGpu,
+        proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: cgroup(), url: 'about:blank' });
     browser = b;
     browserState = 'starting';
     let quiet = 0;
@@ -196,10 +252,17 @@ function startBrowser() {
     });
     b.on('exit', (code, sig) => {
         log('chromium: exited (' + (sig || code) + ')' + (quiet ? ', ' + quiet + ' quiet lines' : ''));
+        /* it ended: no hang in the kernel */
+        if (useGpu) { try { fs.unlinkSync(GPU_TRIAL); } catch (e) { /* gone */ } }
         if (browser !== b) return;
         browser = null;
         hide('the browser exited');
         if (stopping || !settings.enabled) { browserState = 'off'; return; }
+        if (useGpu && gpuMode) {
+            gpuNote = 'Chromium exited in GPU mode (' + (sig || code) + '): back on the CPU';
+            setGpu(false, 'Chromium exited');
+            return;
+        }
         browserState = 'crashed';
         const now = Date.now();
         restarts = restarts.filter((t) => now - t < 300000).concat(now);
@@ -213,18 +276,25 @@ function startBrowser() {
     const t0 = Date.now();
     b.start()
         .then(() => {
-            log('chromium: running (' + (Date.now() - t0) + ' ms), ' + VIEW.w + 'x' + VIEW.h + ', Vulkan on the CPU (SwiftShader)');
+            log('chromium: running (' + (Date.now() - t0) + ' ms), ' + VIEW.w + 'x' + VIEW.h + ', ' +
+                (useGpu ? 'GPU mode: ANGLE on the unit\'s Mesa 19 (OpenGL ES, i965)' : 'Vulkan on the CPU (SwiftShader)'));
             browserState = 'running';
             lastError = null;
             return b.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe').then((p) => {
                 const page = p.gpuPage;
                 delete p.gpuPage;
-                gpu = Object.assign({ at: new Date().toISOString() }, p);
+                gpu = Object.assign({ at: new Date().toISOString(), mode: useGpu ? 'gpu' : 'cpu' }, p);
                 console.log('@gpu ' + JSON.stringify(gpu));
                 try {
                     writeJson(path.join(env.STATE_DIR, 'gpu.json'), gpu, 0o644);
                     if (page) fs.writeFileSync(path.join(env.STATE_DIR, 'gpu.txt'), page + '\n', { mode: 0o644 });
                 } catch (e) { log('gpu: ' + e.message); }
+                if (useGpu && browser === b) {
+                    if (onGpu(p)) { log('gpu: WebGL 2 on the GPU: ' + p.webgl2); return; }
+                    gpuNote = 'the GPU did not start (WebGL 2: ' + String(p.webgl2 || 'none').slice(0, 60) + '): back on the CPU; chrome://gpu has why';
+                    log('gpu: ' + gpuNote);
+                    setGpu(false, 'no GPU renderer');
+                }
             }, (e) => log('probe: ' + e.message));
         })
         .then(() => (browser === b ? b.navigate(settings.url || settings.home) : null))
@@ -297,7 +367,7 @@ function setSpeed(kmh) {
 
 function gpuSummary() {
     if (!gpu) return null;
-    return { webgpu: gpu.webgpu, webgpuFallback: !!gpu.webgpuFallback, webgpuCompute: gpu.webgpuCompute, webgl2: gpu.webgl2, jspi: gpu.jspi, at: gpu.at };
+    return { mode: gpu.mode || 'cpu', webgpu: gpu.webgpu, webgpuFallback: !!gpu.webgpuFallback, webgpuCompute: gpu.webgpuCompute, webgl2: gpu.webgl2, jspi: gpu.jspi, at: gpu.at };
 }
 
 function status() {
@@ -306,7 +376,7 @@ function status() {
         enabled: settings.enabled, link: link(), uplink: up.state || 'unknown',
         bundle: bundle.state, browser: browserState, shown: screen.shown(),
         url: browser ? browser.url : settings.url, title: browser ? browser.title : '', home: settings.home,
-        gpu: gpuSummary(), speed: vehicle.kmh, moving: moving(),
+        gpu: gpuSummary(), gpuMode: gpuMode, gpuNote: gpuNote, speed: vehicle.kmh, moving: moving(),
         pictures: stats.pictures, decodeMs: stats.decodeMs,
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
     };
@@ -344,6 +414,7 @@ const ROUTES = {
     '/api/text': (b) => need().then((x) => x.text(String(b.text || '').slice(0, 2000))),
     '/api/key': (b) => need().then((x) => x.key(String(b.key || ''))),
     '/api/probe': () => need().then((x) => x.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe')).then((p) => { delete p.gpuPage; gpu = Object.assign({ at: new Date().toISOString() }, p); console.log('@gpu ' + JSON.stringify(gpu)); }),
+    '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/restart': () => { restarts = []; lastError = null; stopBrowser(); setTimeout(startBrowser, 1500); return Promise.resolve(); },
 };
 
@@ -380,7 +451,7 @@ function setEnabled(on) {
     if (settings.enabled === on) return;
     settings.enabled = on;
     saveSettings();
-    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); } else { stopBrowser(); removeFirewall(); }
+    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); } else { gpuMode = false; stopBrowser(); removeFirewall(); }
     log('browser: ' + (on ? 'on' : 'off'));
 }
 
@@ -392,6 +463,7 @@ function command(c) {
     if (!settings.enabled) return 'the browser is off';
     if (c.cmd === 'show') return show();
     if (c.cmd === 'hide') { hide('hidden on the iDrive page'); return null; }
+    if (c.cmd === 'gpu') return setGpu(!!c.on);
     if (!browser || browserState !== 'running') return 'the browser is not running';
     if (c.cmd === 'home') { browser.navigate(settings.home).catch((e) => log('home: ' + e.message)); return null; }
     if (c.cmd === 'reload') { browser.reload().catch((e) => log('reload: ' + e.message)); return null; }

@@ -13,7 +13,10 @@
  *   compute shader gives the right numbers; chrome://gpu is read;
  * - a page is screencast through chromium-sink into a frame file: frames
  *   arrive, and the picture is the page's (a red half, a blue half);
- * - a touch replayed from a capture taps a button on the page.
+ * - a touch replayed from a capture taps a button on the page;
+ * - the GPU mode's plumbing: gpu-libs, the EGL shim on the unit's Mesa 19
+ *   (build/egl_shim_test), Chromium in the GPU mode loads it and, with no GPU
+ *   here, falls back to SwiftShader.
  *
  *   node unit_test.js <tool folder>
  */
@@ -22,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const T = process.argv[2] || '/t';
 const env = require(path.join(T, 'src/env.js'));
@@ -155,6 +158,40 @@ async function main() {
     await b.screencast(false);
     sink.stdin.end();
     b.stop();
+    await wait(1500);
+
+    /* The GPU mode's plumbing (no GPU here, so it can't render): the shim and
+     * the unit's own Mesa 19 load and bind, and Chromium starts with them and
+     * falls back to SwiftShader when there is no render node. */
+    const missing = env.gpuLibs();
+    check(missing.length === 0, 'the unit has the GPU mode\'s libraries (' + (missing.join(', ') || 'all') + ')');
+    check(fs.readlinkSync(path.join(env.GPU_LIBS, 'libgbm.so.1')) === '/usr/lib/libgbm.so.1', 'gpu-libs links the unit\'s libgbm');
+    const genv = env.chromiumEnv(true);
+    const st = spawnSync(path.join(T, 'build/egl_shim_test'), [], { env: genv, encoding: 'utf8' });
+    String(st.stdout || '').split('\n').filter(Boolean).forEach((l) => log('egl_shim_test: ' + l));
+    if (st.stderr) String(st.stderr).split('\n').filter(Boolean).forEach((l) => log('egl_shim_test! ' + l));
+    check(st.status === 0, 'the EGL shim on the unit\'s Mesa 19 (egl_shim_test)');
+
+    const g = new Browser({ w: W, h: H, uid: 12997, gid: 44, gpu: true });
+    const glog = [];
+    g.on('log', (l) => glog.push(l));
+    try {
+        await g.start();
+        check(true, 'chromium starts in the GPU mode');
+        const gp = await g.probe('http://127.0.0.1:8999/blank');
+        log('GPU mode: ' + JSON.stringify(Object.assign({}, gp, { gpuPage: undefined })));
+        check(gp.jspi === 'ok', 'GPU mode: JSPI runs');
+        check(/SwiftShader/i.test(String(gp.webgl2)), 'GPU mode without a GPU: WebGL 2 falls back to SwiftShader (' + gp.webgl2 + ')');
+        const angle = String(gp.gpuPage || '').split('\n').filter((l) => /GL_RENDERER|ANGLE|gles|EGL/i.test(l)).slice(0, 12);
+        angle.forEach((l) => log('chrome://gpu: ' + l.trim().slice(0, 160)));
+    } catch (e) {
+        check(false, 'chromium in the GPU mode: ' + e.message);
+    }
+    glog.filter((l) => /egl-shim/.test(l)).forEach((l) => log(l));
+    check(glog.some((l) => /egl-shim: \/usr\/lib\/libEGL\.so\.1 loaded$/.test(l)), 'the GPU process loaded the unit\'s libEGL through the shim');
+    check(glog.some((l) => /egl-shim: \/dev\/dri\/renderD128: No such file/.test(l)), 'it went for the render node only');
+    if (fails) console.log(glog.slice(-30).join('\n'));
+    g.stop();
     server.close();
     await wait(1500);
     if (fails) console.log(chromeLog.slice(-30).join('\n'));

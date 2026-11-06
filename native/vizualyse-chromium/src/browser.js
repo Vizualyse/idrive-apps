@@ -9,7 +9,9 @@
  *
  * WebGL and WebGPU: ANGLE on Vulkan and WebGPU (Dawn) on Vulkan, both on
  * Chromium's SwiftShader (the CPU; env.js: the bundle has no GPU driver since
- * 0.1.1's ANV hung the unit's kernel); --enable-unsafe-webgpu for Chromium's
+ * 0.1.1's ANV hung the unit's kernel). In the GPU mode (opts.gpu, by hand
+ * only) ANGLE runs on the unit's own Mesa 19 GLES instead (env.js);
+ * --enable-unsafe-webgpu for Chromium's
  * WebGPU allow-list. WebAssembly JSPI is on by default since Chromium 137
  * (the bundle: 156). probe() reports what a page actually gets (WebGL 2's
  * renderer, the WebGPU adapter, JSPI run for real).
@@ -32,16 +34,24 @@ const env = require('./env.js');
 
 const CHROMIUM = path.join(env.BUNDLE, 'chromium');
 
-/* opts: { w, h, uid, gid, proxy (port), cgroup (dir or null), url, extraArgs } */
+/* opts: { w, h, uid, gid, gpu (the GPU mode: env.js), proxy (port), cgroup (dir or null), url, extraArgs } */
 function args(opts) {
     const a = [
         '--headless', '--no-sandbox', '--remote-debugging-pipe',
         '--user-data-dir=' + path.join(env.PROFILE, 'chromium'),
         '--window-size=' + opts.w + ',' + opts.h, '--force-device-scale-factor=1',
+    ].concat(opts.gpu ? [
+        /* GPU mode: ANGLE on the unit's own Mesa 19 GLES (i965), through the
+         * EGL shim (env.js, gpu/egl_shim.c); no video engines */
+        '--use-gl=angle', '--use-angle=gles-egl',
+        '--disable-accelerated-video-decode', '--disable-accelerated-video-encode',
+    ] : [
         /* ANGLE and Dawn on Vulkan: SwiftShader, the only driver (env.js) */
         '--use-angle=vulkan', '--enable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan',
-        '--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--disable-vulkan-surface',
-        /* WebGL on SwiftShader rather than off */
+        '--disable-vulkan-surface',
+    ], [
+        '--enable-unsafe-webgpu', '--ignore-gpu-blocklist',
+        /* WebGL on SwiftShader rather than off (and if the GPU mode fails) */
         '--enable-unsafe-swiftshader',
         '--enable-gpu-rasterization',
         /* the disk: a capped cache in the profile */
@@ -51,7 +61,7 @@ function args(opts) {
         '--disable-background-networking', '--disable-breakpad', '--disable-crash-reporter', '--disable-domain-reliability',
         '--password-store=basic', '--use-mock-keychain', '--mute-audio', '--renderer-process-limit=4',
         '--js-flags=--max-old-space-size=768',
-    ];
+    ]);
     /* loopback (the probe's page) stays direct: Chromium's default */
     if (opts.proxy) a.push('--proxy-server=http://127.0.0.1:' + opts.proxy);
     return a.concat(opts.extraArgs || [], [opts.url || 'about:blank']);
@@ -84,7 +94,7 @@ class Browser extends EventEmitter {
         /* into the memory cgroup first, then exec: every Chromium process stays in it */
         const cg = o.cgroup ? 'echo $$ > ' + o.cgroup + '/cgroup.procs 2>/dev/null; ' : '';
         /* LD_LIBRARY_PATH only on chromium's exec: the shell is the unit's (glibc 2.27) */
-        const e = env.chromiumEnv();
+        const e = env.chromiumEnv(!!o.gpu);
         const libs = e.LD_LIBRARY_PATH;
         delete e.LD_LIBRARY_PATH;
         const spawnOpts = { env: e, stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], cwd: env.PROFILE };

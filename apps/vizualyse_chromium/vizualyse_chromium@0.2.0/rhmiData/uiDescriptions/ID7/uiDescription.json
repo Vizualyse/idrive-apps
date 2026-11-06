@@ -216,6 +216,28 @@
             }
           ]
         },
+        "35": {
+          "type": "button",
+          "name": "browserGpuMode",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "GPU mode: off (WebGL on the CPU)",
+                "type": "Text"
+              }
+            }
+          ]
+        },
         "40": {
           "type": "label",
           "name": "browserPage",

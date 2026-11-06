@@ -38,7 +38,10 @@ M=/usr/lib/x86_64-linux-gnu
 # and what is only ever dlopen()ed, so ldd can't see it: NSS's soft token and
 # roots (Chromium aborts without them), libpci (the GPU's PCI ids)
 for l in libEGL.so.1 libGLESv2.so.2 libturbojpeg.so.0 \
-         libsoftokn3.so libfreebl3.so libfreeblpriv3.so libnssckbi.so libnssdbm3.so libpci.so.3; do cp -L "$M/$l" "$R/lib/"; done
+         libsoftokn3.so libfreebl3.so libfreeblpriv3.so libnssckbi.so libnssdbm3.so libpci.so.3 \
+         libdl.so.2 libpthread.so.0 librt.so.1; do cp -L "$M/$l" "$R/lib/"; done
+# (libdl, libpthread, librt: glibc 2.41's stubs. The unit's libraries in GPU
+# mode ask for them; without these the unit's 2.27 ones load and fail.)
 
 # Every library the ELF files load, resolved in this image, under its soname.
 # The loader comes along; nothing of the unit's /usr/lib is needed.
@@ -72,6 +75,19 @@ gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror \
     -o "$R/chromium-sink" /m/sink/sink.c /m/sink/touch.c /m/sink/frame_out.c /m/sink/yuv.c -lturbojpeg -lpthread
 strip --strip-unneeded "$R/chromium-sink"
 gcc -O2 -std=gnu11 -Wall -Wextra -Werror -o /tmp/yuv_test /m/sink/yuv_test.c /m/sink/yuv.c && /tmp/yuv_test
+
+# The GPU mode's libEGL.so.1 (gpu/egl_shim.c): the unit's own Mesa 19 EGL on
+# the render node. Not a driver: it only loads the unit's. Its test runs in
+# the unit's root filesystem (test/unit_test.js), from build/, not shipped.
+mkdir -p "$R/gpu"
+gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -shared -fPIC -fvisibility=hidden \
+    -Wl,-soname,libEGL.so.1 -Wl,--build-id=sha1 -o "$R/gpu/libEGL.so.1" /m/gpu/egl_shim.c -ldl -lpthread
+strip --strip-unneeded "$R/gpu/libEGL.so.1"
+[ "$(nm -D --defined-only "$R/gpu/libEGL.so.1" | awk '$2 == "T" {print $3}' | sort | tr '\n' ' ')" = "eglGetDisplay eglGetProcAddress " ] \
+    || { echo "bundle: the EGL shim exports more than eglGetDisplay and eglGetProcAddress" >&2; exit 1; }
+mkdir -p "$OUT"
+gcc -O2 -std=gnu11 -Wall -Wextra -Werror -Wl,--dynamic-linker=$B/lib/ld-linux-x86-64.so.2 \
+    -o "$OUT/egl_shim_test" /m/gpu/egl_shim_test.c -ldl
 
 # Fonts: DejaVu and Liberation (Arial / Times / Courier metrics), cached in the profile.
 cp /usr/share/fonts/truetype/dejavu/*.ttf /usr/share/fonts/truetype/liberation/*.ttf "$R/fonts/"
@@ -108,7 +124,7 @@ done
 # Nothing may come from outside the bundle: every NEEDED resolves in $R/lib
 # (or next to chromium), with the bundle's loader, in an empty library path.
 missing=0
-for e in $ELFS "$R/chromium-sink"; do
+for e in $ELFS "$R/chromium-sink" "$R/gpu/libEGL.so.1"; do
     for n in $(objdump -p "$e" | awk '/NEEDED/ {print $2}'); do
         [ -e "$R/lib/$n" ] || [ -e "$R/$n" ] || { echo "bundle: $(basename "$e") needs $n, not in the bundle" >&2; missing=1; }
     done

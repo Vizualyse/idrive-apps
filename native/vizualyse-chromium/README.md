@@ -3,16 +3,18 @@
 **Browser** for the iDrive 7 head unit: Chromium 156 running on the unit
 itself, with **WebGL 2, WebGPU and WebAssembly JSPI**, shown on the central
 screen while parked and driven by touch. Addresses and text are typed on a
-phone page. **WebGL and WebGPU run on the CPU** (Chromium's SwiftShader):
-since 0.1.2 Chromium can't reach the GPU at all (below). Experimental: built
-and tested off the car on the unit's own root filesystem (below).
+phone page. **WebGL and WebGPU run on the CPU** (Chromium's SwiftShader);
+since 0.2.0 an experimental **GPU mode**, turned on by hand, runs WebGL on
+the unit's own GPU driver (below). Experimental: built and tested off the
+car on the unit's own root filesystem (below).
 
 1. Install **Browser** (this tool) and the **Browser** iDrive app
    ([apps/vizualyse_chromium](../../apps/vizualyse_chromium)) from the Store.
    The first start unpacks Chromium (about 420 MB in `/var/opt`).
 2. Open **Browser** on the iDrive. It says what Chromium got:
-   `WebGPU: google / swiftshader (software) | WebGL 2: SwiftShader ... |
-   JSPI: ok`.
+   `WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok`.
+   **GPU mode** (the iDrive page or the phone page) restarts it on the GPU:
+   `WebGL 2: GLES 3.2, Intel HD Graphics 505 (APL 3)` is the goal.
 3. **Show on the screen**: the page (`https://webglreport.com/?v=2` at
    first) covers the app area; touch it as any page. The iDrive's back
    arrow on the left (or HOME, a pop-up, a call) hides it again. Under the
@@ -45,8 +47,27 @@ filesystem (`../idrive-rootfs`):
   bundle has no Vulkan, DRI, GBM-backend or VA driver (`bundle.sh` refuses
   one) and Chromium runs **without the group `video`**, so it can't open
   `/dev/dri` even by mistake. WebGL 2 and WebGPU run on Chromium's own
-  **SwiftShader** (`--enable-unsafe-swiftshader`), on the CPU. The GPU the
-  safe way, if ever: the unit's own Mesa 19 GLES (i965), as mgu-render uses.
+  **SwiftShader** (`--enable-unsafe-swiftshader`), on the CPU.
+- **The GPU mode (0.2.0, experimental): the unit's own driver.** Everything
+  of ours that uses the GPU safely uses the unit's own userspace drivers
+  (mgu-render: Mesa 19 EGL / GLES, `i965`). So the GPU mode runs ANGLE's
+  GLES backend (`--use-gl=angle --use-angle=gles-egl`) on the unit's
+  `/usr/lib/libEGL.so.1`, `libGLESv2`, `libgbm`, `libglapi` and
+  `i965_dri.so`, linked from `/var/opt/vizualyse-chromium/gpu-libs` ahead
+  of the bundle's libraries (`env.js`). The one piece of ours is
+  `gpu/egl_shim.c`, a `libEGL.so.1` that turns ANGLE's
+  `eglGetDisplay(EGL_DEFAULT_DISPLAY)` into a GBM display on the render node
+  (`/dev/dri/renderD128`, group `video`): left alone, Mesa 19 would open
+  `/dev/dri/card0`, the display Winston owns, and it has no surfaceless
+  platform. Everything else goes straight to Mesa. The bundle adds glibc's
+  `libdl` / `libpthread` / `librt` stubs, without which the unit's 2.27 ones
+  load into our 2.41 process and fail. Safety: **on by hand only** (the
+  phone page or the iDrive app), **never kept** (every start of the tool is
+  on the CPU, so a hang can't loop through boots), the `video` group only
+  in this mode, back on the CPU by itself if the probe finds no GPU
+  renderer or Chromium exits; `state/gpu-trial` marks a try in progress,
+  and if the tool finds it at start (the unit restarted mid-try) the app
+  says so. WebGPU stays on SwiftShader.
 - **WebGPU**: `--enable-unsafe-webgpu` (Chromium's WebGPU allow-list);
   ANGLE and Dawn on Vulkan, which is SwiftShader (`--use-angle=vulkan`,
   `--enable-features=Vulkan,...`). **JSPI** is on by
@@ -88,16 +109,18 @@ filesystem (`../idrive-rootfs`):
 | `server.js` | root | unpacks the bundle; starts / restarts Chromium; the phone page on port 8491 (token in the QR link); the iDrive app's socket; show / hide; the touch mapping; only while parked |
 | `unpack.js` | root | `chromium.tgz` into `/var/opt/vizualyse-chromium/chromium`, once per bundle (sha256 stamp), streamed, then swapped in by rename |
 | `browser.js` | - | Chromium over DevTools on a pipe: one tab at 1790x638, screencast, touches, text, keys, history; `probe()`: JSPI, WebGL 2, WebGPU (a compute shader) and `chrome://gpu`, on a local page (a secure context) |
-| `chromium` | uid 12997, group 12997 | headless, ANGLE and Dawn on SwiftShader (the CPU), in the memory cgroup, through the proxy |
+| `chromium` | uid 12997, group 12997 (GPU mode: group video, 44) | headless, ANGLE and Dawn on SwiftShader (the CPU), in the GPU mode ANGLE on the unit's Mesa 19 GLES; in the memory cgroup, through the proxy |
+| `gpu/libEGL.so.1` | - | C (`gpu/egl_shim.c`), GPU mode only: the default EGL display becomes the unit's Mesa 19 on the render node through GBM |
 | `chromium-sink` | root, then nobody | C (`sink/`): screencast JPEGs into the frame file's next slot as I420 (libjpeg-turbo, BT.601 full range); the display's touches as JSON lines |
 | `screen.js` | root | the frame file `/dev/shm/mgu-video-vizualyse_chromium` and the mgu-render client in layer mode, in the app area |
 | `proxy.js` | uid 12997 | HTTP / CONNECT on 127.0.0.1:8483, names through the phone's DNS |
-| `control.js` | root | `/dev/shm/vizualyse-chromium/ctl.sock` for the app only: status; enable, disable, show, hide, home, reload, back, speed |
+| `control.js` | root | `/dev/shm/vizualyse-chromium/ctl.sock` for the app only: status; enable, disable, show, hide, home, reload, back, gpu, speed |
 | `firewall.js` | root | the phone page's TCP 8491 on `wlan0`, in memory |
 
 State in `/var/opt/vizualyse-chromium/state` (root): the token, the settings
 (on / off, home page, last page), **`gpu.json`** and **`gpu.txt`** (the last
-probe and `chrome://gpu`). The profile (cookies, cache)
+probe and `chrome://gpu`; `gpu.json` says `"mode":"gpu"` or `"cpu"`), and
+**`gpu-trial`** while a GPU-mode Chromium runs. The profile (cookies, cache)
 is in `/var/opt/vizualyse-chromium/profile` (uid 12997). The journal has an
 `@gpu {...}` line after each start.
 
@@ -116,15 +139,24 @@ is in `/var/opt/vizualyse-chromium/profile` (uid 12997). The journal has an
     ANGLE/Vulkan; WebGPU has an adapter and a compute shader returns the
     right numbers; `chrome://gpu` is read; a page's screencast reaches the
     frame file with the right colours; a touch replayed from a capture
-    presses a button.
+    presses a button. The GPU mode's plumbing: `gpu-libs`; `egl_shim_test`
+    (built next to the bundle, not shipped) finds the shim, the unit's Mesa
+    19 libEGL behind it (`eglInitialize`, `eglGetPlatformDisplayEXT`, GLES
+    entry points through libglapi), only the render node tried, and the
+    unit's `i965_dri.so` binding in our process; Chromium in the GPU mode
+    loads the unit's libEGL through the shim and, with no GPU, falls back to
+    SwiftShader.
   - `test/server_test.js`: `server.js` with a stand-in mgu-render client:
     the token, the probe and `@gpu`, `/api/go`, `show` places it in the app
     area and pictures arrive, a touch inside the area presses the page's
     button and one outside doesn't, 20 km/h hides it and refuses `show`,
-    `hide` removes the frame file, `disable` / `enable`.
+    `hide` removes the frame file; the GPU mode: off at start, a leftover
+    `gpu-trial` reported, `gpu` on restarts Chromium through the shim and
+    goes back to the CPU by itself; `disable` / `enable`.
 - What the bench can't tell: anything about the unit's GPU and kernel (the
-  container has neither: 0.1.1's hang was only seen on the car), the frame
-  rate the Atom manages, the memory a heavy page takes.
+  container has neither: 0.1.1's hang was only seen on the car), so whether
+  the GPU mode renders; the frame rate the Atom manages, the memory a heavy
+  page takes.
 
 ## On the car
 
@@ -135,3 +167,9 @@ else on the unit):
 - `cat /var/opt/vizualyse-chromium/state/gpu.json` and `gpu.txt`;
 - `dmesg | grep 'blocked for more'` must say nothing;
 - then `https://webglreport.com/?v=2` on the screen.
+
+The GPU mode, the first time: turn it on from the iDrive page with the
+browser hidden; the journal's `egl-shim:` lines (`display: GBM on
+/dev/dri/renderD128`), `gpu: WebGL 2 on the GPU: ...` or why not, and
+`dmesg` for i915 errors or blocked tasks afterwards. If the screen freezes,
+the unit restarts on the CPU (the mode is never kept).

@@ -23,9 +23,50 @@ rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
 - Everything of ours that uses the GPU safely uses **the unit's own
   userspace drivers**: mgu-render (Mesa 19 EGL / GLES, i965, on Winston),
   Moonlight (MSDK + iHD libva). 0.1.2 has no GPU driver, and Chromium runs
-  without the group `video`, so it can't open `/dev/dri` at all.
+  without the group `video`, so it can't open `/dev/dri` at all; 0.2.0's
+  GPU mode uses the unit's own Mesa 19 (below), by hand only.
 - No persistent journal on the unit: after a restart only the current
   boot's logs remain (`journalctl -b -1` fails).
+
+## WebGL on the unit's own Mesa 19 (the GPU mode, 0.2.0)
+
+Checked in the rootfs container (2026-11-06); no GPU there, so not whether
+it renders.
+
+- The unit's GL stack (`/usr/lib`): Mesa 19.0.6 `libEGL.so.1`,
+  `libGLESv2.so.2`, `libgbm.so.1`, `libglapi.so.0`, **no glvnd**; one DRI
+  driver, `/usr/lib/dri/i965_dri.so` (→ `/etc/alternatives` →
+  `/usr/lib/dri/mesa/`), no swrast. libEGL needs only GLIBC ≤ 2.17, i965
+  GLIBC 2.27 / GLIBCXX_3.4 / CXXABI_1.3.9.
+- **EGL platforms: wayland and drm (gbm) only**: "Surfaceless platform not
+  built", "X11 platform not built"; client extensions
+  `EGL_EXT_platform_base`, `EGL_EXT_platform_wayland`,
+  `EGL_MESA_platform_gbm`, `EGL_EXT_device_base/enumeration/query`, **no**
+  `EGL_MESA_platform_surfaceless` or `EGL_EXT_platform_device`. Display
+  extensions include `EGL_KHR_surfaceless_context`,
+  `EGL_KHR_no_config_context`, `EGL_EXT_image_dma_buf_import(_modifiers)`.
+  i965 gives Gen9 OpenGL ES 3.2 (WebGL 2 needs 3.0 from ANGLE's GLES
+  backend).
+- On the drm platform without a gbm device Mesa opens **`/dev/dri/card0`**
+  (`"%s/card%d"`), the display node Winston is master of; a GBM device made
+  on **`/dev/dri/renderD128`** and `eglGetPlatformDisplayEXT(
+  EGL_PLATFORM_GBM_MESA, ...)` avoids it (the GPU mode's `gpu/egl_shim.c`).
+- Headless Chromium (Ozone headless) allows only ANGLE (`--use-gl=egl`
+  is refused); `--use-angle=gles-egl` makes ANGLE `dlopen("libEGL.so.1")`
+  in the GPU process and call `eglGetDisplay(EGL_DEFAULT_DISPLAY)` (its
+  preferred-display path needs `EGL_EXT_platform_device`), loading the rest
+  through `eglGetProcAddress`. Debian's `chromium` links ANGLE in and
+  doesn't need `libEGL`; its `libEGL.so` / `libGLESv2.so` beside it are
+  stubs. Dawn also opens `libEGL.so.1` looking for a GLES adapter.
+- Loading the unit's libraries into our glibc 2.41 process: the **unit's
+  `libdl.so.2`, `libpthread.so.0`, `librt.so.1` must not load** (2.27:
+  `undefined symbol: _dl_catch_error, version GLIBC_PRIVATE`): the bundle
+  carries trixie's stubs. Mesa 19's EGL needs **its own libgbm** (it reads
+  gbm's internals), so the unit's `libgbm.so.1` replaces the bundle's for
+  the whole Chromium in the GPU mode (Chromium imports only
+  `gbm_bo_get_fd_for_plane` beyond Mesa 19's gbm, and weakly). The bundle's
+  newer libdrm, libexpat, libz, libstdc++ serve Mesa 19 fine; libglapi,
+  Wayland and libffi 6 come from the unit.
 
 ## Touch over the HMI
 

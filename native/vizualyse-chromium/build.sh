@@ -31,7 +31,7 @@ if ! docker image inspect $IMG >/dev/null 2>&1; then
 fi
 [ "${1:-}" = image ] && exit 0
 mkdir -p "$HERE/build"
-key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/sink/*; docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
+key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/sink/* "$HERE"/gpu/*; docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
 if [ -f "$HERE/build/chromium.tgz" ] && [ "$(cat "$HERE/build/chromium.key" 2>/dev/null)" = "$key" ]; then
     echo "chromium.tgz: up to date ($key)"
     exit 0

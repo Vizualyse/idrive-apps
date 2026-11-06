@@ -13,6 +13,9 @@
  *   (1790x638+108+82) and pictures reach the frame file; a touch in the
  *   area presses the page's button, one outside (the HMI's strip) doesn't;
  * - the speed: 20 km/h hides it and "show" is refused, 0 km/h allows it;
+ * - the GPU mode: off at start (a leftover gpu-trial is reported), "gpu" on
+ *   restarts Chromium through the EGL shim, and with no GPU here it goes
+ *   back to the CPU by itself;
  * - "disable" stops Chromium.
  *
  *   node server_test.js <tool folder>
@@ -111,6 +114,9 @@ async function main() {
         CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1',
         CHROMIUM_TOUCH_IFACE: '', CHROMIUM_TOUCH_FILE: TOUCH, CHROMIUM_LINK_IP: '127.0.0.1',
     });
+    /* a GPU try that never ended: as after a restart of the unit */
+    ['/var/opt', '/var/opt/vizualyse-chromium', STATE].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
+    fs.writeFileSync(path.join(STATE, 'gpu-trial'), '{"at":"2026-11-06T11:00:00Z"}\n');
     const lines = [];
     const srv = spawn('/usr/bin/node', [path.join(T, 'src/server.js')], { env: srvEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     const keep = (d) => String(d).split('\n').filter(Boolean).forEach((l) => { lines.push(l); if (process.env.VERBOSE) console.log('  | ' + l); });
@@ -126,6 +132,8 @@ async function main() {
     check(st.gpu.webgpuCompute === 'ok', 'WebGPU compute ok (' + st.gpu.webgpu + ')');
     check(lines.some((l) => /^@gpu \{/.test(l)), 'the journal gets an @gpu line');
     check(st.link === 'http://127.0.0.1:8491/?t=' + tok, 'the link carries the token');
+    check(st.gpuMode === false && st.gpu.mode === 'cpu', 'it starts on the CPU');
+    check(/never ended/.test(st.gpuNote || '') && !fs.existsSync(path.join(STATE, 'gpu-trial')), 'a GPU try that never ended is reported once (' + st.gpuNote + ')');
 
     const go = await req('POST', '/api/go', { url: 'http://127.0.0.1:8999/' }, tok);
     check(go.code === 200, '/api/go opens the page');
@@ -167,6 +175,24 @@ async function main() {
     c.send({ cmd: 'hide' });
     await until('"hide" hides it', () => c.last() && !c.last().shown, 5000);
     check(!fs.existsSync(FRAME), 'the frame file is gone once hidden');
+
+    /* the GPU mode from the app: Chromium restarts on the unit's Mesa 19; with
+     * no GPU here the probe finds SwiftShader and it goes back to the CPU */
+    const n0 = lines.length;
+    c.send({ cmd: 'gpu', on: true });
+    await until('"gpu" turns the GPU mode on', () => c.last() && c.last().gpuMode === true, 5000);
+    const back = await until('without a GPU it goes back to the CPU', () => {
+        const s = c.last();
+        return s && s.gpuMode === false && s.browser === 'running' && s.gpu && s.gpu.mode === 'cpu' && /did not start/.test(s.gpuNote || '') ? s : null;
+    }, 120000);
+    const gl = lines.slice(n0);
+    check(gl.some((l) => /GPU mode: ANGLE on the unit's Mesa 19/.test(l)), 'Chromium ran in the GPU mode');
+    check(gl.some((l) => /egl-shim: \/usr\/lib\/libEGL\.so\.1 loaded/.test(l)), 'through the EGL shim');
+    check(gl.some((l) => /@gpu .*"mode":"gpu"/.test(l)), 'the GPU mode was probed');
+    check(!!back && !fs.existsSync(path.join(STATE, 'gpu-trial')), 'the GPU try ended cleanly (no gpu-trial left)');
+    if (back) console.log('     ' + back.gpuNote);
+    const refused = await req('POST', '/api/gpu', { on: false }, tok);
+    check(refused.code === 200 && refused.body.gpuMode === false, '/api/gpu off when it is off: nothing to do');
 
     c.send({ cmd: 'disable' });
     await until('"disable" stops Chromium', () => c.last() && c.last().browser === 'off' && !c.last().enabled, 10000);

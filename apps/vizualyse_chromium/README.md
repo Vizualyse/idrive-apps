@@ -1,8 +1,9 @@
 # vizualyse_chromium
 
 The iDrive 7 app for [vizualyse-chromium](../../native/vizualyse-chromium)
-(Browser): Chromium on the car's own GPU, with WebGL 2, WebGPU and
-WebAssembly JSPI, on the central screen while parked. Addresses and text are
+(Browser): Chromium on the car, with WebGL 2, WebGPU and WebAssembly JSPI,
+on the central screen while parked (WebGL on the CPU, or on the car's own
+GPU driver in the experimental GPU mode). Addresses and text are
 typed on the phone page the tool serves. The tile is **Browser**.
 
 ## The page
@@ -16,9 +17,10 @@ One `LT_State_Wide` page:
 | link | the same link as text, and how to use it |
 | Show on the screen | opens the empty screen state, then `show`: the browser covers the app area (not the HMI's title bar or left strip); off while shown, moving, or not running |
 | Browser: on / off | the whole browser (`enable` / `disable`: Chromium runs or not) |
+| GPU mode: off / on | `gpu` (experimental): the tool restarts Chromium with WebGL on the unit's own GPU driver (Mesa 19 GLES), and goes back to the CPU by itself if that fails; never kept over a restart of the tool. On needs the browser running; off works any time |
 | Home page, Reload, Back | `home`, `reload`, `back` |
 | page | the page's title and address |
-| GPU | what the tool's probe found, one row: `WebGPU: intel / gen-9 \| WebGL 2: Vulkan, Intel HD Graphics 505 (APL 3) \| JSPI: ok`; `(software)` when WebGPU fell back to SwiftShader |
+| GPU | what the tool's probe found, one row: `WebGPU: CPU (SwiftShader) \| WebGL 2: CPU (SwiftShader) \| JSPI: ok`, in the GPU mode `WebGL 2: GLES 3.2, Intel HD Graphics 505 (APL 3)`; or `GPU mode: ...`, what became of it (it didn't start, Chromium exited, the last try never ended because the unit restarted) |
 
 Texts are plain ASCII (RHMI Text is not a reliable Unicode transport on this
 firmware: knowledge/idrive-app-ui.md); `test_page.js` checks the page's.
@@ -61,8 +63,8 @@ second, `speed`. The app holds it while it runs.
 ```sh
 node tools/build.js          # the source package; the unit builds the app
 node tools/test_page.js      # the page against a fake SDK, HMI and Vehicle2, and a fake tool socket
-node tools/make_page.js vizualyse_chromium@0.1.1
-node tools/make_icon.js vizualyse_chromium@0.1.1/rhmiData/variantGroups/Common/images/vizualyse_chromium_icon.png
+node tools/make_page.js vizualyse_chromium@0.2.0
+node tools/make_icon.js vizualyse_chromium@0.2.0/rhmiData/variantGroups/Common/images/vizualyse_chromium_icon.png
 ```
 
 The structure follows [vizualyse_moonlight](../vizualyse_moonlight).

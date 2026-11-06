@@ -7,7 +7,8 @@
  * after every command and once a second, and {"ev":"error","error":...} for
  * a failed command; the app sends {"cmd":"enable"} / {"cmd":"disable"} (the
  * browser runs or not), {"cmd":"show"} / {"cmd":"hide"} (the page on the
- * central screen), {"cmd":"home"}, {"cmd":"reload"}, {"cmd":"back"} and
+ * central screen), {"cmd":"home"}, {"cmd":"reload"}, {"cmd":"back"},
+ * {"cmd":"gpu","on":true|false} (the GPU mode, experimental) and
  * {"cmd":"speed","kmh":...} (the car's speed, about once a second, for "only
  * while parked"). Connected while the app runs (the speed goes on while the
  * browser covers the page), retried once a second; the tool keeps running
@@ -97,6 +98,9 @@ class BrowserControl extends EventEmitter {
     home() { return this._send({ cmd: 'home' }); }
     reload() { return this._send({ cmd: 'reload' }); }
     back() { return this._send({ cmd: 'back' }); }
+    /* the GPU mode (experimental): the tool restarts Chromium on the unit's own
+     * GPU driver; never kept over a restart of the tool */
+    gpu(on) { return this._send({ cmd: 'gpu', on: !!on }); }
     /* not buttons: they leave a button's error on the status line alone */
     hide() {
         if (!this.sock || !this.status || !this.status.shown) return false;
@@ -113,6 +117,7 @@ class BrowserControl extends EventEmitter {
     enabled() { return !(this.status && this.status.enabled === false); }
     running() { return !!(this.status && this.status.browser === 'running'); }
     shown() { return !!(this.status && this.status.shown); }
+    gpuMode() { return !!(this.status && this.status.gpuMode); }
     moving() { return !!(this.status && this.status.moving); }
     link() { return (this.status && this.status.link) || ''; }
 
@@ -129,7 +134,7 @@ class BrowserControl extends EventEmitter {
         if (failed) return 'Error: ' + failed;
         if (s.bundle === 'unpacking') return 'Installing the browser (about a minute, once)...';
         if (s.bundle === 'failed' || s.error) return 'Error: ' + (s.error || 'the browser could not be installed');
-        if (s.browser === 'starting' || s.browser === 'crashed') return 'Starting the browser...';
+        if (s.browser === 'starting' || s.browser === 'crashed') return 'Starting the browser' + (s.gpuMode ? ' on the GPU' : '') + '...';
         if (s.browser !== 'running') return 'The browser is not running';
         if (s.moving) return 'Only while parked - the car is moving (' + s.speed + ' km/h)';
         if (s.shown) return 'On the screen - the back arrow on the left returns here';
@@ -143,24 +148,35 @@ class BrowserControl extends EventEmitter {
         return (s.title ? s.title + ' - ' : '') + (s.url || '');
     }
 
-    /* what the probe found: on the car WebGPU should be Intel (ANV), not the software fallback */
+    /* what the probe found (WebGL 2 on the GPU in the GPU mode, SwiftShader
+     * otherwise), or what became of the GPU mode; one row */
     gpuText() {
         const s = this.status;
+        if (s && s.gpuNote) return 'GPU mode: ' + s.gpuNote;
         const g = s && s.gpu;
-        if (!g) return s && s.browser === 'running' ? 'GPU: checking...' : '';
+        if (!g || (s.gpuMode && g.mode !== 'gpu')) return s && s.browser === 'running' ? 'GPU: checking...' : '';
+        const soft = g.webgpuFallback && /swiftshader/i.test(g.webgpu || '');
         const webgpu = !g.webgpu || /^no |error/.test(g.webgpu) ? 'WebGPU: ' + (g.webgpu || 'none')
-            : 'WebGPU: ' + g.webgpu + (g.webgpuFallback ? ' (software)' : '') + (g.webgpuCompute === 'ok' ? '' : ', compute ' + g.webgpuCompute);
+            : 'WebGPU: ' + (soft ? 'CPU (SwiftShader)' : g.webgpu + (g.webgpuFallback ? ' (software)' : '')) + (g.webgpuCompute === 'ok' ? '' : ', compute ' + g.webgpuCompute);
         return webgpu + ' | WebGL 2: ' + glName(g.webgl2) + ' | JSPI: ' + (g.jspi || '?');
     }
 }
 
-/* ANGLE's renderer string, short enough for one row: "ANGLE (Intel, Vulkan 1.3
- * (Intel(R) HD Graphics 505 (APL 3)), Intel open-source Mesa driver)" ->
- * "Vulkan, Intel HD Graphics 505 (APL 3)" */
+/* ANGLE's renderer string, short enough for one row: SwiftShader (ANGLE on
+ * Vulkan on the CPU) -> "CPU (SwiftShader)"; on the unit's GLES (the GPU
+ * mode) "ANGLE (Intel Open Source Technology Center, Mesa DRI Intel(R) HD
+ * Graphics 505 (APL 3) , OpenGL ES 3.2 Mesa 19.0.6)" -> "GLES 3.2, Intel HD
+ * Graphics 505 (APL 3)"; others "ANGLE (Intel, Vulkan 1.3 (Intel(R) HD
+ * Graphics 505 (APL 3)), Intel open-source Mesa driver)" -> "Vulkan, Intel HD
+ * Graphics 505 (APL 3)" */
 function glName(s) {
     const t = String(s || 'none');
+    if (/SwiftShader/i.test(t)) return 'CPU (SwiftShader)';
+    const clean = (x) => x.replace(/ \(0x[0-9A-Fa-f]+\)$/, '').replace(/\((R|TM)\)/g, '').replace(/^Mesa (DRI )?/, '').replace(/\s+/g, ' ').trim();
+    const gles = /^ANGLE \([^,]+, (.+?)\s*, OpenGL( ES)? ([\d.]+)/.exec(t);
+    if (gles) return (gles[2] ? 'GLES ' : 'GL ') + gles[3] + ', ' + clean(gles[1]);
     const m = /^ANGLE \(([^,]+), (\S+)[^(]*\((.+)\), [^,]+\)$/.exec(t);
-    return m ? m[2] + ', ' + m[3].replace(/ \(0x[0-9A-Fa-f]+\)$/, '').replace(/\((R|TM)\)/g, '') : t;
+    return m ? m[2] + ', ' + clean(m[3]) : t;
 }
 
 module.exports = { BrowserControl, SOCKET, glName };
