@@ -12,7 +12,7 @@ One `LT_State_Wide` page:
 
 | Row | What it does |
 |---|---|
-| status | `Ready - Show puts it on the screen; ...`, `On the screen - the back arrow on the left returns here`, `Installing the browser (about a minute, once)...`, `Starting the browser...`, `Only while parked - the car is moving (30 km/h)`, `Off - ...`, `Error: ...` (a failed command's for 10 s, or the tool's), `The Browser tool is not running - ...` |
+| status | `Ready - Show puts it on the screen; ...`, `On the screen - the back arrow on the left returns here`, `Installing the browser (about a minute, once)...`, `Starting the browser...`, `Only while parked - the car is moving (30 km/h)`, `Out of memory - the page needed more than 1536 MB (phone page: Memory)` (for 2 minutes after the tool reports a kill at the cap), `Off - ...`, `Error: ...` (a failed command's for 10 s, or the tool's), `The Browser tool is not running - ...` |
 | QR code | the phone page's link, an `LT_Label_1Graphic_Scalable` showing a PNG from `/dev/shm/vizualyse_chromium_qr_<uid>/` |
 | link | the same link as text, and how to use it |
 | Show on the screen | opens the empty screen state, then `show`: the browser covers the app area (not the HMI's title bar or left strip); off while shown, moving, or not running |
@@ -20,7 +20,7 @@ One `LT_State_Wide` page:
 | GPU mode: off / on | `gpu` (experimental): the tool restarts Chromium with WebGL on the unit's own GPU driver (Mesa 19 GLES), and goes back to the CPU by itself if that fails; never kept over a restart of the tool. On needs the browser running; off works any time |
 | Home page, Reload, Back | `home`, `reload`, `back` |
 | page | the page's title and address |
-| GPU | what the tool's probe found, one row: `WebGPU: CPU (SwiftShader) \| WebGL 2: CPU (SwiftShader) \| JSPI: ok`, in the GPU mode `WebGL 2: GLES 3.2, Intel HD Graphics 505 (APL 3)`; or `GPU mode: ...`, what became of it (it didn't start, Chromium exited, the last try never ended because the unit restarted) |
+| GPU | what the tool's probe found, one row: `WebGPU: CPU (SwiftShader) \| WebGL 2: CPU (SwiftShader) \| JSPI: ok`, in the GPU mode `WebGPU: GLES compat | WebGL 2: GLES 3.2, Intel HD Graphics 505 (Broxton)`; or `GPU mode: ...`, what became of it (it didn't start, Chromium exited, the last try never ended because the unit restarted) |
 
 Texts are plain ASCII (RHMI Text is not a reliable Unicode transport on this
 firmware: knowledge/idrive-app-ui.md); `test_page.js` checks the page's.
@@ -63,8 +63,8 @@ second, `speed`. The app holds it while it runs.
 ```sh
 node tools/build.js          # the source package; the unit builds the app
 node tools/test_page.js      # the page against a fake SDK, HMI and Vehicle2, and a fake tool socket
-node tools/make_page.js vizualyse_chromium@0.2.0
-node tools/make_icon.js vizualyse_chromium@0.2.0/rhmiData/variantGroups/Common/images/vizualyse_chromium_icon.png
+node tools/make_page.js vizualyse_chromium@0.2.1
+node tools/make_icon.js vizualyse_chromium@0.2.1/rhmiData/variantGroups/Common/images/vizualyse_chromium_icon.png
 ```
 
 The structure follows [vizualyse_moonlight](../vizualyse_moonlight).

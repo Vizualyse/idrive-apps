@@ -15,6 +15,8 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   input[type=text] { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: var(--fg); font-size: 16px; }
   button { padding: 12px 14px; border-radius: 8px; border: 0; background: #2a2a2a; color: var(--fg); font-size: 15px; }
+  select { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: var(--fg); font-size: 16px; }
+  label { align-self: center; color: var(--dim, #999); }
   button.acc { background: var(--acc); }
   button:disabled { opacity: .4; }
   .dim { color: var(--dim); font-size: 14px; }
@@ -48,6 +50,8 @@
   <dl id="info"></dl>
   <div class="row" style="margin-top:8px"><button data-api="probe">Check the GPU again</button><a id="gpu" target="_blank">chrome://gpu</a><button data-api="restart">Restart the browser</button></div>
   <div class="row" style="margin-top:8px"><button id="gpumode">GPU mode: off</button></div>
+  <div class="row" style="margin-top:8px"><label for="mem">Memory for the browser</label><select id="mem"></select></div>
+  <p class="dim">More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.</p>
   <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
 </div>
 <p id="msg" class="err"></p>
@@ -78,12 +82,19 @@ function render(s) {
   $('gpumode').textContent = 'GPU mode: ' + (gpuOn ? 'on (turn off)' : 'off (turn on)');
   $('gpumode').disabled = !gpuOn && (s.browser !== 'running' || s.bundle !== 'ready');
   const g = s.gpu || {};
+  const m = s.memory || {};
+  if (document.activeElement !== $('mem') && m.choices) {
+    $('mem').innerHTML = m.choices.map((c) => '<option value="' + c + '"' + (c === m.capMb ? ' selected' : '') + '>' + (c / 1024).toFixed(1).replace('.0', '') + ' GB' + (c === m.choices[0] ? ' (default)' : '') + '</option>').join('');
+  }
   const gpuOk = g.webgpu && !/^no |error/.test(g.webgpu) && !g.webgpuFallback;
   $('info').innerHTML =
     row('Browser', s.browser + (s.shown ? ', on the screen' : '') + (s.bundle !== 'ready' ? ' (bundle ' + s.bundle + ')' : '')) +
     row('WebGPU', g.webgpu ? g.webgpu + (g.webgpuFallback ? ' (software fallback)' : '') + (g.webgpuCompute ? ', compute ' + g.webgpuCompute : '') : 'not checked yet', g.webgpu ? (gpuOk ? 'ok' : 'err') : '') +
     row('WebGL 2', g.webgl2) +
     row('GPU mode', (s.gpuMode ? 'on' : 'off') + (s.gpuNote ? ' - ' + s.gpuNote : ''), s.gpuNote ? 'err' : '') +
+    (g.webgpuBackend ? row('WebGPU backend', g.webgpuBackend + (g.webgpuCore === false ? ', compatibility mode' : ', core')) : '') +
+    row('Memory', m.usedMb === null || m.usedMb === undefined ? m.capMb + ' MB cap' : m.usedMb + ' MB used, ' + m.peakMb + ' MB at most, ' + m.capMb + ' MB cap') +
+    (m.note ? row('Memory', m.note + ' (' + String(m.oomAt || '').slice(11, 19) + ')', 'err') : '') +
     row('JSPI', g.jspi, g.jspi === 'ok' ? 'ok' : g.jspi ? 'err' : '') +
     row('Speed', s.speed === null ? 'unknown (counts as parked)' : s.speed + ' km/h' + (s.moving ? ', moving' : '')) +
     row('Pictures', s.pictures + (s.decodeMs ? ', ' + s.decodeMs + ' ms each' : '')) +
@@ -97,6 +108,7 @@ $('show').onclick = () => api('/api/show', {}).catch(() => null);
 $('hide').onclick = () => api('/api/hide', {}).catch(() => null);
 let gpuOn = false;
 $('gpumode').onclick = () => api('/api/gpu', { on: !gpuOn }).catch(() => null);
+$('mem').onchange = () => api('/api/memory', { mb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
 $('send').onclick = () => api('/api/text', { text: $('text').value }).then(() => { $('text').value = ''; }, () => null);
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });
 document.querySelectorAll('[data-api]').forEach((b) => { b.onclick = () => api('/api/' + b.dataset.api, {}).catch(() => null); });

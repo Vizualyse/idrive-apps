@@ -286,7 +286,23 @@ async function main() {
     st = Object.assign({}, st, { gpuNote: null });
     tool.broadcast();
     await until('the line back', () => G.text === 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
-    console.log('ok   GPU mode: on / off send gpu; starting on the GPU, WebGL 2 on GLES, the note of a failed try');
+    st = Object.assign({}, st, { gpuMode: true, gpu: Object.assign({}, GPU_GLES, { webgpu: 'ANGLE (Intel Open Source Technology Center, Mesa DRI Intel(R) HD Graphics 505 (Broxton) , OpenGL ES 3.2)', webgpuFallback: false, webgpuBackend: 'openGLES', webgpuCore: false,
+        webgl2: 'ANGLE (Intel Open Source Technology Center, Mesa DRI Intel(R) HD Graphics 505 (Broxton) , OpenGL ES 3.2)' }) });
+    tool.broadcast();
+    await until('WebGPU compat on the GPU', () => G.text === 'WebGPU: GLES compat | WebGL 2: GLES 3.2, Intel HD Graphics 505 (Broxton) | JSPI: ok');
+    st = Object.assign({}, st, { gpuMode: false, gpu: GPU });
+    tool.broadcast();
+    await until('the CPU line again', () => G.text === 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
+    console.log('ok   GPU mode: on / off send gpu; starting on the GPU, WebGL 2 on GLES, WebGPU in compatibility mode, the note of a failed try');
+
+    /* a page too big for the memory cap: said on the status line for 2 minutes */
+    st = Object.assign({}, st, { memory: { capMb: 1536, choices: [1536, 2048, 2560], usedMb: 900, peakMb: 1536, oomAt: new Date().toISOString(), note: 'out of memory: ...' } });
+    tool.broadcast();
+    await until('out of memory said', () => S.text === 'Out of memory - the page needed more than 1536 MB (phone page: Memory)');
+    st = Object.assign({}, st, { memory: Object.assign({}, st.memory, { oomAt: new Date(Date.now() - 130000).toISOString() }) });
+    tool.broadcast();
+    await until('and gone after 2 minutes', () => /^Ready/.test(S.text || ''));
+    console.log('ok   running out of memory shows on the status line for 2 minutes');
 
     /* Show: the empty screen state first, the browser once it is visible */
     await sleep(450);

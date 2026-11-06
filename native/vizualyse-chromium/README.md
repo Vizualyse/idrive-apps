@@ -75,7 +75,15 @@ filesystem (`../idrive-rootfs`):
   in this mode, back on the CPU by itself if the probe finds no GPU
   renderer or Chromium exits; `state/gpu-trial` marks a try in progress,
   and if the tool finds it at start (the unit restarted mid-try) the app
-  says so. WebGPU stays on SwiftShader.
+  says so. **WebGPU in the GPU mode (0.2.2)** runs on the same driver:
+  Dawn's GLES backend over ANGLE (`--use-webgpu-adapter=opengles`; Linux
+  leaves it off otherwise), which offers WebGPU's **compatibility mode**
+  only, so `--force-webgpu-compat` gives it to every page, even one asking
+  for plain WebGPU. Compatibility mode is reduced WebGPU (lower limits, no
+  storage buffers in vertex shaders, no cube arrays): a page needing core
+  features fails there and runs (slowly) in the CPU mode. Seen on the car
+  with 0.2.1: WebGL 2 on `Mesa DRI Intel(R) HD Graphics 505 (Broxton),
+  OpenGL ES 3.2`, compositing and canvas hardware accelerated.
 - **WebGPU**: `--enable-unsafe-webgpu` (Chromium's WebGPU allow-list);
   ANGLE and Dawn on Vulkan, which is SwiftShader (`--use-angle=vulkan`,
   `--enable-features=Vulkan,...`). **JSPI** is on by
@@ -103,8 +111,15 @@ filesystem (`../idrive-rootfs`):
   doesn't resolve internet names; Cast's proxy). **`--no-sandbox`**: the
   unit offers neither a setuid sandbox nor known user namespaces; the uid
   has no other rights.
-- **Memory**: Chromium sits in its own cgroup v1 memory group capped at
-  1536 MB (the unit has ~5.6 GB); its disk cache is capped at 100 MB.
+- **Memory**: Chromium sits in its own cgroup v1 memory group, capped at
+  1536 MB by default, 2048 or 2560 MB from the phone page (the unit has
+  ~5.6 GB, with ~1.4 GB available and 1.6 of its 3 GB zram swap in use on
+  the car: more for the browser means less for the HMI). At the cap the
+  kernel ends one of Chromium's processes, never the HMI's; the tool reads
+  that from `memory.oom_control` and says so (the app's status line, the
+  phone page, `memory:` in the journal), as a big WebGPU game on the CPU did
+  (its GPU process killed: the page loses its WebGPU device). Its disk
+  cache is capped at 100 MB.
 - **Never a reboot**: the service is on recmgr's whitelist and `chromium`,
   `chrome_crashpad_handler` and `chromium-sink` on crashhandler's
   (component.json `recmgr`, `crashNames`); Chromium's own crashes restart

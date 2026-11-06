@@ -45,6 +45,12 @@ function args(opts) {
          * EGL shim (env.js, gpu/egl_shim.c); no video engines */
         '--use-gl=angle', '--use-angle=gles-egl',
         '--disable-accelerated-video-decode', '--disable-accelerated-video-encode',
+        /* WebGPU on the same driver: Dawn's GLES backend over ANGLE, which
+         * Linux leaves off without --use-webgpu-adapter=opengles. It offers
+         * WebGPU's compatibility mode only, so every page gets that
+         * (--force-webgpu-compat), even one asking for plain WebGPU. The
+         * developer features tell the probe the backend. */
+        '--use-webgpu-adapter=opengles', '--force-webgpu-compat', '--enable-webgpu-developer-features',
     ] : [
         /* ANGLE and Dawn on Vulkan: SwiftShader, the only driver (env.js) */
         '--use-angle=vulkan', '--enable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan',
@@ -310,7 +316,10 @@ const PROBE = `(async () => {
     if (!gl) r.webgl2 = 'none';
     else { const x = gl.getExtension('WEBGL_debug_renderer_info'); r.webgl2 = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); }
   } catch (e) { r.webgl2 = 'error: ' + e.message; }
-  try {
+  /* twice at most: an adapter can go stale when the GPU process restarts
+   * under it ("A valid external Instance reference no longer exists") */
+  for (let attempt = 0; attempt < 2; attempt++) try {
+    delete r.webgpu; delete r.webgpuCompute;
     if (!navigator.gpu) r.webgpu = 'no navigator.gpu';
     else {
       const a = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
@@ -319,6 +328,10 @@ const PROBE = `(async () => {
         const i = a.info || {};
         r.webgpu = [i.vendor, i.architecture, i.device, i.description].filter(Boolean).join(' / ') || 'an adapter';
         r.webgpuFallback = !!(i.isFallbackAdapter || a.isFallbackAdapter);
+        /* the backend (with --enable-webgpu-developer-features) and core or
+         * compatibility mode (the GPU mode forces compatibility) */
+        if (i.backend) r.webgpuBackend = i.backend;
+        r.webgpuCore = a.features.has('core-features-and-limits');
         const d = await a.requestDevice();
         const buf = d.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
         const mod = d.createShaderModule({ code: '@group(0) @binding(0) var<storage, read_write> o: array<u32>; @compute @workgroup_size(4) fn main(@builtin(global_invocation_id) i: vec3u) { o[i.x] = i.x * 7u; }' });
@@ -334,7 +347,12 @@ const PROBE = `(async () => {
         d.destroy();
       }
     }
-  } catch (e) { r.webgpu = (r.webgpu ? r.webgpu + '; ' : '') + 'error: ' + e.message; }
+    break;
+  } catch (e) {
+    r.webgpu = (r.webgpu ? r.webgpu + '; ' : '') + 'error: ' + e.message;
+    if (attempt === 0 && /Instance reference|lost|destroyed/i.test(e.message)) await new Promise((ok) => setTimeout(ok, 1000));
+    else break;
+  }
   return r;
 })()`;
 

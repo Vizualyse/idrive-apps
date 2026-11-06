@@ -12,7 +12,7 @@
  *   /var/opt/vizualyse-chromium/chromium (unpack.js).
  * - Chromium runs headless as the tool's uid 12997 (mgu-uplink routes it to
  *   the internet, through proxy.js and the phone's DNS), in its own group
- *   (never video: no GPU access), in a memory cgroup capped at MEM_MB, driven over
+ *   (never video: no GPU access), in a memory cgroup capped at the memory setting, driven over
  *   DevTools on a pipe (browser.js). At each start probe() checks JSPI,
  *   WebGL 2 and WebGPU on a local page and saves what it found, chrome://gpu
  *   too, in STATE_DIR (gpu.json, gpu.txt) and the journal (@gpu).
@@ -70,7 +70,12 @@ const TOUCH_SRC = process.env.CHROMIUM_TOUCH_SRC || '160.48.199.115';
 const TOUCH_FILE = process.env.CHROMIUM_TOUCH_FILE || '';
 /* The memory cgroup (v1, mounted on the unit) and its cap: the unit has ~5.6 GB in all */
 const CGROUP_ROOT = process.env.CHROMIUM_CGROUP_ROOT || '/sys/fs/cgroup/memory';
-const MEM_MB = Number(process.env.CHROMIUM_MEM_MB) || 1536;
+/* The cap is a setting (the phone page): more lets bigger pages and games
+ * load, but leaves less to the HMI and pushes the unit further into its zram
+ * swap (2026-11-06: 1.4 GB available, 1.6 of 3 GB swap in use). Within the
+ * cap only Chromium's own processes can be killed. */
+const MEM_CHOICES = [1536, 2048, 2560];
+const MEM_DEFAULT = Number(process.env.CHROMIUM_MEM_MB) || 1536;
 const MAX_KMH = 3;
 const DEFAULT_URL = 'https://webglreport.com/?v=2';
 const JPEG_QUALITY = 75;
@@ -118,7 +123,8 @@ function toUrl(s) {
 /* ---- settings ------------------------------------------------------------ */
 
 const SETTINGS_FILE = path.join(env.STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, home: DEFAULT_URL, url: DEFAULT_URL }, readJson(SETTINGS_FILE) || {});
+const settings = Object.assign({ enabled: true, home: DEFAULT_URL, url: DEFAULT_URL, memMb: MEM_DEFAULT }, readJson(SETTINGS_FILE) || {});
+if (MEM_CHOICES.indexOf(settings.memMb) < 0 && settings.memMb !== MEM_DEFAULT) settings.memMb = MEM_DEFAULT;
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
 
 /* ---- the memory cgroup ------------------------------------------------------- */
@@ -130,7 +136,7 @@ function cgroup() {
     try {
         if (!fs.existsSync(CGROUP_ROOT)) return null;
         if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-        fs.writeFileSync(path.join(dir, 'memory.limit_in_bytes'), String(MEM_MB * 1024 * 1024));
+        fs.writeFileSync(path.join(dir, 'memory.limit_in_bytes'), String(settings.memMb * 1024 * 1024));
         fs.chownSync(path.join(dir, 'cgroup.procs'), NET_UID, CHROMIUM_GID);
         return dir;
     } catch (e) {
@@ -232,7 +238,7 @@ function startBrowser() {
         try { writeJson(GPU_TRIAL, { at: new Date().toISOString() }); } catch (e) { log('gpu: ' + e.message); }
     }
     const b = new Browser({ w: VIEW.w, h: VIEW.h, uid: NET_UID, gid: useGpu ? VIDEO_GID : CHROMIUM_GID, gpu: useGpu,
-        proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: cgroup(), url: 'about:blank' });
+        proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: (cgroupDir = cgroup()), url: 'about:blank' });
     browser = b;
     browserState = 'starting';
     let quiet = 0;
@@ -290,7 +296,12 @@ function startBrowser() {
                     if (page) fs.writeFileSync(path.join(env.STATE_DIR, 'gpu.txt'), page + '\n', { mode: 0o644 });
                 } catch (e) { log('gpu: ' + e.message); }
                 if (useGpu && browser === b) {
-                    if (onGpu(p)) { log('gpu: WebGL 2 on the GPU: ' + p.webgl2); return; }
+                    if (onGpu(p)) {
+                        log('gpu: WebGL 2 on the GPU: ' + p.webgl2);
+                        log('gpu: WebGPU: ' + (p.webgpuBackend || '?') + (p.webgpuCore === false ? ', compatibility mode' : ', core') +
+                            (p.webgpuFallback ? ', software' : '') + ', compute ' + (p.webgpuCompute || '?') + ' (' + String(p.webgpu || '').slice(0, 100) + ')');
+                        return;
+                    }
                     gpuNote = 'the GPU did not start (WebGL 2: ' + String(p.webgl2 || 'none').slice(0, 60) + '): back on the CPU; chrome://gpu has why';
                     log('gpu: ' + gpuNote);
                     setGpu(false, 'no GPU renderer');
@@ -367,7 +378,53 @@ function setSpeed(kmh) {
 
 function gpuSummary() {
     if (!gpu) return null;
-    return { mode: gpu.mode || 'cpu', webgpu: gpu.webgpu, webgpuFallback: !!gpu.webgpuFallback, webgpuCompute: gpu.webgpuCompute, webgl2: gpu.webgl2, jspi: gpu.jspi, at: gpu.at };
+    return { mode: gpu.mode || 'cpu', webgpu: gpu.webgpu, webgpuFallback: !!gpu.webgpuFallback, webgpuCompute: gpu.webgpuCompute,
+        webgpuBackend: gpu.webgpuBackend || null, webgpuCore: gpu.webgpuCore !== false, webgl2: gpu.webgl2, jspi: gpu.jspi, at: gpu.at };
+}
+
+/* ---- memory: the cap and running into it ------------------------------------ */
+
+let cgroupDir = null;
+const mem = { usedMb: null, peakMb: null, ooms: null, oomAt: null, note: null };
+const mb = (bytes) => Math.round(Number(bytes) / 1048576);
+function readCg(f) { try { return fs.readFileSync(path.join(cgroupDir, f), 'utf8'); } catch (e) { return null; } }
+
+/* Every 2 s: what Chromium uses, and whether the kernel ended one of its
+ * processes at the cap (memory.oom_control's oom_kill). That is what a page
+ * too big for the cap looks like: the GPU process killed, WebGPU / WebGL
+ * contexts lost (vel.gg on the car, 2026-11-06). */
+function watchMemory() {
+    if (!cgroupDir) return;
+    const used = readCg('memory.usage_in_bytes'), peak = readCg('memory.max_usage_in_bytes'), oc = readCg('memory.oom_control');
+    if (used !== null) mem.usedMb = mb(used);
+    if (peak !== null) mem.peakMb = mb(peak);
+    const m = oc && /oom_kill (\d+)/.exec(oc);
+    if (!m) return;
+    const n = Number(m[1]);
+    if (mem.ooms !== null && n > mem.ooms) {
+        mem.oomAt = new Date().toISOString();
+        mem.note = 'out of memory: the page needed more than the ' + settings.memMb + ' MB cap and Chromium lost a process';
+        log('memory: Chromium hit its ' + settings.memMb + ' MB cap; the kernel ended one of its processes (' + (n - mem.ooms) + ', ' + n + ' in all)');
+        if (control) control.broadcast();
+    }
+    mem.ooms = n;
+}
+setInterval(watchMemory, 2000);
+
+function setMemory(v) {
+    v = Number(v);
+    if (MEM_CHOICES.indexOf(v) < 0) return 'the memory cap is one of ' + MEM_CHOICES.join(', ') + ' MB';
+    if (v === settings.memMb) return null;
+    settings.memMb = v;
+    saveSettings();
+    mem.note = null;
+    let now = false;
+    if (cgroupDir) {
+        try { fs.writeFileSync(path.join(cgroupDir, 'memory.limit_in_bytes'), String(v * 1024 * 1024)); now = true; } catch (e) { /* in use above it */ }
+    }
+    log('memory: the cap is ' + v + ' MB' + (now ? '' : ' from the next start of the browser'));
+    if (control) control.broadcast();
+    return null;
 }
 
 function status() {
@@ -379,6 +436,7 @@ function status() {
         gpu: gpuSummary(), gpuMode: gpuMode, gpuNote: gpuNote, speed: vehicle.kmh, moving: moving(),
         pictures: stats.pictures, decodeMs: stats.decodeMs,
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
+        memory: { capMb: settings.memMb, choices: MEM_CHOICES, usedMb: mem.usedMb, peakMb: mem.peakMb, oomAt: mem.oomAt, note: mem.note },
     };
 }
 
@@ -415,6 +473,7 @@ const ROUTES = {
     '/api/key': (b) => need().then((x) => x.key(String(b.key || ''))),
     '/api/probe': () => need().then((x) => x.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe')).then((p) => { delete p.gpuPage; gpu = Object.assign({ at: new Date().toISOString() }, p); console.log('@gpu ' + JSON.stringify(gpu)); }),
     '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
+    '/api/memory': (b) => { const e = setMemory(b.mb); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/restart': () => { restarts = []; lastError = null; stopBrowser(); setTimeout(startBrowser, 1500); return Promise.resolve(); },
 };
 
@@ -464,6 +523,7 @@ function command(c) {
     if (c.cmd === 'show') return show();
     if (c.cmd === 'hide') { hide('hidden on the iDrive page'); return null; }
     if (c.cmd === 'gpu') return setGpu(!!c.on);
+    if (c.cmd === 'memory') return setMemory(c.mb);
     if (!browser || browserState !== 'running') return 'the browser is not running';
     if (c.cmd === 'home') { browser.navigate(settings.home).catch((e) => log('home: ' + e.message)); return null; }
     if (c.cmd === 'reload') { browser.reload().catch((e) => log('reload: ' + e.message)); return null; }

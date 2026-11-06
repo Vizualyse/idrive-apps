@@ -78,11 +78,30 @@ it renders.
   native ones, and Mesa 19's GBM platform offers window surfaces only. 0.2.1
   emulates pbuffers in the shim (window configs say pbuffer; a pbuffer is a
   GBM surface with a window surface on it, its swaps skipped).
-- **WebGPU on the same driver:** `--use-webgpu-adapter=opengles
+- **0.2.1 on the car: WebGL 2 on the GPU.** `ANGLE (Intel Open Source
+  Technology Center, Mesa DRI Intel(R) HD Graphics 505 (Broxton) , OpenGL ES
+  3.2)`; `chrome://gpu`: compositing and canvas hardware accelerated,
+  Skia on Ganesh GL; nothing in `dmesg`. (Mesa names the chip Broxton,
+  Vulkan "APL 3".)
+- **WebGPU on the same driver (0.2.2):** `--use-webgpu-adapter=opengles
   --force-webgpu-compat` give every page a compatibility-mode adapter on
   Dawn's GLES backend over ANGLE (Linux leaves that backend off otherwise:
   "Deliberately disable compat on linux"); seen working on ANGLE /
-  SwiftShader in the container. Not on the car yet (TODO.md).
+  SwiftShader in the container. `adapter.info.backend` needs
+  `--enable-webgpu-developer-features`; compatibility adapters lack the
+  `core-features-and-limits` feature. Right after the GPU process restarts
+  an adapter can be stale (`requestDevice`: "A valid external Instance
+  reference no longer exists"): ask for a new one.
+
+## Memory (the car, 2026-11-06)
+
+- 5.6 GB RAM, ~1.4 GB available and 1.6 of 3 GB zram swap in use with the
+  browser loaded. A big WebGPU game on SwiftShader (vel.gg) filled the
+  1536 MB cgroup for minutes (`memory.failcnt` 349441), then the kernel
+  killed Chromium's GPU process (`Killed process ... (chromium)`,
+  `memory.oom_control` `oom_kill 1`; Chromium: `GPU process exited
+  unexpectedly: exit_code=9`); the page's WebGPU device was lost. The HMI was
+  untouched: the kill stays inside the cgroup.
 
 ## Touch over the HMI
 

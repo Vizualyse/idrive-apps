@@ -103,6 +103,7 @@ async function main() {
     check(/SwiftShader|Vulkan/i.test(String(p.webgl2)), 'WebGL 2 on ANGLE/Vulkan (' + p.webgl2 + ')');
     check(p.webgpu && !/^no |error/.test(p.webgpu), 'WebGPU has an adapter (' + p.webgpu + ')');
     check(p.webgpuCompute === 'ok', 'a WebGPU compute shader gives the right numbers (' + p.webgpuCompute + ')');
+    check(p.webgpuCore === true, 'on the CPU WebGPU is core, not compatibility mode');
     const gpuLines = String(p.gpuPage || '').split('\n').filter((l) => /WebGPU|WebGL|Vulkan|ANGLE|GL_RENDERER|Rasterization/i.test(l)).slice(0, 25);
     gpuLines.forEach((l) => log('chrome://gpu: ' + l.trim().slice(0, 160)));
     if (process.env.GPU_PAGE) fs.writeFileSync('/out/gpu.txt', p.gpuPage);
@@ -182,6 +183,10 @@ async function main() {
         log('GPU mode: ' + JSON.stringify(Object.assign({}, gp, { gpuPage: undefined })));
         check(gp.jspi === 'ok', 'GPU mode: JSPI runs');
         check(/SwiftShader/i.test(String(gp.webgl2)), 'GPU mode without a GPU: WebGL 2 falls back to SwiftShader (' + gp.webgl2 + ')');
+        /* WebGPU forced into compatibility mode on Dawn's GLES backend (over
+         * ANGLE; here ANGLE is on SwiftShader, on the car on Mesa 19) */
+        check(gp.webgpuBackend === 'openGLES' && gp.webgpuCore === false, 'GPU mode: WebGPU in compatibility mode on GLES (' + gp.webgpuBackend + ', core ' + gp.webgpuCore + ')');
+        check(gp.webgpuCompute === 'ok', 'GPU mode: its compute shader gives the right numbers (' + gp.webgpuCompute + ')');
         const angle = String(gp.gpuPage || '').split('\n').filter((l) => /GL_RENDERER|ANGLE|gles|EGL/i.test(l)).slice(0, 12);
         angle.forEach((l) => log('chrome://gpu: ' + l.trim().slice(0, 160)));
     } catch (e) {

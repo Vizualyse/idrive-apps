@@ -111,9 +111,17 @@ async function main() {
         CHROMIUM_ARCHIVE: path.join(T, 'build/chromium.tgz'),
         CHROMIUM_RENDER_CLIENT: path.join(T, 'test/fake/render_client.js'),
         CHROMIUM_TEST_RENDER_LOG: RLOG,
-        CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1',
+        CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1', CHROMIUM_CGROUP_ROOT: '/dev/shm/cg',
         CHROMIUM_TOUCH_IFACE: '', CHROMIUM_TOUCH_FILE: TOUCH, CHROMIUM_LINK_IP: '127.0.0.1',
     });
+    /* a stand-in memory cgroup (v1 files) */
+    const CG = '/dev/shm/cg/vizualyse-chromium';
+    ['/dev/shm/cg', CG].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
+    const oom = (n) => fs.writeFileSync(path.join(CG, 'memory.oom_control'), ['oom_kill_disable 0', 'under_oom 0', 'oom_kill ' + n, ''].join('\n'));
+    fs.writeFileSync(path.join(CG, 'cgroup.procs'), '');
+    fs.writeFileSync(path.join(CG, 'memory.usage_in_bytes'), String(700 * 1048576));
+    fs.writeFileSync(path.join(CG, 'memory.max_usage_in_bytes'), String(900 * 1048576));
+    oom(0);
     /* a GPU try that never ended: as after a restart of the unit */
     ['/var/opt', '/var/opt/vizualyse-chromium', STATE].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
     fs.writeFileSync(path.join(STATE, 'gpu-trial'), '{"at":"2026-11-06T11:00:00Z"}\n');
@@ -134,6 +142,21 @@ async function main() {
     check(st.link === 'http://127.0.0.1:8491/?t=' + tok, 'the link carries the token');
     check(st.gpuMode === false && st.gpu.mode === 'cpu', 'it starts on the CPU');
     check(/never ended/.test(st.gpuNote || '') && !fs.existsSync(path.join(STATE, 'gpu-trial')), 'a GPU try that never ended is reported once (' + st.gpuNote + ')');
+
+    /* the memory cap: 1536 MB, set on the cgroup; a setting; a kill at the cap is reported */
+    check(fs.readFileSync(path.join(CG, 'memory.limit_in_bytes'), 'utf8') === String(1536 * 1048576), 'the cgroup is capped at 1536 MB');
+    const m0 = await until('memory read', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.memory && r.body.memory.usedMb === 700 ? r.body.memory : null)), 5000);
+    check(!!m0 && m0.capMb === 1536 && m0.peakMb === 900 && !m0.note, 'status: 700 MB used, 900 at most, 1536 cap');
+    const bad = await req('POST', '/api/memory', { mb: 4096 }, tok);
+    check(bad.code === 400, 'a cap that is not offered is refused');
+    const set = await req('POST', '/api/memory', { mb: 2048 }, tok);
+    check(set.code === 200 && set.body.memory.capMb === 2048 && fs.readFileSync(path.join(CG, 'memory.limit_in_bytes'), 'utf8') === String(2048 * 1048576), '2048 MB: set at once on the cgroup');
+    check(JSON.parse(fs.readFileSync(path.join(STATE, 'settings.json'), 'utf8')).memMb === 2048, 'and kept in the settings');
+    oom(1);
+    const m1 = await until('the kill reported', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.memory && r.body.memory.note ? r.body.memory : null)), 6000);
+    check(!!m1 && /out of memory: the page needed more than the 2048 MB cap/.test(m1.note) && !!m1.oomAt, 'a process killed at the cap is reported (' + (m1 && m1.note) + ')');
+    check(lines.some((l) => /memory: Chromium hit its 2048 MB cap/.test(l)), 'and logged');
+    await req('POST', '/api/memory', { mb: 1536 }, tok);
 
     const go = await req('POST', '/api/go', { url: 'http://127.0.0.1:8999/' }, tok);
     check(go.code === 200, '/api/go opens the page');

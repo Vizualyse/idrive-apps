@@ -26,6 +26,8 @@ const SOCKET = process.env.CHROMIUM_CTL_SOCKET || '/dev/shm/vizualyse-chromium/c
 const RETRY_MS = 1000;
 /* how long a failed command's error stays on the status line */
 const ERROR_MS = 10000;
+/* how long running out of memory stays on the status line */
+const OOM_MS = 120000;
 
 class BrowserControl extends EventEmitter {
     constructor(opts) {
@@ -136,6 +138,10 @@ class BrowserControl extends EventEmitter {
         if (s.bundle === 'failed' || s.error) return 'Error: ' + (s.error || 'the browser could not be installed');
         if (s.browser === 'starting' || s.browser === 'crashed') return 'Starting the browser' + (s.gpuMode ? ' on the GPU' : '') + '...';
         if (s.browser !== 'running') return 'The browser is not running';
+        const m = s.memory;
+        if (m && m.note && m.oomAt && Date.now() - Date.parse(m.oomAt) < OOM_MS) {
+            return 'Out of memory - the page needed more than ' + m.capMb + ' MB (phone page: Memory)';
+        }
         if (s.moving) return 'Only while parked - the car is moving (' + s.speed + ' km/h)';
         if (s.shown) return 'On the screen - the back arrow on the left returns here';
         if (!s.link) return 'Ready - Show puts it on the screen (phone page: waiting for the hotspot, uplink ' + (s.uplink || 'unknown') + ')';
@@ -156,8 +162,10 @@ class BrowserControl extends EventEmitter {
         const g = s && s.gpu;
         if (!g || (s.gpuMode && g.mode !== 'gpu')) return s && s.browser === 'running' ? 'GPU: checking...' : '';
         const soft = g.webgpuFallback && /swiftshader/i.test(g.webgpu || '');
+        /* the GPU mode's WebGPU: compatibility mode on Dawn's GLES backend */
+        const compat = g.webgpuBackend === 'openGLES' ? 'GLES compat' + (g.webgpuFallback ? ' (CPU)' : '') : null;
         const webgpu = !g.webgpu || /^no |error/.test(g.webgpu) ? 'WebGPU: ' + (g.webgpu || 'none')
-            : 'WebGPU: ' + (soft ? 'CPU (SwiftShader)' : g.webgpu + (g.webgpuFallback ? ' (software)' : '')) + (g.webgpuCompute === 'ok' ? '' : ', compute ' + g.webgpuCompute);
+            : 'WebGPU: ' + (compat || (soft ? 'CPU (SwiftShader)' : g.webgpu + (g.webgpuFallback ? ' (software)' : ''))) + (g.webgpuCompute === 'ok' ? '' : ', compute ' + g.webgpuCompute);
         return webgpu + ' | WebGL 2: ' + glName(g.webgl2) + ' | JSPI: ' + (g.jspi || '?');
     }
 }

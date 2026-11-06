@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- The GPU row says `WebGPU: GLES compat` when the GPU mode runs WebGPU in
+  compatibility mode on the car's graphics driver.
+- When a page needs more memory than the browser's cap, the status line
+  says so for 2 minutes (the cap is set on the phone page).
+- Requires vizualyse-chromium 0.2.2.
+
 ## 0.2.0
 
 - **GPU mode** button (experimental): the tool restarts the browser with
