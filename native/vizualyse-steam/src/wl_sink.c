@@ -8,8 +8,12 @@
  * screen belongs to Winston and the HMI.
  *
  *   wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm]
- *           [--device /dev/dri/renderD128] [--no-drm]
+ *           [--device /dev/dri/renderD128] [--no-drm] [--uid U --gid G]
  *
+ * --uid / --gid (the car: started as root): the frame file is mapped first
+ * (mgu-render wants it root's), then every group is dropped and the sink
+ * runs as U:G (the tool's uid, the render node's group) before it opens its
+ * socket or the GPU.
  * --create makes the frame file (3 slots) when it isn't there (the bench;
  * on the car the tool's server makes it, root-owned, as mgu-render wants).
  * --snap rewrites F.ppm with each picture (tests). --fps caps how often a
@@ -50,6 +54,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <grp.h>
 #include <wayland-server.h>
 #include "frame_out.h"
 #include "rgb.h"
@@ -868,9 +873,11 @@ static int create_frame(const char *path, int w, int h) {
 int main(int argc, char **argv) {
     const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128";
     int create_w = 0, create_h = 0, no_drm = 0;
+    long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
-        { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' }, { 0, 0, 0, 0 } };
+        { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
+        { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 's': sock = optarg; break;
@@ -880,8 +887,10 @@ int main(int argc, char **argv) {
         case 'p': snap_path = optarg; break;
         case 'd': device = optarg; break;
         case 'n': no_drm = 1; break;
+        case 'u': drop_uid = strtol(optarg, NULL, 10); break;
+        case 'g': drop_gid = strtol(optarg, NULL, 10); break;
         default:
-            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm]\n");
+            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G]\n");
             return 2;
         }
     }
@@ -900,6 +909,13 @@ int main(int argc, char **argv) {
         out_w = fo.w; out_h = fo.h;
     } else if (create_w > 0 && create_h > 0) {
         out_w = create_w; out_h = create_h;
+    }
+    /* the frame file is mapped: from here on the tool's uid, the GPU's group */
+    if ((drop_uid >= 0) != (drop_gid >= 0)) { fprintf(stderr, "wl-sink: --uid and --gid go together\n"); return 2; }
+    if (drop_gid >= 0 && (setgroups(0, NULL) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
+                          || getuid() != (uid_t)drop_uid || geteuid() != (uid_t)drop_uid)) {
+        printf("{\"ev\":\"error\",\"error\":\"cannot drop to uid %ld gid %ld\"}\n", drop_uid, drop_gid);
+        return 1;
     }
     canvas = calloc((size_t)out_w * out_h, 4);
     if (!canvas) return 1;

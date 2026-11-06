@@ -31,7 +31,8 @@ case "${COMPOSITOR:-weston}" in
     weston) LD_PRELOAD= LD_LIBRARY_PATH= weston --backend=headless --renderer=pixman --socket=wayland-1 \
                 --idle-time=0 >/tmp/compositor.log 2>&1 & ;;
     wl-sink) mkdir -p /b/out
-             /b/wl-sink --socket wayland-1 --frame /tmp/frame --create "${FRAME_SIZE:-1280x720}" \
+             # WL_SINK_WRAP: e.g. "strace -f -o /b/out/wl-sink.strace" (the image has strace)
+             ${WL_SINK_WRAP:-} /b/wl-sink --socket wayland-1 --frame /tmp/frame --create "${FRAME_SIZE:-1280x720}" \
                  --snap /b/out/snap.ppm ${WL_SINK_ARGS:-} >/tmp/compositor.log 2>&1 & ;;
 esac
 COMP=$!
@@ -78,6 +79,9 @@ grep -hE ":err:" /tmp/log/steam-*.log 2>/dev/null | sed -E 's/^([0-9.]+:)?([0-9a
     | sort | uniq -c | sort -rn | head -n "${ERR_LINES:-25}"
 [ -n "${SHOW_LOG:-}" ] && { echo "== Proton's log:"; grep -vE "^[0-9.]*:[0-9a-f]*:[0-9a-f]*:fixme" /tmp/log/steam-*.log | tail -"${SHOW_LOG}"; }
 [ -n "${SHOW_COMPOSITOR:-}" ] && { echo "== compositor:"; tail -40 /tmp/compositor.log; }
+# wl-sink says its stats once a second: a run shorter than that (the stub
+# draws 60 frames in ~40 ms) would end before its last line
+[ "${COMPOSITOR:-weston}" = wl-sink ] && sleep 1.2
 kill $COMP 2>/dev/null
 # Everything kept for a look afterwards: build/out/ (Proton's log, the
 # programs' lines, the compositor's events, its last picture).

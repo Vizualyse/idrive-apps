@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "id": "vizualyse_steam",
+  "version": "0.1.0",
+  "tree": "vizualyse_steam@0.1.0",
+  "modules": [
+    "src/vizualyse_steam.js",
+    "src/steam_control.js",
+    "src/vehicle_speed.js",
+    "src/qr_png.js",
+    "src/qrcode.js"
+  ],
+  "sdk": [
+    "oap-sdk/src/core/OnlineApp.js",
+    "oap-sdk/src/logging/logging",
+    "oap-sdk/src/someip/someipBuilders"
+  ]
+}

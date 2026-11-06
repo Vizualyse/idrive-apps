@@ -1,0 +1,230 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Yousaf Khan -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steam on the car</title>
+<style>
+  :root { --bg: #111; --fg: #eee; --dim: #999; --card: #1d1d1d; --acc: #3b82f6; --bad: #f87171; --ok: #4ade80; --warn: #fbbf24; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  .card { background: var(--card); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 8px; }
+  input[type=text], input[type=password], input[type=number], select { flex: 1; min-width: 0; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: var(--fg); font-size: 16px; }
+  input[type=range] { flex: 1; }
+  button { padding: 12px 14px; border-radius: 8px; border: 0; background: #2a2a2a; color: var(--fg); font-size: 15px; }
+  button.acc { background: var(--acc); }
+  button.bad { background: #7f1d1d; }
+  button:disabled { opacity: .4; }
+  label { color: var(--dim); }
+  .dim { color: var(--dim); font-size: 14px; }
+  .err { color: var(--bad); }
+  .ok { color: var(--ok); }
+  .warn { color: var(--warn); }
+  .game { border-top: 1px solid #333; padding: 10px 0; }
+  .game:first-child { border-top: 0; padding-top: 0; }
+  .bar { height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .bar > div { height: 100%; background: var(--acc); width: 0; }
+  details summary { color: var(--dim); font-size: 14px; margin-top: 6px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<h1>Steam on the car</h1>
+<p id="note" class="warn"></p>
+
+<div class="card" id="now">
+  <h2>Playing</h2>
+  <p id="playing" class="dim">Nothing.</p>
+  <div class="row"><button class="acc" id="show">Show on the screen</button><button id="hide">Hide</button><button class="bad" id="stop">Stop the game</button></div>
+  <p class="dim">Only while parked. A hidden game keeps running; Stop ends it. Games can't be controlled yet (no touch or gamepad input in this version).</p>
+</div>
+
+<div class="card">
+  <h2>Library</h2>
+  <div id="library"><p class="dim">No games yet: install one below.</p></div>
+</div>
+
+<div class="card">
+  <h2>Install a game</h2>
+  <div class="row"><input id="appid" type="number" inputmode="numeric" placeholder="Steam app id"><button class="acc" id="install">Install</button></div>
+  <div class="row"><button id="sts2">Slay the Spire 2 (2868840)</button></div>
+  <p class="dim">The app id is the number in the game's Steam store address (store.steampowered.com/app/<b>2868840</b>/...). The account must own it. The Windows version is downloaded.</p>
+  <div id="dl" class="hidden">
+    <p id="dlText"></p>
+    <div class="bar"><div id="dlBar"></div></div>
+    <div id="ask" class="hidden">
+      <div class="row" style="margin-top:8px"><input id="answer" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="acc" id="send">Send</button></div>
+    </div>
+    <div class="row" style="margin-top:8px"><button id="cancel">Cancel</button></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Steam account</h2>
+  <div class="row"><input id="user" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Account name (not the email)"><button id="saveUser">Save</button></div>
+  <p class="dim" id="acct"></p>
+  <p class="dim">Steam asks for the password and a Steam Guard code once, during the first install, right on this page. The car keeps only Steam's sign-in token, never the password.</p>
+</div>
+
+<div class="card">
+  <h2>Settings</h2>
+  <div class="row"><label for="res">Picture</label><select id="res"></select></div>
+  <div class="row"><label for="fps">Frames per second</label><select id="fps"></select></div>
+  <div class="row"><label for="mem">Memory for the game</label><select id="mem"></select></div>
+  <div class="row"><label for="where">Install games on</label><select id="where"></select></div>
+  <div class="row"><button id="sound">Sound: on</button><label for="vol">Volume</label><input id="vol" type="range" min="0" max="150" step="5"></div>
+  <p class="dim">Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens.</p>
+  <dl id="info" class="dim"></dl>
+</div>
+<p id="msg" class="err"></p>
+
+<script>
+'use strict';
+const T = new URLSearchParams(location.search).get('t') || '';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let last = null;
+let editing = false;
+
+function api(p, body) {
+  $('msg').textContent = '';
+  return fetch(p, { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Steam-Token': T, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body) })
+    .then((r) => r.json().then((j) => { if (!r.ok) { $('msg').textContent = j.error || r.status; if (j.status) render(j.status); throw new Error(j.error); } return j; }))
+    .then((s) => { if (s && s.library) render(s); return s; });
+}
+
+function opts(sel, list, cur) {
+  if (document.activeElement === sel) return;
+  sel.innerHTML = list.map((o) => '<option value="' + esc(o.v) + '"' + (String(o.v) === String(cur) ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('');
+}
+
+function render(s) {
+  last = s;
+  const notes = [];
+  if (s.bundle === 'unpacking') notes.push('Installing the tool on the car (a few minutes, once)...');
+  if (s.error) notes.push('Error: ' + s.error);
+  if (s.restartNote) notes.push('Note: ' + s.restartNote + '.');
+  if (s.memory && s.memory.note) notes.push(s.memory.note);
+  if (s.moving) notes.push('The car is moving: games are hidden until it stops.');
+  $('note').textContent = notes.join(' ');
+
+  const g = s.game;
+  if (g && g.state !== 'ended') {
+    $('playing').textContent = g.name + ': ' + (g.state === 'starting' ? 'starting (this can take a minute)...' :
+      'running, ' + g.fps + ' pictures/s' + (g.gpuBuffers ? '' : ' (no GPU buffers)') + (s.shown ? ', on the screen' : ', hidden')) +
+      (s.memory.usedMb ? ' - ' + s.memory.usedMb + ' of ' + s.memory.capMb + ' MB' : '');
+  } else {
+    $('playing').textContent = g ? 'Nothing. ' + g.name + ' ended' + (g.note ? ': ' + g.note : '') + '.' : 'Nothing.';
+  }
+  $('show').disabled = !s.running || s.shown || s.moving;
+  $('hide').disabled = !s.shown;
+  $('stop').disabled = !s.running;
+
+  if (!editing) {
+    $('library').innerHTML = s.library.length ? s.library.map((x) =>
+      '<div class="game" data-app="' + x.appId + '"><div class="row"><b style="flex:1">' + esc(x.name) + '</b>' +
+      '<button class="acc" data-act="play"' + (s.running ? ' disabled' : '') + '>Play</button></div>' +
+      '<div class="dim">' + x.appId + (x.sizeMb ? ' - ' + (x.sizeMb / 1024).toFixed(1) + ' GB' : '') + (x.engine ? ' - ' + esc(x.engine) : '') +
+      ' - ' + (x.exe ? esc(x.exe) : '<span class="err">no program found</span>') + '</div>' +
+      '<details><summary>Options</summary>' +
+      '<div class="row"><label>Program</label><select data-f="exe"><option>' + esc(x.exe || '') + '</option></select></div>' +
+      '<div class="row"><input type="text" data-f="args" value="' + esc(x.args) + '" placeholder="Launch options" autocapitalize="off" spellcheck="false"><button data-act="save">Save</button></div>' +
+      '<div class="row"><button data-act="validate">Check and update files</button><button class="bad" data-act="remove">Remove</button></div>' +
+      '</details></div>').join('') : '<p class="dim">No games yet: install one below.</p>';
+  }
+
+  const d = s.download;
+  $('dl').classList.toggle('hidden', !d);
+  if (d) {
+    const what = (d.name || 'App ' + d.appId);
+    const text = { starting: d.note || 'Starting...', password: 'Steam asks for the password of ' + (s.account.username || 'the account') + ':',
+      code: (d.note || 'Steam Guard code:') + (d.wrongCode ? ' (the last one was wrong)' : ''), confirm: d.note,
+      downloading: 'Downloading ' + what + ': ' + d.percent.toFixed(1) + ' %', done: what + ' is installed.',
+      failed: 'Failed: ' + (d.note || 'see the log'), stopped: 'Cancelled.' }[d.state] || d.state;
+    $('dlText').textContent = text;
+    $('dlText').className = d.state === 'failed' ? 'err' : d.state === 'done' ? 'ok' : '';
+    $('dlBar').style.width = (d.state === 'done' ? 100 : d.percent || 0) + '%';
+    const asking = d.state === 'password' || d.state === 'code';
+    $('ask').classList.toggle('hidden', !asking);
+    if (asking && $('answer').dataset.kind !== d.state) {
+      $('answer').dataset.kind = d.state;
+      $('answer').type = d.state === 'password' ? 'password' : 'text';
+      $('answer').placeholder = d.state === 'password' ? 'Password' : 'Code';
+      $('answer').value = '';
+    }
+    if (!asking) $('answer').dataset.kind = '';
+    $('cancel').disabled = ['done', 'failed', 'stopped'].indexOf(d.state) >= 0;
+  }
+  $('install').disabled = $('sts2').disabled = !!(d && ['done', 'failed', 'stopped'].indexOf(d.state) < 0);
+
+  if (document.activeElement !== $('user')) $('user').value = s.account.username || '';
+  $('acct').textContent = s.account.username ? 'Signed in to Steam on the car: ' + (s.account.remembered ? 'yes' : 'not yet (at the next install)') : 'No account yet.';
+
+  const st = s.settings, ch = s.choices;
+  opts($('res'), ch.resolutions.map((r) => ({ v: r.id, t: r.name })), st.resolution);
+  opts($('fps'), ch.fps.map((f) => ({ v: f, t: f })), st.fps);
+  opts($('mem'), ch.memMb.map((m) => ({ v: m, t: (m / 1024).toFixed(1).replace('.0', '') + ' GB' })), st.memMb);
+  opts($('where'), [{ v: 'internal', t: 'The car\'s memory' + (s.space.internalMb !== null ? ' (' + (s.space.internalMb / 1024).toFixed(1) + ' GB free)' : '') }]
+    .concat(ch.disk ? [{ v: 'disk', t: 'The hard disk' + (s.space.diskMb !== null ? ' (' + (s.space.diskMb / 1024).toFixed(1) + ' GB free)' : '') }] : []), st.where);
+  $('sound').textContent = 'Sound: ' + (st.sound ? 'on' : 'off');
+  if (document.activeElement !== $('vol')) $('vol').value = st.volume;
+  $('info').textContent = 'Uplink: ' + s.uplink + ' - tool: ' + s.bundle + (s.prefixNote ? ' - ' + s.prefixNote : '');
+}
+
+$('show').onclick = () => api('/api/show', {}).catch(() => null);
+$('hide').onclick = () => api('/api/hide', {}).catch(() => null);
+$('stop').onclick = () => api('/api/stop', {}).catch(() => null);
+$('install').onclick = () => api('/api/install', { appId: Number($('appid').value) }).catch(() => null);
+$('sts2').onclick = () => { $('appid').value = '2868840'; $('install').click(); };
+$('send').onclick = () => { const v = $('answer').value; $('answer').value = ''; api('/api/answer', { text: v }).catch(() => null); };
+$('answer').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });
+$('cancel').onclick = () => api('/api/cancel', {}).catch(() => null);
+$('saveUser').onclick = () => api('/api/user', { username: $('user').value }).catch(() => null);
+$('res').onchange = () => api('/api/settings', { resolution: $('res').value }).then(() => $('res').blur(), () => null);
+$('fps').onchange = () => api('/api/settings', { fps: Number($('fps').value) }).then(() => $('fps').blur(), () => null);
+$('mem').onchange = () => api('/api/settings', { memMb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
+$('where').onchange = () => api('/api/settings', { where: $('where').value }).then(() => $('where').blur(), () => null);
+$('sound').onclick = () => api('/api/settings', { sound: !(last && last.settings.sound) }).catch(() => null);
+$('vol').onchange = () => api('/api/settings', { volume: Number($('vol').value) }).then(() => $('vol').blur(), () => null);
+
+/* the library's buttons; its Options panel stops the redraw while open */
+$('library').addEventListener('toggle', (e) => {
+  editing = !!$('library').querySelector('details[open]');
+  const det = e.target;
+  if (!det.open) return;
+  const app = det.closest('.game').dataset.app;
+  const sel = det.querySelector('[data-f=exe]');
+  fetch('/api/exes?appId=' + app, { headers: { 'X-Steam-Token': T } }).then((r) => r.json()).then((list) => {
+    if (!Array.isArray(list)) return;
+    const cur = sel.value;
+    sel.innerHTML = list.map((x) => '<option' + (x.rel === cur ? ' selected' : '') + '>' + esc(x.rel) + '</option>').join('');
+  }).catch(() => null);
+}, true);
+$('library').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const card = b.closest('.game'), appId = Number(card.dataset.app), act = b.dataset.act;
+  if (act === 'play') api('/api/play', { appId: appId }).catch(() => null);
+  if (act === 'validate') api('/api/validate', { appId: appId }).catch(() => null);
+  if (act === 'remove' && confirm('Remove this game and its files from the car? (Saves in the Windows prefix stay.)')) {
+    editing = false;
+    api('/api/remove', { appId: appId }).catch(() => null);
+  }
+  if (act === 'save') {
+    api('/api/game', { appId: appId, exe: card.querySelector('[data-f=exe]').value, args: card.querySelector('[data-f=args]').value })
+      .then(() => { editing = false; }, () => null);
+  }
+});
+
+const poll = () => api('/api/status').catch(() => null).then(() => setTimeout(poll, 1500));
+poll();
+</script>
+</body>
+</html>

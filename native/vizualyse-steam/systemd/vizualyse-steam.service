@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+[Unit]
+Description=vizualyse-steam: Windows games from Steam through Proton, on the central screen while parked
+RequiresMountsFor=/var/opt
+After=mgu-render.service mgu-uplink.service
+Wants=mgu-render.service
+
+[Service]
+# Root: the renderer, nftables, the memory cgroup, the frame file. Downloads
+# and games run as uid 12996 (games in the render node's group, video).
+ExecStart=/usr/bin/node /var/opt/vizualyse-steam/current/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+TimeoutStopSec=20
+# No core dumps: a Windows game's process is named after its .exe, which is
+# on no crash list, and a dump of an unlisted program can restart the head
+# unit (knowledge/head-unit.md). 1, not 0: the kernel then skips even a
+# piped core handler.
+LimitCORE=1
+# Wine's esync uses an eventfd per object
+LimitNOFILE=524288
+
+[Install]
+WantedBy=multi-user.target

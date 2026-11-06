@@ -1,0 +1,84 @@
+{
+  "id": "vizualyse-steam",
+  "kind": "tool",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "title": "Steam",
+  "description": "EXPERIMENTAL. Windows games from your Steam library running on the car through Proton (Wine), on the car's own graphics driver, shown on the central screen while parked, with sound. Sign in to Steam and install games on the phone page (scan the QR code on the iDrive Steam page); play them from the iDrive or the phone. No game input yet (no touch or game controllers in this version); games that need the Steam client running won't start. About 410 MB to download, 1.3 GB on the unit, plus the games.",
+  "requires": {
+    "mgu-deploy": "0.7.0",
+    "mgu-python": "1.0.0",
+    "mgu-render": "0.6.11"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "internet": true,
+  "uids": [
+    12996
+  ],
+  "deactivate": [
+    "node",
+    "firewall.js",
+    "remove"
+  ],
+  "build": [
+    "sh",
+    "build.sh"
+  ],
+  "files": [
+    { "path": "server.js", "from": "src/server.js", "mode": "0644" },
+    { "path": "env.js", "from": "src/env.js", "mode": "0644" },
+    { "path": "unpack.js", "from": "src/unpack.js", "mode": "0644" },
+    { "path": "steam.js", "from": "src/steam.js", "mode": "0644" },
+    { "path": "game.js", "from": "src/game.js", "mode": "0644" },
+    { "path": "screen.js", "from": "src/screen.js", "mode": "0644" },
+    { "path": "firewall.js", "from": "src/firewall.js", "mode": "0644" },
+    { "path": "control.js", "from": "src/control.js", "mode": "0644" },
+    { "path": "pcm_play.py", "from": "src/pcm_play.py", "mode": "0644" },
+    { "path": "page.html", "from": "src/page.html", "mode": "0644" },
+    { "path": "launch.json", "from": "build/launch.json", "mode": "0644" },
+    { "path": "runtime.tgz", "from": "build/runtime.tgz", "mode": "0644" },
+    { "path": "proton.tgz", "from": "build/proton.tgz", "mode": "0644" },
+    { "path": "prefix.tgz", "from": "build/prefix.tgz", "mode": "0644" },
+    { "path": "bundle-VERSION.txt", "from": "build/bundle-VERSION.txt", "mode": "0644" },
+    { "path": "THIRD-PARTY.md", "from": "THIRD-PARTY.md", "mode": "0644" },
+    { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }
+  ],
+  "units": [
+    {
+      "name": "vizualyse-steam.service",
+      "from": "systemd/vizualyse-steam.service"
+    }
+  ],
+  "enable": [
+    {
+      "unit": "vizualyse-steam.service",
+      "target": "multi-user.target"
+    }
+  ],
+  "recmgr": [
+    "vizualyse-steam"
+  ],
+  "crashNames": [
+    "wl-sink",
+    "wine",
+    "wine-preloader",
+    "wineserver",
+    "dotnet",
+    "steam.exe",
+    "explorer.exe",
+    "services.exe",
+    "winedevice.exe",
+    "plugplay.exe",
+    "svchost.exe",
+    "rpcss.exe",
+    "conhost.exe",
+    "start.exe",
+    "wineboot.exe"
+  ],
+  "restart": [
+    "vizualyse-steam.service"
+  ]
+}

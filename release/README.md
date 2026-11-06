@@ -39,6 +39,8 @@ publishes the catalog when only that changed.
 | `vizualyse-chromium` (tool) | `requires: {"mgu-deploy": "0.7.0", "mgu-render": …}`, `uninstallable`, `mguHmi: ["ID7"]`, `internet` + uid 12997; ships a ~250 MB `chromium.tgz` (`native/vizualyse-chromium/component.json`) |
 | `vizualyse_chromium` (app) | `build: "unit"`, `requires: {"vizualyse-chromium": …}`, `uninstallable`, `mguHmi: ["ID7"]` (`apps/vizualyse_chromium/release.json`) |
 | `vizualyse_cast` (app) | `build: "unit"`, `requires: {"vizualyse-cast": …}`, `uninstallable`, `mguHmi: ["ID7"]` (`apps/vizualyse_cast/release.json`) |
+| `vizualyse-steam` (tool) | `requires: {"mgu-deploy": "0.7.0", "mgu-python": …, "mgu-render": …}`, `uninstallable`, `mguHmi: ["ID7"]`, `internet` + uid 12996; ships `runtime.tgz`, `proton.tgz`, `prefix.tgz` (~410 MB) (`native/vizualyse-steam/component.json`) |
+| `vizualyse_steam` (app) | `build: "unit"`, `requires: {"vizualyse-steam": …}`, `uninstallable`, `mguHmi: ["ID7"]` (`apps/vizualyse_steam/release.json`) |
 
 New app ids start with `vizualyse_` (`APP_ID_PREFIX` in release.js).
 

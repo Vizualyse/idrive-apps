@@ -59,7 +59,7 @@ trap 'docker rm -f $NAME >/dev/null 2>&1' EXIT INT TERM
 docker run --rm --name $NAME --network none --shm-size=512m -v "$WIN_HERE/build:/b" -v "$WIN_HERE/test:/s:ro" \
     -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$GPU" -e BENCH=/g -e UNIT_GL=/b/unit-gl \
     -e COMPOSITOR="${COMPOSITOR:-weston}" ${WINEDEBUG:+-e WINEDEBUG="$WINEDEBUG"} \
-    ${SHOW_COMPOSITOR:+-e SHOW_COMPOSITOR=1} ${WL_SINK_ARGS:+-e WL_SINK_ARGS="$WL_SINK_ARGS"} \
+    ${SHOW_COMPOSITOR:+-e SHOW_COMPOSITOR=1} ${WL_SINK_ARGS:+-e WL_SINK_ARGS="$WL_SINK_ARGS"} ${WL_SINK_WRAP:+-e WL_SINK_WRAP="$WL_SINK_WRAP"} \
     ${SHOW_LOG:+-e SHOW_LOG="$SHOW_LOG"} ${T_TIMEOUT:+-e T_TIMEOUT="$T_TIMEOUT"} \
     -v steam-bench-proton:/proton:ro $WOW64_ARGS \
     -v "steam-bench-pfx-$PROTON_VER-${WOW64:-new}:/pfx" -e PROTON="/proton/$PROTON_VER" \
