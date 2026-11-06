@@ -11,7 +11,7 @@ set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
-IMG=idrive-gpu-bench:mesa19.0.6-$(cat "$HERE/image/Dockerfile" "$HERE/image/intel-noop-shim-pread-pwrite.patch" | sha256sum | cut -c1-8)
+IMG=idrive-gpu-bench:mesa19.0.6-$(cat "$HERE/image/Dockerfile" "$HERE"/image/*.patch | sha256sum | cut -c1-8)
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/gpu-bench-image.$$.log
     echo "gpu-bench: building $IMG (Mesa 19.0.6 swrast + Mesa 22.3.7 shim, ~10 min the first time)"

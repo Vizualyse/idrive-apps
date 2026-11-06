@@ -68,9 +68,14 @@ RUN cd /src/libdrm-2.4.114 \
 # is a 505 (3x6, 18 EUs), so it is made 0x5A84. The patch adds the ioctls
 # Mesa 19's i965 uses and the shim lacks: GEM_PWRITE / GEM_PREAD (buffer
 # uploads, kept in the BO) and GEM_THROTTLE (a no-op).
-COPY intel-noop-shim-pread-pwrite.patch /src/
+# drm-shim-new-glibc-stat.patch: built on glibc 2.27 the shim catches only
+# __xstat / __fxstat; it also gets stat / fstat / stat64 / fstat64, which
+# libraries built on glibc >= 2.33 call (a newer libdrm in Proton's userland or
+# the browser's bundle: "MESA-LOADER: failed to retrieve device information").
+COPY intel-noop-shim-pread-pwrite.patch drm-shim-new-glibc-stat.patch /src/
 RUN cd /src/mesa-22.3.7 \
  && patch -p1 < /src/intel-noop-shim-pread-pwrite.patch \
+ && patch -p1 < /src/drm-shim-new-glibc-stat.patch \
  && grep -q '{ "bxt", 0x5A85 }' src/intel/dev/intel_device_info.c \
  && sed -i 's/{ "bxt", 0x5A85 }/{ "bxt", 0x5A84 }/' src/intel/dev/intel_device_info.c \
  && PKG_CONFIG_PATH=/opt/libdrm/lib/x86_64-linux-gnu/pkgconfig \
@@ -82,6 +87,9 @@ RUN cd /src/mesa-22.3.7 \
  && ninja -C b src/intel/tools/libintel_noop_drm_shim.so >/dev/null \
  && mkdir -p /out/stub && cp b/src/intel/tools/libintel_noop_drm_shim.so /out/stub/ \
  && strip --strip-unneeded /out/stub/libintel_noop_drm_shim.so \
+ && for s in __xstat __fxstat stat fstat stat64 fstat64; do \
+      nm -D --defined-only /out/stub/libintel_noop_drm_shim.so | grep -q " T $s\$" \
+        || { echo "shim lacks $s"; exit 1; }; done \
  && rm -rf b
 
 # What the stand-ins may need from glibc: no more than the unit's 2.27.

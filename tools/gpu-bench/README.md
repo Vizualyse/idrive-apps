@@ -33,8 +33,10 @@ INTEL_DEBUG=fs sh tools/gpu-bench/run.sh stub  # i965's own debug output (here: 
 run on the unit's libraries: glibc 2.27, linked with
 `-Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2`, opening `/dev/dri/renderD128`
 for its GBM device (the shim fakes that node in both modes). A program with
-its own newer glibc (vizualyse-chromium's bundle) works too: the shim needs
-only glibc 2.27.
+its own newer glibc and libdrm (vizualyse-chromium's bundle, Proton in
+native/vizualyse-steam's bench) works too, with `build/stub` and
+`build/swrast` preloaded and on its library path: the shim needs only glibc
+2.27, and catches the newer glibc's `stat` / `fstat` as well (below).
 
 Mesa's debug variables pass through when set (`INTEL_DEBUG`, `MESA_DEBUG`,
 `EGL_LOG_LEVEL`, `GALLIUM_DRIVER=softpipe`, `MESA_GL_VERSION_OVERRIDE`, ...).
@@ -46,10 +48,15 @@ is not an Atom core.
 - **The shim**: Mesa 22.3.7's `libintel_noop_drm_shim.so` (the last release
   that builds it without LLVM / libclc), built on Ubuntu 18.04 (glibc 2.27)
   with libdrm 2.4.114's headers. Preloaded, it fakes `/dev/dri/renderD128`
-  and its sysfs files and answers i915's ioctls without a GPU. Two changes:
-  its `bxt` means 0x5A84 (the unit's 3x6 HD 505, not the 2x6 HD 500), and
+  and its sysfs files and answers i915's ioctls without a GPU. Three changes:
+  its `bxt` means 0x5A84 (the unit's 3x6 HD 505, not the 2x6 HD 500);
   `intel-noop-shim-pread-pwrite.patch` adds the ioctls Mesa 19's i965 uses
-  that it lacked (`GEM_PWRITE` / `GEM_PREAD` into the BO, `GEM_THROTTLE`).
+  that it lacked (`GEM_PWRITE` / `GEM_PREAD` into the BO, `GEM_THROTTLE`);
+  and `drm-shim-new-glibc-stat.patch` adds `stat` / `fstat` / `stat64` /
+  `fstat64`. Built on glibc 2.27 the shim had only `__xstat` / `__fxstat`,
+  which is what libraries built on glibc < 2.33 call; a libdrm built on a
+  newer glibc calls the plain names, missed the fake node, and Mesa said
+  "MESA-LOADER: failed to retrieve device information" (2026-11-06).
   An ioctl it still doesn't answer prints `DRM_SHIM: unhandled ...`.
 - **swrast**: Mesa 19.0.6 `swrast_dri.so` (llvmpipe and softpipe, LLVM 6
   linked in), with `libtinfo.so.5`, which the unit lacks. Mesa 19's GBM

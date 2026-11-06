@@ -1,0 +1,127 @@
+--- a/src/drm-shim/drm_shim.c
++++ b/src/drm-shim/drm_shim.c
+@@ -44,6 +44,7 @@
+ #include <stdarg.h>
+ #include <fcntl.h>
+ #include <dlfcn.h>
++#include <errno.h>
+ #include <dirent.h>
+ #include <c11/threads.h>
+ #include <drm-uapi/drm.h>
+@@ -512,6 +513,116 @@
+ }
+ #endif
+ 
++
++#if HAS_XSTAT
++/* Built on glibc < 2.33 (the unit's 2.27), the shim has only __xstat /
++ * __fxstat: what code built on that glibc calls. A process on glibc >= 2.33
++ * (Proton's userland, the browser's bundle) has libraries that call stat /
++ * fstat (and the 64 forms) as symbols, which would miss the fake render node.
++ * So those are here too. sys/stat.h of 2.27 defines stat inline, so they
++ * get other C names and the symbol names through asm labels; the real ones
++ * exist only in a newer glibc, looked up on first use. */
++static int (*real_new_stat)(const char *, struct stat *);
++static int (*real_new_stat64)(const char *, struct stat64 *);
++static int (*real_new_fstat)(int, struct stat *);
++static int (*real_new_fstat64)(int, struct stat64 *);
++
++/* 1: path is the fake render node or its sysfs drm dir (st filled for the node). */
++static int
++shim_stat_path(const char *path, dev_t *rdev)
++{
++   if (render_node_minor == -1)
++      return 0;
++   char *sys_dev_drm_dir;
++   nfasprintf(&sys_dev_drm_dir, "/sys/dev/char/%d:%d/device/drm",
++              DRM_MAJOR, render_node_minor);
++   int is_dir = strcmp(path, sys_dev_drm_dir) == 0;
++   free(sys_dev_drm_dir);
++   if (is_dir) {
++      *rdev = 0;
++      return 1;
++   }
++   if (strcmp(path, render_node_path) != 0)
++      return 0;
++   *rdev = makedev(DRM_MAJOR, render_node_minor);
++   return 1;
++}
++
++PUBLIC int shim_stat(const char *path, struct stat *stat_buf) __asm__("stat");
++PUBLIC int shim_stat(const char *path, struct stat *stat_buf)
++{
++   init_shim();
++   dev_t rdev;
++   if (shim_stat_path(path, &rdev)) {
++      if (rdev) {
++         memset(stat_buf, 0, sizeof(*stat_buf));
++         stat_buf->st_rdev = rdev;
++         stat_buf->st_mode = S_IFCHR;
++      }
++      return 0;
++   }
++   if (!real_new_stat && !(real_new_stat = dlsym(RTLD_NEXT, "stat"))) {
++      errno = ENOSYS;
++      return -1;
++   }
++   return real_new_stat(path, stat_buf);
++}
++
++PUBLIC int shim_stat64(const char *path, struct stat64 *stat_buf) __asm__("stat64");
++PUBLIC int shim_stat64(const char *path, struct stat64 *stat_buf)
++{
++   init_shim();
++   dev_t rdev;
++   if (shim_stat_path(path, &rdev)) {
++      if (rdev) {
++         memset(stat_buf, 0, sizeof(*stat_buf));
++         stat_buf->st_rdev = rdev;
++         stat_buf->st_mode = S_IFCHR;
++      }
++      return 0;
++   }
++   if (!real_new_stat64 && !(real_new_stat64 = dlsym(RTLD_NEXT, "stat64"))) {
++      errno = ENOSYS;
++      return -1;
++   }
++   return real_new_stat64(path, stat_buf);
++}
++
++PUBLIC int shim_fstat(int fd, struct stat *stat_buf) __asm__("fstat");
++PUBLIC int shim_fstat(int fd, struct stat *stat_buf)
++{
++   init_shim();
++   if (drm_shim_fd_lookup(fd)) {
++      memset(stat_buf, 0, sizeof(*stat_buf));
++      stat_buf->st_rdev = makedev(DRM_MAJOR, render_node_minor);
++      stat_buf->st_mode = S_IFCHR;
++      return 0;
++   }
++   if (!real_new_fstat && !(real_new_fstat = dlsym(RTLD_NEXT, "fstat"))) {
++      errno = ENOSYS;
++      return -1;
++   }
++   return real_new_fstat(fd, stat_buf);
++}
++
++PUBLIC int shim_fstat64(int fd, struct stat64 *stat_buf) __asm__("fstat64");
++PUBLIC int shim_fstat64(int fd, struct stat64 *stat_buf)
++{
++   init_shim();
++   if (drm_shim_fd_lookup(fd)) {
++      memset(stat_buf, 0, sizeof(*stat_buf));
++      stat_buf->st_rdev = makedev(DRM_MAJOR, render_node_minor);
++      stat_buf->st_mode = S_IFCHR;
++      return 0;
++   }
++   if (!real_new_fstat64 && !(real_new_fstat64 = dlsym(RTLD_NEXT, "fstat64"))) {
++      errno = ENOSYS;
++      return -1;
++   }
++   return real_new_fstat64(fd, stat_buf);
++}
++#endif
++
+ /* Tracks if the opendir was on /dev/dri. */
+ PUBLIC DIR *
+ opendir(const char *name)
