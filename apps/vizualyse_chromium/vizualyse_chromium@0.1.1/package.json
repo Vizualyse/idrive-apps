@@ -1,6 +1,6 @@
 {
   "name": "vizualyse_chromium",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser: shows the phone link and QR code for the vizualyse-chromium web browser, what its GPU offers (WebGPU, WebGL 2, JSPI), and shows or hides the browser on the central screen",
   "private": false,
   "main": "javascript/runner.js",

@@ -4,19 +4,23 @@
 itself, on its own GPU (the Atom A3960's Intel HD 505, Gen9), with **WebGL 2,
 WebGPU and WebAssembly JSPI**, shown on the central screen while parked and
 driven by touch. Addresses and text are typed on a phone page. Experimental:
-built and tested off the car on the unit's own root filesystem (below), not
-yet run on a car.
+built and tested off the car on the unit's own root filesystem (below); 0.1.0
+ran on a car (2026-11-05): touch reached the page but also pressed the HMI
+page under it, and the GPU did not start. 0.1.1 addresses both (below), not
+yet checked on the car.
 
 1. Install **Browser** (this tool) and the **Browser** iDrive app
    ([apps/vizualyse_chromium](../../apps/vizualyse_chromium)) from the Store.
-   The first start unpacks Chromium (about 650 MB in `/var/opt`).
+   The first start unpacks Chromium (about 430 MB in `/var/opt`).
 2. Open **Browser** on the iDrive. It says what the GPU gave Chromium:
    `WebGPU: intel / gen-9 | WebGL 2: Vulkan, Intel HD Graphics 505 (APL 3) |
    JSPI: ok` is the goal; `google / swiftshader (software)` means the GPU
    didn't work and Chromium fell back to its CPU renderer.
 3. **Show on the screen**: the page (`https://webglreport.com/?v=2` at
    first) covers the app area; touch it as any page. The iDrive's back
-   arrow on the left (or HOME, a pop-up, a call) hides it again.
+   arrow on the left (or HOME, a pop-up, a call) hides it again. Under the
+   browser the app shows an empty page, so touches on the browser press
+   nothing of the HMI.
 4. Scan the QR code with the phone whose hotspot the car is on for the
    address bar, back / forward / reload, typing into the page, the GPU
    report (`chrome://gpu`) and a restart.
@@ -29,16 +33,24 @@ filesystem (`../idrive-rootfs`):
 - **No Vulkan on the unit**: Mesa 19.0.6 with the old `i965` GL driver only
   (`mesa-megadriver`), so no WebGPU from the system. glibc 2.27, the loader
   in `/lib` (no `/lib64`), no NSS or fontconfig. So the tool ships its own:
-  Debian trixie's **Chromium** (BSD, open source) and **Mesa 25.0** (ANV for
-  Vulkan, iris for GL), with **every library they load, glibc and its loader
-  included** (`tools/bundle.sh`). `chromium` asks for the bundle's loader by
-  absolute path; `LD_LIBRARY_PATH` is set only on its own exec (the unit's
-  shell must keep its own glibc). Nothing from the unit's `/usr/lib` is
-  loaded.
-- **The kernel** is 4.14.147. Mesa 25's ANV needs softpin (4.5) and exec
-  fence arrays (4.14) from i915, and emulates timeline fences when the kernel
-  has none (`src/intel/vulkan/i915/anv_device.c`): it should start. Whether
-  it does is the first thing to check on the car.
+  Debian trixie's **Chromium** (BSD, open source) and a Vulkan driver, with
+  **every library they load, glibc and its loader included**
+  (`tools/bundle.sh`). `chromium` asks for the bundle's loader by absolute
+  path; `LD_LIBRARY_PATH` is set only on its own exec (the unit's shell must
+  keep its own glibc). Nothing from the unit's `/usr/lib` is loaded.
+- **The Vulkan driver is Mesa 22.3's ANV** (Debian bookworm), because the
+  kernel is 4.14.147 and has no i915 *context isolation* (4.16+). Mesa 25.0's
+  ANV and iris refuse such a kernel outright; on the car 0.1.0 logged
+  `Vulkan requires context isolation for Intel(R) HD Graphics 505 (APL 3)`,
+  the GPU process gave up and Chromium turned WebGL off. 22.3's ANV asks only
+  for gem wait, execbuf2, softpin (4.5) and exec fence arrays (4.14) and
+  works around the missing isolation. `bundle.sh` refuses an ANV that wants
+  it, and checks every symbol of 22.3's ANV binds against the bundle's newer
+  libraries. No GL driver (iris needs 4.16 too): ANGLE and Dawn are both on
+  Vulkan, so Mesa's EGL, GBM and LLVM stay out (185 MB packed, 430 MB
+  unpacked).
+- **If the GPU fails anyway**, `--enable-unsafe-swiftshader` keeps WebGL on
+  the CPU (SwiftShader) rather than off.
 - **WebGPU on Gen9**: Chromium enables WebGPU on Linux only for newer Intel
   GPUs by itself, so `--enable-unsafe-webgpu`; ANGLE and Dawn both on Vulkan
   (`--use-angle=vulkan`, `--enable-features=Vulkan,...`). **JSPI** is on by
@@ -114,7 +126,7 @@ is in `/var/opt/vizualyse-chromium/profile` (uid 12997). The journal has an
     area and pictures arrive, a touch inside the area presses the page's
     button and one outside doesn't, 20 km/h hides it and refuses `show`,
     `hide` removes the frame file, `disable` / `enable`.
-- What the bench can't tell: whether ANV and iris start on the unit's i915
+- What the bench can't tell: whether ANV 22.3 starts on the unit's i915
   (kernel 4.14, the render node as group video), the frame rate the Atom
   manages, the memory a heavy page takes.
 

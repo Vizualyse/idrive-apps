@@ -261,6 +261,52 @@
           ]
         }
       }
+    },
+    "2": {
+      "type": "state",
+      "name": "ST_OnlineApps_VizualyseChromiumScreen",
+      "components": {
+        "50": {
+          "type": "title",
+          "name": "browserScreenTitle",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_CHROMIUM_TITLE",
+                "type": "StringId"
+              }
+            }
+          ]
+        },
+        "51": {
+          "type": "label",
+          "name": "browserScreenNote",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "The browser is on the screen. Back returns here.",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      }
     }
   }
 }

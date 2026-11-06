@@ -3,7 +3,17 @@
 What we found building vizualyse-chromium
 ([`native/vizualyse-chromium`](../native/vizualyse-chromium)). From the
 rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
-(2026-11-05); not yet run on a car. Index: [index.md](index.md).
+(2026-11-05), and 0.1.0 on the car (2026-11-05). Index: [index.md](index.md).
+
+## Touch over the HMI
+
+- A layer over the app area gets no touch of its own: the tool reads a
+  copy of the display's PDUs, and **the HMI still gets every touch and
+  presses whatever widget of the app's page lies under the browser** (seen
+  on the car with 0.1.0: the Browser page's buttons). Claiming touch
+  through mgu-render is what restarted the unit twice. 0.1.1 opens an empty
+  sub-state (a label, nothing focusable) under the browser and disables the
+  main page's buttons while it is up; not yet seen on the car.
 
 ## What the image has
 
@@ -28,10 +38,22 @@ rootfs copy of `I_21w12.2-1-4` (`../idrive-rootfs`) and its container
 - **`LD_LIBRARY_PATH` must not reach the unit's own programs**: BusyBox `sh`
   started with it loads the bundle's libc on the unit's loader and dies
   (`version GLIBC_2.35 not found`). Set it on the final `exec` only.
-- Mesa 25.0's ANV (`src/intel/vulkan/i915/anv_device.c`) refuses a kernel
-  without gem wait, execbuf2, softpin (4.5) or exec fence arrays (4.14) and
-  emulates timeline fences: 4.14.147 passes on paper. Gen9 is ANV's (Gen8
-  went to `hasvk`). Not yet seen on the car.
+- **Mesa 25.0's ANV does not run on the unit (seen on the car,
+  2026-11-05):** `Vulkan requires context isolation for Intel(R) HD Graphics
+  505 (APL 3) (VK_ERROR_INCOMPATIBLE_DRIVER)`
+  (`anv_physical_device.c:2445`). The 4.14 kernel lacks
+  `I915_PARAM_HAS_CONTEXT_ISOLATION` (4.16+); iris (GL) refuses it too
+  ("Kernel is too old (4.16+ required)"). The gem wait / execbuf2 / softpin /
+  fence array checks in `i915/anv_device.c` pass, they are not the gate.
+- **Mesa 22.3's ANV** (Debian bookworm, `22.3.6-1+deb12u2`) has no such gate:
+  it reads the param and, without it, makes constant buffer 0 relative
+  (`anv_device.c:794, 963`). Its `libvulkan_intel.so` binds against trixie's
+  newer libraries (checked with `RTLD_NOW`). Not yet seen on the car.
+- With no Vulkan device, Chromium's GPU process exits on every start
+  (`ANGLE Display::initialize ... Internal Vulkan error (-3)`), and Chromium
+  turns WebGL off (webglreport: "supports WebGL but it is disabled or
+  unavailable"); `--enable-unsafe-swiftshader` keeps WebGL on the CPU instead.
+- Gen9 is ANV's (Gen8 went to `hasvk`).
 - Libraries Chromium only `dlopen`s, which `ldd` can't see: NSS's
   `libsoftokn3`, `libfreebl3`, `libfreeblpriv3`, `libnssckbi`, `libnssdbm3`
   (without them Chromium aborts at the first TLS: `nss_util.cc ... -5925`),

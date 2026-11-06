@@ -11,13 +11,15 @@
 # so no WebGPU) and no NSS / fontconfig; its loader is /lib/ld-linux-x86-64.so.2
 # (knowledge/head-unit.md). So nothing here uses the unit's libraries:
 # chromium and chromium-sink ask for $B/lib/ld-linux-x86-64.so.2 (PT_INTERP),
-# and server.js starts Chromium with LD_LIBRARY_PATH=$B/lib and the Vulkan,
-# EGL, DRI, GBM and fontconfig paths pointing into $B (env.js).
+# and server.js starts Chromium with LD_LIBRARY_PATH=$B/lib and the Vulkan and
+# fontconfig paths pointing into $B (env.js).
 #
-# Mesa: ANV (Vulkan, Gen9+: the A3960's HD 505), iris (GL), GBM; Chromium's
-# own SwiftShader as the software fallback. Mesa 25.0's ANV asks the kernel
-# for softpin (4.5) and exec fence arrays (4.14), both in the unit's 4.14.147;
-# timeline fences it emulates (src/intel/vulkan/i915/anv_device.c).
+# Vulkan: Mesa 22.3's ANV (Gen9+: the A3960's HD 505), from Debian bookworm
+# (image/Dockerfile): newer ANV and iris (25.0 at least) refuse the unit's 4.14
+# kernel (no i915 context isolation, 4.16+; seen on the car). 22.3 asks for
+# gem wait, execbuf2, softpin (4.5) and exec fence arrays (4.14) only, and
+# works around the missing isolation. No iris (GL): ANGLE and Dawn both run
+# on Vulkan. Chromium's own SwiftShader is the software fallback.
 #
 #   sh /m/tools/bundle.sh       (in the image, the tool's folder at /m)
 set -eu
@@ -26,7 +28,7 @@ OUT=/m/build
 STAGE=/tmp/stage
 R=$STAGE$B
 rm -rf "$STAGE"
-mkdir -p "$R/lib/dri" "$R/lib/gbm" "$R/locales" "$R/share/vulkan/icd.d" "$R/share/glvnd/egl_vendor.d" "$R/fonts" "$R/etc/fonts" "$R/licenses"
+mkdir -p "$R/lib" "$R/locales" "$R/share/vulkan/icd.d" "$R/fonts" "$R/etc/fonts" "$R/licenses"
 
 C=/usr/lib/chromium
 for f in chromium chrome_crashpad_handler chrome_100_percent.pak chrome_200_percent.pak resources.pak icudtl.dat \
@@ -36,21 +38,22 @@ done
 cp "$C/locales/en-US.pak" "$R/locales/"
 
 M=/usr/lib/x86_64-linux-gnu
-cp -L "$M/dri/iris_dri.so" "$R/lib/dri/"
-cp -L "$M/gbm/dri_gbm.so" "$R/lib/gbm/"
+A=/opt/anv22/usr/lib/x86_64-linux-gnu
+cp -L "$A/libvulkan_intel.so" "$R/lib/"
+# never an ANV that wants context isolation (25.0 does): it finds no GPU on the unit
+if grep -q "requires context isolation" "$R/lib/libvulkan_intel.so"; then
+    echo "bundle: this ANV refuses kernels without context isolation (the unit's 4.14)" >&2; exit 1
+fi
 # and what is only ever dlopen()ed, so ldd can't see it: NSS's soft token and
 # roots (Chromium aborts without them), libpci (the GPU's PCI ids)
-for l in libvulkan_intel.so libEGL_mesa.so.0 libEGL.so.1 libGLESv2.so.2 libgbm.so.1 libturbojpeg.so.0 \
+for l in libEGL.so.1 libGLESv2.so.2 libturbojpeg.so.0 \
          libsoftokn3.so libfreebl3.so libfreeblpriv3.so libnssckbi.so libnssdbm3.so libpci.so.3; do cp -L "$M/$l" "$R/lib/"; done
 python3 - "$B" "$R" <<'PY'
 import json, sys
 b, r = sys.argv[1], sys.argv[2]
-icd = json.load(open('/usr/share/vulkan/icd.d/intel_icd.json'))
+icd = json.load(open('/opt/anv22/usr/share/vulkan/icd.d/intel_icd.x86_64.json'))
 icd['ICD']['library_path'] = b + '/lib/libvulkan_intel.so'
 json.dump(icd, open(r + '/share/vulkan/icd.d/intel_icd.json', 'w'), indent=1)
-egl = json.load(open('/usr/share/glvnd/egl_vendor.d/50_mesa.json'))
-egl['ICD']['library_path'] = b + '/lib/libEGL_mesa.so.0'
-json.dump(egl, open(r + '/share/glvnd/egl_vendor.d/50_mesa.json', 'w'), indent=1)
 PY
 
 # Every library the ELF files load, resolved in this image, under its soname.
@@ -58,7 +61,7 @@ PY
 closure() {
     for e in "$@"; do ldd "$e" 2>/dev/null; done | awk '/=> \// {print $1" "$3} /^\s*\/lib.*ld-linux/ {print "ld-linux-x86-64.so.2 "$1}' | sort -u
 }
-ELFS="$R/chromium $R/chrome_crashpad_handler $R/libEGL.so $R/libGLESv2.so $R/libvulkan.so.1 $R/libvk_swiftshader.so $R/lib/dri/iris_dri.so $R/lib/gbm/dri_gbm.so $(ls $R/lib/*.so*)"
+ELFS="$R/chromium $R/chrome_crashpad_handler $R/libEGL.so $R/libGLESv2.so $R/libvulkan.so.1 $R/libvk_swiftshader.so $(ls $R/lib/*.so*)"
 pass=0
 while :; do
     added=0
@@ -106,14 +109,15 @@ for f in $(cat /tmp/files); do
     case $f in lib/*) n=$(basename "$f") ;; *) continue ;; esac
     dpkg -S "*/$n" 2>/dev/null | head -1 | cut -d: -f1
 done | sort -u > /tmp/pkgs
-echo chromium >> /tmp/pkgs; echo fonts-dejavu-core >> /tmp/pkgs; echo fonts-liberation >> /tmp/pkgs; echo mesa-vulkan-drivers >> /tmp/pkgs; echo libgl1-mesa-dri >> /tmp/pkgs
+echo chromium >> /tmp/pkgs; echo fonts-dejavu-core >> /tmp/pkgs; echo fonts-liberation >> /tmp/pkgs
 for p in $(sort -u /tmp/pkgs); do
     [ -f "/usr/share/doc/$p/copyright" ] && cp "/usr/share/doc/$p/copyright" "$R/licenses/$p.txt"
 done
+cp /opt/anv22/usr/share/doc/mesa-vulkan-drivers/copyright "$R/licenses/mesa-vulkan-drivers-bookworm.txt"
 {
     echo "vizualyse-chromium bundle"
     echo "chromium $(dpkg-query -W -f '${Version}' chromium)"
-    echo "mesa $(dpkg-query -W -f '${Version}' mesa-vulkan-drivers)"
+    echo "anv (vulkan, bookworm) $(cat /opt/anv22/VERSION)"
     echo "glibc $(dpkg-query -W -f '${Version}' libc6)"
     echo "packages: $(sort -u /tmp/pkgs | tr '\n' ' ')"
 } > "$R/VERSION"
@@ -127,6 +131,10 @@ for e in $ELFS "$R/chromium-sink"; do
     done
 done
 [ $missing -eq 0 ] || exit 1
+# bookworm's ANV on trixie's libraries: every symbol binds (RTLD_NOW), on the
+# bundle's own loader and libraries only
+"$R/lib/ld-linux-x86-64.so.2" --library-path "$R/lib" /usr/bin/python3 -c \
+    "import ctypes, os; ctypes.CDLL('$R/lib/libvulkan_intel.so', mode=os.RTLD_NOW); print('bundle: ANV binds')"
 
 mkdir -p "$OUT"
 cd "$STAGE"

@@ -41,6 +41,8 @@ function args(opts) {
         /* the GPU: ANGLE and Dawn on Vulkan (ANV), WebGPU on Gen9 */
         '--use-angle=vulkan', '--enable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan',
         '--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--disable-vulkan-surface',
+        /* if the GPU fails anyway, WebGL on SwiftShader (the CPU) rather than none */
+        '--enable-unsafe-swiftshader',
         '--enable-gpu-rasterization',
         /* the disk: a capped cache in the profile */
         '--disk-cache-size=' + (100 << 20), '--media-cache-size=' + (50 << 20),

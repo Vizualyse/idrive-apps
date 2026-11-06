@@ -96,24 +96,26 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium, vizualyse_chromium 0.1.0)
+## Browser (vizualyse-chromium, vizualyse_chromium 0.1.1)
 
-Chromium 156 with its own Mesa 25 (ANV) and glibc, headless, its pictures
+Chromium 156 with its own Vulkan driver (Mesa 22.3 ANV) and glibc, headless, its pictures
 through mgu-render in the app area, touch read passively, only while parked
 ([`native/vizualyse-chromium`](native/vizualyse-chromium),
 [knowledge/browser.md](knowledge/browser.md)). Built and tested off the car on
 the unit's own root filesystem (JSPI, WebGL 2 and WebGPU on SwiftShader there).
 **Ask before running anything on the unit.**
 
-- [ ] **Install from the Store** (published 2026-11-05): the tool kit is
-  260 MB; check the Store downloads and installs it, and how long the first
-  unpack takes on the Atom.
-- [ ] **On the car, read-only:** `state/gpu.json`, `gpu.txt` and the
-  journal's `@gpu`: WebGPU should be `intel / gen-9` and WebGL 2 on ANV,
-  not SwiftShader; if not, why (ANV's `kernel missing ...`, the render node
-  as uid 12997 / gid 44). Then https://webglreport.com/?v=2 on the screen.
-- [ ] **On the car:** the app area's place and touch (taps, scrolling), the
-  back arrow and a pop-up hiding it, the phone page, pages loading through
+- [ ] **0.1.1 on the car, read-only:** `state/gpu.json`, `gpu.txt` and the
+  journal's `@gpu`: WebGPU should be `intel / gen-9` and WebGL 2 on ANV
+  22.3 (0.1.0's Mesa 25 ANV refused the 4.14 kernel: no context isolation);
+  if not, the journal's `chromium:` lines say why. Then
+  https://webglreport.com/?v=2 on the screen.
+- [ ] **0.1.1 on the car: touches under the browser.** Show should open the
+  empty screen state first (the app's log: `screen state visible`; a
+  `screen state: ... the browser goes over the main page` warning means the
+  HMI didn't open it); touching the browser must press nothing of the HMI.
+- [ ] **On the car:** scrolling by touch, the back arrow and a pop-up
+  hiding it, the phone page, pages loading through
   the proxy, the pictures per second and the sink's ms (`status`), CPU and
   memory of Chromium (the cgroup's `memory.max_usage_in_bytes`).
 - [ ] **Faster pictures:** the screencast is a JPEG round trip on the CPU.

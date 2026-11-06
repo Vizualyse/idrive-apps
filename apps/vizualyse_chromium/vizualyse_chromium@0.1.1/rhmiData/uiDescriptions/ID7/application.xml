@@ -56,4 +56,19 @@
             </component>
         </layoutGroup>
     </container>
+    <container id="2" type="state" widget="LT_State_Wide">
+        <property id="9" value="1"/>
+        <layoutGroup id="101" name="Titlebar">
+            <component id="50" type="title">
+                <property id="2" value="1"/>
+            </component>
+        </layoutGroup>
+        <layoutGroup id="201" name="List">
+            <property id="3" value="1"/>
+            <component id="51" type="label" widget="LT_Label_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="0"/>
+            </component>
+        </layoutGroup>
+    </container>
 </application>

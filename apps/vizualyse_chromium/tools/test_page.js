@@ -40,6 +40,7 @@ const UI = JSON.parse(fs.readFileSync(path.join(UI_DIR, 'uiDescription.json'), '
 const XML = fs.readFileSync(path.join(UI_DIR, 'application.xml'), 'utf8');
 const APP_JSON = JSON.parse(fs.readFileSync(path.join(PKG, 'rhmiData', 'application.json'), 'utf8'));
 const STATE = 'ST_OnlineApps_VizualyseChromium';
+const SCREEN = 'ST_OnlineApps_VizualyseChromiumScreen';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function until(what, check, ms) {
@@ -87,6 +88,15 @@ const rhmi = new EventEmitter();
 rhmi.getByName = (n) => byName[n] || null;
 rhmi.mapEntryState = () => Promise.resolve();
 rhmi.openEntryState = () => Promise.resolve();
+/* openState: the main state goes, the state opened comes (as the HMI does); openFails: refused */
+const opened = [];
+let openFails = false;
+rhmi.openState = (st) => {
+    if (openFails) return Promise.reject(new Error('refused'));
+    opened.push(st);
+    setImmediate(() => { byName[STATE].emit('visible', { visible: false }); st.emit('visible', { visible: true }); });
+    return Promise.resolve();
+};
 rhmi.getResourceBundle = () => bundle;
 rhmi.flush = () => Promise.resolve();
 
@@ -198,7 +208,12 @@ async function main() {
     const comps = UI.containers['1'].components;
     assert.strictEqual(UI.containers['1'].name, STATE);
     const xmlIds = (XML.match(/<component id="(\d+)"/g) || []).map((m) => m.match(/\d+/)[0]).sort();
-    assert.deepStrictEqual(Object.keys(comps).sort(), xmlIds, 'application.xml and uiDescription.json list the same components');
+    const scr = UI.containers['2'];
+    assert.deepStrictEqual(Object.keys(comps).concat(Object.keys(scr.components)).sort(), xmlIds, 'application.xml and uiDescription.json list the same components');
+    assert.strictEqual(scr.name, SCREEN);
+    assert(Object.keys(scr.components).every((id) => scr.components[id].type !== 'button' &&
+        !(scr.components[id].properties.Focusable && scr.components[id].properties.Focusable.value)), 'the screen state has nothing to press');
+    assert(/<container id="2" type="state" widget="LT_State_Wide">\n {8}<property id="9" value="1"\/>/.test(XML), 'the screen state\'s parent is the main state');
     assert.strictEqual(comps['21'].name, 'browserQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
@@ -214,7 +229,7 @@ async function main() {
     assert(v2 && v2.instances[0] === '1' && v2.attributes.statusCarSpeed2 === 'r', 'the manifest asks to read Vehicle2.statusCarSpeed2');
     /* plain ASCII in every text the page starts with (Unicode is unreliable in RHMI Text) */
     assert(!/[^\x00-\x7f]/.test(JSON.stringify(UI)), 'uiDescription.json is ASCII');
-    console.log('ok   page: 5 buttons, a QR graphic, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest; ASCII');
+    console.log('ok   page: 5 buttons, a QR graphic, an empty screen state, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest; ASCII');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
@@ -240,34 +255,56 @@ async function main() {
     assert(G.text.length <= 90, 'the GPU line is one row');
     console.log('ok   connected: "' + S.text + '"; page "' + P.text + '"; "' + G.text + '"');
 
-    byName.browserShow.emit('action');
-    await until('show sent', () => sent('show'));
-    await until('shown', () => /^On the screen/.test(S.text || '') && byName.browserShow.enabled === false);
-    await sleep(450);
     byName.browserHome.emit('action'); byName.browserReload.emit('action'); byName.browserBack.emit('action');
     await until('home, reload, back sent', () => sent('home') && sent('reload') && sent('back'));
-    console.log('ok   Show sends show ("' + S.text + '", Show off while shown); Home page, Reload, Back send theirs');
+    console.log('ok   Home page, Reload, Back send theirs');
 
-    /* a pop-up takes the focus while the page stays visible: hidden after a moment */
-    byName[STATE].emit('focus', { focus: false });
-    await until('hide sent on focus loss', () => sent('hide'), 2000);
-    await until('ready after the hide', () => /^Ready/.test(S.text || ''));
-    byName[STATE].emit('focus', { focus: true });
-    /* focus lost and back within the moment: nothing */
+    /* Show: the empty screen state first, the browser once it is visible */
     await sleep(450);
     byName.browserShow.emit('action');
-    await until('shown again', () => st.shown && byName.browserShow.enabled === false);
+    await until('the screen state opened', () => opened.length === 1 && opened[0] === byName[SCREEN]);
+    await until('show sent once it is visible', () => sent('show'));
+    await until('shown', () => /^On the screen/.test(S.text || ''));
+    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
+    await sleep(600);
+    assert.strictEqual(count('hide'), 0, 'the main state going away for the screen state does not hide');
+    console.log('ok   Show opens the empty screen state, then sends show; the main page\'s buttons are off while covered');
+
+    /* a pop-up takes the screen state's focus: hidden after a moment */
+    byName[SCREEN].emit('focus', { focus: false });
+    await until('hide sent on focus loss', () => sent('hide'), 2000);
+    await until('buttons back', () => byName.browserShow.enabled === true && byName.browserHome.enabled === true);
+    byName[SCREEN].emit('focus', { focus: true });
+    /* shown again on the open screen state at once; a focus blip: nothing */
+    await sleep(450);
+    byName.browserShow.emit('action');
+    await until('shown again', () => st.shown);
+    assert.strictEqual(opened.length, 1, 'the screen state, still open, is not opened again');
     const hides = count('hide');
-    byName[STATE].emit('focus', { focus: false });
+    byName[SCREEN].emit('focus', { focus: false });
     await sleep(100);
-    byName[STATE].emit('focus', { focus: true });
+    byName[SCREEN].emit('focus', { focus: true });
     await sleep(600);
     assert.strictEqual(count('hide'), hides, 'a short focus blip does not hide');
-    /* leaving the page hides it at once */
-    byName[STATE].emit('visible', { visible: false });
-    await until('hide sent on leaving', () => count('hide') === hides + 1, 1000);
+    /* BACK: the screen state goes, the main page comes back: hidden */
+    byName[SCREEN].emit('visible', { visible: false });
     byName[STATE].emit('visible', { visible: true });
-    console.log('ok   a pop-up (focus lost 300 ms) and leaving the page hide the browser; a focus blip does not');
+    await until('hide sent on BACK', () => count('hide') === hides + 1, 1500);
+    console.log('ok   a pop-up (focus lost 300 ms) and BACK hide the browser; a focus blip does not');
+
+    /* the HMI won't open the screen state: the browser goes over the main page, its buttons off */
+    openFails = true;
+    await sleep(450);
+    byName.browserShow.emit('action');
+    await until('fallback show', () => st.shown, 2000);
+    await until('buttons off over the main page', () => byName.browserHome.enabled === false);
+    assert(logs.some((l) => /^warn: screen state: openState failed/.test(l)), 'the fallback is logged');
+    logs.splice(0, logs.length, ...logs.filter((l) => !/^warn: screen state:/.test(l)));
+    openFails = false;
+    byName[STATE].emit('focus', { focus: false });
+    await until('hidden by the pop-up', () => !st.shown, 2000);
+    byName[STATE].emit('focus', { focus: true });
+    console.log('ok   without the screen state the browser goes over the main page with its buttons off');
 
     await sleep(1200);
     assert(!received.some((c) => c.cmd === 'speed'), 'no speed sent while the car gives none (65535)');

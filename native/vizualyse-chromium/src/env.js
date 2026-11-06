@@ -41,9 +41,6 @@ function chromiumEnv() {
         LD_LIBRARY_PATH: BUNDLE + '/lib',
         VK_ICD_FILENAMES: icd(),
         VK_DRIVER_FILES: icd(),
-        __EGL_VENDOR_LIBRARY_FILENAMES: BUNDLE + '/share/glvnd/egl_vendor.d/50_mesa.json',
-        LIBGL_DRIVERS_PATH: BUNDLE + '/lib/dri',
-        GBM_BACKENDS_PATH: BUNDLE + '/lib/gbm',
         FONTCONFIG_FILE: BUNDLE + '/etc/fonts/fonts.conf',
         /* Mesa's shader cache, in the profile (its cap: the profile's budget) */
         MESA_SHADER_CACHE_DIR: path.join(PROFILE, 'cache', 'mesa'),
