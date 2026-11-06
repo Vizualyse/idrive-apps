@@ -8,7 +8,7 @@
  #include <dirent.h>
  #include <c11/threads.h>
  #include <drm-uapi/drm.h>
-@@ -512,6 +513,116 @@
+@@ -512,6 +513,134 @@
  }
  #endif
  
@@ -121,6 +121,24 @@
 +   return real_new_fstat64(fd, stat_buf);
 +}
 +#endif
++
++/* A newer libdrm (2.4.124's drmGetNodeTypeFromFd / drmGetMinorType) tells a
++ * node's type by access("/dev/dri/<card|renderD><minor>"): the fake render
++ * node must exist there too, or Mesa's Wayland EGL takes it for a primary
++ * node and fails at drmGetMagic. */
++static int (*real_shim_access)(const char *, int);
++
++PUBLIC int access(const char *path, int mode)
++{
++   init_shim();
++   if (render_node_minor != -1 && strcmp(path, render_node_path) == 0)
++      return 0;
++   if (!real_shim_access && !(real_shim_access = dlsym(RTLD_NEXT, "access"))) {
++      errno = ENOSYS;
++      return -1;
++   }
++   return real_shim_access(path, mode);
++}
 +
  /* Tracks if the opendir was on /dev/dri. */
  PUBLIC DIR *

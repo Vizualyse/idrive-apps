@@ -53,10 +53,14 @@ is not an Atom core.
   `intel-noop-shim-pread-pwrite.patch` adds the ioctls Mesa 19's i965 uses
   that it lacked (`GEM_PWRITE` / `GEM_PREAD` into the BO, `GEM_THROTTLE`);
   and `drm-shim-new-glibc-stat.patch` adds `stat` / `fstat` / `stat64` /
-  `fstat64`. Built on glibc 2.27 the shim had only `__xstat` / `__fxstat`,
-  which is what libraries built on glibc < 2.33 call; a libdrm built on a
-  newer glibc calls the plain names, missed the fake node, and Mesa said
-  "MESA-LOADER: failed to retrieve device information" (2026-11-06).
+  `fstat64` and `access`. Built on glibc 2.27 the shim had only `__xstat` /
+  `__fxstat`, which is what libraries built on glibc < 2.33 call; a libdrm
+  built on a newer glibc calls the plain names, missed the fake node, and
+  Mesa said "MESA-LOADER: failed to retrieve device information". A newer
+  libdrm (2.4.124) also tells a render node from a primary one by
+  `access("/dev/dri/renderD128")`, so without `access` Mesa's Wayland EGL took
+  the fake node for a primary one and failed at "wayland-egl: drmGetMagic
+  failed" (2026-11-06).
   An ioctl it still doesn't answer prints `DRM_SHIM: unhandled ...`.
 - **swrast**: Mesa 19.0.6 `swrast_dri.so` (llvmpipe and softpipe, LLVM 6
   linked in), with `libtinfo.so.5`, which the unit lacks. Mesa 19's GBM

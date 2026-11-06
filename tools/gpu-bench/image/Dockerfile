@@ -71,7 +71,9 @@ RUN cd /src/libdrm-2.4.114 \
 # drm-shim-new-glibc-stat.patch: built on glibc 2.27 the shim catches only
 # __xstat / __fxstat; it also gets stat / fstat / stat64 / fstat64, which
 # libraries built on glibc >= 2.33 call (a newer libdrm in Proton's userland or
-# the browser's bundle: "MESA-LOADER: failed to retrieve device information").
+# the browser's bundle: "MESA-LOADER: failed to retrieve device information"),
+# and access(), by which a newer libdrm tells a render node from a primary one
+# (else Mesa's Wayland EGL fails at "drmGetMagic").
 COPY intel-noop-shim-pread-pwrite.patch drm-shim-new-glibc-stat.patch /src/
 RUN cd /src/mesa-22.3.7 \
  && patch -p1 < /src/intel-noop-shim-pread-pwrite.patch \
@@ -87,7 +89,7 @@ RUN cd /src/mesa-22.3.7 \
  && ninja -C b src/intel/tools/libintel_noop_drm_shim.so >/dev/null \
  && mkdir -p /out/stub && cp b/src/intel/tools/libintel_noop_drm_shim.so /out/stub/ \
  && strip --strip-unneeded /out/stub/libintel_noop_drm_shim.so \
- && for s in __xstat __fxstat stat fstat stat64 fstat64; do \
+ && for s in __xstat __fxstat stat fstat stat64 fstat64 access; do \
       nm -D --defined-only /out/stub/libintel_noop_drm_shim.so | grep -q " T $s\$" \
         || { echo "shim lacks $s"; exit 1; }; done \
  && rm -rf b
