@@ -61,7 +61,9 @@ jobs:
           sudo modprobe vhci-hcd || true
           sh native/vizualyse-moonlight/build.sh
           sh native/vizualyse-moonlight/test/run_sunshine_test.sh
-      - name: Browser bundle (Chromium and Mesa for the unit; the sink's colour test)
+      - name: Chromium build image (cached)
+        uses: ./.github/actions/chromium-image
+      - name: Browser bundle (Chromium for the unit; the sink's colour test)
         timeout-minutes: 30
         run: sh native/vizualyse-chromium/build.sh
       - name: Reproducible builds

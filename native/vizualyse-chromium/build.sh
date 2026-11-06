@@ -15,7 +15,21 @@ export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 IMG=idrive-chromium-build:trixie-156.0.8078.79-$(sha256sum "$HERE/image/Dockerfile" | cut -c1-8)
-docker image inspect $IMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $IMG "$WIN_HERE/image" >/dev/null
+# build.sh image-name: the image's tag; build.sh image: only the image (CI
+# caches it: .github/actions/chromium-image)
+[ "${1:-}" = image-name ] && { echo "$IMG"; exit 0; }
+# snapshot.debian.org drops downloads now and then (apt exit 100): try 3 times
+LOG=${TMPDIR:-/tmp}/chromium-image.$$.log
+if ! docker image inspect $IMG >/dev/null 2>&1; then
+    n=1
+    until docker build --platform linux/amd64 --progress=plain -t $IMG "$WIN_HERE/image" > "$LOG" 2>&1; do
+        tail -25 "$LOG" >&2
+        [ $n -ge 3 ] && { echo "build.sh: the image did not build in $n tries" >&2; exit 1; }
+        n=$((n + 1)); echo "build.sh: image build failed, try $n of 3" >&2; sleep 20
+    done
+    rm -f "$LOG"
+fi
+[ "${1:-}" = image ] && exit 0
 mkdir -p "$HERE/build"
 key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/sink/*; docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
 if [ -f "$HERE/build/chromium.tgz" ] && [ "$(cat "$HERE/build/chromium.key" 2>/dev/null)" = "$key" ]; then

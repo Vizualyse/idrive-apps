@@ -41,6 +41,11 @@ jobs:
         with:
           node-version: 22.12.0
 
+      # vizualyse-chromium's build image from the cache (built once per Dockerfile)
+      - name: Chromium build image
+        if: inputs.components == '' || contains(format(' {0} ', inputs.components), ' vizualyse-chromium ')
+        uses: ./.github/actions/chromium-image
+
       # the tools' builds run make target: Docker, preinstalled on the runner
       - name: Publish
         env:

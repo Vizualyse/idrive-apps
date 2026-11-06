@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+#
+# vizualyse-chromium's build image (native/vizualyse-chromium/image/Dockerfile)
+# from the Actions cache, keyed on the Dockerfile: building it downloads some
+# 100 packages from snapshot.debian.org, which is slow and drops downloads
+# (a failed release, 2026-11-06). Built (build.sh image, with retries) and
+# cached only when the Dockerfile changes; build.sh then finds it by its tag.
+name: Chromium build image
+description: Loads vizualyse-chromium's build image from the cache, or builds and caches it
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/chromium-image.tar
+        key: chromium-image-${{ hashFiles('native/vizualyse-chromium/image/Dockerfile') }}
+
+    - name: Load the cached image
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        docker load -q -i "$RUNNER_TEMP/chromium-image.tar"
+        rm -f "$RUNNER_TEMP/chromium-image.tar"
+
+    - name: Build the image
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sh native/vizualyse-chromium/build.sh image
+        docker save -o "$RUNNER_TEMP/chromium-image.tar" "$(sh native/vizualyse-chromium/build.sh image-name)"
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/chromium-image.tar
+        key: chromium-image-${{ hashFiles('native/vizualyse-chromium/image/Dockerfile') }}
