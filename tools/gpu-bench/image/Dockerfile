@@ -74,10 +74,14 @@ RUN cd /src/libdrm-2.4.114 \
 # the browser's bundle: "MESA-LOADER: failed to retrieve device information"),
 # and access(), by which a newer libdrm tells a render node from a primary one
 # (else Mesa's Wayland EGL fails at "drmGetMagic").
-COPY intel-noop-shim-pread-pwrite.patch drm-shim-new-glibc-stat.patch /src/
+# make_prime_patch.py: PRIME export / import (DRM_IOCTL_PRIME_HANDLE_TO_FD /
+# FD_TO_HANDLE), which Mesa's Wayland EGL needs to hand a frame to the
+# compositor: without them no GL frame of Wine's reached wl-sink on the stub.
+COPY intel-noop-shim-pread-pwrite.patch drm-shim-new-glibc-stat.patch make_prime_patch.py /src/
 RUN cd /src/mesa-22.3.7 \
  && patch -p1 < /src/intel-noop-shim-pread-pwrite.patch \
  && patch -p1 < /src/drm-shim-new-glibc-stat.patch \
+ && python3 /src/make_prime_patch.py src/drm-shim/device.c \
  && grep -q '{ "bxt", 0x5A85 }' src/intel/dev/intel_device_info.c \
  && sed -i 's/{ "bxt", 0x5A85 }/{ "bxt", 0x5A84 }/' src/intel/dev/intel_device_info.c \
  && PKG_CONFIG_PATH=/opt/libdrm/lib/x86_64-linux-gnu/pkgconfig \

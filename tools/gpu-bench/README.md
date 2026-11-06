@@ -48,7 +48,7 @@ is not an Atom core.
 - **The shim**: Mesa 22.3.7's `libintel_noop_drm_shim.so` (the last release
   that builds it without LLVM / libclc), built on Ubuntu 18.04 (glibc 2.27)
   with libdrm 2.4.114's headers. Preloaded, it fakes `/dev/dri/renderD128`
-  and its sysfs files and answers i915's ioctls without a GPU. Three changes:
+  and its sysfs files and answers i915's ioctls without a GPU. Four changes:
   its `bxt` means 0x5A84 (the unit's 3x6 HD 505, not the 2x6 HD 500);
   `intel-noop-shim-pread-pwrite.patch` adds the ioctls Mesa 19's i965 uses
   that it lacked (`GEM_PWRITE` / `GEM_PREAD` into the BO, `GEM_THROTTLE`);
@@ -60,7 +60,12 @@ is not an Atom core.
   libdrm (2.4.124) also tells a render node from a primary one by
   `access("/dev/dri/renderD128")`, so without `access` Mesa's Wayland EGL took
   the fake node for a primary one and failed at "wayland-egl: drmGetMagic
-  failed" (2026-11-06).
+  failed" (2026-11-06). And `make_prime_patch.py` adds PRIME export /
+  import (`DRM_IOCTL_PRIME_HANDLE_TO_FD` / `FD_TO_HANDLE`: a memfd of the
+  BO's size stands for the buffer), which Mesa's Wayland EGL needs to hand a
+  frame to a compositor (`wl_drm.create_prime_buffer`): without it the fd
+  was -1, libwayland couldn't marshal the request, and no GL frame of
+  Wine's ever reached the compositor on the stub (2026-11-06).
   An ioctl it still doesn't answer prints `DRM_SHIM: unhandled ...`.
 - **swrast**: Mesa 19.0.6 `swrast_dri.so` (llvmpipe and softpipe, LLVM 6
   linked in), with `libtinfo.so.5`, which the unit lacks. Mesa 19's GBM
