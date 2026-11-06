@@ -96,7 +96,7 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.2, vizualyse_chromium 0.2.1)
+## Browser (vizualyse-chromium 0.2.3, vizualyse_chromium 0.2.2)
 
 Chromium 156 with its own glibc, headless, WebGL and WebGPU on the CPU
 (SwiftShader) or, in the GPU mode, on the unit's own Mesa 19 (WebGL 2 on
@@ -123,11 +123,11 @@ the unit's own root filesystem. **Ask before running anything on the unit.**
   journal). vel.gg needed more than 1.5 GB on the CPU (its GPU process was
   killed after 454 s of loading; 2026-11-06): try it at 2.5 GB, in the GPU
   mode, and watch the HMI and `free`.
-- [ ] **A resolution setting:** render at 3/4 or 1/2 (Chromium's device
-  scale factor below 1, the layout unchanged, so touches need no mapping);
-  mgu-render's VIDEO op fits a smaller frame to the app area. To check off
-  the car first: that headless Chromium honours a factor below 1 and the
-  screencast's JPEGs come at the smaller size.
+- [ ] **0.2.3 on the car: the resolution** (phone page or the app's
+  Resolution button: full, 3/4 = 1340x476, 1/2 = 892x316, scaled up by
+  mgu-render). How it looks, whether touches still land, and the gain on a
+  heavy page on the CPU: the sink's ms and pictures per second (`status`),
+  Chromium's CPU in `top`, its memory peak.
 - [ ] **On the car: touches under the browser.** Show should open the
   empty screen state first (the app's log: `screen state visible`; a
   `screen state: ... the browser goes over the main page` warning means the

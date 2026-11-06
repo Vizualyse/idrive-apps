@@ -99,6 +99,16 @@ filesystem (`../idrive-rootfs`):
   HMI's title bar and left strip (with its back arrow) uncovered, so the
   driver can always leave; the app hides the browser when its page loses
   visibility or focus (pop-ups, calls: knowledge/idrive-app-ui.md).
+- **The resolution (0.2.3)**: full, 3/4 or 1/2 (the phone page, the app's
+  Resolution button; kept). Chromium draws at that device scale factor
+  (`Emulation.setDeviceMetricsOverride`): the page keeps its 1790x638 CSS
+  layout and sees `devicePixelRatio` 0.75 / 0.5, so touches map as they
+  are; the screencast comes at 1341x478 / 892x318, the frame file is
+  1340x476 / 892x316 (a multiple of 4: the sink crops a row or two), and
+  mgu-render's VIDEO op fits it to the app area (aspect kept, linear
+  filtering). Fewer pixels for SwiftShader to draw, smaller buffers,
+  cheaper JPEGs. It changes live: the frame file and screencast are made
+  again at the new size.
 - **Touch read passively**: an AF_PACKET copy of the display's PDUs on
   vlan73 (Moonlight's decoder). Nothing is claimed: a touch claim through
   mgu-render restarted the unit twice. Touches that start outside the app

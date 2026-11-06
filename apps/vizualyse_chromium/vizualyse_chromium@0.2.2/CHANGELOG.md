@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+
+- **Resolution** button: full, 3/4 or 1/2. The browser draws fewer pixels
+  (faster on the car's processor, lighter on memory, a little blurrier) and
+  the picture is scaled up to the screen; the page keeps its layout.
+- Requires vizualyse-chromium 0.2.3.
+
 ## 0.2.1
 
 - The GPU row says `WebGPU: GLES compat` when the GPU mode runs WebGPU in

@@ -219,7 +219,7 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'browserQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['browserBack', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserShow']);
+    assert.deepStrictEqual(buttons, ['browserBack', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserResolution', 'browserShow']);
     const ep = APP_JSON.application.entryPoints[0];
     assert(fs.existsSync(path.join(PKG, 'rhmiData', 'variantGroups', 'Common', 'images', ep.icon)), 'the tile icon ships');
     const strings = JSON.parse(fs.readFileSync(path.join(PKG, 'rhmiData', 'variantGroups', 'Common', 'texts', 'en_GB.json'), 'utf8'));
@@ -231,14 +231,14 @@ async function main() {
     assert(v2 && v2.instances[0] === '1' && v2.attributes.statusCarSpeed2 === 'r', 'the manifest asks to read Vehicle2.statusCarSpeed2');
     /* plain ASCII in every text the page starts with (Unicode is unreliable in RHMI Text) */
     assert(!/[^\x00-\x7f]/.test(JSON.stringify(UI)), 'uiDescription.json is ASCII');
-    console.log('ok   page: 6 buttons, a QR graphic, an empty screen state, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest; ASCII');
+    console.log('ok   page: 7 buttons, a QR graphic, an empty screen state, xml and uiDescription agree; tile text, icon and files[]; Vehicle2 speed in the manifest; ASCII');
 
     process.exit = (code) => { throw new Error('process.exit(' + code + ')'); };
     runSource();
     const S = byName.browserStatus, P = byName.browserPage, G = byName.browserGpu;
     await until('no-tool status', () => /not running/.test(S.text || ''));
     assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
-    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
+    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
     assert.strictEqual(byName.browserEnable.text, 'Browser: not running');
     assert.strictEqual(byName.browserQr.visible, false);
     console.log('ok   without the tool: "' + S.text + '", buttons disabled, no QR');
@@ -251,7 +251,7 @@ async function main() {
     const qr1 = byName.browserQr.graphic.value;
     assert(handles.has(qr1) && fs.readFileSync(qr1).slice(1, 4).toString() === 'PNG', 'a PNG with a resource handle');
     assert.strictEqual(byName.browserEnable.text, 'Browser: on');
-    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, true, n + ' enabled'));
+    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, true, n + ' enabled'));
     assert.strictEqual(P.text, 'WebGL Report - https://webglreport.com/?v=2');
     assert.strictEqual(G.text, 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
     assert(G.text.length <= 90, 'the GPU line is one row');
@@ -295,6 +295,27 @@ async function main() {
     await until('the CPU line again', () => G.text === 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
     console.log('ok   GPU mode: on / off send gpu; starting on the GPU, WebGL 2 on GLES, WebGPU in compatibility mode, the note of a failed try');
 
+    /* the resolution: full -> 3/4 -> 1/2 -> full */
+    const RES = [{ scale: 1, w: 1790, h: 638 }, { scale: 0.75, w: 1340, h: 476 }, { scale: 0.5, w: 892, h: 316 }];
+    st = Object.assign({}, st, { scale: 1, resolutions: RES });
+    tool.broadcast();
+    await until('resolution full', () => byName.browserResolution.text === 'Resolution: full (1790x638)');
+    await sleep(450);
+    byName.browserResolution.emit('action');
+    await until('scale 0.75 sent', () => received.some((c) => c.cmd === 'scale' && c.scale === 0.75));
+    st = Object.assign({}, st, { scale: 0.75 });
+    tool.broadcast();
+    await until('resolution 3/4', () => byName.browserResolution.text === 'Resolution: 3/4 (1340x476)');
+    st = Object.assign({}, st, { scale: 0.5 });
+    tool.broadcast();
+    await until('resolution 1/2', () => byName.browserResolution.text === 'Resolution: 1/2 (892x316)');
+    await sleep(450);
+    byName.browserResolution.emit('action');
+    await until('back to full sent', () => received.some((c) => c.cmd === 'scale' && c.scale === 1));
+    st = Object.assign({}, st, { scale: 1 });
+    tool.broadcast();
+    console.log('ok   Resolution steps full, 3/4, 1/2 and round again (scale), its size on the button');
+
     /* a page too big for the memory cap: said on the status line for 2 minutes */
     st = Object.assign({}, st, { memory: { capMb: 1536, choices: [1536, 2048, 2560], usedMb: 900, peakMb: 1536, oomAt: new Date().toISOString(), note: 'out of memory: ...' } });
     tool.broadcast();
@@ -310,7 +331,7 @@ async function main() {
     await until('the screen state opened', () => opened.length === 1 && opened[0] === byName[SCREEN]);
     await until('show sent once it is visible', () => sent('show'));
     await until('shown', () => /^On the screen/.test(S.text || ''));
-    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserGpuMode', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
+    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
     await sleep(600);
     assert.strictEqual(count('hide'), 0, 'the main state going away for the screen state does not hide');
     console.log('ok   Show opens the empty screen state, then sends show; the main page\'s buttons are off while covered');
@@ -427,7 +448,7 @@ async function main() {
     assert.strictEqual(tool.clients(), 1, 'the socket stays open with the page hidden');
     assert(count('speed') > n, 'the speed goes on with the page hidden');
     byName[STATE].emit('visible', { visible: true });
-    assert(!received.some((c) => !/^(speed|show|hide|home|reload|back|enable|disable|gpu)$/.test(c.cmd)), 'nothing else sent');
+    assert(!received.some((c) => !/^(speed|show|hide|home|reload|back|enable|disable|gpu|scale)$/.test(c.cmd)), 'nothing else sent');
     console.log('ok   hiding the page keeps the socket and the speed going');
 
     tool.close();

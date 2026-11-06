@@ -15,6 +15,7 @@ const C = [
     [30, 'button', 'LT_Button_1Row', 'browserShow', 3, 'Show on the screen'],
     [31, 'button', 'LT_Button_1Row', 'browserEnable', 3, 'Browser: on'],
     [35, 'button', 'LT_Button_1Row', 'browserGpuMode', 3, 'GPU mode: off (WebGL on the CPU)'],
+    [36, 'button', 'LT_Button_1Row', 'browserResolution', 3, 'Resolution: full'],
     [32, 'button', 'LT_Button_1Row', 'browserHome', 3, 'Home page'],
     [33, 'button', 'LT_Button_1Row', 'browserReload', 3, 'Reload'],
     [34, 'button', 'LT_Button_1Row', 'browserBack', 3, 'Back'],

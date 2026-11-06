@@ -187,6 +187,30 @@ async function main() {
     const after = await req('GET', '/api/status', undefined, tok);
     check(after.body.title === 'tapped 1', 'a touch outside the area is left to the HMI (title ' + after.body.title + ')');
 
+    /* the resolution, live while shown: half the pixels, the same place, the same touches */
+    const sc = await req('POST', '/api/scale', { scale: 0.5 }, tok);
+    check(sc.code === 200 && sc.body.scale === 0.5 && sc.body.resolutions.length === 3, '/api/scale 0.5');
+    const half = await until('pictures at half size', () => {
+        const b = fs.readFileSync(FRAME);
+        return b.readUInt32LE(8) === 892 && b.readUInt32LE(12) === 316 && b.readUInt32LE(16) > 0 ? b : null;
+    }, 10000);
+    if (half) {
+        const w2 = 892, h2 = 316, sl = half.readUInt32LE(20);
+        const p2 = half.slice(64 + sl * w2 * h2 * 3 / 2);
+        const V2 = (x, y) => p2[w2 * h2 + (w2 * h2 >> 2) + (y >> 1) * (w2 >> 1) + (x >> 1)];
+        const U2 = (x, y) => p2[w2 * h2 + (y >> 1) * (w2 >> 1) + (x >> 1)];
+        check(V2(50, 200) > 200 && U2(850, 200) > 200, 'the page at half size: red and blue halves, the same layout');
+    }
+    const places = fs.readFileSync(RLOG, 'utf8').split(/\r?\n/).filter((l) => /place/.test(l));
+    check(/place 1790x638\+108\+82/.test(places[places.length - 1] || ''), 'still placed over the whole app area, mgu-render scales it up (' + places[places.length - 1] + ')');
+    check(JSON.parse(fs.readFileSync(path.join(STATE, 'settings.json'), 'utf8')).scale === 0.5, 'the resolution is kept in the settings');
+    touchFile(108 + 320, 82 + 120);
+    await until('a touch at half resolution presses the same button', () => req('GET', '/api/status', undefined, tok).then((r) => r.body.title === 'tapped 2'), 5000);
+    const bad2 = await req('POST', '/api/scale', { scale: 0.3 }, tok);
+    check(bad2.code === 400, 'a resolution that is not offered is refused');
+    await req('POST', '/api/scale', { scale: 1 }, tok);
+    await until('full size again', () => { const b = fs.readFileSync(FRAME); return b.readUInt32LE(8) === 1790 && b.readUInt32LE(16) > 0; }, 10000);
+
     c.send({ cmd: 'speed', kmh: 20 });
     await until('driving hides it', () => c.last() && !c.last().shown && c.last().moving, 5000);
     c.send({ cmd: 'show' });

@@ -46,7 +46,9 @@ function frameFile(file, w, h) {
 }
 
 /* view: { x, y, w, h } on the screen; sink: the chromium-sink path;
- * touch: { iface, src } or { file } or null. Events: 'touch' {p, x, y}
+ * touch: { iface, src } or { file } or null; frame: { w, h } of the pictures
+ * when smaller than the view (the resolution setting: mgu-render's VIDEO op
+ * fits them to the view, aspect kept, linear filtering). Events: 'touch' {p, x, y}
  * (screen pixels), 'stats', 'sink-error', 'ready', 'gone' (the sink exited). */
 class Screen extends EventEmitter {
     constructor(log, sinkPath) {
@@ -61,10 +63,11 @@ class Screen extends EventEmitter {
 
     shown() { return !!this.sink; }
 
-    show(view, touch) {
+    show(view, touch, frame) {
         this.hide();
         this.view = view;
-        frameFile(FILE, view.w, view.h);
+        const f = frame || view;
+        frameFile(FILE, f.w, f.h);
         const args = ['--frame', FILE];
         if (touch && touch.iface) args.push('--touch-iface', touch.iface, '--touch-src', touch.src);
         else if (touch && touch.file) args.push('--touch-file', touch.file);
@@ -104,7 +107,7 @@ class Screen extends EventEmitter {
         gpu.on('ready', (screenInfo, info) => {
             const a = info && info.appArea;
             say('ready: screen ' + screenInfo.w + 'x' + screenInfo.h + (a ? ', app area ' + a.w + 'x' + a.h + '+' + a.x + '+' + a.y : '') +
-                ', browser ' + view.w + 'x' + view.h + '+' + view.x + '+' + view.y);
+                ', browser ' + view.w + 'x' + view.h + '+' + view.x + '+' + view.y + (f !== view ? ', pictures ' + f.w + 'x' + f.h : ''));
             if (a && (a.w !== view.w || a.h !== view.h || a.x !== view.x || a.y !== view.y)) say('the app area differs from the browser\'s place (CHROMIUM_VIEW sets it)');
             gpu.mode('layer');
             gpu.place({ x: view.x, y: view.y, w: view.w, h: view.h, scale: 1, ox: 0, oy: 0 });

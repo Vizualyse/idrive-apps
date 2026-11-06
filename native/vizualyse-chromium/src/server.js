@@ -75,6 +75,18 @@ const CGROUP_ROOT = process.env.CHROMIUM_CGROUP_ROOT || '/sys/fs/cgroup/memory';
  * swap (2026-11-06: 1.4 GB available, 1.6 of 3 GB swap in use). Within the
  * cap only Chromium's own processes can be killed. */
 const MEM_CHOICES = [1536, 2048, 2560];
+/* The resolution: Chromium draws at this device scale factor (the layout
+ * stays VIEW's size in CSS pixels, so touches map as they are) and
+ * mgu-render scales the smaller pictures up to the app area. Fewer pixels:
+ * less drawing (SwiftShader draws on the CPU), smaller buffers, cheaper
+ * JPEGs; a page sees devicePixelRatio 0.75 or 0.5. */
+const SCALES = [1, 0.75, 0.5];
+/* the pictures' size at a scale: Chromium rounds its own way (1341x478 at
+ * 0.75), the sink crops to the frame: a multiple of 4, at least 16 */
+function picSize(s) {
+    if (s === 1) return { w: VIEW.w, h: VIEW.h };
+    return { w: Math.max(16, Math.floor(VIEW.w * s) & ~3), h: Math.max(16, Math.floor(VIEW.h * s) & ~3) };
+}
 const MEM_DEFAULT = Number(process.env.CHROMIUM_MEM_MB) || 1536;
 const MAX_KMH = 3;
 const DEFAULT_URL = 'https://webglreport.com/?v=2';
@@ -123,7 +135,8 @@ function toUrl(s) {
 /* ---- settings ------------------------------------------------------------ */
 
 const SETTINGS_FILE = path.join(env.STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, home: DEFAULT_URL, url: DEFAULT_URL, memMb: MEM_DEFAULT }, readJson(SETTINGS_FILE) || {});
+const settings = Object.assign({ enabled: true, home: DEFAULT_URL, url: DEFAULT_URL, memMb: MEM_DEFAULT, scale: 1 }, readJson(SETTINGS_FILE) || {});
+if (SCALES.indexOf(settings.scale) < 0) settings.scale = 1;
 if (MEM_CHOICES.indexOf(settings.memMb) < 0 && settings.memMb !== MEM_DEFAULT) settings.memMb = MEM_DEFAULT;
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
 
@@ -237,7 +250,7 @@ function startBrowser() {
     if (useGpu) {
         try { writeJson(GPU_TRIAL, { at: new Date().toISOString() }); } catch (e) { log('gpu: ' + e.message); }
     }
-    const b = new Browser({ w: VIEW.w, h: VIEW.h, uid: NET_UID, gid: useGpu ? VIDEO_GID : CHROMIUM_GID, gpu: useGpu,
+    const b = new Browser({ w: VIEW.w, h: VIEW.h, scale: settings.scale, pic: picSize(settings.scale), uid: NET_UID, gid: useGpu ? VIDEO_GID : CHROMIUM_GID, gpu: useGpu,
         proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: (cgroupDir = cgroup()), url: 'about:blank' });
     browser = b;
     browserState = 'starting';
@@ -354,7 +367,7 @@ function show() {
     if (!browser || browserState !== 'running') return null;   /* shown once it runs */
     if (screen.shown()) return null;
     const touch = TOUCH_FILE ? { file: TOUCH_FILE } : TOUCH_IFACE ? { iface: TOUCH_IFACE, src: TOUCH_SRC } : null;
-    screen.show(VIEW, touch);
+    screen.show(VIEW, touch, picSize(settings.scale));
     browser.screencast(true, JPEG_QUALITY).catch((e) => log('screencast: ' + e.message));
     log('screen: shown');
     return null;
@@ -411,6 +424,23 @@ function watchMemory() {
 }
 setInterval(watchMemory, 2000);
 
+/* The resolution, live: the page's scale factor, then (when shown) the frame
+ * file and the screencast again at the new size. */
+function setScale(v) {
+    v = Number(v);
+    if (SCALES.indexOf(v) < 0) return 'the resolution is one of ' + SCALES.join(', ');
+    if (v === settings.scale) return null;
+    settings.scale = v;
+    saveSettings();
+    const p = picSize(v);
+    log('screen: resolution ' + (v === 1 ? 'full' : v) + ', pictures ' + p.w + 'x' + p.h + ' scaled to ' + VIEW.w + 'x' + VIEW.h);
+    const again = screen.shown();
+    if (browser) browser.setScale(v, p).catch((e) => log('scale: ' + e.message));
+    if (again) { hide('the resolution changed'); show(); }
+    if (control) control.broadcast();
+    return null;
+}
+
 function setMemory(v) {
     v = Number(v);
     if (MEM_CHOICES.indexOf(v) < 0) return 'the memory cap is one of ' + MEM_CHOICES.join(', ') + ' MB';
@@ -436,6 +466,7 @@ function status() {
         gpu: gpuSummary(), gpuMode: gpuMode, gpuNote: gpuNote, speed: vehicle.kmh, moving: moving(),
         pictures: stats.pictures, decodeMs: stats.decodeMs,
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
+        scale: settings.scale, resolutions: SCALES.map((s) => { const p = picSize(s); return { scale: s, w: p.w, h: p.h }; }),
         memory: { capMb: settings.memMb, choices: MEM_CHOICES, usedMb: mem.usedMb, peakMb: mem.peakMb, oomAt: mem.oomAt, note: mem.note },
     };
 }
@@ -473,6 +504,7 @@ const ROUTES = {
     '/api/key': (b) => need().then((x) => x.key(String(b.key || ''))),
     '/api/probe': () => need().then((x) => x.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe')).then((p) => { delete p.gpuPage; gpu = Object.assign({ at: new Date().toISOString() }, p); console.log('@gpu ' + JSON.stringify(gpu)); }),
     '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
+    '/api/scale': (b) => { const e = setScale(b.scale); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/memory': (b) => { const e = setMemory(b.mb); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/restart': () => { restarts = []; lastError = null; stopBrowser(); setTimeout(startBrowser, 1500); return Promise.resolve(); },
 };
@@ -524,6 +556,7 @@ function command(c) {
     if (c.cmd === 'hide') { hide('hidden on the iDrive page'); return null; }
     if (c.cmd === 'gpu') return setGpu(!!c.on);
     if (c.cmd === 'memory') return setMemory(c.mb);
+    if (c.cmd === 'scale') return setScale(c.scale);
     if (!browser || browserState !== 'running') return 'the browser is not running';
     if (c.cmd === 'home') { browser.navigate(settings.home).catch((e) => log('home: ' + e.message)); return null; }
     if (c.cmd === 'reload') { browser.reload().catch((e) => log('reload: ' + e.message)); return null; }

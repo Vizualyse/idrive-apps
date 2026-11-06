@@ -155,6 +155,21 @@ async function main() {
     check(touches.length >= 2, 'the sink reads the touches (' + touches.map((t) => t.p).join(',') + ')');
     check(title.result.value === 'tapped', 'a tap presses the page\'s button (title ' + title.result.value + ')');
 
+    /* the resolution: a device scale factor of 0.5, the layout unchanged, the pictures half size */
+    await b.screencast(false);
+    await b.setScale(0.5, { w: 320, h: 120 });
+    const seen = await b.send('Runtime.evaluate', { expression: '[devicePixelRatio, innerWidth, innerHeight].join(",")', returnByValue: true });
+    check(seen.result.value === '0.5,640,240', 'scale 0.5: the page keeps 640x240 CSS pixels at devicePixelRatio 0.5 (' + seen.result.value + ')');
+    let small = null;
+    const grab = (jpeg) => { if (!small) { const i = jpeg.indexOf(Buffer.from([0xFF, 0xC0])); small = i > 0 ? jpeg.readUInt16BE(i + 7) + 'x' + jpeg.readUInt16BE(i + 5) : '?'; } };
+    b.on('frame', grab);
+    await b.screencast(true, 80);
+    await b.send('Runtime.evaluate', { expression: 'document.title = "half"' });
+    await wait(1500);
+    b.removeListener('frame', grab);
+    check(small === '320x120', 'its screencast pictures are 320x120 (' + small + ')');
+    await b.setScale(1, null);
+
     clearInterval(feed);
     await b.screencast(false);
     sink.stdin.end();

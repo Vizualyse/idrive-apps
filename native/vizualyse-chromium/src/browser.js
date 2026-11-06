@@ -34,7 +34,10 @@ const env = require('./env.js');
 
 const CHROMIUM = path.join(env.BUNDLE, 'chromium');
 
-/* opts: { w, h, uid, gid, gpu (the GPU mode: env.js), proxy (port), cgroup (dir or null), url, extraArgs } */
+/* opts: { w, h, uid, gid, gpu (the GPU mode: env.js), scale (the device scale
+ * factor, 1 / 0.75 / 0.5: the layout stays w x h CSS pixels, the pictures are
+ * smaller), pic ({ w, h }: the screencast's size at that scale), proxy (port),
+ * cgroup (dir or null), url, extraArgs } */
 function args(opts) {
     const a = [
         '--headless', '--no-sandbox', '--remote-debugging-pipe',
@@ -211,7 +214,7 @@ class Browser extends EventEmitter {
             return Promise.all([
                 this.send('Page.enable'),
                 this.send('Runtime.enable'),
-                this.send('Emulation.setDeviceMetricsOverride', { width: this.opts.w, height: this.opts.h, deviceScaleFactor: 1, mobile: false }),
+                this._metrics(),
                 this.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 }),
             ]);
         });
@@ -226,10 +229,24 @@ class Browser extends EventEmitter {
         });
     }
 
+    /* the page's size in CSS pixels, drawn at the scale (devicePixelRatio) */
+    _metrics() {
+        return this.send('Emulation.setDeviceMetricsOverride', { width: this.opts.w, height: this.opts.h, deviceScaleFactor: this.opts.scale || 1, mobile: false });
+    }
+
+    /* the resolution, live: touches keep their CSS coordinates; a running
+     * screencast must be restarted for its new size (server.js re-shows) */
+    setScale(scale, pic) {
+        this.opts.scale = scale;
+        this.opts.pic = pic;
+        return this.session ? this._metrics() : Promise.resolve();
+    }
+
     screencast(on, quality) {
         if (on === this.casting || !this.session) return Promise.resolve();
         this.casting = on;
-        return on ? this.send('Page.startScreencast', { format: 'jpeg', quality: quality || 75, maxWidth: this.opts.w, maxHeight: this.opts.h, everyNthFrame: 1 })
+        const pic = this.opts.pic || this.opts;
+        return on ? this.send('Page.startScreencast', { format: 'jpeg', quality: quality || 75, maxWidth: pic.w, maxHeight: pic.h, everyNthFrame: 1 })
             : this.send('Page.stopScreencast');
     }
 

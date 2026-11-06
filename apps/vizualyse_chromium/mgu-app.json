@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "vizualyse_chromium",
-  "version": "0.2.1",
-  "tree": "vizualyse_chromium@0.2.1",
+  "version": "0.2.2",
+  "tree": "vizualyse_chromium@0.2.2",
   "modules": [
     "src/vizualyse_chromium.js",
     "src/chromium_control.js",

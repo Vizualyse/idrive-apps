@@ -176,6 +176,13 @@ it renders.
 - `Page.startScreencast` (JPEG) works headless; pictures come only when the
   page changes, one in flight until acked. Its JPEGs are BT.601 full range.
 - `document.title` changed by a script fires no DevTools event: poll it.
+- **A device scale factor below 1 works headless** (rootfs container,
+  2026-11-06): `Emulation.setDeviceMetricsOverride` with 1790x638 and 0.75 /
+  0.5 keeps `innerWidth` 1790 x 638 and gives `devicePixelRatio` 0.75 / 0.5;
+  the screencast's JPEGs come at 1341x478 / 892x318 (Chromium's own
+  rounding). Touches stay in CSS pixels. mgu-render's VIDEO op scales a
+  smaller frame up (aspect kept, `GL_LINEAR`: mgu-store `gfx.c`
+  `draw_video`).
 - `--proxy-server` keeps loopback direct by default (`<-loopback>` would
   send it through the proxy).
 - Without D-Bus Chromium logs a few dozen `dbus/bus.cc` errors at start:

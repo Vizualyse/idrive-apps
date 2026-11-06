@@ -50,6 +50,8 @@
   <dl id="info"></dl>
   <div class="row" style="margin-top:8px"><button data-api="probe">Check the GPU again</button><a id="gpu" target="_blank">chrome://gpu</a><button data-api="restart">Restart the browser</button></div>
   <div class="row" style="margin-top:8px"><button id="gpumode">GPU mode: off</button></div>
+  <div class="row" style="margin-top:8px"><label for="res">Resolution</label><select id="res"></select></div>
+  <p class="dim">Lower draws fewer pixels: faster on the car's processor and lighter on memory, a little blurrier. The page keeps its layout.</p>
   <div class="row" style="margin-top:8px"><label for="mem">Memory for the browser</label><select id="mem"></select></div>
   <p class="dim">More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.</p>
   <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
@@ -83,6 +85,10 @@ function render(s) {
   $('gpumode').disabled = !gpuOn && (s.browser !== 'running' || s.bundle !== 'ready');
   const g = s.gpu || {};
   const m = s.memory || {};
+  if (document.activeElement !== $('res') && s.resolutions) {
+    const names = { 1: 'Full', 0.75: '3/4', 0.5: '1/2' };
+    $('res').innerHTML = s.resolutions.map((r) => '<option value="' + r.scale + '"' + (r.scale === s.scale ? ' selected' : '') + '>' + (names[r.scale] || r.scale) + ' (' + r.w + 'x' + r.h + ')</option>').join('');
+  }
   if (document.activeElement !== $('mem') && m.choices) {
     $('mem').innerHTML = m.choices.map((c) => '<option value="' + c + '"' + (c === m.capMb ? ' selected' : '') + '>' + (c / 1024).toFixed(1).replace('.0', '') + ' GB' + (c === m.choices[0] ? ' (default)' : '') + '</option>').join('');
   }
@@ -108,6 +114,7 @@ $('show').onclick = () => api('/api/show', {}).catch(() => null);
 $('hide').onclick = () => api('/api/hide', {}).catch(() => null);
 let gpuOn = false;
 $('gpumode').onclick = () => api('/api/gpu', { on: !gpuOn }).catch(() => null);
+$('res').onchange = () => api('/api/scale', { scale: Number($('res').value) }).then(() => $('res').blur(), () => null);
 $('mem').onchange = () => api('/api/memory', { mb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
 $('send').onclick = () => api('/api/text', { text: $('text').value }).then(() => { $('text').value = ''; }, () => null);
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });

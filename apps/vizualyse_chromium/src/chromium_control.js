@@ -8,7 +8,8 @@
  * a failed command; the app sends {"cmd":"enable"} / {"cmd":"disable"} (the
  * browser runs or not), {"cmd":"show"} / {"cmd":"hide"} (the page on the
  * central screen), {"cmd":"home"}, {"cmd":"reload"}, {"cmd":"back"},
- * {"cmd":"gpu","on":true|false} (the GPU mode, experimental) and
+ * {"cmd":"gpu","on":true|false} (the GPU mode, experimental),
+ * {"cmd":"scale","scale":1|0.75|0.5} (the resolution) and
  * {"cmd":"speed","kmh":...} (the car's speed, about once a second, for "only
  * while parked"). Connected while the app runs (the speed goes on while the
  * browser covers the page), retried once a second; the tool keeps running
@@ -103,6 +104,8 @@ class BrowserControl extends EventEmitter {
     /* the GPU mode (experimental): the tool restarts Chromium on the unit's own
      * GPU driver; never kept over a restart of the tool */
     gpu(on) { return this._send({ cmd: 'gpu', on: !!on }); }
+    /* the resolution: the tool's device scale factor, 1 / 0.75 / 0.5 */
+    scale(s) { return this._send({ cmd: 'scale', scale: s }); }
     /* not buttons: they leave a button's error on the status line alone */
     hide() {
         if (!this.sock || !this.status || !this.status.shown) return false;
@@ -120,6 +123,18 @@ class BrowserControl extends EventEmitter {
     running() { return !!(this.status && this.status.browser === 'running'); }
     shown() { return !!(this.status && this.status.shown); }
     gpuMode() { return !!(this.status && this.status.gpuMode); }
+    scaleNow() { return (this.status && this.status.scale) || 1; }
+    /* the next resolution, round: full, 3/4, 1/2 */
+    nextScale() {
+        const all = ((this.status && this.status.resolutions) || []).map((r) => r.scale);
+        const list = all.length ? all : [1, 0.75, 0.5];
+        return list[(list.indexOf(this.scaleNow()) + 1) % list.length];
+    }
+    resolutionText() {
+        const s = this.status, now = this.scaleNow();
+        const r = s && (s.resolutions || []).filter((x) => x.scale === now)[0];
+        return 'Resolution: ' + ({ 1: 'full', 0.75: '3/4', 0.5: '1/2' }[now] || now) + (r ? ' (' + r.w + 'x' + r.h + ')' : '');
+    }
     moving() { return !!(this.status && this.status.moving); }
     link() { return (this.status && this.status.link) || ''; }
 
