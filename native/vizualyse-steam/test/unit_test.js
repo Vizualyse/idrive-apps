@@ -73,7 +73,7 @@ const senv = Object.assign({}, process.env, {
     /* mgu-render's client: a stand-in (show works); the display's touches: a
      * replayed capture (touchFile) for steam-touch */
     STEAM_RENDER_CLIENT: T + '/test/fake_render_client.js', STEAM_TEST_RENDER_LOG: '/tmp/render.log',
-    STEAM_TOUCH_FILE: '/dev/shm/touch.txt', STEAM_LINK_IP: '127.0.0.1',
+    STEAM_TOUCH_FILE: '/dev/shm/touch.txt', STEAM_LINK_IP: '127.0.0.1', STEAM_SINK_DEBUG: process.env.WINSTON_CHECK ? '1' : '',
     /* the test stick's device: the tmpfs's name, or the vfat image's loop device */
     STEAM_USB_TEST_DEV: (fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')
         .filter((l) => l.split(' ')[1] === '/media/TESTSTICK')[0] || 'teststick').split(' ')[0],
@@ -339,14 +339,31 @@ async function winston() {
     await sleep(3000);
     s = await status();
     ok('shown through Winston', r.code === 200 && s.shown && s.winston.via === 'winston', JSON.stringify(s.winston));
-    let px = grab();
-    let v = px ? scan(px) : null;
-    ok('the game\'s picture is on Winston\'s centre screen, in the app area', !!v && v.inside > 120 && v.outside === 0, JSON.stringify(v));
-    await api('/api/hide', {});
-    await sleep(1000);
-    px = grab();
-    v = px ? scan(px) : null;
-    ok('hidden: gone from the screen', !!v && v.inside === 0, JSON.stringify(v));
+    if (GPU === 'stub') {
+        /* the unit's i965 (no pixels): Wine's GPU buffers go to Winston as they are */
+        const b0 = s.game.buffers || {};
+        await sleep(2000);
+        s = await status();
+        const b = s.game.buffers || {};
+        ok('Wine\'s GPU buffers go to Winston as they are (no read-back)', b.fwd > 20 && b.drm === b0.drm,
+            JSON.stringify(b) + ', ' + s.game.fps + ' pictures/s');
+        await api('/api/hide', {});
+        await sleep(2500);   /* the stats line is a second's */
+        const h0 = (await status()).game.buffers;
+        await sleep(3000);
+        const h1 = (await status()).game.buffers;
+        ok('hidden: the game goes on, read back into the frame file again', h1.drm - h0.drm >= 30 && h1.fwd === h0.fwd,
+            (h1.drm - h0.drm) + ' read back in 3 s, ' + JSON.stringify(h1));
+    } else {
+        let px = grab();
+        let v = px ? scan(px) : null;
+        ok('the game\'s picture is on Winston\'s centre screen, in the app area', !!v && v.inside > 120 && v.outside === 0, JSON.stringify(v));
+        await api('/api/hide', {});
+        await sleep(1000);
+        px = grab();
+        v = px ? scan(px) : null;
+        ok('hidden: gone from the screen', !!v && v.inside === 0, JSON.stringify(v));
+    }
     r = await api('/api/winston', { on: false });
     s = await status();
     ok('Winston output off', r.code === 200 && s.winston.on === false);

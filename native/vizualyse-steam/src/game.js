@@ -129,7 +129,7 @@ class Game extends EventEmitter {
                     this.winston = !!e.winston;
                     this._startWine();
                 } else if (e.ev === 'stats') {
-                    this.stats = { pictures: this.stats.pictures + e.pictures, fps: e.pictures, drm: e.drm, shm: e.shm, ms: e.ms };
+                    this.stats = { pictures: this.stats.pictures + e.pictures, fps: e.pictures, drm: e.drm, shm: e.shm, fwd: e.fwd || 0, ms: e.ms };
                     if (this.state === 'starting' && (e.drm || e.shm)) this._set('running');
                     this.emit('stats', this.stats);
                 } else if (e.ev === 'toplevel') {

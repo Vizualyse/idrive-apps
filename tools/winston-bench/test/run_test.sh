@@ -61,6 +61,31 @@ if [ "${frames:-0}" -ge 100 ]; then pass "dmabuf: $frames frames in 3 s"; else b
 if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${SIZE}, format: XR24" && ! log winston.log | grep -q "could not create egl image"; then
     pass "dmabuf: Winston's renderer imports our GPU buffers (unit's i965)"; else bad "dmabuf: import"; fi
 
+# A video decoder's kind of picture: NV12 (Y, then UV, in one buffer)
+rm -f "$OUT"/grab* "$OUT"/app.log
+WINSTON_ARGS="--param stdlog-level=3" run stub sh -c "/bench/wo_bench app nv12 $SIZE $PLACE 3 > /out/app.log 2>&1 & sleep 1.5; /bench/wo_bench grab; wait"
+if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${SIZE}, format: NV12" && ! log winston.log | grep -q "could not create egl image" \
+   && log app.log | grep -q '"ev":"done"'; then
+    pass "nv12: Winston's renderer imports and draws NV12 dmabufs (unit's i965)"; else bad "nv12: $(log app.log | tail -1)"; fi
+
+# Part of a bigger picture (wo_present_at): 400x200 at 200,100 of an 800x400
+# one, as the 800x400 would be fitted; black around it (the backdrop)
+rm -f "$OUT"/grab* "$OUT"/app.log
+(DOCKER_ARGS="-e WO_AT=800,400,200,100" run swrast sh -c "/bench/wo_bench app shm 400x200 $PLACE 4 > /out/app.log 2>&1 & sleep 2; /bench/wo_bench grab; wait")   # (a subshell: the variable stays out of the next runs)
+if [ -f "$OUT/grab.ppm" ] && $PY - "$WIN_HERE/build/out/grab.ppm" > "$OUT.pic" <<'PY'
+import sys
+d = open(sys.argv[1], 'rb').read(); h = d.split(b'\n', 3); p = h[3]; w = int(h[1].split()[0])
+at = lambda x, y: tuple(p[(y * w + x) * 3:(y * w + x) * 3 + 3])
+# the 800x400 canvas in 1790x638+108+82: scale 1.595, 1276x638 at 365,82; the picture 638x319 at 365+319, 82+160
+s = 638 / 400.0
+x0, y0 = 108 + (1790 - 1276) // 2, 82
+pic = lambda fx, fy: at(int(x0 + (200 + fx * 400) * s), int(y0 + (100 + fy * 200) * s))
+ok = pic(0.25, 0.25) == (255, 0, 0) and pic(0.75, 0.75) == (255, 255, 255) and at(x0 + 40, y0 + 40) == (0, 0, 0)
+print('red', pic(0.25, 0.25), 'white', pic(0.75, 0.75), 'canvas corner', at(x0 + 40, y0 + 40))
+sys.exit(0 if ok else 1)
+PY
+then pass "at: a part of a bigger picture where it sits in it ($(cat "$OUT.pic"))"; else bad "at: $(cat "$OUT.pic" 2>/dev/null)"; fi
+
 # Our compositors between a stand-in client and Winston (test/build_sinks.sh)
 sh "$HERE/test/build_sinks.sh" >/dev/null || { echo "build_sinks failed"; exit 1; }
 # (wl-sink lets the client choose its size: fake_client's 640x360)
@@ -79,17 +104,28 @@ for sink in chromium steam; do
     frames=$(log fake.log | sed -n 's/.*"frames":\([0-9]*\),"releases":\([0-9]*\).*/\1 \2/p')
     set -- $frames
     if [ "${1:-0}" -ge 100 ] && [ "${2:-0}" -ge "$(( ${1:-0} - 3 ))" ]; then pass "$sink drm: every buffer back to the client ($1 frames, $2 releases)"; else bad "$sink drm: frames/releases $frames"; fi
-    if [ $sink = chromium ]; then
-        fwd=$(log sink.log | sed -n 's/.*"fwd":\([0-9]*\).*/\1/p' | tail -1)
-        if [ "${fwd:-0}" -ge 60 ]; then pass "$sink drm: $fwd GPU buffers passed on as they are"; else bad "$sink drm: fwd ${fwd:-none}"; fi
-        if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${S}"; then pass "$sink drm: Winston's renderer imports them"; else bad "$sink drm: import"; fi
-    else
-        # wl-sink reads GPU buffers back (Wine's GL area is composed) and shows the picture through Winston
-        sent=$(log sink.log | sed -n 's/.*"drm":\([0-9]*\),"winston":\([0-9]*\).*/\1 \2/p' | tail -1)
-        set -- $sent
-        if [ "${1:-0}" -ge 60 ] && [ "${2:-0}" -ge 30 ]; then pass "$sink drm: GPU buffers read back and shown through Winston ($1 read, $2 shown)"; else bad "$sink drm: $sent"; fi
+    # shown through Winston, the client's GPU buffers go to Winston as they are
+    # (wl-sink: the one surface shown, where its composed picture would have it)
+    fwd=$(log sink.log | sed -n 's/.*"fwd":\([0-9]*\).*/\1/p' | tail -1)
+    if [ "${fwd:-0}" -ge 60 ]; then pass "$sink drm: $fwd GPU buffers passed on as they are"; else bad "$sink drm: fwd ${fwd:-none}"; fi
+    if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${S}"; then pass "$sink drm: Winston's renderer imports them"; else bad "$sink drm: import"; fi
+    if [ $sink = steam ]; then
+        # hidden, the frame file goes on: wl-sink reads them back again
+        drm=$(log sink.log | sed -n 's/.*"drm":\([0-9]*\),"winston".*/\1/p' | tail -1)
+        if [ "${drm:-0}" -ge 10 ]; then pass "$sink drm: read back again while hidden ($drm)"; else bad "$sink drm: read back ${drm:-none}"; fi
     fi
 done
+
+# Wine's shape: a software window frame (shm) as the toplevel, the GL area a
+# subsurface of GPU buffers: the GL area alone goes to Winston as it is; hidden
+# and shown again, the client never stalls (each buffer released once)
+rm -f "$OUT"/sink.log "$OUT"/fake.log
+run stub sh /test/sink_scenario.sh steam wine 640x360
+fwd=$(log sink.log | sed -n 's/.*"fwd":\([0-9]*\).*/\1/p' | tail -1)
+frames=$(log fake.log | sed -n 's/.*"frames":\([0-9]*\),"releases":\([0-9]*\).*/\1 \2/p')
+set -- $frames
+if [ "${fwd:-0}" -ge 30 ]; then pass "steam wine: the GL area passed on as it is ($fwd)"; else bad "steam wine: fwd ${fwd:-none}"; fi
+if [ "${1:-0}" -ge 150 ] && [ "${2:-0}" -ge "$(( ${1:-0} - 3 ))" ]; then pass "steam wine: shown, hidden, shown: the client never stalls ($1 frames, $2 releases)"; else bad "steam wine: frames/releases $frames"; fi
 
 echo "winston-bench: $fail failed"
 [ $fail -eq 0 ]

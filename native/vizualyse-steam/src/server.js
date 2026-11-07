@@ -724,7 +724,7 @@ function status() {
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
-            buffers: { drm: game.stats.drm, shm: game.stats.shm }, note: game.note,
+            buffers: { drm: game.stats.drm, shm: game.stats.shm, fwd: game.stats.fwd || 0 }, note: game.note,
             /* the controllers in use: [{ player, name }] (steam-pads) */
             pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),

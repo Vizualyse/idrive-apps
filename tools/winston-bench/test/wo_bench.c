@@ -80,7 +80,10 @@ static int app(int argc, char **argv) {
     if (sscanf(argv[2], "%dx%d", &bw, &bh) != 2 || sscanf(argv[3], "%d,%d,%d,%d", &x, &y, &w, &h) != 4) return 2;
     int seconds = argc > 4 ? atoi(argv[4]) : 5;
     char err[256];
-    struct wo_opts o = { .x = x, .y = y, .w = w, .h = h, .log = lg, .frame = on_frame, .yielding = on_yield };
+    /* WO_AT=CW,CH,CX,CY: shown as part of a CWxCH picture at CX,CY (wo_present_at), on a black backdrop */
+    int at[4] = { 0, 0, 0, 0 };
+    if (getenv("WO_AT")) sscanf(getenv("WO_AT"), "%d,%d,%d,%d", &at[0], &at[1], &at[2], &at[3]);
+    struct wo_opts o = { .x = x, .y = y, .w = w, .h = h, .log = lg, .frame = on_frame, .yielding = on_yield, .backdrop = at[0] > 0 };
     struct wo *wo = wo_open(&o, err, sizeof err);
     if (!wo) { printf("{\"ev\":\"error\",\"error\":\"%s\"}\n", err); return 1; }
     printf("{\"ev\":\"open\",\"dmabuf\":%d,\"xrgb_dmabuf\":%d,\"argb_shm\":%d,\"dmabuf_formats\":\"", wo_dmabuf_version(wo),
@@ -205,7 +208,7 @@ static int app(int argc, char **argv) {
                 } else if (p) {
                     pattern(p, stride_px, bw, bh, n);
                 }
-                if (wo_present(wo, b, 0, 0) < 0) { printf("{\"ev\":\"error\",\"error\":\"present failed\"}\n"); return 1; }
+                if (wo_present_at(wo, b, 0, 0, at[0], at[1], at[2], at[3]) < 0) { printf("{\"ev\":\"error\",\"error\":\"present failed\"}\n"); return 1; }
                 presents++; n++;
                 want_frame = 0;
             } else {

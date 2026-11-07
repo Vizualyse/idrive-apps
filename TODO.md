@@ -23,13 +23,10 @@ workflow (Actions > Release, the component ids).
   screen, put back`). Browser GPU mode: `"fwd"` in chromium-wl's stats
   (Chromium's buffers passed on as they are) and a smooth WebGL page; the
   CPU of chromium-wl against mgu-render's path.
-- [ ] **Winston output, next:** Steam's wl-sink still reads Wine's GPU
-  buffers back (its picture is composed: title bar, GL client area): pass
-  the GL area's wl_drm buffer on as a dmabuf when it is shown alone, as
-  chromium-wl does. Moonlight: NV12 straight to Winston (advertised; the
-  bench's import failed with EGL_BAD_ALLOC, `wo_bench app nv12` on the car
-  says whether i965 takes it). Then the default output, and mgu-render's
-  frame file only as the fallback.
+- [ ] **Winston output, next:** the default output once seen on the car,
+  mgu-render's frame file only as the fallback. On the car with Steam:
+  `"fwd"` in wl-sink's stats (Wine's GL area passed on as it is) and a game
+  hidden and shown again a few times without stalling.
 - [ ] **Investigate Vulkan again**, with the safety net (by hand, the
   gpu-trial marker, an off-car harness first; see Browser's "Retry Vulkan
   (ANV)" below and [knowledge/browser.md](knowledge/browser.md), "Vulkan on

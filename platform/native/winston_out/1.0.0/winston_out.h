@@ -42,6 +42,8 @@ struct wo_opts {
     int x, y, w, h;            /* the place on the centre screen (wo_place changes it) */
     const uint32_t *yield;     /* surfaces that hide us while visible; NULL: the cameras 0x197 0x198 0x19d 0x19f */
     int nyield;
+    int backdrop;              /* a black surface (surface_id + 1) under the picture's canvas;
+                                  2: under the whole place (black bars around a fitted picture) */
     void *ud;
     void (*log)(void *ud, const char *msg);
     /* Winston has shown the last picture: time for the next (a frame callback) */
@@ -99,8 +101,26 @@ void wo_place(struct wo *w, int x, int y, int width, int height);
 /* Shows the top left src_w x src_h of b (the whole buffer when 0). The
  * buffer is busy until its release. 0, or -1 when not shown. */
 int wo_present(struct wo *w, struct wo_buf *b, int src_w, int src_h);
+/* The same for a picture that is part of a bigger one: the bigger one
+ * (cw x ch) is fitted into the place as wo_present would fit it, and b is
+ * shown where it sits in it (cx, cy), scaled alike; with wo_opts.backdrop
+ * the rest of it is black. So a client's own buffer can be shown as it would
+ * be in a composed picture (the same place, the same touch mapping) without
+ * composing it. cw 0: wo_present. */
+int wo_present_at(struct wo *w, struct wo_buf *b, int src_w, int src_h, int cw, int ch, int cx, int cy);
 /* A camera or video surface is visible: we are hidden meanwhile. */
 int wo_yielding(struct wo *w);
+
+/* For a thread with no event loop (a decoder's): sends what is queued and
+ * handles whatever Winston has said, without waiting. -1 once lost. */
+int wo_poll(struct wo *w);
+
+/* An overlay over the picture (a hint): ow x oh premultiplied ARGB8888
+ * (0xAARRGGBB words), at x, y of the place, unscaled, on a surface of its
+ * own (surface_id + 2). Copied: the caller keeps its pixels. Shown with the
+ * picture until wo_overlay_hide. */
+int wo_overlay(struct wo *w, const uint32_t *argb, int ow, int oh, int x, int y);
+void wo_overlay_hide(struct wo *w);
 
 /* Our own shared memory for pictures we make (several surfaces composed, a
  * GPU buffer read back): nbuf buffers of w x h XRGB8888, the next free one

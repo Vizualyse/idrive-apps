@@ -116,11 +116,25 @@ scene provider in its rootfs container, null outputs), not yet on the car:
   imports them (`wrapping dmabuf: ... XR24`) on the unit's own i965 with no
   modifier given (`DRM_FORMAT_MOD_INVALID`: the tiling comes from the
   kernel, as for wl_drm). So Chromium's GPU-mode buffers (wl_drm PRIME) can
-  go to Winston untouched: no read-back, no I420.
-- NV12 dmabufs are advertised, but the import failed on the bench
-  (`could not create egl image from dmabuf: EGL_BAD_ALLOC`, one buffer, Y then
-  UV, linear or no modifier): the stand-in GPU or i965, unknown until tried on
-  the car (`wo_bench app nv12`).
+  go to Winston untouched: no read-back, no I420. So can Wine's GL / Direct3D
+  client area (wl-sink), placed with `wo_present_at` where the composed
+  picture would have it (the same touch mapping), on a black backdrop
+  surface (`surface_id + 1`) where the composed picture is black.
+- **NV12 dmabufs too** (a video decoder's pictures: one buffer, Y then
+  interleaved UV, two planes): Winston's renderer imports and draws them on
+  the unit's i965 (`wrapping dmabuf: ... NV12`, `wo_bench app nv12`), so a
+  decoder's output can go to the screen with the YUV conversion on the GPU.
+  i965 wants both planes' fds to be one GEM buffer; the bench's stand-in GPU
+  first gave each fd its own and the import failed (`EGL_BAD_ALLOC`), fixed in
+  the shim (the kernel does it right). Winston then logs `dmabuf N plane 1:
+  failed to close gem handle` (both planes share one handle and its scanout
+  path closes it twice): harmless. Not yet seen on the car.
+- **Release a client's buffer once.** A compositor in front of Winston that
+  holds a client's GPU buffer until Winston lets it go must send that
+  buffer's `wl_buffer.release` exactly once: a second one, after Wine (Mesa's
+  Wayland EGL) had taken the buffer again, made Mesa drop it and Wine stall
+  for good, every surface (wl-sink's first pass-through, at a hide, real Wine
+  on the bench).
 - Placement as mgu-render does it (`src/main.c`, `relist.c`): an ivi surface,
   a controller surface and layer, source / destination rectangles (Winston
   scales; we fit the picture, aspect kept, centred), no input region (touch

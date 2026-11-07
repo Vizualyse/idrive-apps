@@ -9,7 +9,8 @@
  *   drm  GBM buffers on the render node handed over as wl_drm PRIME buffers
  *        (as Mesa's Wayland EGL does for Chromium's GPU mode and Wine's GL).
  * Buffers are reused only once the compositor released them.
- *   fake_client shm|drm SOCKET SECONDS
+ *   fake_client shm|drm|wine SOCKET SECONDS   (wine: drm, as Wine draws: a software
+ *        window frame as the toplevel, the GL area a subsurface over it)
  * stdout: {"ev":"done","frames":n,"releases":n,"size":[w,h]}
  */
 #define _GNU_SOURCE
@@ -30,6 +31,7 @@
 #define NBUF 3
 
 static struct wl_compositor *comp;
+static struct wl_subcompositor *subcomp;
 static struct wl_shm *shm;
 static struct xdg_wm_base *wm;
 static struct wl_drm *drm;
@@ -117,6 +119,7 @@ static const struct wl_drm_listener drm_listener = { drm_device, drm_format, drm
 static void global(void *d, struct wl_registry *r, uint32_t name, const char *iface, uint32_t ver) {
     (void)d;
     if (!strcmp(iface, "wl_compositor")) comp = wl_registry_bind(r, name, &wl_compositor_interface, 4);
+    else if (!strcmp(iface, "wl_subcompositor")) subcomp = wl_registry_bind(r, name, &wl_subcompositor_interface, 1);
     else if (!strcmp(iface, "wl_shm")) shm = wl_registry_bind(r, name, &wl_shm_interface, 1);
     else if (!strcmp(iface, "xdg_wm_base")) { wm = wl_registry_bind(r, name, &xdg_wm_base_interface, 1); xdg_wm_base_add_listener(wm, &wm_listener, NULL); }
     else if (!strcmp(iface, "wl_drm")) { drm = wl_registry_bind(r, name, &wl_drm_interface, ver < 2 ? ver : 2); wl_drm_add_listener(drm, &drm_listener, NULL); }
@@ -125,8 +128,9 @@ static void global_remove(void *d, struct wl_registry *r, uint32_t n) { (void)d;
 static const struct wl_registry_listener reg_listener = { global, global_remove };
 
 int main(int argc, char **argv) {
-    if (argc < 4) { fprintf(stderr, "usage: fake_client shm|drm SOCKET SECONDS\n"); return 2; }
-    int use_drm = !strcmp(argv[1], "drm");
+    if (argc < 4) { fprintf(stderr, "usage: fake_client shm|drm|wine SOCKET SECONDS\n"); return 2; }
+    int wine = !strcmp(argv[1], "wine");
+    int use_drm = wine || !strcmp(argv[1], "drm");
     int seconds = atoi(argv[3]);
     struct wl_display *dpy = NULL;
     for (int i = 0; i < 50 && !(dpy = wl_display_connect(argv[2])); i++) usleep(100000);
@@ -146,15 +150,39 @@ int main(int argc, char **argv) {
         g.dev = fd >= 0 ? g.create_device(fd) : NULL;
         if (!g.dev) { fprintf(stderr, "no GBM device\n"); return 1; }
     }
-    struct wl_surface *s = wl_compositor_create_surface(comp);
-    struct xdg_surface *xs = xdg_wm_base_get_xdg_surface(wm, s);
+    struct wl_surface *s = wl_compositor_create_surface(comp), *frame_s = NULL;
+    if (wine) {
+        /* Wine's way: the window (its frame, drawn in software) is the
+         * toplevel; the GL / Direct3D client area a subsurface over it */
+        frame_s = s;
+        s = wl_compositor_create_surface(comp);
+    }
+    struct xdg_surface *xs = xdg_wm_base_get_xdg_surface(wm, wine ? frame_s : s);
     xdg_surface_add_listener(xs, &xs_listener, NULL);
     struct xdg_toplevel *top = xdg_surface_get_toplevel(xs);
     xdg_toplevel_add_listener(top, &top_listener, NULL);
     xdg_toplevel_set_title(top, "fake client");
-    wl_surface_commit(s);
+    wl_surface_commit(wine ? frame_s : s);
     while (!configured && wl_display_dispatch(dpy) >= 0) {}
     int w = cfg_w > 0 ? cfg_w : 640, h = cfg_h > 0 ? cfg_h : 360;
+    if (wine) {
+        /* the frame: a grey shm buffer 20 px wider, 40 taller (title bar), drawn once */
+        int fw = w + 20, fh = h + 40;
+        int fd = (int)syscall(SYS_memfd_create, "frame", 1u);
+        if (fd < 0 || ftruncate(fd, (off_t)fw * fh * 4) < 0) return 1;
+        uint32_t *fp = mmap(NULL, (size_t)fw * fh * 4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        for (long i = 0; i < (long)fw * fh; i++) fp[i] = 0xff808080u;
+        struct wl_shm_pool *p = wl_shm_create_pool(shm, fd, fw * fh * 4);
+        struct wl_buffer *fb = wl_shm_pool_create_buffer(p, 0, fw, fh, fw * 4, WL_SHM_FORMAT_XRGB8888);
+        wl_shm_pool_destroy(p);
+        close(fd);
+        struct wl_subsurface *sub = wl_subcompositor_get_subsurface(subcomp, s, frame_s);
+        wl_subsurface_set_position(sub, 10, 30);
+        wl_subsurface_set_desync(sub);
+        wl_surface_attach(frame_s, fb, 0, 0);
+        wl_surface_damage(frame_s, 0, 0, fw, fh);
+        wl_surface_commit(frame_s);
+    }
     make_buffers(use_drm, w, h);
     long end = now_ms() + seconds * 1000L;
     int n = 0, stalls = 0;

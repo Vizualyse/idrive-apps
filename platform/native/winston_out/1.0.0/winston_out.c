@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,7 +79,19 @@ struct wo {
     int on, applied_on, listed, has_picture;
     int x, y, pw, ph;                  /* the place */
     int bw, bh;                        /* the shown part of the last buffer */
+    int cw, ch, cx, cy;                /* wo_present_at: the picture it sits in, and where */
     int geo_dirty;
+    /* the backdrop (wo_opts.backdrop): black under the picture's canvas */
+    struct wl_surface *bg_ws;
+    struct ivi_surface *bg_is;
+    struct ivi_controller_surface *bg_cs;
+    struct wl_buffer *bg_buf;
+    /* the overlay (wo_overlay) */
+    struct wl_surface *ov_ws;
+    struct ivi_surface *ov_is;
+    struct ivi_controller_surface *ov_cs;
+    struct wl_buffer *ov_buf;
+    int ov_x, ov_y, ov_w, ov_h, ov_on;
     long drop_t;
     int drops;
     int lost;
@@ -197,13 +210,23 @@ static int layer_put(struct wo *w) {
 static void apply(struct wo *w) {
     if (!w->cl) return;
     int on = w->on && w->has_picture && !w->yielding;
-    if (w->geo_dirty && w->bw > 0 && w->bh > 0) {
-        /* fitted into the place, aspect kept, centred */
-        int dw = w->pw, dh = (int)((long)w->pw * w->bh / w->bw);
-        if (dh > w->ph) { dh = w->ph; dw = (int)((long)w->ph * w->bw / w->bh); }
-        int dx = (w->pw - dw) / 2, dy = (w->ph - dh) / 2;
+    if (w->geo_dirty && w->bw > 0 && w->bh > 0 && w->cw > 0 && w->ch > 0) {
+        /* the canvas (cw x ch: the buffer itself for wo_present) fitted into
+         * the place, aspect kept, centred; the buffer at cx, cy in it */
+        double s = (double)w->pw / w->cw;
+        if ((double)w->ph / w->ch < s) s = (double)w->ph / w->ch;
+        int cdw = (int)(w->cw * s + 0.5), cdh = (int)(w->ch * s + 0.5);
+        int cdx = (w->pw - cdw) / 2, cdy = (w->ph - cdh) / 2;
+        int dx = cdx + (int)(w->cx * s + 0.5), dy = cdy + (int)(w->cy * s + 0.5);
+        int dw = (int)(w->bw * s + 0.5), dh = (int)(w->bh * s + 0.5);
+        if (w->cx == 0 && w->cy == 0 && w->cw == w->bw && w->ch == w->bh) { dx = cdx; dy = cdy; dw = cdw; dh = cdh; }
         ivi_controller_surface_set_source_rectangle(w->cs, 0, 0, w->bw, w->bh);
         ivi_controller_surface_set_destination_rectangle(w->cs, dx, dy, dw, dh);
+        if (w->bg_cs) {
+            ivi_controller_surface_set_source_rectangle(w->bg_cs, 0, 0, 1, 1);
+            if (w->o.backdrop == 2) ivi_controller_surface_set_destination_rectangle(w->bg_cs, 0, 0, w->pw, w->ph);
+            else ivi_controller_surface_set_destination_rectangle(w->bg_cs, cdx, cdy, cdw, cdh);
+        }
         ivi_controller_layer_set_source_rectangle(w->cl, 0, 0, w->pw, w->ph);
         ivi_controller_layer_set_destination_rectangle(w->cl, w->x, w->y, w->pw, w->ph);
         w->geo_dirty = 0;
@@ -211,6 +234,8 @@ static void apply(struct wo *w) {
     if (on && !w->applied_on && !w->listed) layer_put(w);
     ivi_controller_layer_set_visibility(w->cl, on);
     ivi_controller_surface_set_visibility(w->cs, on);
+    if (w->bg_cs) ivi_controller_surface_set_visibility(w->bg_cs, on);
+    if (w->ov_cs) ivi_controller_surface_set_visibility(w->ov_cs, on && w->ov_on);
     ivi_controller_commit_changes(w->ictl);
     if (on != w->applied_on) say(w, "%s", on ? "on the screen" : "off the screen");
     w->applied_on = on;
@@ -531,7 +556,30 @@ void wo_buf_free(struct wo_buf *b) {
 
 /* ---- the surface ---- */
 
+/* A black 1x1 buffer on a surface of its own (id + 1), scaled by Winston
+ * under the picture's canvas: what is outside a smaller picture placed in
+ * it (wo_present_at) is black, as in a composed picture, not the HMI. */
+static void make_backdrop(struct wo *w) {
+    int fd = (int)syscall(SYS_memfd_create, "winston-out-bg", 1u /* MFD_CLOEXEC */);
+    if (fd < 0 || ftruncate(fd, 4) < 0) { if (fd >= 0) close(fd); return; }   /* zeroed: black */
+    struct wl_shm_pool *p = wl_shm_create_pool(w->shm, fd, 4);
+    close(fd);
+    w->bg_buf = wl_shm_pool_create_buffer(p, 0, 1, 1, 4, WO_SHM_XRGB8888);
+    wl_shm_pool_destroy(p);
+    w->bg_ws = wl_compositor_create_surface(w->comp);
+    struct wl_region *empty = wl_compositor_create_region(w->comp);
+    wl_surface_set_input_region(w->bg_ws, empty);
+    wl_region_destroy(empty);
+    w->bg_is = ivi_application_surface_create(w->iapp, w->o.surface_id + 1, w->bg_ws);
+    wl_surface_attach(w->bg_ws, w->bg_buf, 0, 0);
+    wl_surface_damage(w->bg_ws, 0, 0, 1, 1);
+    wl_surface_commit(w->bg_ws);
+    w->bg_cs = ivi_controller_surface_create(w->ictl, w->o.surface_id + 1);
+    ivi_controller_surface_set_visibility(w->bg_cs, 0);
+}
+
 static int make_surface(struct wo *w) {
+    if (w->o.backdrop) make_backdrop(w);
     w->ws = wl_compositor_create_surface(w->comp);
     struct wl_region *empty = wl_compositor_create_region(w->comp);
     wl_surface_set_input_region(w->ws, empty);           /* touch stays with the HMI underneath */
@@ -543,6 +591,7 @@ static int make_surface(struct wo *w) {
     ivi_controller_layer_set_source_rectangle(w->cl, 0, 0, w->pw, w->ph);
     ivi_controller_layer_set_destination_rectangle(w->cl, w->x, w->y, w->pw, w->ph);
     ivi_controller_layer_set_opacity(w->cl, wl_fixed_from_int(1));
+    if (w->bg_cs) ivi_controller_layer_add_surface(w->cl, w->bg_cs);   /* first: under the picture */
     ivi_controller_layer_add_surface(w->cl, w->cs);
     ivi_controller_layer_set_visibility(w->cl, 0);
     ivi_controller_layer_add_listener(w->cl, &layer_listener, w);
@@ -572,6 +621,15 @@ void wo_hide(struct wo *w) {
     if (w->cs) { ivi_controller_surface_destroy(w->cs, 1); w->cs = NULL; }
     if (w->is) { ivi_surface_destroy(w->is); w->is = NULL; }
     if (w->ws) { wl_surface_destroy(w->ws); w->ws = NULL; }
+    if (w->bg_cs) { ivi_controller_surface_destroy(w->bg_cs, 1); w->bg_cs = NULL; }
+    if (w->bg_is) { ivi_surface_destroy(w->bg_is); w->bg_is = NULL; }
+    if (w->bg_ws) { wl_surface_destroy(w->bg_ws); w->bg_ws = NULL; }
+    if (w->bg_buf) { wl_buffer_destroy(w->bg_buf); w->bg_buf = NULL; }
+    if (w->ov_cs) { ivi_controller_surface_destroy(w->ov_cs, 1); w->ov_cs = NULL; }
+    if (w->ov_is) { ivi_surface_destroy(w->ov_is); w->ov_is = NULL; }
+    if (w->ov_ws) { wl_surface_destroy(w->ov_ws); w->ov_ws = NULL; }
+    if (w->ov_buf) { wl_buffer_destroy(w->ov_buf); w->ov_buf = NULL; }
+    w->ov_on = 0;
     ivi_controller_commit_changes(w->ictl);
     w->applied_on = w->listed = w->has_picture = 0;
     wo_flush(w);
@@ -594,10 +652,18 @@ static void frame_done(void *d, struct wl_callback *cb, uint32_t t) {
 static const struct wl_callback_listener frame_listener = { frame_done };
 
 int wo_present(struct wo *w, struct wo_buf *b, int src_w, int src_h) {
+    return wo_present_at(w, b, src_w, src_h, 0, 0, 0, 0);
+}
+
+int wo_present_at(struct wo *w, struct wo_buf *b, int src_w, int src_h, int cw, int ch, int cx, int cy) {
     if (w->lost || !w->ws) return -1;
     if (src_w <= 0 || src_w > b->width) src_w = b->width;
     if (src_h <= 0 || src_h > b->height) src_h = b->height;
-    if (src_w != w->bw || src_h != w->bh) { w->bw = src_w; w->bh = src_h; w->geo_dirty = 1; }
+    if (cw <= 0 || ch <= 0) { cw = src_w; ch = src_h; cx = cy = 0; }
+    if (src_w != w->bw || src_h != w->bh || cw != w->cw || ch != w->ch || cx != w->cx || cy != w->cy) {
+        w->bw = src_w; w->bh = src_h; w->cw = cw; w->ch = ch; w->cx = cx; w->cy = cy;
+        w->geo_dirty = 1;
+    }
     wl_surface_attach(w->ws, b->wb, 0, 0);
     wl_surface_damage(w->ws, 0, 0, b->width, b->height);
     if (!w->frame_cb) {
@@ -613,6 +679,56 @@ int wo_present(struct wo *w, struct wo_buf *b, int src_w, int src_h) {
 }
 
 int wo_yielding(struct wo *w) { return w->yielding; }
+
+int wo_poll(struct wo *w) {
+    if (w->lost) return -1;
+    if (wo_flush(w) < 0) return -1;
+    struct pollfd p = { wl_display_get_fd(w->dpy), POLLIN, 0 };
+    if (poll(&p, 1, 0) > 0) return wo_dispatch(w);
+    if (wl_display_dispatch_pending(w->dpy) < 0) { w->lost = 1; return -1; }
+    return 0;
+}
+
+int wo_overlay(struct wo *w, const uint32_t *argb, int ow, int oh, int x, int y) {
+    if (w->lost || !w->cl || ow < 1 || oh < 1) return -1;
+    if (!w->ov_ws) {
+        w->ov_ws = wl_compositor_create_surface(w->comp);
+        struct wl_region *empty = wl_compositor_create_region(w->comp);
+        wl_surface_set_input_region(w->ov_ws, empty);
+        wl_region_destroy(empty);
+        w->ov_is = ivi_application_surface_create(w->iapp, w->o.surface_id + 2, w->ov_ws);
+        w->ov_cs = ivi_controller_surface_create(w->ictl, w->o.surface_id + 2);
+        ivi_controller_layer_add_surface(w->cl, w->ov_cs);   /* last: on top */
+    }
+    if (w->ov_buf) { wl_buffer_destroy(w->ov_buf); w->ov_buf = NULL; }
+    size_t size = (size_t)ow * oh * 4;
+    int fd = (int)syscall(SYS_memfd_create, "winston-out-ov", 1u);
+    if (fd < 0 || ftruncate(fd, (off_t)size) < 0) { if (fd >= 0) close(fd); return -1; }
+    void *m = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (m == MAP_FAILED) { close(fd); return -1; }
+    memcpy(m, argb, size);
+    munmap(m, size);
+    struct wl_shm_pool *p = wl_shm_create_pool(w->shm, fd, (int32_t)size);
+    close(fd);
+    w->ov_buf = wl_shm_pool_create_buffer(p, 0, ow, oh, ow * 4, WO_SHM_ARGB8888);
+    wl_shm_pool_destroy(p);
+    wl_surface_attach(w->ov_ws, w->ov_buf, 0, 0);
+    wl_surface_damage(w->ov_ws, 0, 0, ow, oh);
+    wl_surface_commit(w->ov_ws);
+    ivi_controller_surface_set_source_rectangle(w->ov_cs, 0, 0, ow, oh);
+    ivi_controller_surface_set_destination_rectangle(w->ov_cs, x, y, ow, oh);
+    w->ov_x = x; w->ov_y = y; w->ov_w = ow; w->ov_h = oh;
+    w->ov_on = 1;
+    apply(w);
+    return wo_flush(w);
+}
+
+void wo_overlay_hide(struct wo *w) {
+    if (w->lost || !w->ov_on) return;
+    w->ov_on = 0;
+    if (w->cl) apply(w);
+    wo_flush(w);
+}
 
 /* ---- our own shared memory ---- */
 

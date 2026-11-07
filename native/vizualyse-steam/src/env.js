@@ -113,6 +113,7 @@ function baseEnv() {
 function sinkEnv() {
     const e = baseEnv();
     e.LD_LIBRARY_PATH = EXTRA_LIBS + GPU_LIBS + ':' + RUNTIME + '/lib';
+    if (process.env.STEAM_SINK_DEBUG) e.WL_SINK_DEBUG = '1';   /* its buffers' state each second (tests) */
     return mesaEnv(e);
 }
 
