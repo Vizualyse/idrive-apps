@@ -52,6 +52,7 @@ const senv = Object.assign({}, process.env, {
     STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_LAUNCH: T + '/build/launch.json',
     STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/t_d3d964.exe',
     STEAM_RENDER_CLIENT: '/nonexistent/mgu_render_client.js', STEAM_LINK_IP: '127.0.0.1',
+    STEAM_USB_TEST_DEV: 'teststick',
 });
 if (GPU === 'swrast') {
     extra.GBM_ALWAYS_SOFTWARE = '1';
@@ -117,18 +118,24 @@ async function main() {
     try { dns = fs.readFileSync('/dev/shm/vzs.dns', 'utf8'); } catch (e) { /* none */ }
     ok('the phone\'s DNS is in the runtime\'s resolver file', /nameserver 192\.0\.2\.53/.test(dns));
 
-    /* the real DepotDownloader on the runtime's .NET, as the tool's uid */
-    const env = require(T + '/src/env.js');
+    /* the real DepotDownloader on the runtime's .NET, as the tool's uid,
+     * started as the tool starts it, before any game (as after a start of the
+     * unit: /dev/shm empty): it gets past its account store (IsolatedStorage,
+     * a named mutex in XDG_RUNTIME_DIR: it aborted there on the car,
+     * 2026-11-07) and asks for the password; no network here */
+    const { Download } = require(T + '/src/steam.js');
+    ok('no run-time folder yet (a fresh start of the unit)', !fs.existsSync('/dev/shm/vizualyse-steam/xdg'));
+    const ddLog = [];
+    const real = new Download({ appId: APP, username: 'tester', dir: ROOT + '/games/real-dd', uid: UID, gid: UID,
+        log: (l) => ddLog.push(l) });
     const dd = await new Promise((resolve) => {
-        let out = '';
-        const p = spawn(ROOT + '/runtime/dotnet/dotnet', [ROOT + '/runtime/depotdownloader/DepotDownloader.dll'],
-            { env: env.dotnetEnv(), cwd: ROOT + '/home', uid: UID, gid: UID });
-        p.stdout.on('data', (d) => { out += d; });
-        p.stderr.on('data', (d) => { out += d; });
-        p.on('exit', (code) => resolve({ code: code, out: out }));
-        p.on('error', (e) => resolve({ code: -1, out: e.message }));
+        const timer = setTimeout(() => resolve(real.status()), 60000);
+        real.on('change', (x) => { if (x.state !== 'starting') { clearTimeout(timer); resolve(x); } });
+        real.start();
     });
-    ok('the real DepotDownloader starts on the runtime\'s .NET (uid 12996)', /DepotDownloader|depotdownloader -app/i.test(dd.out), 'exit ' + dd.code + ', ' + dd.out.split('\n')[0].slice(0, 80));
+    real.stop();
+    ok('the real DepotDownloader starts on the runtime\'s .NET (uid 12996) and asks for the password', dd.state === 'password',
+        dd.state + (dd.note ? ', ' + dd.note : '') + ' | ' + ddLog.slice(-3).join(' | ').slice(0, 300));
 
     /* a download through the stand-in */
     let r = await api('/api/install', { appId: APP });
@@ -207,6 +214,8 @@ async function main() {
     ok('the frame file goes', !fs.existsSync('/dev/shm/mgu-video-vizualyse_steam'));
     ok('the running mark goes', !fs.existsSync(ROOT + '/state/game-running'));
 
+    await usbStick();
+
     server.kill('SIGTERM');
     await new Promise((resolve) => { server.on('exit', resolve); setTimeout(resolve, 15000); });
     const wineErr = serverLog.split('\n').filter((l) => /wine: .*err:/.test(l)).map((l) => l.replace(/^.*?err:/, 'err:').replace(/^err:([^:]+:[^ ]+).*/, 'err:$1'));
@@ -221,6 +230,47 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* A USB stick as the install location. run_unit_test.sh mounts a tmpfs at
+ * /media/TESTSTICK as the HMI mounts a stick: read-only, noexec, nosuid,
+ * nodev, every file 0777 (FAT32 with fmask=0000); STEAM_USB_TEST_DEV names
+ * it removable. */
+async function usbStick() {
+    const STICK = '/media/TESTSTICK', USBAPP = 4343, VIEW = ROOT + '/usb/TESTSTICK';
+    const mount = (dir) => (fs.readFileSync('/proc/self/mounts', 'utf8').split('\n').filter((l) => l.split(' ')[1] === dir)[0] || '').split(' ');
+    if (!mount(STICK)[0]) { ok('the test stick is mounted (run_unit_test.sh)', false); return; }
+    let s = await until('the stick offered', (x) => x.choices.usb.some((u) => u.id === 'TESTSTICK'), 15000);
+    ok('a USB stick is offered as an install location', true, JSON.stringify(s.choices.usb));
+    let r = await api('/api/settings', { where: 'usb:TESTSTICK' });
+    ok('it can be the install location', r.code === 200, r.body && r.body.error);
+    r = await api('/api/install', { appId: USBAPP });
+    ok('an install onto the stick starts', r.code === 200, r.body && r.body.error);
+    s = await until('the download onto the stick', (x) => x.download && x.download.appId === USBAPP && ['done', 'failed', 'stopped'].indexOf(x.download.state) >= 0, 60000);
+    ok('the download onto the stick ends', s.download.state === 'done', s.download.note);
+    const ug = s.library.filter((x) => x.appId === USBAPP)[0];
+    ok('the game is on the stick', ug && ug.usb === 'TESTSTICK' && ug.present && fs.existsSync(STICK + '/vizualyse-steam/games/' + USBAPP + '/TestGame.exe'),
+        ug && JSON.stringify(ug));
+    const hmi = (mount(STICK)[3] || '').split(','), ours = (mount(VIEW)[3] || '').split(',');
+    ok('the HMI\'s mount is read-write now, its noexec / nosuid / nodev kept', hmi.indexOf('rw') >= 0 && hmi.indexOf('noexec') >= 0 && hmi.indexOf('nosuid') >= 0 && hmi.indexOf('nodev') >= 0, hmi.join(','));
+    ok('our view of it runs programs (no noexec), nosuid, nodev', ours.length > 1 && ours.indexOf('noexec') < 0 && ours.indexOf('nosuid') >= 0, ours.join(','));
+    r = await api('/api/play', { appId: USBAPP });
+    ok('play from the stick starts', r.code === 200, r.body && r.body.error);
+    s = await until('the stick\'s game drawing', (x) => x.game && x.game.appId === USBAPP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    ok('a game on the stick runs and draws', s.game.state === 'running', s.game.note);
+    await api('/api/stop', {});
+    await until('the stick\'s game ending', (x) => x.game && x.game.state === 'ended', 60000);
+    await sleep(1500);
+    /* pulled: udisks unmounts the HMI's mount */
+    require('child_process').execFileSync('umount', [STICK]);
+    s = await until('the stick gone', (x) => x.library.some((g) => g.appId === USBAPP && g.present === false), 15000);
+    ok('a pulled stick: its game is shown as away', true);
+    for (let i = 0; i < 20 && mount(VIEW)[0]; i++) await sleep(500);   /* swept every 3 s */
+    ok('our view of a pulled stick goes', !mount(VIEW)[0]);
+    r = await api('/api/play', { appId: USBAPP });
+    ok('and it can\'t be played', r.code === 400 && /plug it in/.test(r.body.error), r.body && r.body.error);
+    r = await api('/api/install', { appId: 4444 });
+    ok('nor installed onto', r.code === 400 && /not plugged in/.test(r.body.error), r.body && r.body.error);
 }
 
 main().catch((e) => {

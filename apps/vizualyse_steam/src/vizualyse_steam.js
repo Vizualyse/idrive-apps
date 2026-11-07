@@ -412,8 +412,11 @@ class SteamApp extends OnlineApp {
             this._playIds[i] = g ? g.appId : null;
             this._show(name, !!g);
             if (!g) return;
-            this._write(name, (playing === g.appId ? 'Playing: ' : 'Play: ') + ascii(g.name) + (g.exe ? '' : ' (no program found)'));
-            this._setEnabled(name, !run && !covered && !c.moving() && !!g.exe);
+            /* present: false: on a USB stick that isn't plugged in (tool 0.1.1) */
+            const away = g.present === false;
+            this._write(name, (playing === g.appId ? 'Playing: ' : 'Play: ') + ascii(g.name)
+                + (away ? ' (USB stick not plugged in)' : g.exe ? '' : ' (no program found)'));
+            this._setEnabled(name, !run && !covered && !c.moving() && !!g.exe && !away);
         });
         this._show(N.download, on && !!c.downloadText());
         this._showQr(link);

@@ -78,6 +78,7 @@
   <div class="row"><label for="fps">Frames per second</label><select id="fps"></select></div>
   <div class="row"><label for="mem">Memory for the game</label><select id="mem"></select></div>
   <div class="row"><label for="where">Install games on</label><select id="where"></select></div>
+  <p class="dim" id="whereNote"></p>
   <div class="row"><button id="sound">Sound: on</button><label for="vol">Volume</label><input id="vol" type="range" min="0" max="150" step="5"></div>
   <p class="dim">Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens.</p>
   <dl id="info" class="dim"></dl>
@@ -130,8 +131,9 @@ function render(s) {
   if (!editing) {
     $('library').innerHTML = s.library.length ? s.library.map((x) =>
       '<div class="game" data-app="' + x.appId + '"><div class="row"><b style="flex:1">' + esc(x.name) + '</b>' +
-      '<button class="acc" data-act="play"' + (s.running ? ' disabled' : '') + '>Play</button></div>' +
-      '<div class="dim">' + x.appId + (x.sizeMb ? ' - ' + (x.sizeMb / 1024).toFixed(1) + ' GB' : '') + (x.engine ? ' - ' + esc(x.engine) : '') +
+      '<button class="acc" data-act="play"' + (s.running || !x.present ? ' disabled' : '') + '>Play</button></div>' +
+      (x.usb && !x.present ? '<div class="err">On the USB stick ' + esc(x.usb) + ': plug it in</div>' : '') +
+      '<div class="dim">' + x.appId + (x.sizeMb ? ' - ' + (x.sizeMb / 1024).toFixed(1) + ' GB' : '') + (x.usb ? ' - USB ' + esc(x.usb) : '') + (x.engine ? ' - ' + esc(x.engine) : '') +
       ' - ' + (x.exe ? esc(x.exe) : '<span class="err">no program found</span>') + '</div>' +
       '<details><summary>Options</summary>' +
       '<div class="row"><label>Program</label><select data-f="exe"><option>' + esc(x.exe || '') + '</option></select></div>' +
@@ -172,7 +174,12 @@ function render(s) {
   opts($('fps'), ch.fps.map((f) => ({ v: f, t: f })), st.fps);
   opts($('mem'), ch.memMb.map((m) => ({ v: m, t: (m / 1024).toFixed(1).replace('.0', '') + ' GB' })), st.memMb);
   opts($('where'), [{ v: 'internal', t: 'The car\'s memory' + (s.space.internalMb !== null ? ' (' + (s.space.internalMb / 1024).toFixed(1) + ' GB free)' : '') }]
-    .concat(ch.disk ? [{ v: 'disk', t: 'The hard disk' + (s.space.diskMb !== null ? ' (' + (s.space.diskMb / 1024).toFixed(1) + ' GB free)' : '') }] : []), st.where);
+    .concat(ch.disk ? [{ v: 'disk', t: 'The hard disk' + (s.space.diskMb !== null ? ' (' + (s.space.diskMb / 1024).toFixed(1) + ' GB free)' : '') }] : [])
+    .concat(ch.usb.map((u) => ({ v: 'usb:' + u.id, t: 'USB stick ' + u.id + ' (' + u.fs + (u.fat32 ? ', no file over 4 GB' : '') + ')' +
+      (s.space.usbMb[u.id] != null ? ' (' + (s.space.usbMb[u.id] / 1024).toFixed(1) + ' GB free)' : '') })))
+    .concat(/^usb:/.test(st.where) && !ch.usb.some((u) => 'usb:' + u.id === st.where) ? [{ v: st.where, t: 'USB stick ' + st.where.slice(4) + ' (not plugged in)' }] : []), st.where);
+  $('whereNote').textContent = ch.usb.some((u) => u.fat32 && 'usb:' + u.id === st.where)
+    ? 'This stick is FAT32: a game with a file over 4 GB can\'t go on it (reformat it as exFAT). Games on a stick run while it is plugged in; it stays readable by the car\'s media player.' : '';
   $('sound').textContent = 'Sound: ' + (st.sound ? 'on' : 'off');
   if (document.activeElement !== $('vol')) $('vol').value = st.volume;
   $('info').textContent = 'Uplink: ' + s.uplink + ' - tool: ' + s.bundle + (s.prefixNote ? ' - ' + s.prefixNote : '');

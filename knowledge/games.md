@@ -57,6 +57,20 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   bundle's `libc.so.6` has that string replaced (same length) by
   `/dev/shm/vzs.dns`, which the tool writes with the phone's DNS
   ([internet.md](internet.md)).
+- **On the car (2026-11-07): DepotDownloader aborted at start** with
+  `AccountSettingsStore` / IsolatedStorage: "cannot open ...
+  'Global\...'": `lstat("<XDG_RUNTIME_DIR>") ENOENT`. .NET keeps
+  IsolatedStorage's named mutex in `XDG_RUNTIME_DIR`, which must exist;
+  /dev/shm is empty after every start of the unit and only a game made the
+  folder. The bench missed it: it ran DepotDownloader without arguments
+  (usage only, no account store).
+- **USB sticks on the unit:** udisks2 (for the HMI) mounts them at
+  `/media/<label or uuid>` (`99-usb-udisks-mountpath.rules`): `ro,nosuid,
+  nodev,noexec`, FAT32 as `uid=2010,gid=2010,fmask=0000,dmask=0000`
+  (con_2010, every file 0777). The kernel has vfat, Tuxera's `texfat` and
+  `tntfs` (read-write) and ext4. The unit's hard disk is `sda`
+  (`removable` 0), sticks `sdb`... (`removable` 1, under `usb1`). The tool
+  runs in the same mount namespace as udisks (`/media` is a shared mount).
 - **DepotDownloader 3.4.0** (on .NET 10, framework-dependent; the self-
   contained build can't be re-pointed at another loader) runs in the unit's
   root filesystem. With stdin redirected it reads the password as a line;

@@ -145,8 +145,25 @@ function wineEnv(launch, appId, display) {
     return mesaEnv(e);
 }
 
+/* The folders baseEnv names, for the uid, before any program of ours runs
+ * as it (root, as the tool): RUN_DIR (root's, readable by all), XDG_DIR and
+ * HOME's tmp and caches (the uid's, 0700). /dev/shm is empty after every
+ * start of the unit: DepotDownloader run before any game found no XDG_DIR,
+ * and .NET's named mutex there (IsolatedStorage) aborted it (2026-11-07). */
+function userDirs(uid, gid) {
+    [RUN_DIR, XDG_DIR].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
+    fs.chmodSync(RUN_DIR, 0o755);
+    fs.chownSync(XDG_DIR, uid, gid);
+    fs.chmodSync(XDG_DIR, 0o700);
+    ['tmp', '.cache', '.cache/mesa'].forEach((d) => {
+        const p = path.join(HOME, d);
+        try { fs.mkdirSync(p, 0o700); } catch (e) { /* there */ }
+        fs.chownSync(p, uid, gid);
+    });
+}
+
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
     RUN_DIR, PCM_FIFO, XDG_DIR, DNS_FILE, RENDER_NODE, UNIT_LIB,
-    gpuLibs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
+    gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

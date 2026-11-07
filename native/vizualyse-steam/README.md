@@ -66,9 +66,17 @@ exited with an error at its end on the bench's stub GPU (TODO.md).
   never the unit's) that the tool holds open and hands to `pcm_play.py`
   (mgu-python), into SmartXbar's CarPlay input as Moonlight does; the phone
   page's Volume scales it.
-- **Games**: in `/var/opt/vizualyse-steam/games/<app id>`, or on the unit's
-  hard disk (`/var/opt/hdshare/vizualyse-steam/games`, 85 GB on ours) by the
-  phone page's setting. The program to start is guessed (installers,
+- **Games**: in `/var/opt/vizualyse-steam/games/<app id>`, on the unit's
+  hard disk (`/var/opt/hdshare/vizualyse-steam/games`, 85 GB on ours) or on
+  a **USB stick** (`<stick>/vizualyse-steam/games`), by the phone page's
+  setting. The HMI (udisks2) mounts a stick at `/media/<label>` read-only and
+  noexec; for games `src/usb.js` makes it read-write in place (the HMI's
+  nosuid / nodev / noexec kept: it stays in the media player) and binds it at
+  `/var/opt/vizualyse-steam/usb/<label>` with exec. A pulled stick: our
+  mount goes (lazily), a game or download on it ends, its games show "plug it
+  in". FAT32 works (no file over 4 GB: the phone page says so); exFAT / NTFS
+  (the unit's Tuxera drivers) and ext4 too. A game already installed is
+  updated where it is. The program to start is guessed (installers,
   redistributables, crash reporters left out; the phone page lists the
   others); **Godot 4** games get `--rendering-driver opengl3` (they default to
   Vulkan / D3D12). Launch options are editable per game.
@@ -86,6 +94,7 @@ exited with an error at its end on the bench's stub GPU (TODO.md).
 | Part | Runs as | Does |
 |---|---|---|
 | `server.js` | root | unpacks the bundles; the phone page on port 8494 (token in the QR link); the iDrive app's socket; downloads, the library, games; show / hide; only while parked; the cgroup; the phone's DNS |
+| `usb.js` | root | USB sticks as an install location: the HMI's mount read-write, our exec view, a pulled stick's mount gone |
 | `unpack.js` | root | each `.tgz` into its folder once (sha256 stamp), streamed, links made last, swapped in by rename |
 | `steam.js` | - | DepotDownloader and its questions; finding a game's program; the store's name for an app id |
 | `game.js` | root | one game: the frame file, wl-sink, Wine (`launch.json`), the sound FIFO and player; Stop: `wineserver -k`, then whatever is left in the cgroup |

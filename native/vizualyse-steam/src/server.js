@@ -38,6 +38,7 @@ const env = require('./env.js');
 const unpack = require('./unpack.js');
 const steam = require('./steam.js');
 const { Game } = require('./game.js');
+const usb = require('./usb.js');
 const { Screen } = require('./screen.js');
 const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
@@ -153,16 +154,50 @@ function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) 
 const LIBRARY_FILE = path.join(env.STATE_DIR, 'library.json');
 const library = readJson(LIBRARY_FILE) || {};
 function saveLibrary() { try { writeJson(LIBRARY_FILE, library); } catch (e) { log('library: ' + e.message); } }
+/* settings.where: 'internal', 'disk' or 'usb:<stick id>' (usb.js) */
 function gamesDir() { return settings.where === 'disk' ? env.DISK_GAMES : env.INTERNAL_GAMES; }
+function whereUsb() { return /^usb:/.test(settings.where) ? settings.where.slice(4) : null; }
 function diskAvailable() { try { return fs.statSync(env.DISK).isDirectory(); } catch (e) { return false; } }
 
-const space = { internalMb: null, diskMb: null };
+const space = { internalMb: null, diskMb: null, usbMb: {} };
 function checkSpace() {
     freeMb(env.ROOT, (v) => { space.internalMb = v; });
     if (diskAvailable()) freeMb(env.DISK, (v) => { space.diskMb = v; });
+    const now = {};
+    usb.sticks().forEach((s) => { now[s.id] = space.usbMb[s.id] === undefined ? null : space.usbMb[s.id]; freeMb(s.media, (v) => { space.usbMb[s.id] = v; }); });
+    space.usbMb = now;
 }
 setInterval(checkSpace, 30000);
 checkSpace();
+
+/* the stick a game is on; and whether it is plugged in */
+function gameStick(g) { return g && usb.idOfPath(g.dir); }
+function present(g) { const id = gameStick(g); return !id || !!usb.find(id); }
+
+/* sticks plugged in or pulled: a game or download on a pulled one ends */
+let stickIds = '';
+setInterval(() => {
+    let gone = [];
+    try { gone = usb.sweep(log); } catch (e) { log('usb: ' + e.message); }
+    gone.forEach((id) => {
+        if (game && game.state !== 'ended' && usb.idOfPath(game.o.dir) === id) stopGame('the USB stick ' + id + ' was removed');
+        if (download && usb.idOfPath(download.o.dir) === id && ['done', 'failed', 'stopped'].indexOf(download.state) < 0) download.stop();
+    });
+    const ids = usb.sticks().map((s) => s.id + ':' + s.fs).join(' ');
+    if (ids !== stickIds) {
+        stickIds = ids;
+        log('usb: sticks ' + (ids || 'none'));
+        checkSpace();
+        if (control) control.broadcast();
+    }
+}, 3000);
+
+/* the stick read-write with our exec view (usb.js), its games found */
+function attachStick(id) {
+    const root = usb.attach(id, UID, UID, log);
+    rescan(root);
+    return root;
+}
 
 /* ---- the bundles ----------------------------------------------------------- */
 
@@ -271,12 +306,27 @@ function install(appId, validate) {
     if (bundle.state !== 'ready') return 'the tool is still installing itself';
     if (download && ['done', 'failed', 'stopped'].indexOf(download.state) < 0) return 'a download is running';
     if (settings.where === 'disk' && !diskAvailable()) return 'this car has no hard disk at ' + env.DISK;
+    const stick = whereUsb();
+    if (stick && !usb.find(stick)) return 'the USB stick ' + stick + ' is not plugged in (or pick another place)';
+    /* a game already installed elsewhere is updated where it is */
+    const old = library[appId] && library[appId].dir;
     let dir;
     try {
         userDir(env.HOME);
-        unpack.mkdirp(gamesDir(), 0o755);
-        if (settings.where === 'disk') fs.chownSync(path.dirname(gamesDir()), 0, 0);
-        dir = userDir(path.join(gamesDir(), String(appId)));
+        if (old && usb.idOfPath(old)) {
+            if (!present(library[appId])) return 'it is on the USB stick ' + usb.idOfPath(old) + ': plug it in';
+            attachStick(usb.idOfPath(old));
+            dir = old;
+        } else if (old && fs.existsSync(old)) {
+            dir = userDir(old);
+        } else if (stick) {
+            attachStick(stick);
+            dir = usb.gameDir(stick, appId, UID, UID);
+        } else {
+            unpack.mkdirp(gamesDir(), 0o755);
+            if (settings.where === 'disk') fs.chownSync(path.dirname(gamesDir()), 0, 0);
+            dir = userDir(path.join(gamesDir(), String(appId)));
+        }
         userDir(path.join(env.HOME, 'tmp'));
     } catch (e) { return 'the games folder: ' + e.message; }
     writeDns();
@@ -318,10 +368,16 @@ function removeGame(appId) {
     if (!g) return 'not in the library';
     if (game && game.o.appId === Number(appId) && game.state !== 'ended') return 'stop the game first';
     if (download && download.o.appId === Number(appId) && ['done', 'failed', 'stopped'].indexOf(download.state) < 0) return 'its download is running';
+    const stick = gameStick(g);
+    if (stick) {
+        if (!present(g)) return 'it is on the USB stick ' + stick + ': plug it in to remove it';
+        try { attachStick(stick); } catch (e) { return 'the USB stick: ' + e.message; }
+    }
     delete library[appId];
     saveLibrary();
     /* only a folder of ours */
-    if (g.dir && (g.dir.indexOf(env.INTERNAL_GAMES + '/') === 0 || g.dir.indexOf(env.DISK_GAMES + '/') === 0)) {
+    if (g.dir && (g.dir.indexOf(env.INTERNAL_GAMES + '/') === 0 || g.dir.indexOf(env.DISK_GAMES + '/') === 0
+        || (stick && g.dir.indexOf(path.join(usb.USB_DIR, stick, usb.GAMES_SUB) + '/') === 0))) {
         try { unpack.rmrf(g.dir); } catch (e) { log('remove: ' + e.message); }
     }
     log('library: removed ' + g.name + ' (' + appId + ')');
@@ -369,6 +425,11 @@ function play(appId) {
     if (game && game.state !== 'ended') return game.o.appId === appId ? null : 'another game is running: stop it first';
     if (download && download.o.appId === appId && ['done', 'failed', 'stopped'].indexOf(download.state) < 0) return 'it is still downloading';
     if (moving()) return 'not while driving';
+    const stick = gameStick(g);
+    if (stick) {
+        if (!present(g)) return 'it is on the USB stick ' + stick + ': plug it in';
+        try { attachStick(stick); } catch (e) { return 'the USB stick: ' + e.message; }
+    }
     let missing;
     try { missing = env.gpuLibs(); } catch (e) { return 'the GPU libraries: ' + e.message; }
     if (missing.length) return 'this unit has no ' + missing.join(', ');
@@ -417,8 +478,10 @@ function setResolution(id) {
 
 function setSetting(b) {
     if (b.where !== undefined) {
-        if (b.where !== 'internal' && b.where !== 'disk') return 'internal or disk';
+        b.where = String(b.where);
+        if (b.where !== 'internal' && b.where !== 'disk' && !/^usb:[A-Za-z0-9_.-]+$/.test(b.where)) return 'internal, disk or usb:<stick>';
         if (b.where === 'disk' && !diskAvailable()) return 'this car has no hard disk at ' + env.DISK;
+        if (/^usb:/.test(b.where) && !usb.find(b.where.slice(4))) return 'the USB stick ' + b.where.slice(4) + ' is not plugged in';
         settings.where = b.where;
     }
     if (b.fps !== undefined) { if (FPS_CHOICES.indexOf(Number(b.fps)) < 0) return 'fps: ' + FPS_CHOICES.join(' or '); settings.fps = Number(b.fps); }
@@ -455,14 +518,16 @@ function status() {
         download: download ? Object.assign(download.status(), { name: (library[download.o.appId] && library[download.o.appId].name) || names[download.o.appId] || null }) : null,
         library: Object.keys(library).map((id) => {
             const x = library[id];
-            return { appId: Number(id), name: x.name, exe: x.exe, args: (x.args || []).join(' '), engine: x.engine, sizeMb: x.sizeMb };
+            return { appId: Number(id), name: x.name, exe: x.exe, args: (x.args || []).join(' '), engine: x.engine, sizeMb: x.sizeMb,
+                usb: gameStick(x), present: present(x) };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
             buffers: { drm: game.stats.drm, shm: game.stats.shm }, note: game.note } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),
         settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume },
-        choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, disk: diskAvailable() },
+        choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, disk: diskAvailable(),
+            usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
         space: space, memory: { capMb: settings.memMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
     };
 }
@@ -601,12 +666,16 @@ ensureBundles((err) => {
     bundle = { state: 'ready' };
     try { log('bundle: ' + fs.readFileSync(path.join(env.RUNTIME, 'VERSION'), 'utf8').split('\n').slice(1, 3).join(', ')); } catch (e) { /* old */ }
     /* games found in the folders but not in the library (a library lost, a manual copy) */
-    [env.INTERNAL_GAMES, env.DISK_GAMES].forEach((root) => {
-        let ids = [];
-        try { ids = fs.readdirSync(root).filter((n) => /^\d+$/.test(n)); } catch (e) { return; }
-        ids.forEach((id) => {
-            if (!library[id] && fs.existsSync(path.join(root, id, '.DepotDownloader'))) added(Number(id), path.join(root, id));
-        });
-    });
+    [env.INTERNAL_GAMES, env.DISK_GAMES].concat(usb.gameRoots()).forEach(rescan);
     if (control) control.broadcast();
 });
+
+/* games found in a games folder but not in the library (a library lost, a
+ * manual copy, a stick from another car) */
+function rescan(root) {
+    let ids = [];
+    try { ids = fs.readdirSync(root).filter((n) => /^\d+$/.test(n)); } catch (e) { return; }
+    ids.forEach((id) => {
+        if (!library[id] && fs.existsSync(path.join(root, id, '.DepotDownloader'))) added(Number(id), path.join(root, id));
+    });
+}

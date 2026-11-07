@@ -76,16 +76,8 @@ class Game extends EventEmitter {
     start() {
         const o = this.o;
         try {
-            [env.RUN_DIR, env.XDG_DIR].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
-            fs.chmodSync(env.RUN_DIR, 0o755);
-            fs.chownSync(env.XDG_DIR, o.uid, o.gid);
-            fs.chmodSync(env.XDG_DIR, 0o700);
+            env.userDirs(o.uid, o.gid);
             [DISPLAY, DISPLAY + '.lock'].forEach((n) => { try { fs.unlinkSync(path.join(env.XDG_DIR, n)); } catch (e) { /* none */ } });
-            ['tmp', '.cache', '.cache/mesa'].forEach((d) => {
-                const p = path.join(env.HOME, d);
-                try { fs.mkdirSync(p, 0o700); } catch (e) { /* there */ }
-                fs.chownSync(p, o.uid, o.gid);
-            });
             /* wineserver keeps its socket in /tmp/.wine-<uid>, a fixed place */
             const tmp = fs.statSync('/tmp');
             if ((tmp.mode & 0o1777) !== 0o1777) this._log('game: /tmp is ' + (tmp.mode & 0o7777).toString(8) + ', not 1777: Wine\'s server may not start');

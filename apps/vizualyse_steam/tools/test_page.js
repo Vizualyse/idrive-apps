@@ -348,7 +348,16 @@ async function main() {
     assert.strictEqual(byName.steamPlay4.text, 'Play: Odd Game (no program found)');
     assert.strictEqual(byName.steamPlay4.enabled, false, 'no program: no Play');
     assert.strictEqual(D.text, 'Big Game is installed');
-    console.log('ok   the download row (a Steam Guard question, progress, done); four Play rows at most; a game without a program can\'t be played');
+    assert.strictEqual(byName.steamPlay3.enabled, true);
+    /* Big Game on a USB stick that was pulled */
+    st = Object.assign({}, st, { library: st.library.map((g) => (g.appId === 99 ? Object.assign({}, g, { usb: 'D3EA-4CE7', present: false }) : g)) });
+    tool.broadcast();
+    await until('the stick away', () => byName.steamPlay3.text === 'Play: Big Game (USB stick not plugged in)');
+    assert.strictEqual(byName.steamPlay3.enabled, false, 'stick away: no Play');
+    st = Object.assign({}, st, { library: st.library.map((g) => (g.appId === 99 ? Object.assign({}, g, { present: true }) : g)) });
+    tool.broadcast();
+    await until('the stick back', () => byName.steamPlay3.text === 'Play: Big Game' && byName.steamPlay3.enabled);
+    console.log('ok   the download row (a Steam Guard question, progress, done); four Play rows at most; a game without a program, or on a pulled USB stick, can\'t be played');
 
     /* Picture: the next resolution; "from the next game" while one runs */
     await sleep(450);

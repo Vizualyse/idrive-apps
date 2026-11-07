@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- A game on a USB stick that isn't plugged in says so on its Play button
+  (`Play: <game> (USB stick not plugged in)`) and can't be pressed (tool
+  0.1.1 installs games on USB sticks).
+
 ## 0.1.0
 
 - The page: status, the phone link as a QR code and as text (sign in to

@@ -75,6 +75,13 @@ class Download extends EventEmitter {
         const args = dd.slice(1).concat(['-app', String(o.appId), '-os', 'windows', '-osarch', '64', '-dir', o.dir,
             '-username', o.username, '-remember-password']);
         if (o.validate) args.push('-validate');
+        try {
+            env.userDirs(o.uid, o.gid);
+        } catch (err) {
+            o.log('steam: ' + err.message);
+            this._set('failed', 'could not prepare its folders: ' + err.message);
+            return;
+        }
         const e = env.dotnetEnv();
         /* the test's stand-in runs on the unit's own Node and glibc */
         if (process.env.STEAM_DD_CMD) delete e.LD_LIBRARY_PATH;
@@ -153,6 +160,10 @@ class Download extends EventEmitter {
         if (/^Total downloaded:/.test(t)) { this.sawTotal = true; const b = /Total downloaded: (\d+) bytes/.exec(t); if (b) this.bytes = Number(b[1]); return; }
         if (/^Failed to authenticate with Steam: (.*)/.test(t)) { this._set('failed', 'Steam sign-in failed: ' + /: (.*)$/.exec(t)[1]); this.stop(true); return; }
         if (/is not available from this account/.test(t)) { this._set('failed', 'This account does not own app ' + this.o.appId); return; }
+        /* EFBIG: a file over 4 GB on a FAT32 stick */
+        if (/File too large|EFBIG/i.test(t)) { this.note = 'a file of this game is over 4 GB, more than a FAT32 stick holds: reformat the stick as exFAT (or install elsewhere)'; return; }
+        /* ENOSPC */
+        if (/No space left on device|ENOSPC|Disk full/i.test(t)) { this.note = 'the install location is full'; return; }
         if (/^Error:|InvalidPassword|RateLimitExceeded|AccountLoginDeniedThrottle/.test(t)) this.note = t.slice(0, 200);
     }
 
