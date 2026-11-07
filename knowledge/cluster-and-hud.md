@@ -31,7 +31,7 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
 - The HUD: its top is clipped and its own speed sits at the bottom. The
   visible part is about 25-65 % of the height and 17-83 % of the width.
 
-## cluster-render 0.4.0 *(ref: upstream `native/cluster-render/README.md`, `PROTOCOL.md`; our Cast requires 0.3.3)*
+## cluster-render 0.4.0 *(ref: upstream `native/cluster-render/README.md`, `PROTOCOL.md`; Cast 0.3.10 and Moonlight 0.2.4 require 0.4.2)*
 
 - One RAMSES participant running as `hmi_5000`. The link to the cluster carries ~11.5 MB/s for everything; scenes dropped above ~8 MB/s. The budget is still a 5500 KB/s ceiling (2000 floor, 500 steps); 8000 KB/s flashed black, a minute averaging 5774 KB/s had the map removed.
 - Video sends only changed 64x64 tiles; when over budget, packed 4x4 blocks at a third of the bytes (`level_bits` 2, `dirty_threshold` 8); a `repeat` op sends an unchanged frame in a few bytes. Games will mostly go packed: about 21 fps at 1088x480 (inference). The atlas is drawn as **full-range BT.601**: a limited-range stream (Sunshine's default) needs its levels stretched while packing.

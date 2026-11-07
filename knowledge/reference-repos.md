@@ -13,7 +13,7 @@ path)*. Those facts are **not yet checked on our unit** unless a line says so.
 
 Notes:
 
-- Our fetched `upstream/main` was behind the GitHub default branch; `git fetch upstream` brings `daaa3f7` (cluster-render 0.4.0, waze-on-cluster 0.9.0, the HUD). Our fork has none of `native/cluster-render`, `native/waze-on-cluster` or `apps/robertn_waze_cluster`; our Cast requires cluster-render 0.3.3.
+- Our fetched `upstream/main` was behind the GitHub default branch; `git fetch upstream` brings `daaa3f7` (cluster-render 0.4.0, waze-on-cluster 0.9.0, the HUD). Our fork has none of `native/cluster-render`, `native/waze-on-cluster` or `apps/robertn_waze_cluster`; Cast (0.3.10) and Moonlight (0.2.4) require cluster-render 0.4.2.
 - waze-on-cluster's `decoder_msdk.cpp` is GPL-3.0, like our tools: it can be ported into moonlight-core with attribution.
 - IterioDev has a QEMU VM of the MGU (not published). cauliflowermossgrape has an off-car head-unit stub (`kit/tools/hu-stub.js`, `emu.js`) and `kit/tools/extract_sdk.js`, which rebuilds a readable oap-sdk tree from any app bundle: the real HMI API reference.
 - Their units differ from ours: cauliflowermossgrape's firmware is `P18_23w44.2` (ours `I_21w12.2-1-4`), IterioDev's cars are iDrive 8, upstream runs carplay 22.28.3 (ours 20.40.2).

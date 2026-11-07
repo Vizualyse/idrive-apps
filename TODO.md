@@ -16,13 +16,28 @@ workflow (Actions > Release, the component ids).
   (by hand, never kept; **ask before running anything on the unit**). Read
   the journal: `display: ready ... Winston connected (dmabuf v1)`,
   `display: winston: on the screen`, no `relist: ... Permission denied`, and
-  `screen: shown (winston)`. Check: the picture in the app area in full
-  colour; the HMI's bar and back arrow still usable; a pop-up or the back
-  arrow hides it; the reversing camera hides it (Winston's camera surfaces)
-  and it comes back; an HMI scene change while shown (`layer taken off the
-  screen, put back`). Browser GPU mode: `"fwd"` in chromium-wl's stats
-  (Chromium's buffers passed on as they are) and a smooth WebGL page; the
-  CPU of chromium-wl against mgu-render's path.
+  `screen: shown (winston)`. **Browser 0.2.9 seen on the car (2026-11-07,
+  vel.gg Kino der Toten, GPU mode + game mode + Winston output):** all four
+  journal lines as above (`surface 0x565a0100 on layer 0x565a0000 at
+  108,82 1790x638`), the game played on the screen. CPU over ~14 s in game
+  (from `/proc`, one SSH read): **chromium-wl ~0 % and Winston 0.2 %**
+  (chromium-wl was 32 % through mgu-render, CPU mode, 0.2.5), but the unit
+  still **97 % busy** of 4 cores: renderer 158 % (compositor thread 38 %,
+  the game's main worker 30 %, five more workers 9-13 % each), **browser
+  process 80 % (main thread 66 %: new, find out why: Wayland buffer
+  hand-offs or the DevTools pipe?)**, GPU process 65 % (main thread 59 %,
+  82 % on 0.2.6 without game mode), HMI 12 %. **At 1/2 (892x316) 99 %
+  busy**: compositor 29 %, browser main 50 %, GPU main 53 %, but the game's
+  main worker up to 44 %: the CPU is the limit, not pixels. No pictures per
+  second yet (the fps meter below). Seen once: at the restart for game mode
+  the first chromium-wl failed `unable to lock lockfile
+  /run/vizualyse-chromium/wayland-0.lock` (the old one not gone yet), the
+  next start was fine. Still to check: the picture in full colour; the
+  HMI's bar and back arrow still usable; a pop-up or the back arrow hides
+  it; the reversing camera hides it (Winston's camera surfaces) and it
+  comes back; an HMI scene change while shown (`layer taken off the
+  screen, put back`); `"fwd"` in chromium-wl's stats; CPU mode through
+  Winston.
   Moonlight (centre console): `core: {"ev":"output","via":"winston",...}` in
   the journal; the picture with black bars and the stop hint for 10 s; the
   decoder event still `msdk (GPU, …)` with moonlight-core as uid 12998; the
@@ -34,6 +49,16 @@ workflow (Actions > Release, the component ids).
   decoding into VA surfaces exported as dmabufs, so the last copy goes too
   (the unit's libva is 1.x: `vaAcquireBufferHandle`, not
   `vaExportSurfaceHandle`).
+- [ ] **Winston only, once the Vulkan testing (below) is done:** remove the
+  other centre-screen paths and keep Winston output alone. Browser:
+  chromium-wl's I420 frame file and GPU read-back (`sink/wl.c`, libyuv);
+  Steam: wl-sink's read-back and frame file; Moonlight and Cast:
+  `console_out.js`'s mgu-render layer and the I420 copy; the platform's
+  `native/frame_out`; the "Winston output" switches (always on) and the
+  fall back to mgu-render when Winston's connection goes (decide what
+  replaces it: retry, or hide). Keep cluster-render (Winston can't reach
+  the cluster or the HUD). Then drop mgu-render from each tool's
+  `requires` and the knowledge files' "through mgu-render" lines.
 - [ ] **Investigate Vulkan again: try Mesa 19.0.6's ANV on the car with
   [tools/vk-trial](tools/vk-trial/README.md)** (built and tested off the
   car 2026-11-07: armed by hand for one start, the arming in tmpfs `/run`
@@ -71,9 +96,15 @@ workflow (Actions > Release, the component ids).
   process behind a strike guard, [knowledge/store.md](knowledge/store.md))
   instead of our own arming, if it fits `carplay`; upstream patches
   carplay 22.28.3 instead ([knowledge/carplay.md](knowledge/carplay.md)).
-- [ ] **Cast on cluster-render 0.4.0** (upstream; we require 0.3.3): the
-  `repeat` op, packed blocks, the HUD fixes
-  ([knowledge/cluster-and-hud.md](knowledge/cluster-and-hud.md)).
+- [ ] **cluster-render 0.4.2 on the car:** Cast 0.3.10 and Moonlight 0.2.4
+  now require it (was 0.3.3; its protocol only added fields since, so our
+  client is unchanged). Release both, then the CarPlay map's pictures per
+  second against 0.3.3's ~14.5 of 20 (936x480, parked), and the HUD's
+  (0.4's own cap is ~10/s, Cast asks 15). **No take-over test** until the
+  BC-press hazard is understood
+  ([knowledge/cluster-and-hud.md](knowledge/cluster-and-hud.md)). Next:
+  send `repeat` for an unchanged frame (when the service's `hello` has
+  `repeat` 1), and crop the map's dimmed bands (y 0-72, 440-480).
 
 - [ ] **On the car:** whether the phone draws the HUD size it is offered
   (1056x384), and how the cluster view looks at that shape.
@@ -190,7 +221,9 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   rather than stopping it (it isn't ours).
 - [ ] **A frames-per-second meter** in the status: how often the page draws
   (requestAnimationFrame) next to pictures reaching the screen, to tell a
-  slow game from the picture path.
+  slow game from the picture path. Needed now: the Winston run (above) has
+  CPU figures but no pictures per second; log a count once a second from
+  chromium-wl's Winston path too, so a session is read after it, not polled.
 - [ ] **0.2.3 on the car: the resolution** (phone page or the app's
   Resolution button: full, 3/4 = 1340x476, 1/2 = 892x316, scaled up by
   mgu-render). How it looks, whether touches still land, and the gain on a

@@ -168,7 +168,7 @@ explanations, not file content):
     "mgu-deploy": "0.7.0",                  //   always: the deploy tool that runs hooks
     "mgu-python": "1.0.0",                  //   for pcm_play.py
     "mgu-render": "0.6.11"                  //   for the central screen
-  },                                        //   (+ "cluster-render": "0.3.3", "mgu-uplink": "0.7.0")
+  },                                        //   (+ "cluster-render": "0.4.2", "mgu-uplink": "0.7.0")
   "uninstallable": true,                    // the Store offers Remove
   "mguHmi": ["ID7"],
   "internet": true,                         // the uplink routes the uids below
