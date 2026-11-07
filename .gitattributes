@@ -3,3 +3,7 @@
 # core.autocrlf says.
 *.sh text eol=lf
 native/hook111/** text eol=lf
+# patches applied in Linux containers, and their generator
+*.patch text eol=lf
+native/vizualyse-steam/tools/*.py text eol=lf
+native/vizualyse-steam/image/*.Dockerfile text eol=lf
