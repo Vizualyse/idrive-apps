@@ -34,7 +34,11 @@ fi
 # it is on main (compiled here for the unit's glibc, not changed)
 SINK=$HERE/../../native/vizualyse-steam/src
 WIN_SINK=$(cd "$SINK" && (pwd -W 2>/dev/null || pwd))
-key=$( (cat "$HERE"/src/*.c "$HERE"/test/*.c "$HERE/build.sh" "$SINK"/wl_sink.c "$SINK"/rgb.c "$SINK"/frame_out.c "$SINK"/*.h "$SINK"/protocol/*.xml;
+# its platform modules (frame_out, winston_out, protocols) are synced copies,
+# not committed: as the Steam tool's own build does first
+node "$(cd "$HERE/../../platform" && (pwd -W 2>/dev/null || pwd))/platform.js" sync \
+    "$(cd "$HERE/../../native/vizualyse-steam" && (pwd -W 2>/dev/null || pwd))" >&2
+key=$( (cat "$HERE"/src/*.c "$HERE"/test/*.c "$HERE/build.sh" "$SINK"/wl_sink.c "$SINK"/rgb.c "$SINK"/frame_out.c "$SINK"/winston_out.c "$SINK"/*.h "$SINK"/protocol/*.xml;
         docker image inspect -f '{{.Id}}' "$IMG") | sha256sum | cut -c1-16)
 if [ -f "$HERE/build/vk-trial.tgz" ] && [ "$(cat "$HERE/build/key" 2>/dev/null)" = "$key" ]; then
     echo "vk-trial: up to date ($key)"
@@ -48,6 +52,7 @@ UNITLIB=$(cd "$HERE/build/unitlib" && (pwd -W 2>/dev/null || pwd))
 cid=$(docker create idrive-rootfs:I_21w12.2-1-4 true)
 docker cp "$cid:/usr/lib/libwayland-client.so.0.3.0" "$UNITLIB/" >/dev/null
 docker cp "$cid:/usr/lib/libwayland-server.so.0.1.0" "$UNITLIB/" >/dev/null
+docker cp "$cid:/usr/lib/libffi.so.6.0.4" "$UNITLIB/libffi.so.6" >/dev/null   # for dxvk/'s bench (trixie lacks it)
 docker rm "$cid" >/dev/null
 docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN_SINK:/sink:ro" "$IMG" sh -ec '
     W="-O2 -std=gnu11 -Wall -Wextra -Werror"
@@ -60,17 +65,24 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
     gcc $W -static -o /m/build/pkg/bin/vk-trial /m/src/vk-trial.c
     gcc $W -I/out -I/tmp/gen/client -o /m/build/pkg/bin/vkprobe /m/src/vkprobe.c /tmp/gen/client/xdg-shell-protocol.c \
         -ldl -lvulkan -lwayland-client -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2
-    # wl-sink: on libwayland 1.22 (/opt/wl, shipped as lib/libwayland-server.so.0)
+    # wl-sink: on libwayland 1.22 (/opt/wl), server and client (it is also
+    # a client of Winston: winston_out), shipped in lib/wl/ and found through
+    # its RUNPATH only, so nothing else of ours loads them
     S=/opt/wl/bin/wayland-scanner G=/tmp/gen/sink
     XDG=/opt/wlp/stable/xdg-shell/xdg-shell.xml VP=/opt/wlp/stable/viewporter/viewporter.xml
     $S server-header $XDG $G/xdg-shell-server-protocol.h; $S private-code $XDG $G/xdg-shell-protocol.c
     $S server-header /sink/protocol/wayland-drm.xml $G/wayland-drm-server-protocol.h
     $S private-code /sink/protocol/wayland-drm.xml $G/wayland-drm-protocol.c
     $S server-header $VP $G/viewporter-server-protocol.h; $S private-code $VP $G/viewporter-protocol.c
-    gcc $W -I/sink -I$G -I/opt/wl/include -o /m/build/pkg/bin/wl-sink /sink/wl_sink.c /sink/rgb.c /sink/frame_out.c \
+    for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
+        $S client-header /sink/protocol/$x.xml $G/$x-client-protocol.h; $S private-code /sink/protocol/$x.xml $G/$x-protocol.c
+    done
+    gcc $W -I/sink -I$G -I/opt/wl/include -o /m/build/pkg/bin/wl-sink /sink/wl_sink.c /sink/rgb.c /sink/frame_out.c /sink/winston_out.c \
         $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c $G/viewporter-protocol.c \
-        -L/opt/wl/lib -lwayland-server -ldl -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2
-    cp /out/lib/libwayland-server.so.0 /m/build/pkg/lib/
+        $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c \
+        -L/opt/wl/lib -lwayland-server -lwayland-client -ldl -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 \
+        -Wl,--enable-new-dtags,-rpath,\$ORIGIN/../lib/wl
+    mkdir -p /m/build/pkg/lib/wl && cp /out/lib/wl/* /m/build/pkg/lib/wl/
     cp /tmp/gen/client/xdg-shell-client-protocol.h /tmp/gen/client/xdg-shell-protocol.c /m/build/bench/   # for test/lavapipe_test.sh
     gcc $W -shared -fPIC -o /m/build/pkg/lib/vk_crumbs.so /m/src/vk_crumbs.c -ldl
     gcc $W -shared -fPIC -o /m/build/bench/kernel414.so /m/test/kernel414.c -ldl
@@ -79,23 +91,25 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
     strip --strip-unneeded /m/build/pkg/bin/* /m/build/pkg/lib/vk_crumbs.so
     # the gate needs nothing; nothing else more than glibc 2.27
     ! readelf -d /m/build/pkg/bin/vk-trial | grep -q NEEDED || { echo "vk-trial is not static"; exit 1; }
-    for f in /m/build/pkg/bin/vkprobe /m/build/pkg/lib/*; do
+    for f in /m/build/pkg/bin/vkprobe /m/build/pkg/bin/wl-sink /m/build/pkg/lib/*.so* /m/build/pkg/lib/wl/*; do
         v=$(objdump -T "$f" | grep -o "GLIBC_[0-9.]*" | sort -uV | tail -1)
         [ "$(printf "%s\nGLIBC_2.27\n" "$v" | sort -V | tail -1)" = GLIBC_2.27 ] || { echo "$f needs $v"; exit 1; }
     done
     # every wl_ symbol vkprobe and ANV import is in the unit'"'"'s own
-    # libwayland-client; wl-sink'"'"'s in the libwayland-server we ship
+    # libwayland-client; wl-sink'"'"'s in the libwayland 1.22 we ship for it
     have() { nm -D --defined-only "$@" | grep -o " wl_[a-z0-9_]*" | tr -d " " | sort -u; }
     need() { nm -D --undefined-only "$1" | grep -o " wl_[a-z0-9_]*" | tr -d " " | sort -u; }
     have /m/build/unitlib/libwayland-client.so.0.3.0 > /tmp/unit
-    have /m/build/pkg/lib/libwayland-server.so.0 > /tmp/ours
+    have /m/build/pkg/lib/wl/libwayland-server.so.0 /m/build/pkg/lib/wl/libwayland-client.so.0 > /tmp/ours
+    ! ls /m/build/pkg/lib/libwayland* 2>/dev/null || { echo "no libwayland in lib/ (ANV and vkprobe use the unit'"'"'s)"; exit 1; }
+    readelf -d /m/build/pkg/bin/wl-sink | grep -q "RUNPATH.*\$ORIGIN/../lib/wl" || { echo "wl-sink has no RUNPATH to lib/wl"; exit 1; }
     for f in /m/build/pkg/bin/vkprobe /m/build/pkg/lib/libvulkan_intel.so; do
         miss=$(need "$f" | comm -23 - /tmp/unit)
         [ -z "$miss" ] || { echo "$f needs what the unit'"'"'s libwayland-client lacks: $miss"; exit 1; }
     done
     miss=$(need /m/build/pkg/bin/wl-sink | comm -23 - /tmp/ours)
-    [ -z "$miss" ] || { echo "wl-sink needs what our libwayland-server lacks: $miss"; exit 1; }
-    cd /m/build/pkg && chmod 755 bin/* && chmod 644 lib/* \
+    [ -z "$miss" ] || { echo "wl-sink needs what our libwayland 1.22 lacks: $miss"; exit 1; }
+    cd /m/build/pkg && chmod 755 bin/* lib/wl && find lib -type f -exec chmod 644 {} + \
         && tar --owner=0 --group=0 --mtime=@0 --sort=name -czf /m/build/vk-trial.tgz bin lib'
 echo "$key" > "$HERE/build/key"
 echo "$IMG" > "$HERE/build/image"

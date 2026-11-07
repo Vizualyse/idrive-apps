@@ -54,8 +54,9 @@ RUN cd /src/mesa-19.0.6 \
 COPY --from=spv /src/shaders.spv.h /out/
 # libwayland 1.22 for wl-sink only (the present stage's compositor, the Steam
 # tool's source): it uses wl_output 4 and newer xdg-shell, which need a
-# libwayland-server >= 1.20; the unit's is older, and 18.04's 1.16. Shipped
-# as lib/libwayland-server.so.0 alone: ANV and vkprobe keep the unit's own
+# libwayland-server >= 1.20 (and it is a client of Winston too); the unit's
+# is older, and 18.04's 1.16. Shipped in lib/wl/ (server and client), found
+# through wl-sink's RUNPATH only: ANV and vkprobe keep the unit's own
 # libwayland-client. /opt/wlp: wayland-protocols 1.32's XML.
 RUN DEBIAN_FRONTEND=noninteractive apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends python3-pip python3-setuptools libffi-dev >/dev/null \
@@ -67,7 +68,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -qq \
  && tar xJf wayland-1.22.0.tar.xz && tar xJf wayland-protocols-1.32.tar.xz && mkdir -p /opt/wlp \
  && cp -r wayland-protocols-1.32/stable wayland-protocols-1.32/staging wayland-protocols-1.32/unstable /opt/wlp/ \
  && cd wayland-1.22.0 && /usr/local/bin/meson setup b --prefix=/opt/wl --libdir=lib -Ddocumentation=false -Dtests=false -Ddtd_validation=false >/dev/null \
- && ninja -C b install >/dev/null && cp -L /opt/wl/lib/libwayland-server.so.0 /out/lib/ && strip --strip-unneeded /out/lib/libwayland-server.so.0 \
+ && ninja -C b install >/dev/null && mkdir -p /out/lib/wl \
+ && cp -L /opt/wl/lib/libwayland-server.so.0 /opt/wl/lib/libwayland-client.so.0 /out/lib/wl/ && strip --strip-unneeded /out/lib/wl/* \
  && cd /src && rm -rf wayland-1.22.0* wayland-protocols-1.32*
 # Nothing may need more than the unit's glibc 2.27.
 RUN for f in /out/lib/*; do \
