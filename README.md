@@ -18,6 +18,7 @@ A tech demo, built and tested on a bench head unit.
 | [`apps/vizualyse_moonlight`](apps/vizualyse_moonlight) | **Moonlight**, its iDrive app: the phone link and QR code, on/off, Stop, Quit game, Resume last |
 | [`native/hook111`](native/hook111) | **CarPlay cluster map (stream 111)**, a tool: a hook preloaded into the stock 2020 `carplay` that adds CarPlay's second screen and hands it to Cast to cluster. Experimental |
 | [`re`](re) | the off-car reverse engineering and harnesses behind hook111 ([status](re/STATUS.md)) |
+| [`platform`](platform) | **The platform**: the code the tools and apps share (the audio player, the cluster-render client, the frame file writer, the passive touch reader, the QR code, the car's speed), versioned; each component pins the version it builds with |
 
 What's next: [`TODO.md`](TODO.md). What we learned about the unit: [`knowledge/`](knowledge/index.md).
 
@@ -36,6 +37,8 @@ and `mgu-render`.
 ## Build and test
 
 ```sh
+node platform/platform.js sync                # after a checkout: each component's copies of its platform version
+node platform/test/platform_test.js
 node apps/vizualyse_cast/tools/test_page.js   # the page against a fake HMI and the tool's real control socket
 node apps/vizualyse_moonlight/tools/test_page.js
 sh native/vizualyse-moonlight/build.sh                 # moonlight-core (Docker), its mapping test, ffmpeg
@@ -53,7 +56,7 @@ The release tooling (`release/`, `tools/`, `.github/workflows/release.yml`)
 and the structure of the iDrive app come from Robert Nisipeanu's
 [idrive-apps](https://github.com/robertnisipeanu/idrive-apps) (GPL-3.0-or-later),
 where this repository started as a fork. Cast to cluster draws through his
-cluster-render, whose client `native/vizualyse-cast/src/cluster_render_client.js`
+cluster-render, whose client `platform/<version>/tool/cluster_render_client.js`
 is copied here.
 
 ## License

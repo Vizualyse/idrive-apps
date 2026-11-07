@@ -66,6 +66,6 @@ app sends `enable`, `disable`, `play` (`appId`), `stop`, `show`, `hide`,
 - `node tools/build.js` packs the source package
   (`vizualyse_steam@<version>.src.tgz`) the head unit builds.
 
-GPL-3.0-or-later. `src/qr_png.js` and `src/vehicle_speed.js` are
-vizualyse_chromium's; `src/qrcode.js` is Kazuhiko Arase's QR Code Generator
+GPL-3.0-or-later. `src/qr_png.js`, `src/vehicle_speed.js` and `src/qrcode.js` are
+copies of the platform's (`release.json` "platform", [platform/](../../platform)); `qrcode.js` is Kazuhiko Arase's QR Code Generator
 (MIT, its notice in the file).

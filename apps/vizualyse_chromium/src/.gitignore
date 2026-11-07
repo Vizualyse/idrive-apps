@@ -1,0 +1,7 @@
+# platform: copies of platform/<version>/ files, pinned in this component's
+# component.json or release.json; written by `node platform/platform.js sync`.
+# Edit the originals in platform/, never these.
+/qr_png.js
+/qrcode.js
+/vehicle_speed.js
+# end platform

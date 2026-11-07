@@ -22,6 +22,14 @@ touched what the component ships. A change to that needs a new version
 (`bump`); `publish` skips a version already published with other bytes.
 A tool kit holds what mgu-store's `deploy/hu artifact` packs, byte for byte.
 
+**The platform.** A component's `"platform"` pin (a tool's
+component.json, an app's release.json) names a version of
+[`platform/`](../platform/README.md) and the files it copies. The packer and
+each app's `build.js` write those copies before building, and the copied
+platform files count as shipped: moving a tool to another platform version
+changes its kit, so it needs a bump. `node platform/platform.js use <x.y.z>`
+moves the pins and bumps for you.
+
 **Catalog.** The release `catalog` holds `catalog.json` (schema 2); each
 version is the release `<id>@<version>`, its artifact the one asset. An
 entry's `artifact.url` is the asset's release download

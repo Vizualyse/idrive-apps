@@ -1,0 +1,8 @@
+# platform: copies of platform/<version>/ files, pinned in this component's
+# component.json or release.json; written by `node platform/platform.js sync`.
+# Edit the originals in platform/, never these.
+/frame_out.c
+/frame_out.h
+/touch.c
+/touch.h
+# end platform

@@ -14,6 +14,7 @@ set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
+node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
 IMG=idrive-chromium-build:trixie-156.0.8078.79-$(sha256sum "$HERE/image/Dockerfile" | cut -c1-8)
 # build.sh image-name: the image's tag; build.sh image: only the image (CI
 # caches it: .github/actions/chromium-image)

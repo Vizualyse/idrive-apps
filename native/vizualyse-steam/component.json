@@ -27,6 +27,15 @@
     "sh",
     "build.sh"
   ],
+  "platform": {
+    "version": "1.0.0",
+    "files": {
+      "src/frame_out.c": "native/frame_out.c",
+      "src/frame_out.h": "native/frame_out.h",
+      "src/pcm_play.py": "tool/pcm_play.py",
+      "src/protocol/wayland-drm.xml": "native/wayland-drm.xml"
+    }
+  },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },
     { "path": "env.js", "from": "src/env.js", "mode": "0644" },

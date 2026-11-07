@@ -16,6 +16,7 @@ set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
+node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
 IMG=idrive-moonlight-build:18.04-gcc8-ff612
 docker image inspect $IMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $IMG "$WIN_HERE/image" >/dev/null
 mkdir -p "$HERE/build"

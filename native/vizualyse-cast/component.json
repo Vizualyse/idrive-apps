@@ -1,7 +1,7 @@
 {
   "id": "vizualyse-cast",
   "kind": "tool",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "license": "GPL-3.0-or-later",
   "title": "Cast to cluster",
   "description": "Plays a stream URL from your phone on the instrument cluster, the HUD or the media console, with its sound through the speakers: scan the QR code, paste a URL, pick where it goes. With hook111 armed, also CarPlay's own second screen (its cluster map) on the cluster or the HUD",
@@ -28,6 +28,14 @@
     "node",
     "tools/fetch_ffmpeg.js"
   ],
+  "platform": {
+    "version": "1.0.0",
+    "files": {
+      "src/cluster_render_client.js": "tool/cluster_render_client.js",
+      "src/pcm_play.py": "tool/pcm_play.py",
+      "src/qrcode.js": "common/qrcode.js"
+    }
+  },
   "files": [
     {
       "path": "server.js",

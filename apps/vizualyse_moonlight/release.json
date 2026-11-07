@@ -1,1 +1,14 @@
-{ "build": "node tools/build.js", "requires": { "vizualyse-moonlight": "0.2.0" }, "uninstallable": true, "mguHmi": ["ID7"] }
+{
+  "build": "node tools/build.js",
+  "requires": { "vizualyse-moonlight": "0.2.0" },
+  "uninstallable": true,
+  "mguHmi": ["ID7"],
+  "platform": {
+    "version": "1.0.0",
+    "files": {
+      "src/qr_png.js": "app/qr_png.js",
+      "src/qrcode.js": "common/qrcode.js",
+      "src/vehicle_speed.js": "app/vehicle_speed.js"
+    }
+  }
+}

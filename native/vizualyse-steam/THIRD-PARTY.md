@@ -2,8 +2,8 @@
 
 The tool's own code (`src/`, `tools/`, `test/`, `image/`) is GPL-3.0-or-later
 (`LICENSE`). `src/protocol/wayland-drm.xml` is Mesa's, under its own
-permissive notice (in the file); `src/frame_out.*` is vizualyse-chromium's,
-`src/pcm_play.py` vizualyse-moonlight's (both ours, GPL-3.0-or-later).
+permissive notice (in the file); it, `src/frame_out.*` and `src/pcm_play.py` are
+copies of platform/<version>/ (those two ours, GPL-3.0-or-later).
 
 The tool ships three archives, built by `tools/bundle.sh`:
 

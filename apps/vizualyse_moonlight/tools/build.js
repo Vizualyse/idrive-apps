@@ -8,7 +8,8 @@
  *   node tools/build.js [--sdk <donor .tgz|.js>]      (or MGU_SDK_DONOR)
  *
  *  1. Packs the source package vizualyse_moonlight@<version>.src.tgz:
- *     mgu-app.json, the modules (src/) and the staged tree
+ *     mgu-app.json, the modules (src/, with the platform's copies: synced
+ *     first) and the staged tree
  *     (tools/oap_link.js). The catalog publishes it with "build": "unit";
  *     the head unit's deploy tool links it against the unit's own oap-sdk
  *     and takes the package's entry point from the unit's own packages.
@@ -23,6 +24,7 @@ const path = require('path');
 const HERE = path.join(__dirname, '..');
 const REPO = path.join(HERE, '..', '..');
 const link = require(path.join(REPO, 'tools', 'oap_link.js'));
+const platform = require(path.join(REPO, 'platform', 'platform.js'));
 
 function donorArg(argv) {
     const i = argv.indexOf('--sdk');
@@ -36,6 +38,8 @@ function donorArg(argv) {
 }
 
 function main() {
+    // the copies of the pinned platform version (release.json "platform") first
+    platform.sync(HERE);
     const donor = donorArg(process.argv.slice(2));
     const m = link.readManifest(HERE);
     const src = path.join(HERE, `${m.id}@${m.version}.src.tgz`);

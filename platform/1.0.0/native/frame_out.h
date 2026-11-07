@@ -5,8 +5,9 @@
  * a 64-byte header of u32 LE words (0 magic "MGVF", 1 version 1, 2-3 w h,
  * 4 seq, 5 slot, 6 nslot, 7 matrix 0 BT.601 / 1 BT.709, 8 range 0 limited /
  * 1 full), then nslot I420 frames of w x h with no padding. server.js
- * creates the file (root-owned, as the renderer wants); chromium-sink maps
- * it and fills slot (slot+1) % nslot, then sets slot, then seq + 1.
+ * creates the file (root-owned, as the renderer wants); the producer
+ * (moonlight-core, chromium-wl, wl-sink) maps it and fills slot
+ * (slot+1) % nslot, then sets slot, then seq + 1.
  */
 #ifndef FRAME_OUT_H
 #define FRAME_OUT_H

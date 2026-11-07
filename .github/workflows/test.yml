@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Yousaf Khan
-# Tests on every push to main and every pull request: the Cast page against
+# Tests on every push to main and every pull request: the platform (its
+# pins, its frozen versions, the audio player), the Cast page against
 # a fake HMI and the tool's real control socket, the Moonlight page against
 # a fake HMI and a fake tool socket, the Moonlight tool end to end against
 # a real Sunshine (pairing, a stream, a virtual gamepad), the release
@@ -31,6 +32,19 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.12.0
+      # first: every later step reads the components' platform copies
+      - name: Platform (pins, copies, frozen versions; every component's copies)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          node platform/platform.js check ${BASE:+--base "$BASE"}
+          node platform/platform.js sync
+          node platform/test/platform_test.js
+      - name: Platform audio player (mgu-python's Python, as root)
+        run: |
+          for t in platform/*/test/pcm_play_test.py; do
+            docker run --rm -v "$PWD:/r:ro" -w /r python:3.12-slim python3 "$t" || exit 1
+          done
       - name: Cast page
         run: node apps/vizualyse_cast/tools/test_page.js
       - name: Moonlight page

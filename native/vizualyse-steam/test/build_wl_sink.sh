@@ -8,6 +8,8 @@
 set -eu
 export MSYS_NO_PATHCONV=1
 HERE=$(cd "$(dirname "$0")/.." && pwd)
+WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
+node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
 mkdir -p "$HERE/build/wl-sink-gen"
 SRC=$(cd "$HERE/src" && (pwd -W 2>/dev/null || pwd))
 OUT=$(cd "$HERE/build" && (pwd -W 2>/dev/null || pwd))

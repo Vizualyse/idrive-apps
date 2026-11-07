@@ -5,6 +5,7 @@
  *   node tools/make_icon.js <out.png> */
 'use strict';
 const fs = require('fs');
+require('../../../platform/platform.js').sync(require('path').join(__dirname, '..'));
 const { png } = require('../src/qr_png.js');
 const N = 140, S = 4, M = N * S;
 const R = 0.4 * M, W = 0.035 * M, C = M / 2;

@@ -8,8 +8,10 @@
  * the artifact's component.json (sha256 per file, units and drop-ins by
  * name), files/<path>, units/<name> and dropins/<unit>.d/<name>, sorted,
  * owner 0:0, one mtime
- * (SOURCE_DATE_EPOCH, else oap_pack's fixed one). A component.json `build`
- * command runs in the folder first.
+ * (SOURCE_DATE_EPOCH, else oap_pack's fixed one). First the component's
+ * copies of the platform version its component.json pins are written
+ * (platform/platform.js), then a component.json `build` command runs in the
+ * folder.
  *
  *   node release/tool_artifact.js <dir> --out <dir>
  */
@@ -18,6 +20,7 @@ const path = require('path');
 const crypto = require('crypto');
 const cp = require('child_process');
 const { tgz, MTIME } = require('../tools/oap_pack.js');
+const platform = require('../platform/platform.js');
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
@@ -56,6 +59,10 @@ function buildArtifact(compDir, outDir) {
     const id = c.id;
     if (!/^[a-z0-9][a-z0-9-]*$/.test(id || '') || c.kind !== 'tool' || !SEMVER.test(c.version || '')) {
         throw new Error(`${rel}/component.json: needs an id of a-z, 0-9 and -, kind "tool" and a x.y.z version`);
+    }
+    const synced = platform.sync(dir);
+    if (synced.length) {
+        process.stderr.write(`${id}: platform ${c.platform.version}, ${synced.length} files\n`);
     }
     const buildCmd = Array.isArray(c.build) && c.build.length ? c.build : null;
     if (buildCmd) {

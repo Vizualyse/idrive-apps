@@ -12,6 +12,7 @@ set -eu
 export MSYS_NO_PATHCONV=1
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
+node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
 IMG=idrive-rootfs:I_21w12.2-1-4
 ROOTFS=${ROOTFS:-$HERE/../../../idrive-rootfs/20.40.2/rootfs.tar}
 docker image inspect $IMG >/dev/null 2>&1 || docker import "$ROOTFS" $IMG >/dev/null

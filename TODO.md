@@ -273,6 +273,30 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).
 
+## Platform (platform/ 1.0.0, branch `platform`)
+
+The shared code, versioned: [platform/README.md](platform/README.md). 1.0.0
+holds the files that were byte-identical copies; Cast 0.3.9, Moonlight
+0.2.2, Browser 0.2.8 and Steam 0.1.4 build from it (bumped for the move).
+
+- [ ] **On the car: Cast 0.3.9's sound.** Cast now plays through the
+  platform's `pcm_play.py`, which makes the SmartX stream lock as the system
+  does (Cast's own copy predated that fix). Play a stream URL with sound,
+  then check CarPlay's own sound still works after it.
+- [ ] **Merge the small forks into the next platform version** (they differ
+  in names and options, not logic): the tools' `control.js` and
+  `firewall.js` (Moonlight's UDP rule as an option), `proxy.js`, the apps'
+  `*_control.js` socket clients, the apps' `tools/build.js`.
+- [ ] **Then the bigger pieces:** the server scaffold (token, link,
+  settings, HTTP helpers, on/off, shutdown) as a `service.js`, starting with
+  Browser (fullest off-car suite); one mgu-render layer client from
+  `console_out.js` / `screen.js`; the cluster placement; the apps' page
+  generator and fake-HMI test harness.
+- [ ] **Last: one Wayland compositor** from `sink/wl.c` and `src/wl_sink.c`,
+  only on the gpu-bench harness with a recovery path.
+- [ ] **A scaffold** (`platform.js` or `new-app`): a tool and app pair from
+  the next free port and uid, building and passing its tests.
+
 ## Dropped
 
 The old `stories/` (in git history before this file) also had a background

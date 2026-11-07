@@ -16,6 +16,7 @@ set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
+node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
 IMG=idrive-steam-build:trixie-$(sha256sum "$HERE/image/Dockerfile" | cut -c1-8)
 [ "${1:-}" = image-name ] && { echo "$IMG"; exit 0; }
 LOG=${TMPDIR:-/tmp}/steam-image.$$.log

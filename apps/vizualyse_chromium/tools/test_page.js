@@ -27,6 +27,8 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+/* the copies of the pinned platform version (release.json "platform") */
+require(path.join(ROOT, '..', '..', 'platform', 'platform.js')).sync(ROOT);
 const PIPE = process.platform === 'win32' ? '\\\\.\\pipe\\vchrome-test-' + process.pid : path.join(os.tmpdir(), 'vchrome-' + process.pid + '.sock');
 const QR_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'vchrome-qr-'));
 process.env.CHROMIUM_CTL_SOCKET = PIPE;

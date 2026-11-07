@@ -1,6 +1,5 @@
 #!/bin/sh
-# Runs test/pcm_play_test.py (the audio player's live mode), then
-# test/sunshine_test.js and test/server_test.js: Sunshine (test/sunshine)
+# Runs test/sunshine_test.js and test/server_test.js: Sunshine (test/sunshine)
 # and the head unit in a box (test/unit) on their own Docker network. Needs
 # build/ (sh build.sh) and the unit's decoder libraries (test/firmware,
 # extract.sh: moonlight-core decodes on its software Media SDK here). The head unit's
@@ -14,9 +13,8 @@ set -eu
 export MSYS_NO_PATHCONV=1
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
+node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
 NET=ml-test-$$
-# the audio player's live mode (pcm_play.py) in mgu-python's Python, first: it needs no Sunshine
-docker run --rm -v "$WIN_HERE:/m:ro" -w /m python:3.12-slim python3 test/pcm_play_test.py
 docker build -q -t ml-sunshine-test "$WIN_HERE/test/sunshine" >/dev/null
 docker build -q -t ml-unit:18.04-node8 "$WIN_HERE/test/unit" >/dev/null
 docker network create $NET >/dev/null

@@ -17,7 +17,8 @@
  *
  * Builds run on a clean `git archive HEAD` export, never on the working tree,
  * with SOURCE_DATE_EPOCH set to the last commit that touched what the
- * component ships (an app's staged tree, a tool's folder): the same tree
+ * component ships (an app's staged tree, a tool's folder, the platform files
+ * either copies: platform/README.md): the same tree
  * always gives the same bytes, so one version has exactly one artifact.
  */
 const fs = require('fs');
@@ -25,6 +26,7 @@ const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 const crypto = require('crypto');
+const platform = require('../platform/platform.js');
 
 const REPO = path.resolve(__dirname, '..');
 const OUT = path.join(__dirname, 'out');
@@ -154,7 +156,8 @@ function components(root = REPO) {
             uninstallable: uninstallableOf(release, `apps/${id}/release.json`),
             mguHmi: hmiOf(release, `apps/${id}/release.json`),
             shipped: [`apps/${id}/${id}@${version}`].concat(manifest ?
-                [`apps/${id}/mgu-app.json`].concat(manifest.modules.map((m) => `apps/${id}/${m}`)) : []),
+                [`apps/${id}/mgu-app.json`].concat(manifest.modules.map((m) => `apps/${id}/${m}`)) : [])
+                .concat(platform.shippedPaths(root, `apps/${id}`)),
             artifact: `apps/${id}/${id}@${version}${manifest ? '.src' : ''}.tgz`
         });
     });
@@ -185,7 +188,8 @@ function components(root = REPO) {
     };
     fs.readdirSync(path.join(root, 'native')).sort().forEach((id) => {
         const dir = `native/${id}`;
-        tool(dir, id, [dir, `:(exclude,glob)${dir}/*.md`, `:(exclude)${dir}/test`]);
+        // with the platform files it copies
+        tool(dir, id, [dir, `:(exclude,glob)${dir}/*.md`, `:(exclude)${dir}/test`].concat(platform.shippedPaths(root, dir)));
     });
     return out;
 }
@@ -602,4 +606,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { components, compareVersions, catalogEntry, exportHead };
+module.exports = { components, compareVersions, catalogEntry, exportHead, bump: cmdBump };
