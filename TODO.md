@@ -273,11 +273,12 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).
 
-## Platform (platform/ 1.0.0, branch `platform`)
+## Platform (platform/ 1.0.0)
 
 The shared code, versioned: [platform/README.md](platform/README.md). 1.0.0
 holds the files that were byte-identical copies; Cast 0.3.9, Moonlight
-0.2.2, Browser 0.2.8 and Steam 0.1.4 build from it (bumped for the move).
+0.2.2, Browser 0.2.8 and Steam 0.1.5 build from it (bumped for the move;
+Steam 0.1.5 also takes its touch.c / touch.h from the platform).
 
 - [ ] **On the car: Cast 0.3.9's sound.** Cast now plays through the
   platform's `pcm_play.py`, which makes the SmartX stream lock as the system

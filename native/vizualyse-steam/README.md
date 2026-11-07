@@ -207,6 +207,6 @@ on the unit):
 ## Licenses
 
 GPL-3.0-or-later. `src/protocol/wayland-drm.xml` is Mesa's, under its own
-permissive notice (in the file). It, `src/frame_out.*` and `src/pcm_play.py` are
+permissive notice (in the file). It, `src/frame_out.*`, `src/touch.*` and `src/pcm_play.py` are
 copies of the platform's ([platform/](../../platform)). What the bundles carry and where
 their sources are: [THIRD-PARTY.md](THIRD-PARTY.md).

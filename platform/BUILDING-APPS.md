@@ -929,7 +929,7 @@ What platform 1.0.0 has:
 | `app/qr_png.js` | app | `qrPng(text, maxPx)`, `png(w, h, rgba)` |
 | `app/vehicle_speed.js` | app | `watchSpeed(builders, logger, onSpeed)` (6.4) |
 | `native/frame_out.{c,h}` | C | the mgu-render frame-file writer (5.5) |
-| `native/touch.{c,h}` | C | the iDrive 7 touch PDU decoder and hold-to-stop (5.9) |
+| `native/touch.{c,h}` | C | the iDrive 7 touch PDU decoder and hold-to-stop (5.9; Moonlight, Browser, Steam) |
 | `native/wayland-drm.xml` | C | Mesa's `wl_drm` protocol, for a Wayland compositor |
 
 Still **copied per app** (moving into a later platform version, `TODO.md`):

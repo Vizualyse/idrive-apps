@@ -1,7 +1,7 @@
 {
   "id": "vizualyse-steam",
   "kind": "tool",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "GPL-3.0-or-later",
   "title": "Steam",
   "description": "EXPERIMENTAL. Windows games from your Steam library running on the car through Proton (Wine), on the car's own graphics driver, shown on the central screen while parked, with sound. Sign in to Steam and install games on the phone page (scan the QR code on the iDrive Steam page); play them from the iDrive or the phone. Touch is the mouse (a tap clicks); no game controllers or keyboard yet. Games that need the Steam client get an optional Run without Steam (gbe_fork). About 430 MB to download, 1.3 GB on the unit, plus the games.",
@@ -33,7 +33,9 @@
       "src/frame_out.c": "native/frame_out.c",
       "src/frame_out.h": "native/frame_out.h",
       "src/pcm_play.py": "tool/pcm_play.py",
-      "src/protocol/wayland-drm.xml": "native/wayland-drm.xml"
+      "src/protocol/wayland-drm.xml": "native/wayland-drm.xml",
+      "src/touch.c": "native/touch.c",
+      "src/touch.h": "native/touch.h"
     }
   },
   "files": [

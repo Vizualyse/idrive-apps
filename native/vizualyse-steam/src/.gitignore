@@ -4,4 +4,6 @@
 /frame_out.c
 /frame_out.h
 /pcm_play.py
+/touch.c
+/touch.h
 # end platform

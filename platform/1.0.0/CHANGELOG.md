@@ -16,7 +16,7 @@ on main at 68aa156 (byte for byte, but for a comment in `native/frame_out.h`):
 | `app/qr_png.js` | every app |
 | `app/vehicle_speed.js` | vizualyse_moonlight, vizualyse_chromium, vizualyse_steam |
 | `native/frame_out.{c,h}` | vizualyse-moonlight, vizualyse-chromium, vizualyse-steam |
-| `native/touch.{c,h}` | vizualyse-moonlight, vizualyse-chromium |
+| `native/touch.{c,h}` | vizualyse-moonlight, vizualyse-chromium (and vizualyse-steam, from 0.1.5) |
 | `native/wayland-drm.xml` (Mesa's notice) | vizualyse-chromium, vizualyse-steam |
 | `test/pcm_play_test.py` | vizualyse-moonlight |
 

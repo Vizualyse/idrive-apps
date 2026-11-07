@@ -35,8 +35,9 @@ The tool ships three archives, built by `tools/bundle.sh`:
   `DepotDownloader_3.4.0`.
 - gbe_fork: <https://github.com/Detanup01/gbe_fork>, tag `release-2026_09_27`
   (the release's `emu-win-release-vs22.7z`, `release/regular/`).
-- `src/touch_main.c`, `src/touch.c`, `src/touch.h` (`steam-touch`) and
-  `test/fake_render_client.js` are copies of vizualyse-chromium's (ours,
+- `src/touch_main.c` (`steam-touch`) and
+  `test/fake_render_client.js` are copies of vizualyse-chromium's; `src/touch.*` is
+  the platform's `native/touch.*` (all ours,
   GPL-3.0-or-later).
 
 On request we provide the same sources.
