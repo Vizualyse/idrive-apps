@@ -25,6 +25,12 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   unit's i965 imports dmabufs, no pixels. Our compositors run between a
   stand-in client (`fake_client`) and Winston; the Browser runs end to end
   (`native/vizualyse-chromium/test/run_winston_test.sh`).
+- **Vulkan off the car, and one try on it** ([tools/vk-trial](../tools/vk-trial/README.md),
+  2026-11-07): Mesa 19.0.6's ANV runs every stage (instance to a compute
+  dispatch) on gpu-bench's stub behind a layer answering as the unit's IOTG
+  4.14 kernel; the same gate and probe go to the car, armed by hand for one
+  start (the arming in tmpfs `/run`, used up before anything loads, so any
+  restart ends it).
 - Test frames and filter graphs on a PC first: a still from
   `winston-grabber -n 1 x.jpg` or a few seconds of its UDP stream through the
   same ffmpeg build in a Linux container, then the unit.

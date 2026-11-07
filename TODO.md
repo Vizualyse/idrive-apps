@@ -34,11 +34,24 @@ workflow (Actions > Release, the component ids).
   decoding into VA surfaces exported as dmabufs, so the last copy goes too
   (the unit's libva is 1.x: `vaAcquireBufferHandle`, not
   `vaExportSurfaceHandle`).
-- [ ] **Investigate Vulkan again**, with the safety net (by hand, the
-  gpu-trial marker, an off-car harness first; see Browser's "Retry Vulkan
-  (ANV)" below and [knowledge/browser.md](knowledge/browser.md), "Vulkan on
-  this kernel"). It would give Proton DXVK / VKD3D in place of WineD3D and
-  full WebGPU.
+- [ ] **Investigate Vulkan again: try Mesa 19.0.6's ANV on the car with
+  [tools/vk-trial](tools/vk-trial/README.md)** (built and tested off the
+  car 2026-11-07: armed by hand for one start, the arming in tmpfs `/run`
+  and used up before anything loads, so any restart ends it; every stage
+  passes on gpu-bench's stub behind a 4.14 kernel layer; only over a live
+  SSH session; the display node hidden in the child's own namespace). **Dry
+  run on the car done (2026-11-07, no driver: every safety held;
+  the real package installed in `/var/opt/vk-trial`). **Every probe stage
+  ok on the car (2026-11-07): Vulkan 1.1.96, a compute dispatch 1024 of
+  1024 right, no hang.** Ask before each step. Next, `command` stages, each
+  run off the car on the stub first: something that draws offscreen
+  (render pass, image copy back), then a longer run (minutes, many
+  submissions: the crumbs keep only the risky calls after 4000 lines), then
+  WSI on Wayland (ANV is built without it: a rebuild) for vkcube and
+  DXVK under Proton. After a hang: `vk-trial status`, the try's
+  `crumbs.log` (the ioctl that never returned) and `kmsg.log`. It would give
+  Proton DXVK / VKD3D in place of WineD3D and full WebGPU
+  ([knowledge/browser.md](knowledge/browser.md), "Vulkan on this kernel").
 - [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
   volume does nothing until a CarPlay phone connects (our sound goes into
   CarPlay's SmartXbar input; see Moonlight's item below and
@@ -210,14 +223,15 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   for each Chromium security update; start from Debian's chromium source
   package and its patches, built in our Docker image as the bundle is now.
   Measure first what a patched GPU process would save (a CDP trace).
-- [ ] **Retry Vulkan (ANV) for WebGPU**, with the safety net (by hand,
-  the gpu-trial marker, never kept; an off-car harness first). Dawn on
-  Vulkan would give full WebGPU (not compatibility mode) and skip the GL
-  translation. Mesa 22.3's ANV hung the kernel (0.1.1), ≥ 23.2 refuses the
-  4.14 kernel; the candidate is **ANV from Mesa 19.0.6**, the unit's own
-  i965's release, built for the unit's glibc (knowledge/browser.md, "Vulkan
-  on this kernel"). Chromium on Wayland refuses Vulkan for compositing only:
-  Dawn (and ANGLE) can still use it.
+- [ ] **Retry Vulkan (ANV) for WebGPU**, once
+  [tools/vk-trial](tools/vk-trial/README.md) has seen Mesa 19.0.6's ANV
+  get through `compute` on the car (High priority): then Chromium as a
+  vk-trial `command` stage, never kept. Dawn on Vulkan would give full
+  WebGPU (not compatibility mode) and skip the GL translation. Mesa 22.3's
+  ANV hung the kernel (0.1.1), ≥ 23.2 refuses the 4.14 kernel. Chromium on
+  Wayland refuses Vulkan for compositing only: Dawn (and ANGLE) can still
+  use it. Chromium's bundled loader would need ANV for glibc 2.27 (ours)
+  or its own build.
 - [ ] **vel.gg on the CPU, measured on the car with 0.2.5** (2026-11-07, on
   its menu, 30 s): chromium-wl's ms per picture 30 → 3 (the app), but the
   four cores 327 % of 400 busy, load 12.7: renderer 101 % (one core, the
