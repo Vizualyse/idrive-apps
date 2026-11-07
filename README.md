@@ -48,7 +48,8 @@ node release/release.js check                 # two clean builds, compared byte 
 ```
 
 Each folder's README has the details; [`release/README.md`](release/README.md)
-covers versions, the catalog and publishing.
+covers versions, the catalog and publishing. To make a new app, start with
+[`platform/BUILDING-APPS.md`](platform/BUILDING-APPS.md).
 
 ## Credits
 

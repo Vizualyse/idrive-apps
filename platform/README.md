@@ -4,6 +4,10 @@ Code that more than one tool or app needs, kept once and **versioned**. Each
 component pins the version it is built with, so a fix lands everywhere by
 moving the pins, and a component that isn't moved keeps exactly what it had.
 
+**Making a new app?** Read [BUILDING-APPS.md](BUILDING-APPS.md): the tool
+and the iDrive app file by file, the head unit's rules, testing off the car
+and releasing.
+
 ```
 platform/
   platform.js          sync, check, list, new, use
