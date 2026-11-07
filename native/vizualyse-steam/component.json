@@ -34,6 +34,7 @@
     "native/usb_pads": { "version": "1.0.0", "files": { "src/usb_pads.c": "usb_pads.c", "src/usb_pads.h": "usb_pads.h" } },
     "native/usbip_pad": { "version": "1.0.0", "files": { "test/usbip_pad.c": "usbip_pad.c" } },
     "native/wayland_drm": { "version": "1.0.0", "files": { "src/protocol/wayland-drm.xml": "wayland-drm.xml" } },
+    "native/winston_out": { "version": "1.0.0", "files": { "src/winston_out.c": "winston_out.c", "src/winston_out.h": "winston_out.h", "src/protocol/ivi-application.xml": "ivi-application.xml", "src/protocol/ivi-controller.xml": "ivi-controller.xml", "src/protocol/linux-dmabuf-unstable-v1.xml": "linux-dmabuf-unstable-v1.xml" } },
     "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [

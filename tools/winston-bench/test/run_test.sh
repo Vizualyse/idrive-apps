@@ -63,22 +63,32 @@ if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${SIZE}, for
 
 # Our compositors between a stand-in client and Winston (test/build_sinks.sh)
 sh "$HERE/test/build_sinks.sh" >/dev/null || { echo "build_sinks failed"; exit 1; }
-for sink in chromium; do
+# (wl-sink lets the client choose its size: fake_client's 640x360)
+for sink in chromium steam; do
+    S=$SIZE
+    [ $sink = steam ] && S=640x360
     rm -f "$OUT"/c-*.ppm "$OUT"/sink.log
-    run swrast sh /test/sink_scenario.sh $sink shm $SIZE
-    if PPM=c-shown.ppm pic shown $SIZE $PLACE >/dev/null; then pass "$sink shm: shown through Winston"; else bad "$sink shm: shown"; fi
-    if PPM=c-hidden.ppm pic absent $SIZE $PLACE >/dev/null; then pass "$sink shm: hidden"; else bad "$sink shm: hidden"; fi
-    if PPM=c-again.ppm pic shown $SIZE $PLACE >/dev/null; then pass "$sink shm: shown again with the picture kept"; else bad "$sink shm: again"; fi
+    run swrast sh /test/sink_scenario.sh $sink shm $S
+    if PPM=c-shown.ppm pic shown $S $PLACE >/dev/null; then pass "$sink shm: shown through Winston (dropped to nobody)"; else bad "$sink shm: shown"; fi
+    if PPM=c-hidden.ppm pic absent $S $PLACE >/dev/null; then pass "$sink shm: hidden"; else bad "$sink shm: hidden"; fi
+    if PPM=c-again.ppm pic shown $S $PLACE >/dev/null; then pass "$sink shm: shown again"; else bad "$sink shm: again"; fi
     if log fake.log | grep -q '"ev":"done"'; then pass "$sink shm: the client ran to the end ($(log fake.log | tr -d '\n'))"; else bad "$sink shm: client"; fi
 
     rm -f "$OUT"/sink.log
-    WINSTON_ARGS="--param stdlog-level=3" run stub sh /test/sink_scenario.sh $sink drm $SIZE
-    fwd=$(log sink.log | sed -n 's/.*"fwd":\([0-9]*\).*/\1/p' | tail -1)
-    if [ "${fwd:-0}" -ge 60 ]; then pass "$sink drm: $fwd GPU buffers passed on as they are"; else bad "$sink drm: fwd ${fwd:-none}"; fi
-    if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${SIZE}"; then pass "$sink drm: Winston's renderer imports them"; else bad "$sink drm: import"; fi
+    WINSTON_ARGS="--param stdlog-level=3" run stub sh /test/sink_scenario.sh $sink drm $S
     frames=$(log fake.log | sed -n 's/.*"frames":\([0-9]*\),"releases":\([0-9]*\).*/\1 \2/p')
     set -- $frames
     if [ "${1:-0}" -ge 100 ] && [ "${2:-0}" -ge "$(( ${1:-0} - 3 ))" ]; then pass "$sink drm: every buffer back to the client ($1 frames, $2 releases)"; else bad "$sink drm: frames/releases $frames"; fi
+    if [ $sink = chromium ]; then
+        fwd=$(log sink.log | sed -n 's/.*"fwd":\([0-9]*\).*/\1/p' | tail -1)
+        if [ "${fwd:-0}" -ge 60 ]; then pass "$sink drm: $fwd GPU buffers passed on as they are"; else bad "$sink drm: fwd ${fwd:-none}"; fi
+        if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${S}"; then pass "$sink drm: Winston's renderer imports them"; else bad "$sink drm: import"; fi
+    else
+        # wl-sink reads GPU buffers back (Wine's GL area is composed) and shows the picture through Winston
+        sent=$(log sink.log | sed -n 's/.*"drm":\([0-9]*\),"winston":\([0-9]*\).*/\1 \2/p' | tail -1)
+        set -- $sent
+        if [ "${1:-0}" -ge 60 ] && [ "${2:-0}" -ge 30 ]; then pass "$sink drm: GPU buffers read back and shown through Winston ($1 read, $2 shown)"; else bad "$sink drm: $sent"; fi
+    fi
 done
 
 echo "winston-bench: $fail failed"

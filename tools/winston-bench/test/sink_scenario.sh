@@ -9,17 +9,24 @@
 #   /out/c-hidden.ppm  after "hide"
 #   /out/c-again.ppm   after "winston" again (the picture kept while hidden)
 # Logs: /out/sink.log (its JSON events), /out/fake.log.
-#   sh /test/sink_scenario.sh chromium shm|drm WxH
+#   sh /test/sink_scenario.sh chromium|steam shm|drm WxH
+# Each sink starts as root and drops to nobody, as on the car (it keeps
+# Winston's socket group: a show connects to Winston again).
 SINK=$1 MODE=$2 SIZE=$3
 D=/tmp/sink
 mkdir -p $D
+chmod 0777 $D
 mkfifo $D/in
-DRM=
-[ "$MODE" = drm ] && DRM="--drm --unit-lib /usr/lib"
 case $SINK in
     chromium) C=/sinks/chromium
+              DRM=; [ "$MODE" = drm ] && DRM="--drm --unit-lib /usr/lib"
               set -- $C/ld-linux-x86-64.so.2 --library-path $C $C/chromium-wl --dir $D --socket wayland-0 \
-                     --size $SIZE --fps 30 --winston /run/wayland/wayland-0 $DRM ;;
+                     --size $SIZE --fps 30 --winston /run/wayland/wayland-0 --uid 65534 --gid 65534 $DRM ;;
+    steam)    C=/sinks/steam
+              DRM=; [ "$MODE" = shm ] && DRM=--no-drm
+              # its socket in $D (not exported: the probes talk to Winston's wayland-0)
+              set -- env XDG_RUNTIME_DIR=$D $C/ld-linux-x86-64.so.2 --library-path $C $C/wl-sink --socket wayland-0 --frame $D/frame \
+                     --create $SIZE --fps 30 --winston /run/wayland/wayland-0 --uid 65534 --gid 65534 $DRM ;;
     *) echo "unknown sink $SINK"; exit 2 ;;
 esac
 "$@" < $D/in > /out/sink.log 2>&1 &

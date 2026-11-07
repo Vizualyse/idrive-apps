@@ -11,4 +11,6 @@
 /touch.h
 /usb_pads.c
 /usb_pads.h
+/winston_out.c
+/winston_out.h
 # end platform

@@ -6,6 +6,7 @@
 # pinned platform copies, in their own build images, each with every library
 # it loads and its loader beside it (as the tools' bundles carry them):
 #   build-sinks/chromium/chromium-wl   native/vizualyse-chromium/sink/wl.c
+#   build-sinks/steam/wl-sink          native/vizualyse-steam/src/wl_sink.c
 # Run in the rootfs container as /sinks/chromium/ld-linux-x86-64.so.2
 # --library-path /sinks/chromium /sinks/chromium/chromium-wl ...
 #   sh tools/winston-bench/test/build_sinks.sh
@@ -47,4 +48,22 @@ if [ "$(cat "$HERE/build-sinks/chromium.key" 2>/dev/null)" != "$key" ]; then
     echo "winston-bench: chromium-wl built ($key)"
 else
     echo "winston-bench: chromium-wl up to date ($key)"
+fi
+
+# Steam's wl-sink: its own bench build (test/build_wl_sink.sh), with its libraries
+S=$REPO/native/vizualyse-steam
+sh "$S/test/build_wl_sink.sh" >/dev/null
+key=$( (cat "$S/build/wl-sink"; docker image inspect -f '{{.Id}}' idrive-steam-bench:trixie) | sha256sum | cut -c1-16)
+if [ "$(cat "$HERE/build-sinks/steam.key" 2>/dev/null)" != "$key" ]; then
+    rm -rf "$HERE/build-sinks/steam"
+    docker run --rm --platform linux/amd64 --network none -v "$WIN_REPO/native/vizualyse-steam/build:/b:ro" -v "$WIN_OUT:/out" \
+        idrive-steam-bench:trixie sh -euc '
+        O=/out/steam; mkdir -p $O
+        cp /b/wl-sink $O/
+        for l in $(ldd $O/wl-sink | awk "/=>/ { print \$3 } /ld-linux/ { print \$1 }"); do cp -L "$l" $O/; done
+        for l in libdl.so.2 libpthread.so.0 librt.so.1; do cp -L /lib/x86_64-linux-gnu/$l $O/ 2>/dev/null || true; done'
+    echo "$key" > "$HERE/build-sinks/steam.key"
+    echo "winston-bench: wl-sink built ($key)"
+else
+    echo "winston-bench: wl-sink up to date ($key)"
 fi

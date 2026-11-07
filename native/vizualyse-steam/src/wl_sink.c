@@ -35,6 +35,12 @@
  * Subsurfaces are treated as desynchronised. Surfaces are copied at commit
  * and their buffers released at once, so a client is never held up by us.
  *
+ * --winston SOCKET: connected to Winston at start (before the drop; its
+ * socket is root:mgu_wayland), and stdin also takes "winston X,Y,W,H" (the
+ * pictures straight onto the centre screen through Winston, fitted into
+ * that place, full colour: platform native/winston_out) and "hide" (back to
+ * the frame file only). Through Winston no I420 is made.
+ *
  * stdout: one JSON event a line: {"ev":"ready","socket":..,"drm":bool,..},
  * {"ev":"toplevel","title":..}, {"ev":"stats","pictures":n,"commits":n,
  * "shm":n,"drm":n,"ms":avg} once a second while anything happens,
@@ -58,6 +64,7 @@
 #include <wayland-server.h>
 #include "frame_out.h"
 #include "rgb.h"
+#include "winston_out.h"
 #include "xdg-shell-server-protocol.h"
 #include "wayland-drm-server-protocol.h"
 #include "viewporter-server-protocol.h"
@@ -70,6 +77,12 @@ static struct wl_display *display;
 static struct frame_out fo;
 static int out_w = 1280, out_h = 720;
 static uint32_t *canvas;
+/* through Winston (--winston) */
+static struct wo *wo;
+static struct wl_event_source *wo_source;
+static int wshown;
+static struct wo_ring *ring;
+static unsigned long n_winston;
 static const char *snap_path;
 static int dirty;
 static unsigned long n_pictures, n_commits, n_shm, n_drm, n_ms_total;
@@ -788,6 +801,47 @@ static void touch_input(char kind, int X, int Y) {
     wl_display_flush_clients(display);
 }
 
+/* ---- through Winston (--winston) ---- */
+
+static void wo_lost(void) {
+    if (!wo) return;
+    if (wo_source) { wl_event_source_remove(wo_source); wo_source = NULL; }
+    wo_ring_free(ring); ring = NULL;
+    wo_close(wo); wo = NULL;
+    wshown = 0;
+    puts("{\"ev\":\"winston-lost\"}");   /* the frame file goes on */
+    fflush(stdout);
+}
+
+static int on_wo(int fd, uint32_t mask, void *data) {
+    (void)fd; (void)data;
+    if ((mask & (WL_EVENT_HANGUP | WL_EVENT_ERROR)) || wo_dispatch(wo) < 0) wo_lost();
+    return 0;
+}
+
+static void wo_say(void *ud, const char *m) {
+    (void)ud;
+    printf("{\"ev\":\"winston\",\"msg\":"); jstr(m); puts("}");
+    fflush(stdout);
+}
+
+/* "winston X,Y,W,H": shown through Winston there; "hide": not. */
+static void winston_cmd(const char *line) {
+    int x, y, w, h;
+    if (!strcmp(line, "hide")) {
+        if (wshown && wo) wo_hide(wo);
+        wo_ring_free(ring); ring = NULL;
+        wshown = 0;
+        return;
+    }
+    if (sscanf(line, "winston %d,%d,%d,%d", &x, &y, &w, &h) != 4 || w < 16 || h < 16 || w > 4096 || h > 4096) return;
+    if (!wo) { puts("{\"ev\":\"error\",\"error\":\"not connected to Winston\"}"); fflush(stdout); return; }
+    wo_place(wo, x, y, w, h);
+    if (wo_show(wo, 1) < 0) { wo_lost(); return; }
+    wshown = 1;
+    dirty = 1;   /* the current picture at the next tick */
+}
+
 static char in_buf[512];
 static size_t in_len;
 
@@ -807,7 +861,9 @@ static int on_stdin(int fd, uint32_t mask, void *data) {
         *nl = 0;
         char kind;
         int x, y;
-        if (sscanf(line, " %c %d %d", &kind, &x, &y) == 3 && (kind == 'd' || kind == 'm' || kind == 'u'))
+        if (!strncmp(line, "winston ", 8) || !strcmp(line, "hide"))
+            winston_cmd(line);
+        else if (sscanf(line, " %c %d %d", &kind, &x, &y) == 3 && (kind == 'd' || kind == 'm' || kind == 'u'))
             touch_input(kind, x, y);
         line = nl + 1;
     }
@@ -913,7 +969,17 @@ static void compose(void) {
             if (s->role == ROLE_SUB && s->parent == top && s->pix) blit(s, x + s->sx, y + s->sy);
         org_x = x; org_y = y;
     }
-    if (fo.map) {
+    if (wshown && wo) {
+        /* full colour, straight to Winston: our next free buffer */
+        if (!ring) ring = wo_ring_new(wo, out_w, out_h, 3);
+        struct wo_buf *b = NULL;
+        uint32_t *dst = ring ? wo_ring_next(ring, &b) : NULL;
+        if (dst) {
+            /* XRGB8888: Winston ignores the canvas's 0 alpha byte (bench) */
+            memcpy(dst, canvas, (size_t)out_w * out_h * 4);
+            if (wo_present(wo, b, out_w, out_h) == 0) n_winston++;
+        }
+    } else if (fo.map) {
         xrgb_to_i420(canvas, out_w, out_w, out_h, frame_out_next(&fo));
         frame_out_publish(&fo);
     }
@@ -944,8 +1010,8 @@ static int tick(void *data) {
     if (now - last_stats >= 1000) {
         unsigned long pics = n_pictures - stat_pictures;
         if (pics) {
-            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"ms\":%.1f}\n",
-                   pics, n_commits, n_shm, n_drm, (double)n_ms_total / (double)pics);
+            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"winston\":%lu,\"ms\":%.1f}\n",
+                   pics, n_commits, n_shm, n_drm, n_winston, (double)n_ms_total / (double)pics);
             fflush(stdout);
         }
         stat_pictures = n_pictures; n_ms_total = 0; last_stats = now;
@@ -972,14 +1038,14 @@ static int create_frame(const char *path, int w, int h) {
 }
 
 int main(int argc, char **argv) {
-    const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128";
+    const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128", *winston = NULL;
     int create_w = 0, create_h = 0, no_drm = 0, input = 0;
     long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
         { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "input", 0, 0, 'i' }, { "whole-window", 0, 0, 'w' },
-        { 0, 0, 0, 0 } };
+        { "winston", 1, 0, 'W' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 's': sock = optarg; break;
@@ -993,8 +1059,9 @@ int main(int argc, char **argv) {
         case 'g': drop_gid = strtol(optarg, NULL, 10); break;
         case 'i': input = 1; break;
         case 'w': whole_window = 1; break;
+        case 'W': winston = optarg; break;
         default:
-            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window]\n");
+            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window] [--winston SOCKET]\n");
             return 2;
         }
     }
@@ -1014,9 +1081,18 @@ int main(int argc, char **argv) {
     } else if (create_w > 0 && create_h > 0) {
         out_w = create_w; out_h = create_h;
     }
-    /* the frame file is mapped: from here on the tool's uid, the GPU's group */
+    /* Winston's socket wants root or mgu_wayland: connected before the drop */
+    if (winston) {
+        char err[256];
+        struct wo_opts wopts = { .socket = winston, .x = 108, .y = 82, .w = 1790, .h = 638, .log = wo_say };
+        wo = wo_open(&wopts, err, sizeof err);
+        if (!wo) { printf("{\"ev\":\"error\",\"error\":"); jstr(err); puts("}"); fflush(stdout); }
+    }
+    /* the frame file is mapped: from here on the tool's uid, the GPU's group
+     * (and Winston's socket group: each show of our layer connects again) */
     if ((drop_uid >= 0) != (drop_gid >= 0)) { fprintf(stderr, "wl-sink: --uid and --gid go together\n"); return 2; }
-    if (drop_gid >= 0 && (setgroups(0, NULL) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
+    gid_t keep = wo ? (gid_t)wo_socket_gid(wo) : (gid_t)-1;
+    if (drop_gid >= 0 && (setgroups(keep != (gid_t)-1 ? 1 : 0, &keep) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
                           || getuid() != (uid_t)drop_uid || geteuid() != (uid_t)drop_uid)) {
         printf("{\"ev\":\"error\",\"error\":\"cannot drop to uid %ld gid %ld\"}\n", drop_uid, drop_gid);
         return 1;
@@ -1048,18 +1124,20 @@ int main(int argc, char **argv) {
     wl_event_loop_add_signal(loop, SIGINT, on_signal, NULL);
     signal(SIGPIPE, SIG_IGN);
     static struct wl_event_source *in_src;
-    if (input) in_src = wl_event_loop_add_fd(loop, 0, WL_EVENT_READABLE, on_stdin, &in_src);
+    if (input || wo) in_src = wl_event_loop_add_fd(loop, 0, WL_EVENT_READABLE, on_stdin, &in_src);
+    if (wo) wo_source = wl_event_loop_add_fd(loop, wo_fd(wo), WL_EVENT_READABLE, on_wo, NULL);
 
     printf("{\"ev\":\"ready\",\"socket\":"); jstr(sock);
     printf(",\"size\":[%d,%d],\"drm\":%s,\"device\":", out_w, out_h, gl.ok ? "true" : "false");
     jstr(gl.ok ? gl.device : NULL);
-    puts("}");
+    printf(",\"winston\":%s}\n", wo ? "true" : "false");
     fflush(stdout);
     last_stats = now_ms();
     wl_event_source_timer_update(tick_timer, 1000 / fps);
     wl_display_run(display);
     wl_display_destroy_clients(display);
     wl_display_destroy(display);
+    if (wo) { wo_ring_free(ring); wo_close(wo); }
     frame_out_close(&fo);
     return 0;
 }
