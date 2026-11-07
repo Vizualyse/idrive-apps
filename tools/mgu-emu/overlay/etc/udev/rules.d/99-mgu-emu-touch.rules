@@ -1,0 +1,2 @@
+# mgu-emu: a fixed name for tap2touch's uinput device (Winston's input = ...)
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="tap2touch", SYMLINK+="input/tap2touch"

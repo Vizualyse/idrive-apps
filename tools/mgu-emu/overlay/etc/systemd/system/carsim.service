@@ -1,0 +1,18 @@
+# mgu-emu: stand-ins for the car-side SOME/IP services (carsim/carsim.js):
+# lifecycle, vehicle condition (PWF), key, vehicle (units / language), the
+# iDrive controller. Started before the HMI; root, like a Store root tool.
+[Unit]
+Description=mgu-emu car stand-ins (SOME/IP)
+Wants=vsomeipd.service
+After=vsomeipd.service
+Before=hmi.service earlyhmi.service
+
+[Service]
+ExecStartPre=/usr/bin/node /usr/lib/mgu-emu/carsim/policy.js
+ExecStart=/usr/bin/node /usr/lib/mgu-emu/carsim/carsim.js --ctl /run/carsim/ctl
+RuntimeDirectory=carsim
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=early.target

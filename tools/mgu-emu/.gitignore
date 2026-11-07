@@ -1,0 +1,3 @@
+build/
+# made from the unit catalog by build-image.sh (BMW definitions)
+*.json

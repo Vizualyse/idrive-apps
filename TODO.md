@@ -25,6 +25,27 @@ workflow (Actions > Release, the component ids).
   [knowledge/sound.md](knowledge/sound.md)): our own source and domain
   through the audio manager's routing interface, studied offline first.
 
+## Emulator (tools/mgu-emu)
+
+The unit boots in QEMU to the HMI's home screen in English, with stand-ins
+for the car's SOME/IP services (carsim); nothing reacts to input yet
+([tools/mgu-emu](tools/mgu-emu/README.md)).
+
+- [ ] **The controller:** carsim offers FrontCCU (0xB508) and the HMI sees
+  it, but doesn't subscribe: `[CCS] Cannot set configuration: (pu, active
+  front active fond, alive)=(1, 1, 0, 0)`. Find what makes the controller
+  "alive" for `CDevCCS` (another service or field; its display state), then
+  map the host keyboard to `/run/carsim/ctl`.
+- [ ] **Touch on the centre screen:** which SOME/IP service brings the
+  display's touch to the HMI (no `wl_touch` in HmiMain3D), then tap2touch
+  into it instead of Winston.
+- [ ] **HmiTest answers nothing** (root is allowed now): what gates
+  `CHmiStubHmiTest::sendCommand`.
+- [ ] **A fake keystore device** (`dev-keystore.device`): persod,
+  CodingShmApp and oapcontroller all require it.
+- [ ] **Store apps in the emulator:** oapcontroller (needs
+  `dev-keystore.device` and joynr) and our tools' `/var/opt` from the car.
+
 ## hook111 (CarPlay's second screen)
 
 - [ ] **Load it with the Store's `preload`** (an LD_PRELOAD into a firmware

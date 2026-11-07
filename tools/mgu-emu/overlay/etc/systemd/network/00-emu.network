@@ -1,0 +1,6 @@
+# mgu-emu: QEMU's user network (SSH on the host's 127.0.0.1:2222).
+[Match]
+Driver=virtio_net
+
+[Network]
+DHCP=ipv4
