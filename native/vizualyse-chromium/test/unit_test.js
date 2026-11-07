@@ -53,10 +53,14 @@ function frameFile(file, w, h) {
 }
 
 /* The page: left half red, right half blue, a button in the middle that turns
- * the title "tapped". */
+ * the title "tapped" and asks for a pointer lock, as a game's "click to play"
+ * does (window.lock: what it got). */
 const PAGE = '<!doctype html><title>start</title><style>body{margin:0}#l,#r{position:fixed;top:0;bottom:0;width:50%}#l{left:0;background:#f00}#r{right:0;background:#00f}' +
     'button{position:fixed;left:270px;top:90px;width:100px;height:60px}</style><div id=l></div><div id=r></div>' +
-    '<button onclick="document.title=\'tapped\'">tap</button>';
+    '<script>function tap(b){document.title="tapped";window.lock="asked";' +
+    'Promise.resolve(b.requestPointerLock()).then(function(){window.lock=document.pointerLockElement===b?"locked":"none"},' +
+    'function(e){window.lock=e.name+": "+e.message})}</script>' +
+    '<button onclick="tap(this)">tap</button>';
 
 /* A touch capture for chromium-touch: down / up at screen x, y (the PDU layout of touch.c). */
 function touchCapture(file, x, y) {
@@ -162,6 +166,10 @@ async function main() {
     const title = await b.send('Runtime.evaluate', { expression: 'document.title', returnByValue: true });
     check(touches.length >= 2, 'chromium-touch reads the touches (' + touches.map((t) => t.p).join(',') + ')');
     check(title.result.value === 'tapped', 'a tap presses the page\'s button (title ' + title.result.value + ')');
+    /* chromium-wl gave the window the keyboard's focus: without it, "WrongDocumentError" (vel.gg, 0.2.5) */
+    const lock = await b.send('Runtime.evaluate', { expression: 'window.lock + ", focus " + document.hasFocus()', returnByValue: true });
+    check(/^locked, focus true$/.test(lock.result.value), 'the tap gets the page a pointer lock (' + lock.result.value + ')');
+    await b.send('Runtime.evaluate', { expression: 'document.exitPointerLock()' });
 
     /* hidden, nothing more goes into the file */
     b.hide();

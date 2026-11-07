@@ -301,6 +301,19 @@ refuse scripts; `git` works) and a web search.
     restart.
   - A title change draws nothing: after showing, a still page sends no new
     frame (chromium-wl keeps the last one from while hidden).
+  - **Pointer lock needs the keyboard's focus** (0.2.6, 2026-11-07). Without
+    a `wl_keyboard.enter` on the window, `document.hasFocus()` is false and
+    `requestPointerLock()` rejects with `WrongDocumentError: The root
+    document of this element is not valid for pointer lock` even after a
+    tap (vel.gg on the car with 0.2.5); the `ACTIVATED` toplevel state alone
+    is not enough. With the enter it locks (no `zwp_pointer_constraints_v1`
+    offered). A `wl_keyboard.modifiers` after the enter, on a keyboard with
+    `NO_KEYMAP`, **crashes Chromium**. A touch only counts as a user gesture
+    at its end: a lock asked for in a touch's `pointerdown` is refused
+    ("A user gesture is required"), in its `click` granted.
+  - On the car (0.2.5, CPU mode, vel.gg's menu, 2026-11-07): chromium-wl
+    3 ms a picture (the screencast's decode was 30 ms); the four cores 327 %
+    busy: renderer 101 %, GPU process 61 %, chromium-wl 32 %.
   - The GPU mode: Ozone Wayland has ANGLE ask for a **GBM platform display on
     Chromium's own GBM device** (made on the render node it finds with
     `drmGetDevices2`), or with **no device** when it finds none; Mesa's GBM

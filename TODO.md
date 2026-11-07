@@ -96,7 +96,7 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.5, vizualyse_chromium 0.2.3)
+## Browser (vizualyse-chromium 0.2.6, vizualyse_chromium 0.2.3)
 
 Chromium 156 with its own glibc, on its own Wayland compositor (chromium-wl), WebGL and WebGPU on the CPU
 (SwiftShader) or, in the GPU mode, on the unit's own Mesa 19 (WebGL 2 on
@@ -146,12 +146,24 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   hiding it, the phone page, pages loading through
   the proxy, the pictures per second and chromium-wl's ms (`status`), CPU and
   memory of Chromium (the cgroup's `memory.max_usage_in_bytes`).
-- [ ] **0.2.5 on the car: pictures without JPEG.** Chromium on Wayland into
-  chromium-wl, straight into the frame file (off the car ~5x less CPU per
-  picture than 0.2.4's screencast). Check: `display: ready` in the journal,
-  pages and vel.gg look right (colours, no tearing), `status` pictures per
-  second and ms each, Chromium's CPU in `top`, the resolution setting (the
-  page drawn scaled into a smaller window, touches scaled with it). **The GPU
+- [ ] **0.2.6 on the car: vel.gg starts.** 0.2.5 refused every pointer lock
+  (vel.gg: "Mouse or sound access was declined: the root document of this
+  element is not valid for pointer lock"): chromium-wl never gave the
+  window the keyboard's focus, so Chromium's window had none. 0.2.6 sends
+  `wl_keyboard.enter` (off the car: locked after a tap, unit_test). Check
+  that vel.gg starts and plays by touch while locked; if it then wants
+  relative motion from the touches, `zwp_pointer_constraints_v1` /
+  `zwp_relative_pointer_v1` in chromium-wl. Sound is still `--mute-audio`.
+- [ ] **vel.gg on the CPU, measured on the car with 0.2.5** (2026-11-07, on
+  its menu, 30 s): chromium-wl's ms per picture 30 → 3 (the app), but the
+  four cores 327 % of 400 busy, load 12.7: renderer 101 % (one core, the
+  page's main thread), GPU process 61 % (SwiftShader), chromium-wl 32 %
+  (more than 3 ms x 30/s: find where), node 23 %, natp 20 %, HmiMain3D 18 %.
+  Memory: 42 MB free, 1.4 GB cache, 296 MB swap used; renderer 1.47 GB RSS,
+  GPU process 0.55 GB. The renderer's core is the limit now: the GPU mode
+  (WebGPU on GLES, below) is the next step, then the resolution.
+- [ ] **0.2.5 on the car: the GPU mode on the Wayland path.** The CPU mode
+  works on the car (pictures, colours, 3 ms each). **The GPU
   mode is new on this path and untested on a GPU**: Chromium hands its GBM
   buffers to chromium-wl over wl_drm, read back through the unit's EGL on
   the render node (the shim now also maps Wayland, surfaceless and
@@ -161,9 +173,6 @@ without a safety net** (by hand only, a marker to fall back after a hang:
 - [ ] **Faster GPU pictures:** chromium-wl reads each GPU frame back whole
   (glReadPixels, RGBA) and converts on the CPU; a shader to I420 first would
   read back 3/8 of it, and a dmabuf handed to mgu-render none.
-- [ ] **Pointer lock for games** (vel.gg's start needs it): chromium-wl
-  could offer `zwp_pointer_constraints_v1` / `zwp_relative_pointer_v1`, the
-  touches driving relative motion.
 - [ ] **Input:** the iDrive controller (FrontCCU) as arrow keys / scrolling,
   and the usbfs gamepads from Moonlight as the Gamepad API (Chromium has no
   evdev to read on the unit).

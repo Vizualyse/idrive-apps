@@ -31,8 +31,10 @@
  *
  * What a client gets: wl_compositor 4, wl_subcompositor, wl_shm (ARGB / XRGB
  * 8888), xdg_wm_base 5 (one full-screen toplevel at the output's size,
- * popups dismissed), wl_output 4, wl_seat 5 (pointer and keyboard, never an
- * event: input goes in over DevTools). --drm (the GPU mode) adds wl_drm 2: the
+ * popups dismissed), wl_output 4, wl_seat 5 (pointer and keyboard: input
+ * goes in over DevTools, but the browser's window gets the keyboard's focus,
+ * wl_keyboard.enter, or Chromium refuses a page pointer lock, a game's
+ * "WrongDocumentError"). --drm (the GPU mode) adds wl_drm 2: the
  * render node for Chromium's GBM buffers, which come as PRIME (dmabuf)
  * buffers and are read back through the unit's own EGL (Mesa 19, loaded from
  * --unit-lib by path, as the browser's EGL shim does).
@@ -372,6 +374,8 @@ struct surface {
 };
 
 static struct wl_list surfaces;
+static struct wl_list keyboards;       /* wl_keyboard resources */
+static struct surface *focus;          /* the one the keyboards entered */
 static long next_order;
 static int dirty;
 static struct wl_event_source *frame_timer;
@@ -461,6 +465,7 @@ static void remove_cb(struct wl_resource *res) { wl_list_remove(wl_resource_get_
 static void surface_destroy_res(struct wl_resource *res) {
     struct surface *s = wl_resource_get_user_data(res);
     struct surface *o;
+    if (focus == s) focus = NULL;
     wl_list_for_each(o, &surfaces, link)
         if (o->parent == s) o->parent = NULL;
     struct wl_resource *cb, *tmp;
@@ -542,6 +547,27 @@ static void take_buffer(struct surface *s, struct wl_resource *buffer) {
     }
 }
 
+/* Keyboard focus on the browser's window (top_surface), for kb, or every
+ * keyboard of its client when the window changed. */
+static void enter(struct wl_resource *kb, struct surface *s) {
+    if (wl_resource_get_client(kb) != wl_resource_get_client(s->res)) return;
+    struct wl_array keys;
+    wl_array_init(&keys);
+    wl_keyboard_send_enter(kb, wl_display_next_serial(display), s->res, &keys);
+    wl_array_release(&keys);
+}
+static void refocus(void) {
+    struct surface *t = top_surface();
+    if (!t || t == focus) return;
+    struct wl_resource *kb;
+    if (focus)
+        wl_resource_for_each(kb, &keyboards)
+            if (wl_resource_get_client(kb) == wl_resource_get_client(focus->res))
+                wl_keyboard_send_leave(kb, wl_display_next_serial(display), focus->res);
+    focus = t;
+    wl_resource_for_each(kb, &keyboards) enter(kb, t);
+}
+
 static void send_configure(struct surface *s) {
     if (!s->xdg_toplevel || !s->xdg_surface) return;
     struct wl_array states;
@@ -576,6 +602,7 @@ static void s_commit(struct wl_client *c, struct wl_resource *r) {
     wl_list_init(&s->pend_frames);
     /* the first commit asks for the configure: full screen at the output's size */
     if (s->role == ROLE_TOPLEVEL && !s->configured) send_configure(s);
+    if (s->role == ROLE_TOPLEVEL) refocus();
     arm_frames();
 }
 
@@ -818,10 +845,12 @@ static void seat_get_pointer(struct wl_client *c, struct wl_resource *r, uint32_
 static void seat_get_keyboard(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     struct wl_resource *res = wl_resource_create(c, &wl_keyboard_interface, wl_resource_get_version(r), id);
     if (!res) { wl_client_post_no_memory(c); return; }
-    wl_resource_set_implementation(res, &keyboard_impl, NULL, NULL);
+    wl_resource_set_implementation(res, &keyboard_impl, NULL, remove_cb);
+    wl_list_insert(&keyboards, wl_resource_get_link(res));
     int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
     if (fd >= 0) { wl_keyboard_send_keymap(res, WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP, fd, 0); close(fd); }
     if (wl_resource_get_version(r) >= 4) wl_keyboard_send_repeat_info(res, 0, 0);
+    if (focus) enter(res, focus);
 }
 static void seat_get_touch(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     (void)c; (void)id;
@@ -975,6 +1004,7 @@ int main(int argc, char **argv) {
     }
     wl_list_init(&surfaces);
     wl_list_init(&outputs);
+    wl_list_init(&keyboards);
     setenv("XDG_RUNTIME_DIR", dir, 1);
     umask(0117);   /* the socket: 0660, Chromium's group */
     display = wl_display_create();
