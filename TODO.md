@@ -9,7 +9,7 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
-- [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8; built and
+- [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
   tested off the car against the unit's own Winston, `tools/winston-bench`,
   [knowledge/central-screen.md](knowledge/central-screen.md) "Winston
   directly"). Release both, then on the phone page "Winston output" on, Show
@@ -23,10 +23,17 @@ workflow (Actions > Release, the component ids).
   screen, put back`). Browser GPU mode: `"fwd"` in chromium-wl's stats
   (Chromium's buffers passed on as they are) and a smooth WebGL page; the
   CPU of chromium-wl against mgu-render's path.
+  Moonlight (centre console): `core: {"ev":"output","via":"winston",...}` in
+  the journal; the picture with black bars and the stop hint for 10 s; the
+  decoder event still `msdk (GPU, …)` with moonlight-core as uid 12998; the
+  `decodeMs` and moonlight-core's CPU against mgu-render's path; hold-to-stop.
 - [ ] **Winston output, next:** the default output once seen on the car,
   mgu-render's frame file only as the fallback. On the car with Steam:
   `"fwd"` in wl-sink's stats (Wine's GL area passed on as it is) and a game
-  hidden and shown again a few times without stalling.
+  hidden and shown again a few times without stalling. Moonlight: MSDK
+  decoding into VA surfaces exported as dmabufs, so the last copy goes too
+  (the unit's libva is 1.x: `vaAcquireBufferHandle`, not
+  `vaExportSurfaceHandle`).
 - [ ] **Investigate Vulkan again**, with the safety net (by hand, the
   gpu-trial marker, an off-car harness first; see Browser's "Retry Vulkan
   (ANV)" below and [knowledge/browser.md](knowledge/browser.md), "Vulkan on

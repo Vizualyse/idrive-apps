@@ -85,6 +85,8 @@
   <label class="t">Picture on</label>
   <div class="seg" id="outputs"></div>
   <div class="small" id="outHint" style="margin-top:8px"></div>
+  <div style="margin-top:8px"><button id="winston">Winston output: off</button></div>
+  <div class="small" id="winstonHint">Winston output (experimental, the centre console): the picture goes straight to the car's own screen compositor instead of through mgu-render, converted by the graphics card. From the next stream; off again whenever the tool starts.</div>
 </div>
 
 <div class="card">
@@ -191,6 +193,9 @@
       var o = s.outputs.filter(function (x) { return x.id === b.dataset.v; })[0];
       b.disabled = !o || !o.ready;
     });
+    var wn = s.winston || {};
+    $('winston').textContent = 'Winston output: ' + (wn.on ? 'on (turn off)' : 'off (turn on)') + (wn.via ? ' - now through ' + wn.via : '') + (wn.note ? ' - ' + wn.note : '');
+    $('winston').onclick = function () { api('/api/winston', { on: !wn.on }).then(show).catch(fail); };
     $('outHint').textContent = s.output === 'console'
       ? 'The picture covers the whole centre screen. To stop it: hold the screen for 2 s, or hold Start + Back + LB + RB on a controller for 2 s, or Stop here.'
       : 'Smaller and at 15 fps: the cluster and the HUD take ~5.5 MB/s at most. Changing this while playing reconnects to the game.';

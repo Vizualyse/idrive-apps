@@ -34,6 +34,11 @@ int decoder_decode(struct decoder *d, const uint8_t *au, size_t len, uint8_t *pi
 
 const char *decoder_name(const struct decoder *d) { return d->name; }
 
+void decoder_nv12(struct decoder *d, int stride, size_t uv_offset) {
+    d->nv12_stride = stride;
+    d->nv12_uv = uv_offset;
+}
+
 void decoder_close(struct decoder *d) { if (d) d->close(d); }
 
 /* Bilinear, 16.16 fixed point, centres aligned. */

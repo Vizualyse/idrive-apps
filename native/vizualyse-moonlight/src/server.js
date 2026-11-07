@@ -269,6 +269,30 @@ function setSpeed(kmh) {
 /* ---- the stream ------------------------------------------------------------ */
 
 let session = null;   /* { host, app, core, py, frames, fps, started, stopping, ... } */
+
+/* Winston output (experimental): on the centre console, the stream's pictures
+ * straight onto the screen through Winston, the unit's compositor
+ * (moonlight-core --winston, core/winston_video.c: NV12 GPU buffers that
+ * Winston's GPU converts and scales; the stop hint over them), instead of the
+ * I420 frame file through mgu-render. Tested off the car against the unit's
+ * own Winston (test/run_winston_test.sh). By hand and never kept, like the
+ * other tools'; from the next stream. Back on mgu-render by itself when
+ * moonlight-core can't use Winston or loses it (the frame file is always
+ * made: the way back). */
+const WINSTON_SOCKET = process.env.MOONLIGHT_WINSTON || '/run/wayland/wayland-0';
+let winstonOut = false;
+let winstonNote = null;
+
+function setWinston(on) {
+    on = !!on;
+    if (on === winstonOut) return null;
+    if (on && !fs.existsSync(WINSTON_SOCKET)) return 'no Winston at ' + WINSTON_SOCKET;
+    winstonOut = on;
+    winstonNote = null;
+    log('winston: ' + (on ? 'on: the console picture straight onto the screen through Winston, from the next stream; off again at the next start of the tool' : 'off: through mgu-render'));
+    if (control) control.broadcast();
+    return null;
+}
 let last = { state: 'idle' };
 let pads = [];        /* found while idle: moonlight-core pads */
 const consoleVideo = new consoleOut.ConsoleVideo(log);
@@ -370,7 +394,10 @@ function startStream(h, app, launch, retried) {
     const fw = out.console ? w : out.w, fh = out.console ? hgt : out.h, ffps = out.console ? fps : out.fps;
     /* the frame file first: moonlight-core opens it as it starts */
     let small = null;
-    if (out.console) consoleVideo.start(w, hgt, fps);
+    const viaWinston = out.console && winstonOut && fs.existsSync(WINSTON_SOCKET);
+    /* through Winston: the frame file only (the way back); mgu-render once moonlight-core says it needs it */
+    if (viaWinston) consoleOut.frameFile(consoleOut.FILE, w, hgt);
+    else if (out.console) consoleVideo.start(w, hgt, fps);
     else {
         mkdirp(SMALL_DIR);
         small = path.join(SMALL_DIR, 'small-' + out.target);
@@ -382,6 +409,7 @@ function startStream(h, app, launch, retried) {
         '--fps', String(fps), '--bitrate', String(kbps), '--rikey', launch.rikey, '--rikeyid', String(launch.rikeyid),
         '--uid', String(NET_UID), '--gid', String(NET_UID), '--frame-file', out.console ? consoleOut.FILE : small, '--decoder', DECODER];
     if (!out.console) args.push('--out-fps', String(out.fps));
+    if (viaWinston) args.push('--winston', WINSTON_SOCKET, '--hint', path.join(HERE, 'hint.rgba'));
     /* hold-to-stop, while the picture covers the centre screen */
     if (out.console) {
         if (TOUCH_FILE) args.push('--touch-file', TOUCH_FILE);
@@ -391,7 +419,7 @@ function startStream(h, app, launch, retried) {
     const s = { host: { id: h.id, name: h.name, address: h.address }, app: { id: app.id, name: app.name }, core: core, py: null,
         frames: 0, fps: 0, pps: 0, rtt: 0, poor: false, started: Date.now(), connected: false, error: null, pads: {}, w: w, h: hgt, fpsWanted: fps,
         kbps: kbps, decoder: null, decodeMs: 0, skipped: 0, out: out, output: OUTPUTS[settings.output] ? settings.output : 'console',
-        layer: null, small: small, reader: null, pump: null };
+        layer: null, small: small, reader: null, pump: null, via: out.console ? (viaWinston ? 'winston' : 'mgu-render') : null };
     session = s;
     log('stream: ' + app.name + ' from ' + h.name + ' at ' + w + 'x' + hgt + '@' + fps + ', ' + kbps + ' kbps' + (settings.bitrate ? '' : ' (auto)') +
         (settings.audio ? ', sound ' + settings.volume + '%' : ', no sound') + ', on the ' + out.title + (out.console ? '' : ' (' + fw + 'x' + fh + '@' + ffps + ')'));
@@ -443,6 +471,15 @@ function startStream(h, app, launch, retried) {
                 continue;
             }
             if (e.ev === 'first-picture') { if (!s.frames) s.frames = 1; log('stream: first picture'); continue; }
+            if (e.ev === 'output' || e.ev === 'winston-lost') {
+                log('core: ' + JSON.stringify(e));
+                if (e.ev === 'output' && e.via === 'winston') { s.via = 'winston'; continue; }
+                /* moonlight-core is on the frame file (no Winston, or it went): mgu-render shows it */
+                winstonNote = e.ev === 'winston-lost' ? 'the connection to Winston was lost: back on mgu-render' : 'Winston not used: ' + (e.why || '?');
+                if (s.via === 'winston' && session === s && !s.stopping) { s.via = 'mgu-render'; consoleVideo.start(s.w, s.h, s.fpsWanted, true); }
+                if (control) control.broadcast();
+                continue;
+            }
             if (e.ev === 'status') { s.poor = e.poor; continue; }
             if (e.ev === 'rumble') continue;
             if (e.ev === 'exit-hold') { log('stream: the screen held at ' + e.x + ',' + e.y); stopSession('the screen was held'); continue; }
@@ -553,6 +590,7 @@ function status() {
         kbps: s ? s.kbps : bitrate(), decoder: s ? s.decoder : null, decodeMs: s ? s.decodeMs : 0, skipped: s ? s.skipped : 0, pps: s ? s.pps : 0,
         speed: vehicle.kmh, moving: moving(),
         output: s ? s.output : settings.output,
+        winston: { on: winstonOut, via: s ? s.via : null, note: winstonNote },
         outputs: Object.keys(OUTPUTS).map((k) => ({ id: k, title: OUTPUTS[k].title, ready: outputReady(k) })),
         pads: padList, canResume: !!settings.last && !s, last: settings.last ? { host: settings.last.host, app: settings.last.app } : null,
         error: s ? s.error : last.error || null, note: s ? null : last.note || null,
@@ -631,6 +669,7 @@ const ROUTES = {
     '/api/quit': () => quitGame().then(() => null),
     '/api/settings': (b) => { setSettings(b); return Promise.resolve(null); },
     '/api/output': (b) => setOutput(b.output),
+    '/api/winston': (b) => { const e = setWinston(b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(null); },
     '/api/pad': (b) => { const e = phonePad(b); return e ? Promise.reject(new Error(e)) : Promise.resolve(null); },
     '/api/idr': () => { if (session) session.core.stdin.write('idr\n'); return Promise.resolve(null); },
 };
@@ -655,6 +694,7 @@ function setEnabled(on) {
     saveSettings();
     if (on) { if (!NO_FIREWALL) { try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); } } }
     else {
+        winstonOut = false;
         stopSession('turned off');
         if (!NO_FIREWALL) { try { log('firewall: removed ' + firewall.remove() + ' rule(s)'); } catch (e) { log('firewall: ' + e.message); } }
     }
@@ -668,6 +708,7 @@ function command(c) {
     if (c.cmd === 'disable') { setEnabled(false); return null; }
     if (!settings.enabled) return 'Moonlight is off';
     if (c.cmd === 'stop') { stopSession('stopped on the iDrive page'); return null; }
+    if (c.cmd === 'winston') return setWinston(c.on);
     if (c.cmd === 'quit') { quitGame().catch((e) => { last = Object.assign({}, last, { error: e.message }); }).then(() => control && control.broadcast()); return null; }
     if (c.cmd === 'output') {
         if (!OUTPUTS[c.output]) return 'the centre console, the cluster or the HUD';

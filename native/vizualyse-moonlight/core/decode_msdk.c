@@ -387,6 +387,14 @@ static int picture(struct msdk *d, mfxFrameSurface1 *in, uint8_t *pic) {
         return fail(d, "MFXVideoVPP_RunFrameVPPAsync", s);
     }
     const int W = d->out_w, H = d->out_h, P = d->vout.Data.Pitch;
+    if (d->base.nv12_stride) {
+        /* NV12 wanted (a GPU buffer for Winston): VPP's rows as they are */
+        const int S = d->base.nv12_stride;
+        for (int y = 0; y < H; y++) memcpy(pic + (size_t)y * S, d->vout.Data.Y + (size_t)y * P, (size_t)W);
+        uint8_t *uvo = pic + d->base.nv12_uv;
+        for (int y = 0; y < H / 2; y++) memcpy(uvo + (size_t)y * S, d->vout.Data.UV + (size_t)y * P, (size_t)W);
+        return 1;
+    }
     for (int y = 0; y < H; y++) memcpy(pic + (size_t)y * W, d->vout.Data.Y + (size_t)y * P, (size_t)W);
     uint8_t *u = pic + (size_t)W * H, *v = u + (size_t)W * H / 4;
     for (int y = 0; y < H / 2; y++) {

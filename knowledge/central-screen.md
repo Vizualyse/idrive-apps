@@ -129,6 +129,13 @@ scene provider in its rootfs container, null outputs), not yet on the car:
   the shim (the kernel does it right). Winston then logs `dmabuf N plane 1:
   failed to close gem handle` (both planes share one handle and its scanout
   path closes it twice): harmless. Not yet seen on the car.
+- **Moonlight through Winston** (moonlight-core `--winston`, bench with a
+  real Sunshine): three linear GBM `R8` buffers of h * 3/2 rows, each shown as
+  a two-plane NV12 dmabuf (UV at stride * h); the decoder writes into the
+  mapped buffer (`gbm_bo_map` per picture, the unmap hands it to the GPU),
+  Winston converts and scales. At 60 a second Winston always gave a buffer
+  back in time (no frame without a free one in 4 s). The process links the
+  unit's `libwayland-client.so.0` (1.15); its MSDK decoding is unchanged.
 - **Release a client's buffer once.** A compositor in front of Winston that
   holds a client's GPU buffer until Winston lets it go must send that
   buffer's `wl_buffer.release` exactly once: a second one, after Wine (Mesa's

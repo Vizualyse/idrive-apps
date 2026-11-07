@@ -64,5 +64,6 @@ grep -q "render order with" /out/winston.log || sleep 0.5
 SINKS=
 [ -d "$HERE/build-sinks" ] && SINKS="-v $WIN_HERE/build-sinks:/sinks:ro"
 # shellcheck disable=SC2086 # ENV, SINKS and DOCKER_ARGS are word lists
-exec docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE/build:/bench:ro" -v "$WIN_OUT:/out" \
+# BENCH_NETWORK: a Docker network instead of none (a test streaming from a container on it)
+exec docker run --rm --platform linux/amd64 --network "${BENCH_NETWORK:-none}" -v "$WIN_HERE/build:/bench:ro" -v "$WIN_OUT:/out" \
     -v "$WIN_HERE/test:/test:ro" $SINKS ${DOCKER_ARGS:-} $ENV $IMG sh -c "$START" sh "$@"

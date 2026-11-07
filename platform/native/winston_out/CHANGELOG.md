@@ -16,3 +16,9 @@ they are, our own buffers (`wo_ring`), camera surfaces watched (their
 its privileges. Tested against the unit's own Winston off the car:
 `tools/winston-bench`. Used by vizualyse-chromium (chromium-wl) and
 vizualyse-steam (wl-sink).
+Also (still 1.0.0, before its first release): `wo_present_at` (a picture
+placed as part of a bigger one: Wine's GL area where wl-sink's composed
+picture would have it), the black backdrop (`backdrop` 1: under that
+picture; 2: under the whole place, black bars), `wo_overlay` (a hint over
+the picture), `wo_poll` (for a decoder's thread, no event loop), multi-plane
+dmabufs (NV12). vizualyse-moonlight (moonlight-core) uses it too.
