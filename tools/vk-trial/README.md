@@ -98,6 +98,45 @@ that never returned) and `kmsg.log` (with luck the `sysrq w` dump).
 Ways back over SSH, if ever needed: `vk-trial disarm`; `rm /run/vk-trial/icd.json`;
 `rm -r /var/opt/vk-trial` removes it all.
 
+## DXVK under Proton (`dxvk/`)
+
+Direct3D 9 to 11 on Vulkan instead of WineD3D's OpenGL, through this gate,
+before anything of it goes into the Steam tool.
+
+- **Which DXVK: 1.9.4.** ANV 19.0.6 is Vulkan 1.1: DXVK 2.x and GE-Proton's
+  own 3.1 need 1.3; 1.10.x wants `VK_EXT_host_query_reset` at every feature
+  level (Mesa 19.1+; seen: "Requested feature level not supported"). 1.9.4
+  needs transform feedback from 10_0, which ANV 19.0 has.
+- **The Steam tool's bundles, unchanged:** its runtime, Proton and
+  `launch.json` (Proton's environment and argv, as `game.js` starts Wine).
+  A private prefix: a copy of the Steam prefix, uid 12990's, with DXVK in
+  `system32` / `syswow64` and `d3d11,d3d10core,d3d9,dxgi=n`. The Vulkan
+  loader is ours (`lib/libvulkan.so.1`): the Steam runtime has none and must
+  not (its `bundle.sh` refuses drivers and ICDs). Sound off (`winealsa.drv=d`).
+- **Frames:** Wine's Wayland driver into our wl-sink, offscreen (wl_drm
+  buffers read back through the unit's i965); nothing on the screen yet.
+
+```sh
+sh tools/vk-trial/dxvk/bench.sh       # D3D11 + D3D9 through DXVK on the stub ANV, the Steam bench's Proton
+sh tools/vk-trial/dxvk/car_test.sh    # the car's steps in the unit's rootfs, the Steam bundles, the gate
+sh tools/vk-trial/dxvk/package.sh     # build/vk-trial-dxvk.tgz (run.js, the test programs, DXVK)
+```
+
+On the car (each step asked first), with vk-trial installed and the Steam
+tool installed and started once:
+
+```sh
+scp tools/vk-trial/build/vk-trial-dxvk.tgz root@169.254.224.142:/tmp/
+tar xzf /tmp/vk-trial-dxvk.tgz -C /var/opt/vk-trial && rm /tmp/vk-trial-dxvk.tgz
+node /var/opt/vk-trial/dxvk/run.js setup         # root: the private prefix (~260 MB in /var/opt)
+G=/var/opt/vk-trial/bin/vk-trial
+$G arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run && $G run
+cat $(cat /var/opt/vk-trial/state/last)/out.log  # each program's lines, wl-sink's GPU buffers
+```
+
+On the car the programs check their read-back pixels (`T_D3D11_CHECK_PIXELS`
+/ `T_D3D9_CHECK_PIXELS`); on the stub they can't.
+
 ## Files
 
 | | |

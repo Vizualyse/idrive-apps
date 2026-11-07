@@ -329,6 +329,22 @@ refuse scripts; `git` works) and a web search.
   Still nothing on the screen: wl-sink keeps its frames to itself. (That
   run's "109 GPU buffers" was the probe adding up wl-sink's running total;
   fixed after: `drm`/`shm` are totals, `pictures` per line.)
+- **DXVK under Proton on ANV 19.0.6, off the car (2026-11-07,
+  `tools/vk-trial/dxvk`):** DXVK **1.9.4** is the newest that fits. 2.x and
+  GE-Proton 11's own 3.1.1 need Vulkan 1.3; DXVK 1.10.3 found the device
+  but refused every feature level ("Requested feature level not
+  supported"): from 9_1 up it wants `VK_EXT_host_query_reset`
+  (`hostQueryReset`), which ANV has from Mesa 19.1, and Mesa 19.0.6's
+  Vulkan headers (version 97) predate it, so no small backport. 1.9.4 needs
+  transform feedback from 10_0, which ANV 19.0 has. Through GE-Proton 11's
+  Wine (`winevulkan`, the Wayland driver) on the stub: D3D11 at **feature
+  level 11_1** and D3D9 (VS / PS 3.0, max texture 16384) on `Intel(R) HD
+  Graphics 505 (Broxton)`, 60 frames each into wl-sink as `wl_drm` GPU
+  buffers; also with the Steam tool's real bundles in the unit's rootfs
+  through vk-trial's gate (uid 12990, a private prefix copy, ~260 MB). The
+  Steam runtime has no Vulkan loader (its bundle.sh refuses GPU drivers and
+  ICDs): vk-trial's loader 1.1.70 works under Wine. DXVK's D3D9 reports the
+  driver as `igdumd64.dll`.
 - **The unit's kernel isn't mainline 4.14** (its uapi header,
   `intel/linux-intel-lts` `4.14/base`): it has context param 6
   (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where

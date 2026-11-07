@@ -67,7 +67,10 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
         -ldl -lvulkan -lwayland-client -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2
     # wl-sink: on libwayland 1.22 (/opt/wl), server and client (it is also
     # a client of Winston: winston_out), shipped in lib/wl/ and found through
-    # its RUNPATH only, so nothing else of ours loads them
+    # its RPATH only, so nothing else of ours loads them. RPATH, not RUNPATH:
+    # it wins over LD_LIBRARY_PATH, which callers set for the EGL of the unit
+    # (/usr/lib, with the old libwayland-client of the unit: "undefined symbol
+    # wl_proxy_marshal_flags" in dxvk/car_test.sh with a RUNPATH)
     S=/opt/wl/bin/wayland-scanner G=/tmp/gen/sink
     XDG=/opt/wlp/stable/xdg-shell/xdg-shell.xml VP=/opt/wlp/stable/viewporter/viewporter.xml
     $S server-header $XDG $G/xdg-shell-server-protocol.h; $S private-code $XDG $G/xdg-shell-protocol.c
@@ -81,7 +84,7 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
         $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c $G/viewporter-protocol.c \
         $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c \
         -L/opt/wl/lib -lwayland-server -lwayland-client -ldl -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 \
-        -Wl,--enable-new-dtags,-rpath,\$ORIGIN/../lib/wl
+        -Wl,--disable-new-dtags,-rpath,\$ORIGIN/../lib/wl
     mkdir -p /m/build/pkg/lib/wl && cp /out/lib/wl/* /m/build/pkg/lib/wl/
     cp /tmp/gen/client/xdg-shell-client-protocol.h /tmp/gen/client/xdg-shell-protocol.c /m/build/bench/   # for test/lavapipe_test.sh
     gcc $W -shared -fPIC -o /m/build/pkg/lib/vk_crumbs.so /m/src/vk_crumbs.c -ldl
@@ -102,7 +105,7 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
     have /m/build/unitlib/libwayland-client.so.0.3.0 > /tmp/unit
     have /m/build/pkg/lib/wl/libwayland-server.so.0 /m/build/pkg/lib/wl/libwayland-client.so.0 > /tmp/ours
     ! ls /m/build/pkg/lib/libwayland* 2>/dev/null || { echo "no libwayland in lib/ (ANV and vkprobe use the unit'"'"'s)"; exit 1; }
-    readelf -d /m/build/pkg/bin/wl-sink | grep -q "RUNPATH.*\$ORIGIN/../lib/wl" || { echo "wl-sink has no RUNPATH to lib/wl"; exit 1; }
+    readelf -d /m/build/pkg/bin/wl-sink | grep -q "(RPATH).*\$ORIGIN/../lib/wl" || { echo "wl-sink has no RPATH to lib/wl"; exit 1; }
     for f in /m/build/pkg/bin/vkprobe /m/build/pkg/lib/libvulkan_intel.so; do
         miss=$(need "$f" | comm -23 - /tmp/unit)
         [ -z "$miss" ] || { echo "$f needs what the unit'"'"'s libwayland-client lacks: $miss"; exit 1; }
