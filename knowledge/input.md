@@ -40,5 +40,12 @@ Index: [index.md](index.md).
 ## Gamepads
 
 - No evdev / HID / uinput in the car's kernel; XInput USB pads through usbfs
-  (`native/vizualyse-moonlight/README.md`). Nobody else reads gamepads on
-  the unit.
+  (`native/vizualyse-moonlight/README.md`). Moonlight and vizualyse-steam
+  read them (the platform's `native/pads.c` and `native/usb_pads.c` since
+  2026-11-07); each claims a pad only while it streams or a game runs.
+- For Windows games (Wine) the pad goes through our own XInput DLL, not
+  Wine's: Wine's XInput reads its winebus, whose backends (udev evdev /
+  hidraw, SDL) have nothing to read on the car. `steam-pads` writes the
+  state to a file in /dev/shm and the DLL reads it (vizualyse-steam's
+  README). Moonlight's button flags are XInput's bits, so the state maps as
+  it is.

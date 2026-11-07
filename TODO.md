@@ -219,7 +219,7 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   evdev to read on the unit).
 - [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
-## Steam (vizualyse-steam 0.1.4, vizualyse_steam 0.1.1)
+## Steam (vizualyse-steam 0.1.6, vizualyse_steam 0.1.1)
 
 Windows games from the owner's Steam library through Proton (WineD3D on the
 unit's own Mesa 19, Wine's Wayland driver into `wl-sink`, mgu-render's frame
@@ -259,10 +259,15 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
 - [ ] **Keyboard:** `wl-sink`'s keyboard has no keymap yet (Wine logs
   "Failed to load Xkb keymap"); an on-screen one, or the iDrive controller
   as keys.
-- [ ] **Controllers (0.1.5):** `t_xinput` with test/usbip_pad.c's virtual Vader 4
-  Pro (as Moonlight's tests): Proton's winebus through SDL2 (built with
-  hidapi on libusb, as the car has no evdev / HID / uinput), else an XInput
-  DLL fed by Moonlight's `pads.c`.
+- [ ] **On the car: a controller with 0.1.6.** The Vader 4 Pro (wired, an
+  Xbox 360 pad `045e:028e`) in a game with controller support:
+  `pads: player 1: ...` in the journal, its LED, the game's response.
+  Off the car the unit test plays `t_xinput` through our `xinput1_4.dll`
+  with the virtual USB/IP pad (A, the left stick).
+- [ ] **Controllers, next:** rumble (XInputSetState into a file
+  steam-pads sends to the pad's OUT endpoint); DualShock / DualSense over
+  usbfs (HID reports; as Moonlight's TODO); vizualyse-moonlight onto the
+  platform's `pads.c` / `usb_pads.c` (it still has its own copy).
 - [ ] **32-bit games, a long session:** threads come and go with an LDT
   entry each (`patches/wine-no-ia32.patch`), freed with the thread: watch a
   long FTL session for "too many threads".

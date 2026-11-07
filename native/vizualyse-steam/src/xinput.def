@@ -1,0 +1,17 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+; Our XInput (src/xinput.c): xinput1_4's names and ordinals, plus xinput1_3's
+; XInputGetDSoundAudioDeviceGuids (6), so one DLL serves every version.
+LIBRARY xinput1_4.dll
+EXPORTS
+    XInputGetState @2
+    XInputSetState @3
+    XInputGetCapabilities @4
+    XInputEnable @5
+    XInputGetDSoundAudioDeviceGuids @6
+    XInputGetBatteryInformation @7
+    XInputGetKeystroke @8
+    XInputGetAudioDeviceIds @10
+    XInputGetStateEx @100
+    XInputWaitForGuideButton @101
+    XInputCancelGuideButtonWait @102
+    XInputPowerOffController @103

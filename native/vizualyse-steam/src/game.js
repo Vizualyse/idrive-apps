@@ -208,6 +208,7 @@ class Game extends EventEmitter {
     _startWine() {
         const o = this.o;
         this._startSound();
+        this._startPads();
         const exe = path.join(o.dir, o.exe);
         const e = env.wineEnv(o.launch, o.appId, DISPLAY);
         const libs = e.LD_LIBRARY_PATH;
@@ -254,6 +255,36 @@ class Game extends EventEmitter {
         this.emit('state', state);
     }
 
+    /* The controllers while the game runs: steam-pads (root: usbfs) claims
+     * XInput USB pads and writes their state to env.PADS_FILE, which our
+     * xinput1_4.dll reads in Wine. this.pads: { slot: name } of those in. */
+    _startPads() {
+        const bin = process.env.STEAM_PADS || path.join(env.RUNTIME, 'steam-pads');
+        this.pads = {};
+        if (!fs.existsSync(bin)) { this._log('pads: no ' + bin); return; }
+        let p;
+        try { p = spawn(bin, ['--out', env.PADS_FILE], { stdio: ['pipe', 'pipe', 'pipe'] }); } catch (e) { this._log('pads: ' + e.message); return; }
+        this.padsProc = p;
+        p.stdin.on('error', () => { /* it exited */ });
+        let rest = '';
+        p.stdout.on('data', (d) => {
+            const lines = (rest + d).split('\n');
+            rest = lines.pop();
+            lines.forEach((l) => {
+                let e;
+                try { e = JSON.parse(l); } catch (x) { return; }
+                if (e.ev === 'pad') {
+                    if (e.present) this.pads[e.slot] = e.name; else delete this.pads[e.slot];
+                    this._log('pads: ' + (e.present ? 'player ' + (e.slot + 1) + ': ' + e.name : e.name + ' unplugged'));
+                    this.emit('state', this.state);
+                } else if (e.ev === 'error') this._log('pads: ' + e.error);
+            });
+        });
+        p.stderr.on('data', (d) => this._log('pads: ' + String(d).trim()));
+        p.on('error', (e) => this._log('pads: ' + e.message));
+        p.on('exit', (c, s) => { if (this.padsProc === p) { this.padsProc = null; this.pads = {}; this._log('pads: exited (' + (s || c) + ')'); } });
+    }
+
     /* A touch on the game's picture (frame pixels, the size it draws at):
      * kind 'd' down, 'm' move, 'u' up; wl-sink makes it Wine's pointer. */
     input(kind, x, y) {
@@ -287,6 +318,13 @@ class Game extends EventEmitter {
             this._killLeft();
             if (this.sink) { const s = this.sink; this.sink = null; try { s.kill('SIGTERM'); } catch (e) { /* gone */ } setTimeout(() => { try { s.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000); }
             if (this.py) { const p = this.py; this.py = null; try { p.kill('SIGTERM'); } catch (e) { /* gone */ } setTimeout(() => { try { p.kill('SIGKILL'); } catch (e) { /* gone */ } }, 500); }
+            if (this.padsProc) {
+                /* its stdin's end: the slots marked unplugged, the pads released */
+                const p = this.padsProc;
+                this.padsProc = null;
+                try { p.stdin.end(); } catch (e) { /* gone */ }
+                setTimeout(() => { try { p.kill('SIGKILL'); } catch (e) { /* gone */ } }, 1500);
+            }
             if (this.pcm) {
                 clearInterval(this.pcm.timer);
                 try { fs.closeSync(this.pcm.fd); } catch (e) { /* gone */ }

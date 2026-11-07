@@ -43,7 +43,10 @@ function download() {
         /* app 4343 (unit_test.js: the USB stick's game) is the 32-bit build
          * of the test program when there is one: every run plays both */
         const exe32 = GAME_EXE.replace(/64\.exe$/, '32.exe');
-        const exe = Number(app) === 4343 && exe32 !== GAME_EXE && fs.existsSync(exe32) ? exe32 : GAME_EXE;
+        let exe = Number(app) === 4343 && exe32 !== GAME_EXE && fs.existsSync(exe32) ? exe32 : GAME_EXE;
+        /* app 4545 (the controller check): t_xinput beside it */
+        const xin = path.join(path.dirname(GAME_EXE), 't_xinput64.exe');
+        if (Number(app) === 4545 && fs.existsSync(xin)) exe = xin;
         /* read and write, not copyFile (which sets the mode: EPERM on FAT32) */
         const copy = (a, b) => fs.writeFileSync(b, fs.readFileSync(a));
         copy(exe, path.join(dir, 'TestGame.exe'));

@@ -695,7 +695,9 @@ function status() {
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
-            buffers: { drm: game.stats.drm, shm: game.stats.shm }, note: game.note } : null,
+            buffers: { drm: game.stats.drm, shm: game.stats.shm }, note: game.note,
+            /* the controllers in use: [{ player, name }] (steam-pads) */
+            pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),
         settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume },
         choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, disk: diskAvailable(),
@@ -836,6 +838,7 @@ ensureBundles((err) => {
         userDir(env.INTERNAL_GAMES);
     } catch (e) { log('folders: ' + e.message); }
     noPrefixUpdate();
+    installXInput();
     bundle = { state: 'ready' };
     try { log('bundle: ' + fs.readFileSync(path.join(env.RUNTIME, 'VERSION'), 'utf8').split('\n').slice(1, 3).join(', ')); } catch (e) { /* old */ }
     /* games found in the folders but not in the library (a library lost, a manual copy) */
@@ -859,6 +862,36 @@ function noPrefixUpdate() {
         fs.chownSync(f, UID, UID);
         log('prefix: updates disabled');
     } catch (e) { log('prefix: ' + e.message); }
+}
+
+/* Our XInput (src/xinput.c, the runtime's xinput/) in the kept prefix under
+ * every XInput name, 64-bit in system32, 32-bit in syswow64, in place of the
+ * links to Wine's own (env.js overrides them "=n"): Wine's reads its
+ * winebus, which has nothing to read on the car; ours reads steam-pads'
+ * pads file. Written only when different (the prefix outlives updates). */
+const XINPUT_NAMES = ['xinput1_1.dll', 'xinput1_2.dll', 'xinput1_3.dll', 'xinput1_4.dll', 'xinput9_1_0.dll'];
+function installXInput() {
+    const win = path.join(env.PREFIX, 'pfx', 'drive_c', 'windows');
+    let n = 0;
+    [['x64', 'system32'], ['x86', 'syswow64']].forEach((a) => {
+        const src = path.join(env.RUNTIME, 'xinput', a[0], 'xinput1_4.dll');
+        const dir = path.join(win, a[1]);
+        if (!fs.existsSync(src) || !fs.existsSync(dir)) return;
+        const want = fs.readFileSync(src);
+        XINPUT_NAMES.forEach((name) => {
+            const dst = path.join(dir, name);
+            try {
+                let same = false;
+                try { same = !fs.lstatSync(dst).isSymbolicLink() && fs.readFileSync(dst).equals(want); } catch (e) { /* none */ }
+                if (same) return;
+                try { fs.unlinkSync(dst); } catch (e) { /* none */ }
+                fs.writeFileSync(dst, want, { mode: 0o644 });
+                fs.chownSync(dst, UID, UID);
+                n++;
+            } catch (e) { log('xinput: ' + dst + ': ' + e.message); }
+        });
+    });
+    if (n) log('xinput: ours in the prefix (' + n + ' files)');
 }
 
 /* games found in a games folder but not in the library (a library lost, a

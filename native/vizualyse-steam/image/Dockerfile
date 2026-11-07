@@ -32,4 +32,5 @@ RUN rm -f /etc/apt/sources.list.d/* && printf '%s\n' \
         python3 libvulkan1 \
         gcc libc6-dev pkg-config libwayland-dev wayland-protocols patchelf binutils file \
         curl unzip xz-utils 7zip \
+        gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 \
     && rm -rf /var/lib/apt/lists/*

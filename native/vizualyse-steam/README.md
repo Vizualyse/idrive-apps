@@ -8,9 +8,10 @@ iDrive or the phone. Experimental: built and tested off the car on the
 unit's own root filesystem (below); **nothing has run on the car yet.**
 Background: [knowledge/games.md](../../knowledge/games.md).
 
-**Not in this version:** a keyboard or game controllers (touch is the
-mouse: a tap clicks, a drag moves with the button held), .NET Framework
-games (no Wine Mono). Games that need the Steam client running (it doesn't
+**Not in this version:** a keyboard; controllers other than wired XInput
+(Xbox 360-style) USB pads, and their rumble (touch is the mouse: a tap
+clicks, a drag moves with the button held); .NET Framework games (no Wine
+Mono). Games that need the Steam client running (it doesn't
 run here) get **Run without Steam** per game (gbe_fork, below). 64-bit and
 32-bit games run on the car (Slay the Spire 2, FTL; 32-bit through our
 rebuilt `ntdll.so`, below).
@@ -47,6 +48,19 @@ rebuilt `ntdll.so`, below).
   game's client area in a subsurface over its window frame (title bar
   included, drawn in software): wl-sink shows only that client area, so
   there is no title bar (a plain window shows whole; `--whole-window`).
+- **Controllers**: wired XInput (Xbox 360-style) USB pads, up to four, as
+  vizualyse-moonlight reads them: the car's kernel has no evdev, HID or
+  xpad, so `steam-pads` (`src/pads_main.c`, root, while a game runs) finds
+  them under `/sys/bus/usb/devices`, claims them through usbfs, lights each
+  one's player LED and maps its reports (the platform's `native/pads.c`,
+  `native/usb_pads.c`: Moonlight's code) into `/dev/shm/vizualyse-steam/pads`
+  (`src/vzs_pads.h`). Wine's own XInput reads its winebus, which has nothing
+  to read here, so the prefix gets ours (`src/xinput.c`, 64- and 32-bit,
+  mingw) as `xinput1_1` .. `xinput1_4` and `xinput9_1_0` (`=n` overrides):
+  `XInputGetState` and the rest read that file. Rumble is accepted and
+  dropped; DualShock / DualSense and Bluetooth pads aren't read (as in
+  Moonlight); a game that reads only DirectInput or Windows.Gaming.Input
+  doesn't see them.
 - **Touch**: `steam-touch` (vizualyse-chromium's helper, `src/touch_main.c`)
   reads a passive copy of the display's touch PDUs on vlan73 while the game
   is shown (the HMI still gets every one; nothing is claimed: a claim
@@ -138,6 +152,8 @@ rebuilt `ntdll.so`, below).
 | `game.js` | root | one game: the frame file, wl-sink, Wine (`launch.json`), the sound FIFO and player; Stop: `wineserver -k`, then whatever is left in the cgroup |
 | `wl-sink` | root, then uid 12996, group video | C (`src/wl_sink.c`): maps the frame file, drops to the uid, then the Wayland compositor Wine draws into; touches on its stdin become Wine's pointer |
 | `steam-touch` | root, then nobody | C (`src/touch_main.c`): the display's touches while the game is shown, read passively |
+| `steam-pads` | root | C (`src/pads_main.c`): XInput USB pads through usbfs while a game runs, their state into the pads file |
+| `xinput1_4.dll` | in Wine (the game) | Windows DLL (`src/xinput.c`): XInput from the pads file |
 | Wine, the game | uid 12996, group video (44) | Proton's Wine in the prefix, on the unit's Mesa 19, in the memory cgroup |
 | DepotDownloader | uid 12996 | `dotnet DepotDownloader.dll`, HOME `/var/opt/vizualyse-steam/home` |
 | `screen.js` | root | the mgu-render client in layer mode, in the app area |

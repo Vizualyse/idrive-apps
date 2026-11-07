@@ -23,6 +23,21 @@ sh "$HERE/build.sh" >&2
 sh "$HERE/test/build_win.sh" >&2
 sh "$GPU_BENCH/build.sh" >&2
 WIN_GPU_BENCH=$(cd "$GPU_BENCH/build" && (pwd -W 2>/dev/null || pwd))
+# The controller check (as vizualyse-moonlight's): a virtual XInput USB pad
+# (test/usbip_pad.c, the platform's) through the Docker host's vhci_hcd, so
+# steam-pads finds a real usbfs device; skipped where the kernel has none.
+# NO_USBIP=1 skips it.
+PADOPT=
+if [ "${NO_USBIP:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" $(sh "$HERE/build.sh" image-name) \
+        gcc -O2 -Wall -Wextra -Werror -static -o /m/build/test-usbip-pad /m/test/usbip_pad.c; then
+    # vhci_hcd is a module in Docker Desktop's (WSL 2) kernel: load it in the host's namespaces
+    docker run --rm --privileged --pid=host alpine nsenter -t 1 -m -- modprobe vhci-hcd >/dev/null 2>&1 || true
+    if docker run --rm --privileged alpine test -w /sys/devices/platform/vhci_hcd.0/attach; then
+        PADOPT="--privileged -v /dev/bus/usb:/dev/bus/usb -e STEAM_TEST_USBPAD=/t/build/test-usbip-pad"
+    else
+        echo "no vhci_hcd in the Docker host's kernel: the controller check is skipped" >&2
+    fi
+fi
 run() {
     NAME=steam-unit-test-$$
     trap 'docker rm -f $NAME >/dev/null 2>&1' EXIT INT TERM
@@ -38,7 +53,7 @@ run() {
         CAPS="--cap-add SYS_ADMIN"
         STICK="mount -t tmpfs -o ro,nosuid,nodev,noexec,mode=0777,size=256m teststick /media/TESTSTICK"
     fi
-    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS \
+    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS $PADOPT \
         -v "$WIN_HERE:/t:ro" -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$1" -e USB_FS="${USB_FS:-tmpfs}" ${T_GAME:+-e T_GAME="$T_GAME"} ${T_NOSTEAM:+-e T_NOSTEAM=1} ${T_LOAD:+-e T_LOAD="$T_LOAD"} ${T_DLLOV:+-e T_DLLOV="$T_DLLOV"} ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG="$GREP_LOG"} $IMG \
         /bin/sh -c "mkdir -p /var/opt /tmp /media/TESTSTICK && chmod 1777 /tmp && $STICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; /usr/bin/node /t/test/unit_test.js /t"
 }

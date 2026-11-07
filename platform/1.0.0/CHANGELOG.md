@@ -20,6 +20,18 @@ on main at 68aa156 (byte for byte, but for a comment in `native/frame_out.h`):
 | `native/wayland-drm.xml` (Mesa's notice) | vizualyse-chromium, vizualyse-steam |
 | `test/pcm_play_test.py` | vizualyse-moonlight |
 
+Added on 1.0.0 (new files only, so no pinned copy changes): the gamepads,
+for vizualyse-steam's controllers (vizualyse-moonlight keeps its own copy
+until it moves):
+
+| File | From |
+|---|---|
+| `native/pads.{c,h}` | vizualyse-moonlight's `core/pads.{c,h}`, `<Limelight.h>` replaced by `pad_flags.h` |
+| `native/pad_flags.h` | moonlight-common-c's button flags (XInput's bits), only where not defined |
+| `native/usb_pads.{c,h}` | vizualyse-moonlight's usbfs reader (`moonlight_core.c`), its pad table replaced by `struct usb_pad` |
+| `test/pads_test.c` | vizualyse-moonlight's `core/pads_test.c` |
+| `test/usbip_pad.c` | vizualyse-moonlight's `test/usbip_pad.c` (a virtual XInput USB pad through vhci_hcd, for the off-car tests) |
+
 vizualyse-cast's own `pcm_play.py` predated the SmartX lock fix (2026-11-05:
 a lock first made by root silenced CarPlay until a restart); on this version
 it plays through the fixed one.

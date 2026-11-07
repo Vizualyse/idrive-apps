@@ -176,6 +176,22 @@ gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror \
     -Wl,--dynamic-linker=$LOADER -Wl,-rpath,$R/lib -Wl,--build-id=sha1 -o "$R/steam-touch" \
     /m/src/touch_main.c /m/src/touch.c -lpthread
 strip --strip-unneeded "$R/steam-touch"
+# the game's controllers: XInput USB pads through usbfs (the platform's pads.c
+# / usb_pads.c, vizualyse-moonlight's code) into the pads file our
+# xinput1_4.dll reads (src/pads_main.c, src/vzs_pads.h); pads.c's tests first
+gcc -O2 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Werror -I/m/src -o /tmp/pads_test /m/test/pads_test.c /m/src/pads.c && /tmp/pads_test
+gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Werror -I/m/src \
+    -Wl,--dynamic-linker=$LOADER -Wl,-rpath,$R/lib -Wl,--build-id=sha1 -o "$R/steam-pads" \
+    /m/src/pads_main.c /m/src/usb_pads.c /m/src/pads.c
+strip --strip-unneeded "$R/steam-pads"
+# our XInput (src/xinput.c): Windows DLLs, 64- and 32-bit, reading the pads
+# file; server.js puts them in the prefix as xinput1_4 / 1_3 / 9_1_0 / ...
+for a in x86_64:x64 i686:x86; do
+    mkdir -p "$R/xinput/${a#*:}"
+    ${a%:*}-w64-mingw32-gcc -O2 -std=gnu11 -Wall -Wextra -Werror -shared -I/m/src \
+        -o "$R/xinput/${a#*:}/xinput1_4.dll" /m/src/xinput.c /m/src/xinput.def \
+        -Wl,--kill-at -Wl,--enable-stdcall-fixup -static-libgcc -Wl,--no-insert-timestamp -s
+done
 
 # ---- the runtime's libraries ---------------------------------------------------
 M=/usr/lib/x86_64-linux-gnu
@@ -194,7 +210,7 @@ cp -L /lib64/ld-linux-x86-64.so.2 "$R/lib/"
 # Every library the ELF files need, resolved in this image; Proton's own
 # (files/lib/x86_64-linux-gnu) stay where they are.
 PL=$F/lib/x86_64-linux-gnu
-ELFS="$R/wl-sink $R/steam-touch $R/dotnet/dotnet $(find "$R/dotnet" -name '*.so') $(ls "$R"/lib/*.so*) \
+ELFS="$R/wl-sink $R/steam-touch $R/steam-pads $R/dotnet/dotnet $(find "$R/dotnet" -name '*.so') $(ls "$R"/lib/*.so*) \
       $(find "$F/bin" "$F/lib/wine/x86_64-unix" "$PL" -type f ! -name xrandr \( -name '*.so*' -o -perm -u+x \))"
 closure() {
     for e in "$@"; do LD_LIBRARY_PATH=$PL ldd "$e" 2>/dev/null; done | awk '/=> \// {print $1" "$3}' | sort -u

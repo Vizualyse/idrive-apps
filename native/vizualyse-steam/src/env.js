@@ -50,6 +50,8 @@ const LOADER = RUNTIME + '/lib/ld-linux-x86-64.so.2';
 const RUN_DIR = process.env.STEAM_RUN_DIR || '/dev/shm/vizualyse-steam';
 const PCM_FIFO = RUN_DIR + '/pcm';
 const XDG_DIR = RUN_DIR + '/xdg';
+/* the controllers' state (steam-pads writes, our xinput1_4.dll reads: src/vzs_pads.h) */
+const PADS_FILE = RUN_DIR + '/pads';
 const DNS_FILE = process.env.STEAM_DNS_FILE || '/dev/shm/vzs.dns';
 const UNIT_LIB = process.env.STEAM_UNIT_LIB || '/usr/lib';
 const RENDER_NODE = process.env.STEAM_RENDER_NODE || '/dev/dri/renderD128';
@@ -146,7 +148,10 @@ function wineEnv(launch, appId, display) {
      * its own runtime. Slay the Spire 2 (Godot, .NET 9) crashed on the car
      * with "mscoree.dll not found, IL-only binary sts2.dll cannot be loaded"
      * (2026-11-07). A .NET Framework game still has no Wine Mono. */
-    e.WINEDLLOVERRIDES = (e.WINEDLLOVERRIDES ? e.WINEDLLOVERRIDES + ';' : '') + 'mshtml=';
+    e.WINEDLLOVERRIDES = (e.WINEDLLOVERRIDES ? e.WINEDLLOVERRIDES + ';' : '') + 'mshtml=' +
+        /* our XInput (src/xinput.c, server.js installXInput): Wine's reads its
+         * winebus, which has nothing to read on the car */
+        ';xinput1_1,xinput1_2,xinput1_3,xinput1_4,xinput9_1_0=n';
     return mesaEnv(e);
 }
 
@@ -169,6 +174,6 @@ function userDirs(uid, gid) {
 
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
-    RUN_DIR, PCM_FIFO, XDG_DIR, DNS_FILE, RENDER_NODE, UNIT_LIB,
+    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

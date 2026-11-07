@@ -282,6 +282,7 @@ async function main() {
      * installer in a window nobody can press */
     ok('no Wine Mono installer window (no prefix update)', !/window "Wine Mono Installer"/.test(serverLog));
 
+    await controller();
     await usbStick();
 
     server.kill('SIGTERM');
@@ -303,6 +304,38 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* A controller: a virtual XInput USB pad (test/usbip_pad.c through the
+ * Docker host's vhci_hcd: STEAM_TEST_USBPAD, run_unit_test.sh) that presses
+ * A and pushes the left stick once a second; the game is t_xinput (app 4545,
+ * fake_dd.js), which reads the four slots through XInputGetState for 8 s.
+ * steam-pads claims the pad, our xinput1_4.dll reads its state in Wine. */
+async function controller() {
+    const bin = process.env.STEAM_TEST_USBPAD;
+    if (!bin) { console.log('  --   the controller check skipped (no vhci_hcd in the Docker host\'s kernel)'); return; }
+    const pad = spawn(bin, ['60'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let padOut = '';
+    pad.stdout.on('data', (d) => { padOut += d; });
+    pad.stderr.on('data', (d) => { padOut += d; });
+    for (let i = 0; i < 40 && !/ready \/dev\/bus\/usb/.test(padOut); i++) await sleep(250);
+    ok('a virtual XInput USB pad (usbip_pad, vhci_hcd)', /ready \/dev\/bus\/usb/.test(padOut), padOut.trim().split('\n')[0]);
+    let r = await api('/api/install', { appId: 4545 });
+    ok('the controller test game installs', r.code === 200, r.body && r.body.error);
+    let s = await until('its download', (x) => x.download && x.download.appId === 4545 && ['done', 'failed', 'stopped'].indexOf(x.download.state) >= 0, 60000);
+    let before = 0;
+    try { before = fs.statSync(T_LOG).size; } catch (e) { /* none */ }
+    r = await api('/api/play', { appId: 4545 });
+    ok('play t_xinput', r.code === 200, r.body && r.body.error);
+    s = await until('t_xinput ending', (x) => x.game && x.game.appId === 4545 && x.game.state === 'ended', 4 * 60000);
+    let tl = '';
+    try { tl = fs.readFileSync(T_LOG, 'utf8').slice(before); } catch (e) { /* none */ }
+    ok('steam-pads claims the pad as player 1', /pads: player 1: /.test(serverLog));
+    ok('a game reads the pad through our XInput: A and the left stick (XInputGetState)', /t_xinput: ok A lx/.test(tl),
+        tl.split('\n').filter((l) => /t_xinput/.test(l)).slice(0, 6).join(' | ').slice(0, 300));
+    ok('the pad is released with the game (steam-pads ends)', /pads: .*unplugged|pads: exited \(0\)/.test(serverLog) || !/steam-pads/.test(uidProcesses(0).join(' ')));
+    try { pad.stdin.end(); } catch (e) { /* gone */ }
+    await sleep(1000);
 }
 
 /* A USB stick as the install location. run_unit_test.sh mounts a tmpfs at

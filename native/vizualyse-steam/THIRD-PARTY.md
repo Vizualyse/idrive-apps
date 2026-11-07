@@ -36,8 +36,11 @@ The tool ships three archives, built by `tools/bundle.sh`:
 - gbe_fork: <https://github.com/Detanup01/gbe_fork>, tag `release-2026_09_27`
   (the release's `emu-win-release-vs22.7z`, `release/regular/`).
 - `src/touch_main.c` (`steam-touch`) and
-  `test/fake_render_client.js` are copies of vizualyse-chromium's; `src/touch.*` is
-  the platform's `native/touch.*` (all ours,
-  GPL-3.0-or-later).
+  `test/fake_render_client.js` are copies of vizualyse-chromium's; `src/touch.*`,
+  `src/pads.*`, `src/pad_flags.h`, `src/usb_pads.*`, `test/pads_test.c` and
+  `test/usbip_pad.c` are the platform's (vizualyse-moonlight's gamepad code);
+  `src/xinput.c` builds the Windows `xinput1_4.dll` the prefix gets (all ours,
+  GPL-3.0-or-later). `pad_flags.h`'s button values are moonlight-common-c's
+  (XInput's bits).
 
 On request we provide the same sources.
