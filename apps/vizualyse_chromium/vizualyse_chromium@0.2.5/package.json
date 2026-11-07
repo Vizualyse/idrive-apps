@@ -1,7 +1,7 @@
 {
-  "name": "vizualyse_cast",
-  "version": "0.3.5",
-  "description": "Cast to cluster: shows the phone link and QR code for the cast service, its status, and replays the last stream on the cluster, the HUD or the media console",
+  "name": "vizualyse_chromium",
+  "version": "0.2.5",
+  "description": "Browser: shows the phone link and QR code for the vizualyse-chromium web browser, what its GPU offers (WebGPU, WebGL 2, JSPI), and shows or hides the browser on the central screen",
   "private": false,
   "main": "javascript/runner.js",
   "oapAppSettings": {
@@ -11,7 +11,7 @@
     "priority": "PRIO_MEDIUM",
     "visibility": "FOREGROUND",
     "latencyClass": "FOREGROUND",
-    "loggingId": "VCST",
+    "loggingId": "VCHR",
     "userLoginRequired": false,
     "backgroundPriority": 150,
     "someipManifest": "manifest.json"

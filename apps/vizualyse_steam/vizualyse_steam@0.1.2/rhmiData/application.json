@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.3.0",
   "application": {
-    "uuid": "21c6f2c2-f8b4-4b1c-befe-5f9954f635fa",
+    "uuid": "054c9247-42ec-4329-8df6-c4b414b52c77",
     "type": "OnlineApp",
-    "name": "vizualyse_moonlight",
+    "name": "vizualyse_steam",
     "vendor": "Yousaf Khan",
-    "version": "0.2.0",
+    "version": "0.1.2",
     "defaultLanguage": "en_GB",
     "uiDescriptions": [
       {
@@ -16,8 +16,8 @@
         ]
       }
     ],
-    "stringBundleUuid": "574f124f-648d-4237-990a-3125c0d3bb1f",
-    "resourceBundleUuid": "43b2065e-65d8-4047-81bc-81afba2d06a4",
+    "stringBundleUuid": "92fd0a1e-360a-4646-b2af-2295d07bc4ab",
+    "resourceBundleUuid": "1d7a486a-b388-422e-ab85-2baa66f1c9f3",
     "variantGroups": [
       {
         "stringsPath": "./variantGroups/Common/texts",
@@ -32,10 +32,10 @@
     ],
     "entryPoints": [
       {
-        "name": "vizualyse_moonlight",
-        "uuid": "f9726d0a-9616-4b2c-b4d2-986658e7467a",
-        "textId": "SID_MOONLIGHT_TITLE",
-        "icon": "vizualyse_moonlight_icon.png",
+        "name": "vizualyse_steam",
+        "uuid": "e89b46d7-5f28-4e4e-986a-62b9254de89e",
+        "textId": "SID_STEAM_TITLE",
+        "icon": "vizualyse_steam_icon.png",
         "insertionStateId": 20974,
         "insertionFocusId": 2,
         "insertionMode": "INSERT_BELOW",

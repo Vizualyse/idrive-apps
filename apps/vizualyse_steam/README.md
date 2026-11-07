@@ -58,7 +58,7 @@ app sends `enable`, `disable`, `play` (`appId`), `stop`, `show`, `hide`,
 
 ## Building and testing
 
-- `node tools/make_page.js vizualyse_steam@0.1.1` writes `application.xml`
+- `node tools/make_page.js vizualyse_steam@0.1.2` writes `application.xml`
   and `uiDescription.json` from one list; `node tools/make_icon.js <png>`
   the tile icon (a game controller outline).
 - `node tools/test_page.js` runs the app against a fake SDK, HMI and tool

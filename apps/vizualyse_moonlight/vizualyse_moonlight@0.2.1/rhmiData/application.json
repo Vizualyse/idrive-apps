@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.3.0",
   "application": {
-    "uuid": "ab67d1fe-1944-4d28-8f3f-3496da0dd554",
+    "uuid": "21c6f2c2-f8b4-4b1c-befe-5f9954f635fa",
     "type": "OnlineApp",
-    "name": "vizualyse_chromium",
+    "name": "vizualyse_moonlight",
     "vendor": "Yousaf Khan",
-    "version": "0.2.4",
+    "version": "0.2.1",
     "defaultLanguage": "en_GB",
     "uiDescriptions": [
       {
@@ -16,8 +16,8 @@
         ]
       }
     ],
-    "stringBundleUuid": "d8bab45b-8f46-428d-ba69-eac762133c52",
-    "resourceBundleUuid": "66e17e40-88f6-49cb-b01a-e3b74aa21980",
+    "stringBundleUuid": "574f124f-648d-4237-990a-3125c0d3bb1f",
+    "resourceBundleUuid": "43b2065e-65d8-4047-81bc-81afba2d06a4",
     "variantGroups": [
       {
         "stringsPath": "./variantGroups/Common/texts",
@@ -32,10 +32,10 @@
     ],
     "entryPoints": [
       {
-        "name": "vizualyse_chromium",
-        "uuid": "0edfd8df-b7e4-4d8e-9823-e8b3ae6d8bb8",
-        "textId": "SID_CHROMIUM_TITLE",
-        "icon": "vizualyse_chromium_icon.png",
+        "name": "vizualyse_moonlight",
+        "uuid": "f9726d0a-9616-4b2c-b4d2-986658e7467a",
+        "textId": "SID_MOONLIGHT_TITLE",
+        "icon": "vizualyse_moonlight_icon.png",
         "insertionStateId": 20974,
         "insertionFocusId": 2,
         "insertionMode": "INSERT_BELOW",

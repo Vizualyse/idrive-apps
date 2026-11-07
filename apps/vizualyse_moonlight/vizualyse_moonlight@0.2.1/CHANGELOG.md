@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- No change to the page: its shared files (the QR code, the car's speed) now
+  come from the platform's modules, byte for byte as before.
+
 ## 0.2.0
 
 - Picture on: a drop-down for where the picture goes (centre console,

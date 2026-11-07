@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6
+
+- No change to the page: its shared file (the QR code) now comes
+  from the platform's modules, byte for byte as before.
+
 ## 0.3.5
 
 - CarPlay directions card: on / off, and CarPlay time / distance card: on /

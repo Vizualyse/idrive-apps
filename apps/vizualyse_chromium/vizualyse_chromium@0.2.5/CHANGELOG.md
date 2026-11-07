@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5
+
+- No change to the page: its shared files (the QR code, the car's speed) now
+  come from the platform's modules, byte for byte as before.
+
 ## 0.2.4
 
 - **Resolution** also offers 1/3 (596x212) and 1/4 (444x156), for heavy

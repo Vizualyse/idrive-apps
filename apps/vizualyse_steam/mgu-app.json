@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "vizualyse_steam",
-  "version": "0.1.1",
-  "tree": "vizualyse_steam@0.1.1",
+  "version": "0.1.2",
+  "tree": "vizualyse_steam@0.1.2",
   "modules": [
     "src/vizualyse_steam.js",
     "src/steam_control.js",

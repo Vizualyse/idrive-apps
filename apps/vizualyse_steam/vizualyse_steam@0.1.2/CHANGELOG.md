@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- No change to the page: its shared files (the QR code, the car's speed) now
+  come from the platform's modules, byte for byte as before.
+
 ## 0.1.1
 
 - A game on a USB stick that isn't plugged in says so on its Play button

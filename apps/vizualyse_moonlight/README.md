@@ -51,8 +51,8 @@ application.xml and uiDescription.json from one list.
 ```sh
 node tools/build.js          # the source package; the unit builds the app
 node tools/test_page.js      # the page against a fake SDK, HMI and Vehicle2, and a fake tool socket
-node tools/make_page.js vizualyse_moonlight@0.2.0
-node tools/make_icon.js vizualyse_moonlight@0.2.0/rhmiData/variantGroups/Common/images/vizualyse_moonlight_icon.png
+node tools/make_page.js vizualyse_moonlight@0.2.1
+node tools/make_icon.js vizualyse_moonlight@0.2.1/rhmiData/variantGroups/Common/images/vizualyse_moonlight_icon.png
 ```
 
 The structure (SDK use, tile, visibility, the QR handles) follows

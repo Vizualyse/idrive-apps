@@ -37,7 +37,7 @@ workflow (Actions > Release, the component ids).
   iPhone; maybe Google Maps itself).
 - [ ] **HUD:** the text could be bigger (both views otherwise look fine).
 
-## Moonlight (vizualyse-moonlight, vizualyse_moonlight 0.1.0)
+## Moonlight (vizualyse-moonlight 0.2.2, vizualyse_moonlight 0.2.1)
 
 Built and tested off the car against a real Sunshine
 ([`native/vizualyse-moonlight`](native/vizualyse-moonlight), "Off the car").
@@ -96,7 +96,7 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.7, vizualyse_chromium 0.2.4)
+## Browser (vizualyse-chromium 0.2.8, vizualyse_chromium 0.2.5)
 
 Chromium 156 with its own glibc, on its own Wayland compositor (chromium-wl), WebGL and WebGPU on the CPU
 (SwiftShader) or, in the GPU mode, on the unit's own Mesa 19 (WebGL 2 on
@@ -219,7 +219,7 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   evdev to read on the unit).
 - [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
-## Steam (vizualyse-steam 0.1.6, vizualyse_steam 0.1.1)
+## Steam (vizualyse-steam 0.1.7, vizualyse_steam 0.1.2)
 
 Windows games from the owner's Steam library through Proton (WineD3D on the
 unit's own Mesa 19, Wine's Wayland driver into `wl-sink`, mgu-render's frame
@@ -286,10 +286,6 @@ The shared code as modules, each versioned on its own:
 that was a byte-identical copy; Cast 0.3.9, Moonlight 0.2.2, Browser 0.2.8
 and Steam 0.1.5 build from them; Steam 0.1.6 adds `native/pads`,
 `native/usb_pads` and `native/usbip_pad` (its controllers).
-
-- [ ] **Bumps for the move:** the module move changed every component's
-  shipped paths, so each one's next publish needs a new version (none
-  changed in bytes but the build date).
 
 - [ ] **On the car: Cast 0.3.9's sound.** Cast now plays through the
   platform's `pcm_play.py`, which makes the SmartX stream lock as the system

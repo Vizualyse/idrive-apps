@@ -66,8 +66,8 @@ second, `speed`. The app holds it while it runs.
 ```sh
 node tools/build.js          # the source package; the unit builds the app
 node tools/test_page.js      # the page against a fake SDK, HMI and Vehicle2, and a fake tool socket
-node tools/make_page.js vizualyse_chromium@0.2.4
-node tools/make_icon.js vizualyse_chromium@0.2.4/rhmiData/variantGroups/Common/images/vizualyse_chromium_icon.png
+node tools/make_page.js vizualyse_chromium@0.2.5
+node tools/make_icon.js vizualyse_chromium@0.2.5/rhmiData/variantGroups/Common/images/vizualyse_chromium_icon.png
 ```
 
 The structure follows [vizualyse_moonlight](../vizualyse_moonlight).

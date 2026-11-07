@@ -45,7 +45,7 @@ application.xml and uiDescription.json from one list.
 ```sh
 node tools/build.js          # the source package; the unit builds the app
 node tools/test_page.js      # the page against a fake SDK and HMI and the tool's real control socket
-node tools/make_icon.js vizualyse_cast@0.3.5/rhmiData/variantGroups/Common/images/vizualyse_cast_icon.png
+node tools/make_icon.js vizualyse_cast@0.3.6/rhmiData/variantGroups/Common/images/vizualyse_cast_icon.png
 ```
 
 The structure (SDK use, tile, visibility, the QR handles) follows

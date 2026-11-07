@@ -1,6 +1,6 @@
 {
   "name": "vizualyse_moonlight",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Moonlight: shows the phone link and QR code for the Moonlight game streaming service, its status, and stops, quits or resumes the game streamed from a PC running Sunshine",
   "private": false,
   "main": "javascript/runner.js",
