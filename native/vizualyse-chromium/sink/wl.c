@@ -21,8 +21,17 @@
  *
  * stdin, one command a line:
  *   show FILE   pictures into FILE from now on; the output takes its size
- *   hide        no frame file (pictures are kept at a slow pace for the next show)
+ *   winston X,Y,W,H  pictures straight onto the centre screen through Winston
+ *               (--winston), fitted into that place; the output keeps its size
+ *   hide        neither (pictures are kept at a slow pace for the next show)
  *   fps N       at most N pictures a second while shown (default 30)
+ *
+ * Through Winston (platform native/winston_out, knowledge/central-screen.md):
+ * Chromium's GPU buffers (wl_drm, the GPU mode) go to Winston as they are,
+ * as dmabufs, and go back to Chromium when Winston releases them: no
+ * read-back, no conversion. Shared memory pictures are copied once into our
+ * own buffers (full colour, no I420). --winston SOCKET connects at start,
+ * before the drop to U:G (Winston's socket is root:mgu_wayland 0770).
  *
  * Pacing: a commit is converted at once (shared memory is read in place, no
  * copy), and the surface's frame callbacks are answered no sooner than 1/fps
@@ -60,6 +69,7 @@
 #include <libyuv/convert_from_argb.h>
 #include <wayland-server.h>
 #include "frame_out.h"
+#include "winston_out.h"
 #include "xdg-shell-server-protocol.h"
 #include "wayland-drm-server-protocol.h"
 
@@ -83,6 +93,18 @@ static int canvas_w, canvas_h;
 static unsigned long n_pictures, n_commits, n_shm, n_drm, n_us_total, stat_pictures;
 static int src_w, src_h;              /* the last picture's buffer */
 static struct wl_list outputs;        /* wl_output resources */
+/* through Winston */
+static struct wo *wo;                 /* the connection (--winston) */
+static struct wl_event_source *wo_source;
+static int wmode;                     /* the last show was "winston" */
+static int wshown;                    /* shown through Winston now */
+static struct wo_ring *ring;          /* our buffers for pictures we make */
+static int ring_w, ring_h;
+static uint32_t *lastbgra;            /* the latest picture while hidden (winston mode) */
+static int lastbgra_w, lastbgra_h, lastbgra_ok;
+static unsigned long n_fwd;           /* GPU buffers passed on as they are */
+static struct wl_list drm_buffers;    /* every drm_buffer, for the releases at a hide */
+static struct drm_buffer *last_drm;   /* the last GPU buffer passed on */
 
 static long now_ms(void) {
     struct timespec ts;
@@ -206,12 +228,35 @@ struct drm_buffer {
     struct wl_resource *res;
     int fd, w, h, offset, stride;
     uint32_t format;
+    struct wl_list link;          /* drm_buffers */
+    struct wo_buf *wb;            /* the same buffer in Winston, once passed on */
+    int wo_refused;               /* Winston refused it: read back instead */
+    int held;                     /* Winston has it: Chromium gets it back at its release */
 };
 
 static void drm_buffer_destroy_res(struct wl_resource *res) {
     struct drm_buffer *b = wl_resource_get_user_data(res);
     if (b->fd >= 0) close(b->fd);
+    if (b->wb) wo_buf_free(b->wb);   /* Winston keeps what it shows */
+    if (last_drm == b) last_drm = NULL;
+    wl_list_remove(&b->link);
     free(b);
+}
+
+/* Winston no longer reads it: back to Chromium. */
+static void drm_buffer_released(void *data, struct wo_buf *wb) {
+    struct drm_buffer *b = data;
+    (void)wb;
+    if (!b->held) return;
+    b->held = 0;
+    wl_buffer_send_release(b->res);
+}
+
+/* Every buffer Winston still has goes back to Chromium (our surface went). */
+static void drm_buffers_unhold(void) {
+    struct drm_buffer *b;
+    wl_list_for_each(b, &drm_buffers, link)
+        if (b->held) { b->held = 0; wl_buffer_send_release(b->res); }
 }
 
 static void buffer_destroy(struct wl_client *c, struct wl_resource *res) { (void)c; wl_resource_destroy(res); }
@@ -279,6 +324,7 @@ static void drm_create_prime_buffer(struct wl_client *c, struct wl_resource *res
     b->res = wl_resource_create(c, &wl_buffer_interface, 1, id);
     if (!b->res) { close(fd); free(b); wl_client_post_no_memory(c); return; }
     b->fd = fd; b->w = w; b->h = h; b->offset = o0; b->stride = s0; b->format = format;
+    wl_list_insert(&drm_buffers, &b->link);
     wl_resource_set_implementation(b->res, &drm_buffer_impl, b, drm_buffer_destroy_res);
 }
 static const struct wl_drm_interface drm_impl = {
@@ -330,9 +376,81 @@ static void write_snap(const uint8_t *src, int stride, int w, int h) {
     rename(tmp, snap_path);
 }
 
+/* w x h BGRA at the top left of an out_w x out_h picture: cut off where
+ * bigger, black where smaller. */
+static void copy_out(uint32_t *dst, const uint8_t *src, int stride, int w, int h) {
+    int cw = w < out_w ? w : out_w, ch = h < out_h ? h : out_h;
+    for (int y = 0; y < out_h; y++) {
+        uint32_t *d = dst + (long)y * out_w;
+        if (y < ch) {
+            memcpy(d, src + (long)y * stride, (size_t)cw * 4);
+            if (cw < out_w) memset(d + cw, 0, (size_t)(out_w - cw) * 4);
+        } else {
+            memset(d, 0, (size_t)out_w * 4);
+        }
+    }
+}
+
+static void wo_lost(void);
+
+/* Through Winston: into our next free buffer, shown at once; hidden, kept
+ * for the next show. */
+static void picture_winston(const uint8_t *src, int stride, int w, int h) {
+    long t0 = now_us();
+    if (wshown && wo) {
+        if (!ring || ring_w != out_w || ring_h != out_h) {
+            wo_ring_free(ring);
+            ring = wo_ring_new(wo, out_w, out_h, 3);
+            ring_w = out_w; ring_h = out_h;
+            if (!ring) { error_event("no buffers for Winston"); return; }
+        }
+        struct wo_buf *b;
+        uint32_t *dst = wo_ring_next(ring, &b);
+        if (!dst) return;   /* all three still on the screen: this one is dropped */
+        copy_out(dst, src, stride, w, h);
+        if (wo_present(wo, b, out_w, out_h) < 0) { wo_lost(); return; }
+        last_drm = NULL;
+    } else {
+        if (!lastbgra || lastbgra_w != out_w || lastbgra_h != out_h) {
+            free(lastbgra);
+            lastbgra = malloc((size_t)out_w * out_h * 4);
+            lastbgra_w = out_w; lastbgra_h = out_h; lastbgra_ok = 0;
+            if (!lastbgra) return;
+        }
+        copy_out(lastbgra, src, stride, w, h);
+        lastbgra_ok = 1;
+    }
+    write_snap(src, stride, w < out_w ? w : out_w, h < out_h ? h : out_h);
+    n_pictures++;
+    src_w = w; src_h = h;
+    n_us_total += (unsigned long)(now_us() - t0);
+}
+
+/* A GPU buffer straight to Winston (shown, alone): 1 when it went, and
+ * Chromium gets it back at Winston's release. */
+static int forward_drm(struct drm_buffer *d) {
+    if (!wshown || !wo || d->wo_refused || d->w < out_w || d->h < out_h) return 0;
+    if (!d->wb) {
+        /* no modifier said (wl_drm): the driver takes the buffer's tiling from the kernel */
+        d->wb = wo_buf_dmabuf(wo, d->fd, d->w, d->h, d->format, (uint32_t)d->offset, (uint32_t)d->stride,
+                              0x00ffffffffffffffull);
+        if (!d->wb) { d->wo_refused = 1; error_event("Winston refused a GPU buffer: read back instead"); return 0; }
+        wo_buf_on_release(d->wb, drm_buffer_released, d);
+    }
+    long t0 = now_us();
+    if (wo_present(wo, d->wb, out_w, out_h) < 0) { wo_lost(); return 0; }
+    d->held = 1;
+    last_drm = d;
+    n_fwd++; n_pictures++;
+    src_w = d->w; src_h = d->h;
+    n_us_total += (unsigned long)(now_us() - t0);
+    return 1;
+}
+
 /* One picture from w x h pixels (BGRA bytes, stride bytes) at the top left:
  * cut off where bigger than the output, black where smaller. */
 static void picture(const uint8_t *src, int stride, int w, int h) {
+    if (wmode) { picture_winston(src, stride, w, h); return; }
     long t0 = now_us();
     uint8_t *dst = target();
     if (!dst) return;
@@ -436,7 +554,7 @@ static void compose(void) {
 
 /* Frame callbacks are answered no sooner than 1/fps after the last ones. */
 static void arm_frames(void) {
-    long period = 1000 / (shown ? fps : HIDDEN_FPS);
+    long period = 1000 / (shown || wshown ? fps : HIDDEN_FPS);
     long wait = last_done + period - now_ms();
     wl_event_source_timer_update(frame_timer, wait < 1 ? 1 : (int)wait);
 }
@@ -506,8 +624,9 @@ static int ensure_pix(struct surface *s, int w, int h) {
 }
 
 /* The attached buffer: a picture at once when the surface is shown alone,
- * else its pixels kept for compose(). */
-static void take_buffer(struct surface *s, struct wl_resource *buffer) {
+ * else its pixels kept for compose(). 1 when Winston took the buffer
+ * itself (it is released to the client later). */
+static int take_buffer(struct surface *s, struct wl_resource *buffer) {
     struct wl_shm_buffer *shm = wl_shm_buffer_get(buffer);
     struct drm_buffer *drm = NULL;
     int w, h;
@@ -517,12 +636,17 @@ static void take_buffer(struct surface *s, struct wl_resource *buffer) {
         drm = wl_resource_get_user_data(buffer);
         w = drm->w; h = drm->h;
     } else {
-        return;
+        return 0;
     }
-    if (w <= 0 || h <= 0 || w > 4096 || h > 4096) return;
+    if (w <= 0 || h <= 0 || w > 4096 || h > 4096) return 0;
     s->has = 1;
     if (s->role == ROLE_TOPLEVEL && !s->order) s->order = ++next_order;
     int direct = s->role == ROLE_TOPLEVEL && alone(s);
+    if (drm && direct && forward_drm(drm)) {
+        free(s->pix); s->pix = NULL;
+        s->w = w; s->h = h;
+        return 1;
+    }
     if (shm) {
         n_shm++;
         int stride = wl_shm_buffer_get_stride(shm);
@@ -545,6 +669,7 @@ static void take_buffer(struct surface *s, struct wl_resource *buffer) {
             if (direct) picture((const uint8_t *)s->pix, w * 4, w, h); else dirty = 1;
         }
     }
+    return 0;
 }
 
 /* Keyboard focus on the browser's window (top_surface), for kb, or every
@@ -587,8 +712,7 @@ static void s_commit(struct wl_client *c, struct wl_resource *r) {
     s->sx = s->pend_sx; s->sy = s->pend_sy;
     if (s->pend_attached) {
         if (s->pend_buffer) {
-            take_buffer(s, s->pend_buffer);
-            wl_buffer_send_release(s->pend_buffer);
+            if (!take_buffer(s, s->pend_buffer)) wl_buffer_send_release(s->pend_buffer);
         } else {
             free(s->pix); s->pix = NULL; s->w = s->h = 0; s->has = 0;
             dirty = 1;
@@ -881,8 +1005,87 @@ static void resize(int w, int h) {
         if (s->role == ROLE_TOPLEVEL && s->configured) send_configure(s);
 }
 
+/* ---- through Winston ---- */
+
+/* The last GPU buffer passed on, read back into lastbgra. */
+static int ensure_last_from_drm(void) {
+    struct drm_buffer *d = last_drm;
+    if (!d || !gl.ok) return 0;
+    uint32_t *pix = malloc((size_t)d->w * d->h * 4);
+    if (!pix) return 0;
+    int ok = drm_buffer_read(d, pix) == 0;
+    if (ok) {
+        if (!lastbgra || lastbgra_w != out_w || lastbgra_h != out_h) {
+            free(lastbgra);
+            lastbgra = malloc((size_t)out_w * out_h * 4);
+            lastbgra_w = out_w; lastbgra_h = out_h;
+        }
+        if (lastbgra) copy_out(lastbgra, (const uint8_t *)pix, d->w * 4, d->w, d->h); else ok = 0;
+    }
+    free(pix);
+    return ok;
+}
+
+static void winston_hide(void) {
+    if (!wshown) return;
+    /* the picture on the screen now, for the next show (shown, ours are read
+     * in place; a GPU buffer of Chromium's is read back once) */
+    if (last_drm && ensure_last_from_drm()) lastbgra_ok = 1;
+    if (wo) wo_hide(wo);
+    drm_buffers_unhold();
+    wo_ring_free(ring); ring = NULL;
+    last_drm = NULL;
+    wshown = 0;
+}
+
+static void wo_lost(void) {
+    if (!wo) return;
+    if (wo_source) { wl_event_source_remove(wo_source); wo_source = NULL; }
+    drm_buffers_unhold();
+    struct drm_buffer *b;
+    wl_list_for_each(b, &drm_buffers, link)
+        if (b->wb) { wo_buf_free(b->wb); b->wb = NULL; }
+    wo_ring_free(ring); ring = NULL;
+    wo_close(wo); wo = NULL;
+    wshown = 0;
+    puts("{\"ev\":\"winston-lost\"}");
+    fflush(stdout);
+}
+
+static int on_wo(int fd, uint32_t mask, void *data) {
+    (void)fd; (void)data;
+    if ((mask & (WL_EVENT_HANGUP | WL_EVENT_ERROR)) || wo_dispatch(wo) < 0) wo_lost();
+    return 0;
+}
+
+static void wo_say(void *ud, const char *m) {
+    (void)ud;
+    printf("{\"ev\":\"winston\",\"msg\":"); jstr(m); puts("}");
+    fflush(stdout);
+}
+
+static void cmd_winston(const char *arg) {
+    int x, y, w, h;
+    if (sscanf(arg, "%d,%d,%d,%d", &x, &y, &w, &h) != 4 || w < 16 || h < 16 || w > 4096 || h > 4096) {
+        error_event("winston X,Y,W,H");
+        return;
+    }
+    if (!wo) { error_event("not connected to Winston"); return; }
+    if (shown) { frame_out_close(&fo); shown = 0; }
+    wmode = 1;
+    wo_place(wo, x, y, w, h);
+    if (wo_show(wo, 1) < 0) { wo_lost(); return; }
+    wshown = 1;
+    /* what Chromium drew while hidden, at once (a still page draws nothing new) */
+    if (lastbgra && lastbgra_ok && lastbgra_w == out_w && lastbgra_h == out_h)
+        picture_winston((const uint8_t *)lastbgra, out_w * 4, out_w, out_h);
+    arm_frames();
+}
+
 static void cmd_show(const char *file) {
     char err[256];
+    winston_hide();
+    wmode = 0;
     if (shown) { frame_out_close(&fo); shown = 0; }
     if (frame_out_open(&fo, file, err, sizeof err) < 0) { error_event(err); return; }
     frame_out_colour(&fo, 0, 1);   /* ARGBToJ420: BT.601, full range */
@@ -897,6 +1100,7 @@ static void cmd_show(const char *file) {
 }
 
 static void cmd_hide(void) {
+    if (wshown) winston_hide();
     if (!shown) return;
     /* the picture on the screen now, for the next show */
     size_t n = (size_t)fo.w * fo.h * 3 / 2;
@@ -929,6 +1133,7 @@ static int on_stdin(int fd, uint32_t mask, void *data) {
     while ((nl = strchr(line, '\n'))) {
         *nl = 0;
         if (!strncmp(line, "show ", 5)) cmd_show(line + 5);
+        else if (!strncmp(line, "winston ", 8)) cmd_winston(line + 8);
         else if (!strcmp(line, "hide")) cmd_hide();
         else if (!strncmp(line, "fps ", 4)) { int f = atoi(line + 4); if (f >= 1 && f <= 120) fps = f; }
         else if (!strncmp(line, "size ", 5)) cmd_size(line + 5);
@@ -947,9 +1152,9 @@ static int stats_tick(void *data) {
     (void)data;
     unsigned long pics = n_pictures - stat_pictures;
     if (pics) {
-        printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"ms\":%.1f,\"src\":[%d,%d],\"out\":[%d,%d],\"shown\":%s}\n",
-               pics, n_commits, n_shm, n_drm, (double)n_us_total / 1000.0 / (double)pics, src_w, src_h, out_w, out_h,
-               shown ? "true" : "false");
+        printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"fwd\":%lu,\"ms\":%.2f,\"src\":[%d,%d],\"out\":[%d,%d],\"shown\":%s,\"via\":\"%s\"}\n",
+               pics, n_commits, n_shm, n_drm, n_fwd, (double)n_us_total / 1000.0 / (double)pics, src_w, src_h, out_w, out_h,
+               shown || wshown ? "true" : "false", wmode ? "winston" : "mgu-render");
         fflush(stdout);
     }
     stat_pictures = n_pictures; n_us_total = 0;
@@ -965,12 +1170,13 @@ static int on_signal(int sig, void *data) {
 
 int main(int argc, char **argv) {
     const char *dir = NULL, *sock = "wayland-0", *device = "/dev/dri/renderD128", *unit_lib = "/usr/lib";
+    const char *winston = NULL;
     int use_drm = 0;
     long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "dir", 1, 0, 'D' }, { "socket", 1, 0, 's' }, { "size", 1, 0, 'S' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "drm", 0, 0, 'm' }, { "device", 1, 0, 'd' }, { "unit-lib", 1, 0, 'L' },
-        { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { 0, 0, 0, 0 } };
+        { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "winston", 1, 0, 'w' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 'D': dir = optarg; break;
@@ -985,15 +1191,24 @@ int main(int argc, char **argv) {
         case 'L': unit_lib = optarg; break;
         case 'u': drop_uid = strtol(optarg, NULL, 10); break;
         case 'g': drop_gid = strtol(optarg, NULL, 10); break;
+        case 'w': winston = optarg; break;
         default:
             fprintf(stderr, "usage: chromium-wl --dir DIR --socket NAME --size WxH [--fps N] [--uid U --gid G] "
-                            "[--drm --device D --unit-lib DIR] [--snap F.ppm]\n");
+                            "[--drm --device D --unit-lib DIR] [--winston SOCKET] [--snap F.ppm]\n");
             return 2;
         }
     }
     if (!dir) { fprintf(stderr, "chromium-wl: --dir\n"); return 2; }
     if (!strcmp(device, "/dev/dri/card0")) { fprintf(stderr, "chromium-wl: not card0 (Winston's)\n"); return 2; }
     if ((drop_uid >= 0) != (drop_gid >= 0)) { fprintf(stderr, "chromium-wl: --uid and --gid go together\n"); return 2; }
+    wl_list_init(&drm_buffers);
+    /* Winston's socket wants root or mgu_wayland: connected before the drop */
+    if (winston) {
+        char err[256];
+        struct wo_opts wopts = { .socket = winston, .x = 108, .y = 82, .w = 1790, .h = 638, .log = wo_say };
+        wo = wo_open(&wopts, err, sizeof err);
+        if (!wo) error_event(err);
+    }
     /* before anything else: the frame files are opened as U, the socket made as U:G */
     if (drop_gid >= 0 && (setgroups(0, NULL) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
                           || getuid() != (uid_t)drop_uid || geteuid() != (uid_t)drop_uid)) {
@@ -1027,6 +1242,7 @@ int main(int argc, char **argv) {
     stats_timer = wl_event_loop_add_timer(loop, stats_tick, NULL);
     wl_event_source_timer_update(stats_timer, 1000);
     wl_event_loop_add_fd(loop, 0, WL_EVENT_READABLE, on_stdin, NULL);
+    if (wo) wo_source = wl_event_loop_add_fd(loop, wo_fd(wo), WL_EVENT_READABLE, on_wo, NULL);
     wl_event_loop_add_signal(loop, SIGTERM, on_signal, NULL);
     wl_event_loop_add_signal(loop, SIGINT, on_signal, NULL);
     signal(SIGPIPE, SIG_IGN);
@@ -1034,11 +1250,13 @@ int main(int argc, char **argv) {
     printf("{\"ev\":\"ready\",\"socket\":"); jstr(sock);
     printf(",\"size\":[%d,%d],\"drm\":%s,\"device\":", out_w, out_h, gl.ok ? "true" : "false");
     jstr(gl.ok ? gl.device : NULL);
+    printf(",\"winston\":%s,\"dmabuf\":%d", wo ? "true" : "false", wo ? wo_dmabuf_version(wo) : 0);
     printf(",\"uid\":%d}\n", (int)getuid());
     fflush(stdout);
     wl_display_run(display);
     wl_display_destroy_clients(display);
     wl_display_destroy(display);
     if (shown) frame_out_close(&fo);
+    if (wo) { winston_hide(); wo_close(wo); }
     return 0;
 }

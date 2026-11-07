@@ -23,7 +23,7 @@ fail=0
 pass() { echo "ok   $1"; }
 bad() { echo "FAIL $1"; fail=$((fail + 1)); }
 run() { OUT=$OUT sh "$HERE/run.sh" "$@" >/dev/null 2>"$OUT.err" || { cat "$OUT.err" >&2; return 1; }; }
-pic() { $PY "$WIN_HERE/test/check_ppm.py" "$WIN_HERE/build/out/${PPM:-grab.ppm}" "$@"; }
+pic() { $PY "$WIN_HERE/test/check_ppm.py" "$WIN_HERE/build/out/${PPM:-grab.ppm}" "$@" >"$OUT.pic" || { cat "$OUT.pic"; return 1; }; }
 log() { tr -d '\000' < "$OUT/$1"; }
 sh "$HERE/build.sh" >/dev/null || { echo "build failed"; exit 1; }
 mkdir -p "$OUT"
@@ -60,6 +60,26 @@ frames=$(log app.log | sed -n 's/.*"ev":"done".*"frames":\([0-9]*\).*/\1/p')
 if [ "${frames:-0}" -ge 100 ]; then pass "dmabuf: $frames frames in 3 s"; else bad "dmabuf: frames ${frames:-none} ($(log app.log | tail -2))"; fi
 if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${SIZE}, format: XR24" && ! log winston.log | grep -q "could not create egl image"; then
     pass "dmabuf: Winston's renderer imports our GPU buffers (unit's i965)"; else bad "dmabuf: import"; fi
+
+# Our compositors between a stand-in client and Winston (test/build_sinks.sh)
+sh "$HERE/test/build_sinks.sh" >/dev/null || { echo "build_sinks failed"; exit 1; }
+for sink in chromium; do
+    rm -f "$OUT"/c-*.ppm "$OUT"/sink.log
+    run swrast sh /test/sink_scenario.sh $sink shm $SIZE
+    if PPM=c-shown.ppm pic shown $SIZE $PLACE >/dev/null; then pass "$sink shm: shown through Winston"; else bad "$sink shm: shown"; fi
+    if PPM=c-hidden.ppm pic absent $SIZE $PLACE >/dev/null; then pass "$sink shm: hidden"; else bad "$sink shm: hidden"; fi
+    if PPM=c-again.ppm pic shown $SIZE $PLACE >/dev/null; then pass "$sink shm: shown again with the picture kept"; else bad "$sink shm: again"; fi
+    if log fake.log | grep -q '"ev":"done"'; then pass "$sink shm: the client ran to the end ($(log fake.log | tr -d '\n'))"; else bad "$sink shm: client"; fi
+
+    rm -f "$OUT"/sink.log
+    WINSTON_ARGS="--param stdlog-level=3" run stub sh /test/sink_scenario.sh $sink drm $SIZE
+    fwd=$(log sink.log | sed -n 's/.*"fwd":\([0-9]*\).*/\1/p' | tail -1)
+    if [ "${fwd:-0}" -ge 60 ]; then pass "$sink drm: $fwd GPU buffers passed on as they are"; else bad "$sink drm: fwd ${fwd:-none}"; fi
+    if log winston.log | grep -q "wrapping dmabuf: texid: [0-9]*, size: ${SIZE}"; then pass "$sink drm: Winston's renderer imports them"; else bad "$sink drm: import"; fi
+    frames=$(log fake.log | sed -n 's/.*"frames":\([0-9]*\),"releases":\([0-9]*\).*/\1 \2/p')
+    set -- $frames
+    if [ "${1:-0}" -ge 100 ] && [ "${2:-0}" -ge "$(( ${1:-0} - 3 ))" ]; then pass "$sink drm: every buffer back to the client ($1 frames, $2 releases)"; else bad "$sink drm: frames/releases $frames"; fi
+done
 
 echo "winston-bench: $fail failed"
 [ $fail -eq 0 ]

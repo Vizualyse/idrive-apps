@@ -29,7 +29,8 @@
   "platform": {
     "native/frame_out": { "version": "1.0.0", "files": { "sink/frame_out.c": "frame_out.c", "sink/frame_out.h": "frame_out.h" } },
     "native/touch": { "version": "1.0.0", "files": { "sink/touch.c": "touch.c", "sink/touch.h": "touch.h" } },
-    "native/wayland_drm": { "version": "1.0.0", "files": { "sink/protocol/wayland-drm.xml": "wayland-drm.xml" } }
+    "native/wayland_drm": { "version": "1.0.0", "files": { "sink/protocol/wayland-drm.xml": "wayland-drm.xml" } },
+    "native/winston_out": { "version": "1.0.0", "files": { "sink/winston_out.c": "winston_out.c", "sink/winston_out.h": "winston_out.h", "sink/protocol/ivi-application.xml": "ivi-application.xml", "sink/protocol/ivi-controller.xml": "ivi-controller.xml", "sink/protocol/linux-dmabuf-unstable-v1.xml": "linux-dmabuf-unstable-v1.xml" } }
   },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },

@@ -4,9 +4,10 @@
 #
 # Builds the Winston bench into tools/winston-bench/build/ (git-ignored, never
 # shipped): kms_shim.so, the GPU bench's stand-ins (stub/, swrast/: from
-# tools/gpu-bench) and test/wo_bench, linked for the unit (glibc 2.27, its
-# loader) with the platform's native/winston_out compiled in from its
-# newest version. Kept when its inputs haven't changed.
+# tools/gpu-bench), test/wo_bench (the platform's native/winston_out from
+# its newest version compiled in) and test/fake_client (a stand-in for
+# Chromium / Wine), linked for the unit (glibc 2.27, its loader). Kept when
+# its inputs haven't changed. Our compositors themselves: test/build_sinks.sh.
 #   sh tools/winston-bench/build.sh
 set -eu
 export MSYS_NO_PATHCONV=1
@@ -40,6 +41,16 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_REPO:/r" "$IMG" s
     CF='-O2 -std=gnu11 -Wall -Wextra -Werror'
     gcc \$CF -fPIC -shared -I/usr/include/libdrm -o \$B/build/kms_shim.so \$B/src/kms_shim.c -ldl
     gcc \$CF -I\$G -I\$W -o \$B/build/wo_bench \$B/test/wo_bench.c \$W/winston_out.c \$G/*.c \
+        -lwayland-client -ldl -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2
+    # the stand-in for Chromium / Wine: xdg-shell and wl_drm clients
+    F=/tmp/fgen; mkdir -p \$F
+    XDG=/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml
+    DRM=/r/platform/native/wayland_drm/1.0.0/wayland-drm.xml
+    wayland-scanner client-header \$XDG \$F/xdg-shell-client-protocol.h
+    wayland-scanner private-code \$XDG \$F/xdg-shell-protocol.c
+    wayland-scanner client-header \$DRM \$F/wayland-drm-client-protocol.h
+    wayland-scanner private-code \$DRM \$F/wayland-drm-protocol.c
+    gcc \$CF -I\$F -o \$B/build/fake_client \$B/test/fake_client.c \$F/*.c \
         -lwayland-client -ldl -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2
 "
 echo "$key" > "$HERE/build/key"

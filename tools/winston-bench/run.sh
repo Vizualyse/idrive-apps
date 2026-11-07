@@ -57,6 +57,9 @@ umask 0002
 i=0; while [ ! -S /run/wayland/wayland-0 ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 grep -q "render order with" /out/winston.log || sleep 0.5
 "$@"'
-# shellcheck disable=SC2086 # ENV and DOCKER_ARGS are word lists
+# our compositors (test/build_sinks.sh) at /sinks
+SINKS=
+[ -d "$HERE/build-sinks" ] && SINKS="-v $WIN_HERE/build-sinks:/sinks:ro"
+# shellcheck disable=SC2086 # ENV, SINKS and DOCKER_ARGS are word lists
 exec docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE/build:/bench:ro" -v "$WIN_OUT:/out" \
-    ${DOCKER_ARGS:-} $ENV $IMG sh -c "$START" sh "$@"
+    -v "$WIN_HERE/test:/test:ro" $SINKS ${DOCKER_ARGS:-} $ENV $IMG sh -c "$START" sh "$@"
