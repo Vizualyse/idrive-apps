@@ -15,7 +15,12 @@
 #include <stdlib.h>
 #include "tlog.h"
 
-static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) { return DefWindowProcA(h, m, w, l); }
+/* clicks (the tool's touch, through wl-sink): "t_d3d9: click X Y" in client
+ * coordinates, at the button's press */
+static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    if (m == WM_LBUTTONDOWN) tlog("t_d3d9: click %d %d\n", (int)(short)LOWORD(l), (int)(short)HIWORD(l));
+    return DefWindowProcA(h, m, w, l);
+}
 
 #define FAIL(...) do { tlog("t_d3d9: FAIL " __VA_ARGS__); tlog("\n"); fflush(stdout); return 1; } while (0)
 
@@ -27,6 +32,9 @@ int main(void) {
     RegisterClassA(&wc);
     HWND hwnd = CreateWindowA("t_d3d9", "t_d3d9", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 640, 360, NULL, NULL, wc.hInstance, NULL);
     if (!hwnd) FAIL("CreateWindow %lu", GetLastError());
+    RECT cr;
+    GetClientRect(hwnd, &cr);
+    tlog("t_d3d9: client %ld %ld\n", cr.right - cr.left, cr.bottom - cr.top);
 
     IDirect3D9 *d3d = Direct3DCreate9(D3D_SDK_VERSION);
     if (!d3d) FAIL("Direct3DCreate9");

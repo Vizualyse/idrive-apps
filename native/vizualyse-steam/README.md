@@ -8,11 +8,12 @@ iDrive or the phone. Experimental: built and tested off the car on the
 unit's own root filesystem (below); **nothing has run on the car yet.**
 Background: [knowledge/games.md](../../knowledge/games.md).
 
-**Not in this version:** any input to the game (no touch, keyboard or game
-controllers yet), .NET Framework games (no Wine Mono), games that need the
-Steam client running (it doesn't run here). 64-bit games start on the car
-(Slay the Spire 2 drew there). **32-bit games** need our rebuilt `ntdll.so`
-(below, "32-bit programs"): tested off the car, not yet on it.
+**Not in this version:** a keyboard or game controllers (touch is the
+mouse: a tap clicks, a drag moves with the button held), .NET Framework
+games (no Wine Mono). Games that need the Steam client running (it doesn't
+run here) get **Run without Steam** per game (gbe_fork, below). 64-bit and
+32-bit games run on the car (Slay the Spire 2, FTL; 32-bit through our
+rebuilt `ntdll.so`, below).
 
 1. Install **Steam** (this tool) and the **Steam** iDrive app
    ([apps/vizualyse_steam](../../apps/vizualyse_steam)) from the Store. The
@@ -42,7 +43,27 @@ Steam client running (it doesn't run here). 64-bit games start on the car
   **PRIME buffer** (`wl_drm`), which it imports on the GPU and writes into
   mgu-render's frame file (I420), shown in the app area (1790x638 at
   +108+82), aspect kept. The game draws at the **Picture** size (1280x720 by
-  default; 1344x480 is the screen's shape).
+  default; 1344x480 is the screen's shape). Wine puts a Direct3D / OpenGL
+  game's client area in a subsurface over its window frame (title bar
+  included, drawn in software): wl-sink shows only that client area, so
+  there is no title bar (a plain window shows whole; `--whole-window`).
+- **Touch**: `steam-touch` (vizualyse-chromium's helper, `src/touch_main.c`)
+  reads a passive copy of the display's touch PDUs on vlan73 while the game
+  is shown (the HMI still gets every one; nothing is claimed: a claim
+  restarted the unit). `server.js` maps a touch on the picture into the
+  game's pixels (aspect-kept fit, bars ignored) and hands it to wl-sink
+  (`--input`, stdin `d|m|u X Y`), which makes it Wine's pointer on the shown
+  window: a tap is a left click, a drag moves with the button held; the
+  window gets the keyboard focus too (Wine's foreground window).
+- **Run without Steam** (per game, off by default): a game that quits
+  without the Steam client ("run the game from Steam") gets gbe_fork's
+  `steam_api64.dll` / `steam_api.dll` (Goldberg's emulator, LGPL-3.0, in the
+  runtime's `goldberg/`) in place of Steam's, each original kept as
+  `<name>.vzs-orig`, with a `steam_settings` folder beside it (the app id,
+  the account's name, no networking). Off puts Steam's back; an update or a
+  check of the files puts Steam's back and the tool swaps again.
+  Achievements and cloud saves stay on the car; a game wrapped in Steam's
+  DRM (SteamStub) still won't start.
 - **Its own userland** (`runtime.tgz`): glibc 2.41 and its loader (the unit
   has 2.27, its loader in /lib, no /lib64), Wayland 1.23 (Wine needs >= 1.20;
   the unit has 1.15), xkbcommon, FreeType, GnuTLS, ALSA, OpenSSL. Every ELF
@@ -79,7 +100,10 @@ Steam client running (it doesn't run here). 64-bit games start on the car
 - **Sound**: Wine's ALSA plays into a FIFO (the runtime's own `asound.conf`,
   never the unit's) that the tool holds open and hands to `pcm_play.py`
   (mgu-python), into SmartXbar's CarPlay input as Moonlight does; the phone
-  page's Volume scales it.
+  page's Volume scales it. The FIFO has no clock behind it (a file plugin
+  over "null"), so Wine wrote as fast as it could (~3.6x real time on the
+  car, nearly all dropped): the tool reads it at the sound's own rate
+  (48 kHz stereo), the FIFO small (8 KB), so Wine waits as on a sound card.
 - **Games**: in `/var/opt/vizualyse-steam/games/<app id>`, on the unit's
   hard disk (`/var/opt/hdshare/vizualyse-steam/games`, 85 GB on ours) or on
   a **USB stick** (`<stick>/vizualyse-steam/games`), by the phone page's
@@ -112,7 +136,8 @@ Steam client running (it doesn't run here). 64-bit games start on the car
 | `unpack.js` | root | each `.tgz` into its folder once (sha256 stamp), streamed, links made last, swapped in by rename |
 | `steam.js` | - | DepotDownloader and its questions; finding a game's program; the store's name for an app id |
 | `game.js` | root | one game: the frame file, wl-sink, Wine (`launch.json`), the sound FIFO and player; Stop: `wineserver -k`, then whatever is left in the cgroup |
-| `wl-sink` | root, then uid 12996, group video | C (`src/wl_sink.c`): maps the frame file, drops to the uid, then the Wayland compositor Wine draws into |
+| `wl-sink` | root, then uid 12996, group video | C (`src/wl_sink.c`): maps the frame file, drops to the uid, then the Wayland compositor Wine draws into; touches on its stdin become Wine's pointer |
+| `steam-touch` | root, then nobody | C (`src/touch_main.c`): the display's touches while the game is shown, read passively |
 | Wine, the game | uid 12996, group video (44) | Proton's Wine in the prefix, on the unit's Mesa 19, in the memory cgroup |
 | DepotDownloader | uid 12996 | `dotnet DepotDownloader.dll`, HOME `/var/opt/vizualyse-steam/home` |
 | `screen.js` | root | the mgu-render client in layer mode, in the app area |

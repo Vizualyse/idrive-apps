@@ -92,6 +92,32 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   Proton's CFLAGS (`-march=nocona -mtune=core-avx2 -O2 -fwrapv ...`). Built
   unpatched, the stripped `ntdll.so` is the shipped one's size, exports and
   `.text` / `.bss` (only `.rodata` 256 bytes apart).
+- **On the car with 0.1.3 (2026-11-07): FTL runs** (32-bit, the rebuilt
+  ntdll.so): its window, 15 pictures/s through PRIME buffers, wl-sink 34 ms
+  a picture, no GPU errors; memory 2.0 GB of the 2.5 GB cgroup cap. **Slay
+  the Spire 2** got to its own window, then quit: "Game launched with Steam
+  failed to initialize: make sure you run the game from Steam"
+  (`SteamAPI_Init`, no Steam client here): gbe_fork's steam_api64.dll is the
+  way (0.1.4's Run without Steam).
+- **A kept prefix and wineboot:** the tool keeps the prefix over updates
+  (saves), so one unpacked by an early version still had a time in
+  `.update-timestamp`; a new proton.tgz (wine.inf dated 0) then made Wine run
+  `wineboot --update` at the next start, which with mscoree on opened "Wine
+  Mono Installer". `disable` in `.update-timestamp` stops that for good.
+- **Sound through a FIFO needs a clock:** Wine's ALSA into a file plugin
+  over "null" has none, so Wine wrote ~3.6x real time and the player
+  (`pcm_play.py --live`) dropped nearly everything (`0.1 s played`). Read
+  the FIFO at the sound's own rate (48 kHz S16 stereo) and keep it small
+  (F_SETPIPE_SZ 8 KB): Wine then waits as on a sound card.
+- **Wine's window frame:** a Direct3D / OpenGL game's client area is a
+  wl_subsurface over the toplevel, which carries the Win32 frame and title
+  bar (shm, drawn by Wine): showing only the largest subsurface hides the
+  title bar. Pointer input goes to the toplevel in its own coordinates
+  (subsurface position + local); Wine wants the keyboard's enter too to
+  treat the window as foreground.
+- **gbe_fork on the PC:** Windows Defender locks its DLL archive on the
+  Windows drive (read: permission denied): keep it in a Docker volume, as
+  Proton.
 - **USB sticks on the unit:** udisks2 (for the HMI) mounts them at
   `/media/<label or uuid>` (`99-usb-udisks-mountpath.rules`): `ro,nosuid,
   nodev,noexec`, FAT32 as `uid=2010,gid=2010,fmask=0000,dmask=0000`

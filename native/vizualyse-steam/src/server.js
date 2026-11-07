@@ -32,7 +32,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { URL } = require('url');
 const env = require('./env.js');
 const unpack = require('./unpack.js');
@@ -280,12 +280,92 @@ function show() {
     const e = screen.show(VIEW);
     if (e) { wantShown = false; return e; }
     log('screen: shown');
+    startTouch();
     return null;
 }
 
 function hide(why) {
     wantShown = false;
+    stopTouch();
     if (screen.shown()) { screen.hide(); log('screen: hidden (' + why + ')'); }
+}
+
+/* ---- touch: the display's touches on the shown game become its pointer ----
+ * steam-touch (vizualyse-chromium's helper) reads a passive copy of the
+ * display's touch PDUs on vlan73 while the game is shown: the HMI still gets
+ * every one, nothing is claimed (a claim restarted the unit,
+ * knowledge/central-screen.md). A touch on the picture (mgu-render fits it to
+ * VIEW, aspect kept, centred) goes to wl-sink in the game's own pixels: a tap
+ * is a left click, a drag moves with the button held. One that starts on the
+ * bars or outside the picture is ignored, to its end. */
+const TOUCH_IFACE = process.env.STEAM_TOUCH_IFACE !== undefined ? process.env.STEAM_TOUCH_IFACE : 'vlan73';
+const TOUCH_SRC = process.env.STEAM_TOUCH_SRC || '160.48.199.115';
+const TOUCH_FILE = process.env.STEAM_TOUCH_FILE || '';
+let touch = null, touching = false, lastTouch = { x: 0, y: 0 };
+
+function startTouch() {
+    if (touch) return;
+    const bin = process.env.STEAM_TOUCH || path.join(env.RUNTIME, 'steam-touch');
+    if (!fs.existsSync(bin)) { log('touch: no ' + bin); return; }
+    const args = TOUCH_FILE ? ['--touch-file', TOUCH_FILE] : ['--touch-iface', TOUCH_IFACE, '--touch-src', TOUCH_SRC];
+    let t;
+    try { t = spawn(bin, args, { stdio: ['pipe', 'pipe', 'pipe'] }); } catch (e) { log('touch: ' + e.message); return; }
+    touch = t;
+    touching = false;
+    let rest = '';
+    t.stdout.on('data', (d) => {
+        const lines = (rest + d).split('\n');
+        rest = lines.pop();
+        lines.forEach((l) => {
+            let e;
+            try { e = JSON.parse(l); } catch (x) { return; }
+            if (e.ev === 'touch') onTouch(e);
+            else if (e.ev === 'ready') log('touch: ready (' + (e.touch ? 'reading' : 'no touch') + ')');
+            else if (e.ev === 'error') log('touch: ' + e.error);
+        });
+    });
+    t.stderr.on('data', (d) => log('touch: ' + String(d).trim()));
+    t.stdin.on('error', () => { /* it exited */ });
+    t.on('error', (e) => log('touch: ' + e.message));
+    t.on('exit', (code, sig) => { if (touch === t) { touch = null; log('touch: exited (' + (sig || code) + ')'); } });
+}
+
+function stopTouch() {
+    if (!touch) return;
+    const t = touch;
+    touch = null;
+    if (touching && game) game.input('u', lastTouch.x, lastTouch.y);   /* the button is not left held */
+    touching = false;
+    try { t.stdin.end(); } catch (e) { /* gone */ }
+    setTimeout(() => { try { t.kill('SIGKILL'); } catch (e) { /* gone */ } }, 1000);
+}
+
+/* screen pixels -> the game's frame pixels (null: not on the picture) */
+function toFrame(sx, sy) {
+    const f = game && game.o.frame;
+    if (!f) return null;
+    const s = Math.min(VIEW.w / f.w, VIEW.h / f.h);
+    const ox = VIEW.x + (VIEW.w - f.w * s) / 2, oy = VIEW.y + (VIEW.h - f.h * s) / 2;
+    const x = (sx - ox) / s, y = (sy - oy) / s;
+    return { x: x, y: y, on: x >= 0 && y >= 0 && x < f.w && y < f.h, w: f.w, h: f.h };
+}
+
+function onTouch(e) {
+    if (!game || game.state === 'ended' || !screen.shown()) return;
+    const p = toFrame(e.x, e.y);
+    if (!p) return;
+    const cx = Math.max(0, Math.min(p.w - 1, p.x)), cy = Math.max(0, Math.min(p.h - 1, p.y));
+    lastTouch = { x: cx, y: cy };
+    if (e.p === 1) {            /* down */
+        if (!p.on) return;
+        touching = true;
+        game.input('d', p.x, p.y);
+    } else if (e.p === 2) {     /* move */
+        if (touching) game.input('m', cx, cy);
+    } else if (e.p === 3) {     /* up */
+        if (touching) game.input('u', cx, cy);
+        touching = false;
+    }
 }
 
 function setSpeed(kmh) {
@@ -358,9 +438,98 @@ function added(appId, dir) {
     const exe = old.exe && exes.some((x) => x.rel === old.exe) ? old.exe : (exes[0] && exes[0].rel) || null;
     const eng = exe ? steam.engine(dir, exe) : null;
     library[appId] = { name: name, dir: dir, exe: exe, args: old.args || steam.defaultArgs(eng), engine: eng,
-        sizeMb: Math.round(steam.du(dir) / 1048576), installedAt: old.installedAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+        sizeMb: Math.round(steam.du(dir) / 1048576), installedAt: old.installedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
+        noSteam: !!old.noSteam, steamApi: steamApiFiles(dir).length };
     saveLibrary();
     log('library: ' + name + ' (' + appId + '): ' + (exe || 'no program found') + (eng ? ', ' + eng : '') + ', ' + library[appId].sizeMb + ' MB');
+    /* an update or a check put Steam's own steam_api back: the emulator again */
+    if (old.noSteam) { const e = noSteam(appId, true); if (e) log('no-steam: ' + e); }
+}
+
+/* ---- Run without Steam: gbe_fork (Goldberg's Steam emulator) ----------------
+ * For a game that quits without the Steam client (which doesn't run here):
+ * its steam_api64.dll / steam_api.dll are swapped for gbe_fork's (the
+ * runtime's goldberg/, LGPL-3.0), each original kept beside it as
+ * <name>.vzs-orig, with a steam_settings folder (gbe_fork reads it beside
+ * its DLL): the app id, the account's name, no networking (no LAN
+ * broadcasts on the car's network). Off: the originals back, our settings
+ * gone. Achievements and cloud saves stay local; a game wrapped in Steam's
+ * DRM (SteamStub) still won't start. Off by default, per game. */
+const GBE = path.join(env.RUNTIME, 'goldberg');
+const API_DLLS = { 'steam_api64.dll': 'x64/steam_api64.dll', 'steam_api.dll': 'x86/steam_api.dll' };
+const ORIG = '.vzs-orig';
+const MARK = '.vizualyse-steam';
+
+/* the game's Steam API DLLs (paths), a few folders deep */
+function steamApiFiles(dir, depth) {
+    const out = [];
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch (e) { return out; }
+    names.forEach((n) => {
+        const p = path.join(dir, n);
+        let st;
+        try { st = fs.lstatSync(p); } catch (e) { return; }
+        if (st.isDirectory() && (depth || 0) < 4 && n !== 'steam_settings' && n !== '.DepotDownloader') out.push.apply(out, steamApiFiles(p, (depth || 0) + 1));
+        else if (st.isFile() && API_DLLS[n.toLowerCase()]) out.push(p);
+    });
+    return out;
+}
+
+function sameFile(a, b) {
+    try {
+        const sa = fs.statSync(a), sb = fs.statSync(b);
+        return sa.size === sb.size && fs.readFileSync(a).equals(fs.readFileSync(b));
+    } catch (e) { return false; }
+}
+
+/* owners where the filesystem has them (FAT / exFAT / NTFS: none) */
+function ownIfCan(p) { try { fs.chownSync(p, UID, UID); } catch (e) { /* no owners */ } }
+
+function noSteam(appId, on) {
+    const g = library[appId];
+    if (!g) return 'not in the library';
+    if (game && game.o.appId === Number(appId) && game.state !== 'ended') return 'stop the game first';
+    const stick = gameStick(g);
+    if (stick) {
+        if (!present(g)) return 'it is on the USB stick ' + stick + ': plug it in';
+        try { attachStick(stick); } catch (e) { return 'the USB stick: ' + e.message; }
+    }
+    const files = steamApiFiles(g.dir);
+    if (on && !files.length) return 'this game has no steam_api DLL: it doesn\'t use the Steam API this way';
+    try {
+        files.forEach((f) => {
+            const gbe = path.join(GBE, API_DLLS[path.basename(f).toLowerCase()]);
+            const d = path.dirname(f), sd = path.join(d, 'steam_settings');
+            if (on) {
+                if (!fs.existsSync(gbe)) throw new Error('no ' + gbe + ' (an older bundle)');
+                /* Steam's own (new, or put back by an update): kept as the original */
+                if (!sameFile(f, gbe)) fs.renameSync(f, f + ORIG);
+                fs.copyFileSync(gbe, f);
+                ownIfCan(f);
+                if (!fs.existsSync(sd)) fs.mkdirSync(sd, 0o755);
+                if (fs.existsSync(path.join(sd, MARK)) || fs.readdirSync(sd).length === 0) {
+                    const acct = (settings.username || 'Player').replace(/[^\w.@ -]/g, '');
+                    fs.writeFileSync(path.join(sd, MARK), 'written by vizualyse-steam: Run without Steam\n');
+                    fs.writeFileSync(path.join(sd, 'steam_appid.txt'), String(appId) + '\n');
+                    fs.writeFileSync(path.join(sd, 'configs.user.ini'), '[user::general]\naccount_name=' + acct + '\nlanguage=english\n');
+                    fs.writeFileSync(path.join(sd, 'configs.main.ini'), '[main::connectivity]\ndisable_networking=1\n');
+                    ownIfCan(sd);
+                    fs.readdirSync(sd).forEach((n) => ownIfCan(path.join(sd, n)));
+                }
+            } else {
+                if (fs.existsSync(f + ORIG)) {
+                    fs.unlinkSync(f);
+                    fs.renameSync(f + ORIG, f);
+                }
+                if (fs.existsSync(path.join(sd, MARK))) unpack.rmrf(sd);
+            }
+        });
+    } catch (e) { return 'Run without Steam: ' + e.message; }
+    g.noSteam = !!on;
+    g.steamApi = files.length;
+    saveLibrary();
+    log('no-steam: ' + g.name + ' (' + appId + '): ' + (on ? 'gbe_fork in place of ' : 'Steam\'s own ') + files.length + ' steam_api DLL' + (files.length === 1 ? '' : 's'));
+    return null;
 }
 
 function removeGame(appId) {
@@ -400,6 +569,7 @@ function setGameOptions(appId, b) {
         g.args = a ? a.split(/\s+/) : [];
     }
     saveLibrary();
+    if (b.noSteam !== undefined && !!b.noSteam !== !!g.noSteam) return noSteam(appId, !!b.noSteam);
     return null;
 }
 
@@ -519,7 +689,9 @@ function status() {
         library: Object.keys(library).map((id) => {
             const x = library[id];
             return { appId: Number(id), name: x.name, exe: x.exe, args: (x.args || []).join(' '), engine: x.engine, sizeMb: x.sizeMb,
-                usb: gameStick(x), present: present(x) };
+                usb: gameStick(x), present: present(x),
+                /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
+                noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
@@ -663,12 +835,31 @@ ensureBundles((err) => {
         userDir(env.HOME);
         userDir(env.INTERNAL_GAMES);
     } catch (e) { log('folders: ' + e.message); }
+    noPrefixUpdate();
     bundle = { state: 'ready' };
     try { log('bundle: ' + fs.readFileSync(path.join(env.RUNTIME, 'VERSION'), 'utf8').split('\n').slice(1, 3).join(', ')); } catch (e) { /* old */ }
     /* games found in the folders but not in the library (a library lost, a manual copy) */
     [env.INTERNAL_GAMES, env.DISK_GAMES].concat(usb.gameRoots()).forEach(rescan);
     if (control) control.broadcast();
 });
+
+/* No Wine prefix update, ever: the prefix is kept over the tool's updates
+ * (the games' saves live in it), so one unpacked by 0.1.0 / 0.1.1 still had
+ * a time in .update-timestamp. A new proton.tgz (its wine.inf dated 0) then
+ * made Wine run wineboot --update at the next start, which with mscoree on
+ * offered Wine Mono's installer in a window nobody can press (FTL on the car,
+ * 2026-11-07). The prefix is made by the same Wine (bundle.sh). */
+function noPrefixUpdate() {
+    const f = path.join(env.PREFIX, 'pfx', '.update-timestamp');
+    try {
+        if (fs.readFileSync(f, 'utf8').trim() === 'disable') return;
+    } catch (e) { if (e.code !== 'ENOENT') { log('prefix: ' + e.message); return; } }
+    try {
+        fs.writeFileSync(f, 'disable\n');
+        fs.chownSync(f, UID, UID);
+        log('prefix: updates disabled');
+    } catch (e) { log('prefix: ' + e.message); }
+}
 
 /* games found in a games folder but not in the library (a library lost, a
  * manual copy, a stick from another car) */

@@ -312,9 +312,16 @@ static long next_order;
 
 static void remove_cb(struct wl_resource *res) { wl_list_remove(wl_resource_get_link(res)); }
 
+/* input (--input): the surface the pointer and keyboard last entered, and
+ * where the shown toplevel's (0,0) is on the canvas (compose) */
+static struct surface *entered, *shown_top;
+static int org_x, org_y;
+
 static void surface_destroy_res(struct wl_resource *res) {
     struct surface *s = wl_resource_get_user_data(res);
     struct surface *o;
+    if (entered == s) entered = NULL;
+    if (shown_top == s) shown_top = NULL;
     wl_list_for_each(o, &surfaces, link)
         if (o->parent == s) o->parent = NULL;
     struct wl_resource *cb, *tmp;
@@ -709,15 +716,22 @@ static void res_release(struct wl_client *c, struct wl_resource *r) { (void)c; w
 static const struct wl_pointer_interface pointer_impl = { .set_cursor = pointer_set_cursor, .release = res_release };
 static const struct wl_keyboard_interface keyboard_impl = { .release = res_release };
 
+/* every client's wl_pointer and wl_keyboard (--input sends to them) */
+static struct wl_list pointers, keyboards;
+
 static void seat_get_pointer(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     struct wl_resource *res = wl_resource_create(c, &wl_pointer_interface, wl_resource_get_version(r), id);
     if (!res) { wl_client_post_no_memory(c); return; }
-    wl_resource_set_implementation(res, &pointer_impl, NULL, NULL);
+    wl_resource_set_implementation(res, &pointer_impl, NULL, remove_cb);
+    wl_list_insert(&pointers, wl_resource_get_link(res));
+    entered = NULL;   /* a new pointer gets its enter with the next touch */
 }
 static void seat_get_keyboard(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     struct wl_resource *res = wl_resource_create(c, &wl_keyboard_interface, wl_resource_get_version(r), id);
     if (!res) { wl_client_post_no_memory(c); return; }
-    wl_resource_set_implementation(res, &keyboard_impl, NULL, NULL);
+    wl_resource_set_implementation(res, &keyboard_impl, NULL, remove_cb);
+    wl_list_insert(&keyboards, wl_resource_get_link(res));
+    entered = NULL;
     int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
     if (fd >= 0) { wl_keyboard_send_keymap(res, WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP, fd, 0); close(fd); }
     if (wl_resource_get_version(r) >= 4) wl_keyboard_send_repeat_info(res, 0, 0);
@@ -738,6 +752,69 @@ static void seat_bind(struct wl_client *c, void *d, uint32_t v, uint32_t id) {
     wl_resource_set_implementation(res, &seat_impl, NULL, NULL);
     wl_seat_send_capabilities(res, WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD);
     if (v >= 2) wl_seat_send_name(res, "seat0");
+}
+
+/* ---- input (--input): stdin lines "d|m|u X Y" ---- */
+
+/* A touch on the picture (canvas pixels): the shown toplevel gets the pointer
+ * there (and the keyboard's focus, which Wine takes for its foreground
+ * window), and the left button down (d) or up (u). Coordinates go through
+ * org_x / org_y, so they stay right when only the client area is shown. */
+static void touch_input(char kind, int X, int Y) {
+    struct surface *top = shown_top;
+    if (!top || !top->res) return;
+    struct wl_client *cl = wl_resource_get_client(top->res);
+    wl_fixed_t fx = wl_fixed_from_int(X - org_x), fy = wl_fixed_from_int(Y - org_y);
+    uint32_t t = (uint32_t)now_ms();
+    struct wl_resource *p;
+    if (entered != top) {
+        struct wl_array keys;
+        wl_array_init(&keys);
+        wl_resource_for_each(p, &keyboards)
+            if (wl_resource_get_client(p) == cl) wl_keyboard_send_enter(p, wl_display_next_serial(display), top->res, &keys);
+        wl_array_release(&keys);
+        wl_resource_for_each(p, &pointers)
+            if (wl_resource_get_client(p) == cl) wl_pointer_send_enter(p, wl_display_next_serial(display), top->res, fx, fy);
+        entered = top;
+    }
+    wl_resource_for_each(p, &pointers) {
+        if (wl_resource_get_client(p) != cl) continue;
+        wl_pointer_send_motion(p, t, fx, fy);
+        if (kind == 'd' || kind == 'u')
+            wl_pointer_send_button(p, wl_display_next_serial(display), t, 0x110 /* BTN_LEFT */,
+                                   kind == 'd' ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
+        if (wl_resource_get_version(p) >= 5) wl_pointer_send_frame(p);
+    }
+    wl_display_flush_clients(display);
+}
+
+static char in_buf[512];
+static size_t in_len;
+
+static int on_stdin(int fd, uint32_t mask, void *data) {
+    struct wl_event_source **src = data;
+    ssize_t r = (mask & WL_EVENT_READABLE) ? read(fd, in_buf + in_len, sizeof in_buf - 1 - in_len) : 0;
+    if (r <= 0) {   /* the tool closed it: no more input, the game goes on */
+        if (r < 0 && errno == EINTR) return 0;
+        wl_event_source_remove(*src);
+        *src = NULL;
+        return 0;
+    }
+    in_len += (size_t)r;
+    in_buf[in_len] = 0;
+    char *line = in_buf, *nl;
+    while ((nl = strchr(line, '\n'))) {
+        *nl = 0;
+        char kind;
+        int x, y;
+        if (sscanf(line, " %c %d %d", &kind, &x, &y) == 3 && (kind == 'd' || kind == 'm' || kind == 'u'))
+            touch_input(kind, x, y);
+        line = nl + 1;
+    }
+    in_len = strlen(line);
+    memmove(in_buf, line, in_len);
+    if (in_len >= sizeof in_buf - 1) in_len = 0;   /* a line too long: dropped */
+    return 0;
 }
 
 /* ---- the picture ---- */
@@ -797,13 +874,36 @@ static void write_snap(void) {
     rename(tmp, snap_path);
 }
 
+static int whole_window;   /* --whole-window: the frame and title bar too */
+
 static void compose(void) {
     long t0 = now_ms();
     struct surface *top = NULL, *s;
     wl_list_for_each(s, &surfaces, link)
         if (s->role == ROLE_TOPLEVEL && s->xdg_toplevel && s->pix && (!top || s->order > top->order)) top = s;
     memset(canvas, 0, (size_t)out_w * out_h * 4);
-    if (top) {
+    /* Wine puts a GL / Direct3D game's client area in a subsurface; the
+     * toplevel under it is the window's frame, title bar included, drawn in
+     * software. With one, only the largest such subsurface is shown, centred
+     * (no title bar); else (a plain window) the toplevel with everything. */
+    struct surface *client = NULL;
+    if (top && !whole_window) {
+        long best = 0;
+        wl_list_for_each(s, &surfaces, link) {
+            if (s->role != ROLE_SUB || s->parent != top || !s->pix) continue;
+            int w, h;
+            shown_size(s, &w, &h);
+            if (w > 1 && h > 1 && (long)w * h > best) { best = (long)w * h; client = s; }
+        }
+    }
+    shown_top = top;
+    if (client) {
+        int cw, ch;
+        shown_size(client, &cw, &ch);
+        int x = (out_w - cw) / 2, y = (out_h - ch) / 2;
+        blit(client, x, y);
+        org_x = x - client->sx; org_y = y - client->sy;
+    } else if (top) {
         int tw, th;
         shown_size(top, &tw, &th);
         int x = (out_w - tw) / 2, y = (out_h - th) / 2;
@@ -811,6 +911,7 @@ static void compose(void) {
         /* its subsurfaces, oldest first (the list is newest first) */
         wl_list_for_each_reverse(s, &surfaces, link)
             if (s->role == ROLE_SUB && s->parent == top && s->pix) blit(s, x + s->sx, y + s->sy);
+        org_x = x; org_y = y;
     }
     if (fo.map) {
         xrgb_to_i420(canvas, out_w, out_w, out_h, frame_out_next(&fo));
@@ -872,12 +973,13 @@ static int create_frame(const char *path, int w, int h) {
 
 int main(int argc, char **argv) {
     const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128";
-    int create_w = 0, create_h = 0, no_drm = 0;
+    int create_w = 0, create_h = 0, no_drm = 0, input = 0;
     long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
-        { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { 0, 0, 0, 0 } };
+        { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "input", 0, 0, 'i' }, { "whole-window", 0, 0, 'w' },
+        { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 's': sock = optarg; break;
@@ -889,8 +991,10 @@ int main(int argc, char **argv) {
         case 'n': no_drm = 1; break;
         case 'u': drop_uid = strtol(optarg, NULL, 10); break;
         case 'g': drop_gid = strtol(optarg, NULL, 10); break;
+        case 'i': input = 1; break;
+        case 'w': whole_window = 1; break;
         default:
-            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G]\n");
+            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window]\n");
             return 2;
         }
     }
@@ -920,6 +1024,8 @@ int main(int argc, char **argv) {
     canvas = calloc((size_t)out_w * out_h, 4);
     if (!canvas) return 1;
     wl_list_init(&surfaces);
+    wl_list_init(&pointers);
+    wl_list_init(&keyboards);
 
     display = wl_display_create();
     if (!display || wl_display_add_socket(display, sock) < 0) {
@@ -941,6 +1047,8 @@ int main(int argc, char **argv) {
     wl_event_loop_add_signal(loop, SIGTERM, on_signal, NULL);
     wl_event_loop_add_signal(loop, SIGINT, on_signal, NULL);
     signal(SIGPIPE, SIG_IGN);
+    static struct wl_event_source *in_src;
+    if (input) in_src = wl_event_loop_add_fd(loop, 0, WL_EVENT_READABLE, on_stdin, &in_src);
 
     printf("{\"ev\":\"ready\",\"socket\":"); jstr(sock);
     printf(",\"size\":[%d,%d],\"drm\":%s,\"device\":", out_w, out_h, gl.ok ? "true" : "false");

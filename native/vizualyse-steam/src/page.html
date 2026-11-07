@@ -138,6 +138,10 @@ function render(s) {
       '<details><summary>Options</summary>' +
       '<div class="row"><label>Program</label><select data-f="exe"><option>' + esc(x.exe || '') + '</option></select></div>' +
       '<div class="row"><input type="text" data-f="args" value="' + esc(x.args) + '" placeholder="Launch options" autocapitalize="off" spellcheck="false"><button data-act="save">Save</button></div>' +
+      (x.steamApi === 0 ? '' :
+        '<div class="row"><button data-act="nosteam">Run without Steam: ' + (x.noSteam ? 'on' : 'off') + '</button></div>' +
+        '<p class="dim">For a game that says to start it from Steam: its Steam library is swapped for gbe_fork (Goldberg\'s emulator); ' +
+        'achievements and cloud saves stay on the car. Off puts Steam\'s back. Steam\'s DRM wrapper still stops some games.</p>') +
       '<div class="row"><button data-act="validate">Check and update files</button><button class="bad" data-act="remove">Remove</button></div>' +
       '</details></div>').join('') : '<p class="dim">No games yet: install one below.</p>';
   }
@@ -219,6 +223,10 @@ $('library').addEventListener('click', (e) => {
   if (!b) return;
   const card = b.closest('.game'), appId = Number(card.dataset.app), act = b.dataset.act;
   if (act === 'play') api('/api/play', { appId: appId }).catch(() => null);
+  if (act === 'nosteam') {
+    const g = last && last.library.filter((x) => x.appId === appId)[0];
+    api('/api/game', { appId: appId, noSteam: !(g && g.noSteam) }).catch(() => null);
+  }
   if (act === 'validate') api('/api/validate', { appId: appId }).catch(() => null);
   if (act === 'remove' && confirm('Remove this game and its files from the car? (Saves in the Windows prefix stay.)')) {
     editing = false;

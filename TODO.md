@@ -219,7 +219,7 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   evdev to read on the unit).
 - [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
-## Steam (vizualyse-steam 0.1.3, vizualyse_steam 0.1.1)
+## Steam (vizualyse-steam 0.1.4, vizualyse_steam 0.1.1)
 
 Windows games from the owner's Steam library through Proton (WineD3D on the
 unit's own Mesa 19, Wine's Wayland driver into `wl-sink`, mgu-render's frame
@@ -242,52 +242,30 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   pre-allocates every file, and FAT32 (no fallocate) writes zeros for that
   first, so each byte is written twice. Try exFAT (Tuxera texfat) and the
   hard disk for comparison; maybe show MB/s on the phone page.
-- [ ] **On the car: the first game.** STS2 (64-bit, on the hard disk)
-  already drew its first frames and was shown (`wl-sink: ready ... GPU
-  buffers`, `game: running`, no GPU errors in dmesg) before the `mscoree`
-  crash. Play from the iDrive page:
-  `wl-sink: ready ... GPU buffers`, `game: running`, the pictures per second
-  and the sink's ms on the phone page, the picture in the app area. Then
-  `dmesg | grep -iE 'i915|blocked for more'` (no GPU hang) and the memory
-  (the cgroup's peak on the phone page). Whether Slay the Spire 2 starts
-  without the Steam client (`SteamAPI_Init` fails here), and on
-  `--rendering-driver opengl3`.
-- [ ] **On the car: sound** through `pcm_play.py` into SmartXbar (the
-  FIFO's bytes, the player's latency lines); the volume slider.
-- [ ] **Input:** touch as the pointer (the display's PDUs, as the browser);
-  `wl-sink`'s keyboard has no keymap yet (Wine logs "Failed to load Xkb
-  keymap"). Without it a game can't be played, only started.
-- [ ] **Controllers:** `t_xinput` with test/usbip_pad.c's virtual Vader 4
+- [ ] **On the car with 0.1.4:** FTL ran there with 0.1.3 (2026-11-07,
+  32-bit through the rebuilt `ntdll.so`): shown, 15 pictures/s, GPU buffers,
+  the sink's 34 ms a picture, no GPU errors. Now:
+  - touch: a tap clicks where it lands (`touch: ready (reading)`), on FTL's
+    menus;
+  - no title bar (only the GL client area shown);
+  - sound: the FIFO read at real time, `pcm:` lines with seconds played and
+    little dropped (0.1.3 played 0.1 s in a minute: Wine wrote ~3.6x real
+    time); the volume slider;
+  - STS2 with Run without Steam on (gbe_fork): past "run the game from
+    Steam";
+  - no Wine Mono window (the kept prefix's updates disabled at start);
+  - memory: FTL used 2.0 GB of the 2.5 GB cap (page cache in it?): read
+    the cgroup's `memory.stat` while one runs.
+- [ ] **Keyboard:** `wl-sink`'s keyboard has no keymap yet (Wine logs
+  "Failed to load Xkb keymap"); an on-screen one, or the iDrive controller
+  as keys.
+- [ ] **Controllers (0.1.5):** `t_xinput` with test/usbip_pad.c's virtual Vader 4
   Pro (as Moonlight's tests): Proton's winebus through SDL2 (built with
   hidapi on libusb, as the car has no evdev / HID / uinput), else an XInput
   DLL fed by Moonlight's `pads.c`.
-- [ ] **On the car: STS2 with 0.1.2.** 0.1.1 disabled Wine's `mscoree` for
-  games, and STS2 (Godot, .NET 9) drew, then crashed: "mscoree.dll not
-  found, IL-only binary sts2.dll cannot be loaded". 0.1.2 leaves it on
-  (off the car the car's own `sts2.dll` loads now: `T_GAME=../il/t_load64.exe
-  T_LOAD=sts2.dll`). Update, Play: past its start?
-- [ ] **On the car: 32-bit games with the rebuilt `ntdll.so`.** FTL
-  (32-bit) died at start on the car (`Failed to create process ...: 731`):
-  its kernel has no IA32 emulation, and Wine's WoW64 used `int $0x80` for
-  the 32-bit `%fs` (knowledge/games.md). `patches/wine-no-ia32.patch`
-  (64-bit `modify_ldt`, an LDT selector per thread), `ntdll.so` rebuilt
-  from GE-Proton11-11's own tree (`tools/build_ntdll.sh`). Off the car the
-  unit test plays the 32-bit Direct3D 9 program through it, and FTL's own
-  exe starts. On the car: FTL, `journalctl` for `run_process` / `game:`;
-  a long session (threads come and go: an LDT entry each, freed with the
-  thread).
-- [ ] **Sound:** the `mmdevapi: Unable to load UNIX functions` line is
-  likely only winepulse failing before ALSA: check that sound plays on a
-  working game.
-- [ ] **Goldberg (gbe_fork, LGPL) for games that need Steam running:** an
-  opt-in "Run without Steam" switch per game on the phone page. It puts the
-  emulator's `steam_api.dll` / `steam_api64.dll` in place of the game's
-  (the original kept, restored when switched off), with the account name and
-  app id in its settings. It doesn't help exes wrapped in SteamStub DRM
-  (removing that is out of scope). Achievements and cloud saves become
-  local. Replacing the DLL may go against Steam's terms: the owner decides.
-  Only once a game is found that quits on `SteamAPI_Init` (STS2 is the
-  first to try).
+- [ ] **32-bit games, a long session:** threads come and go with an LDT
+  entry each (`patches/wine-no-ia32.patch`), freed with the thread: watch a
+  long FTL session for "too many threads".
 - [ ] **32-bit D3D9 on `stub` exits 1 at teardown** after a full run
   (`wined3d_device_cleanup Context array not freed!`; 64-bit and `swrast`
   are fine).

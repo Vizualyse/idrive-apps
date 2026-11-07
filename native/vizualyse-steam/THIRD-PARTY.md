@@ -11,7 +11,7 @@ The tool ships three archives, built by `tools/bundle.sh`:
 |---|---|---|
 | `proton.tgz` | **GE-Proton** 11-11 (Wine with Proton's and GloriousEggroll's patches), trimmed (`tools/bundle.sh` says what is left out); the program interpreter of its ELF programs pointed at the runtime's loader by `patchelf`; **`lib/wine/x86_64-unix/ntdll.so` rebuilt** from GE-Proton's own Wine tree with `patches/wine-no-ia32.patch` (Wine's `dlls/ntdll/unix/signal_x86_64.c`: the 32-bit `%fs` through the 64-bit `modify_ldt`, an LDT selector per thread, for kernels without IA32 emulation; `tools/build_ntdll.sh`), nothing else changed | Wine: LGPL-2.1-or-later; Proton: BSD-3-Clause; the rest each its own (`proton/LICENSE`, `LICENSE.OFL`, `PATENTS.AV1`) |
 | `prefix.tgz` | the Windows prefix Proton made at build time from its own files (above) | as above |
-| `runtime.tgz` | GNU C library 2.41 and every library Wine, wl-sink and .NET load, from **Debian 13 (trixie)** (`libc.so.6` reads `/dev/shm/vzs.dns` instead of `/etc/resolv.conf`: one string changed); **.NET** 10 runtime; **DepotDownloader** 3.4.0 (SteamRE) | glibc: LGPL-2.1-or-later; each Debian package its own (`runtime/licenses/<package>.txt`); .NET: MIT (`runtime/licenses/dotnet-*.txt`); DepotDownloader: GPL-2.0 (`runtime/licenses/DepotDownloader-LICENSE.txt`) |
+| `runtime.tgz` | GNU C library 2.41 and every library Wine, wl-sink and .NET load, from **Debian 13 (trixie)** (`libc.so.6` reads `/dev/shm/vzs.dns` instead of `/etc/resolv.conf`: one string changed); **.NET** 10 runtime; **DepotDownloader** 3.4.0 (SteamRE); **gbe_fork** (Goldberg's Steam emulator) release-2026_09_27: its regular `steam_api64.dll` / `steam_api.dll`, unchanged (`runtime/goldberg/`, for a game's "Run without Steam") | glibc: LGPL-2.1-or-later; each Debian package its own (`runtime/licenses/<package>.txt`); .NET: MIT (`runtime/licenses/dotnet-*.txt`); DepotDownloader: GPL-2.0 (`runtime/licenses/DepotDownloader-LICENSE.txt`); gbe_fork: LGPL-3.0 (`runtime/licenses/gbe_fork-LICENSE.txt`) |
 
 `bundle-VERSION.txt` lists the exact versions and Debian packages.
 
@@ -33,5 +33,10 @@ The tool ships three archives, built by `tools/bundle.sh`:
 - .NET: <https://github.com/dotnet/runtime>, release 10.0.14.
 - DepotDownloader: <https://github.com/SteamRE/DepotDownloader>, tag
   `DepotDownloader_3.4.0`.
+- gbe_fork: <https://github.com/Detanup01/gbe_fork>, tag `release-2026_09_27`
+  (the release's `emu-win-release-vs22.7z`, `release/regular/`).
+- `src/touch_main.c`, `src/touch.c`, `src/touch.h` (`steam-touch`) and
+  `test/fake_render_client.js` are copies of vizualyse-chromium's (ours,
+  GPL-3.0-or-later).
 
 On request we provide the same sources.

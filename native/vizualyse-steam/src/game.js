@@ -41,6 +41,21 @@ function mkfifo(p, uid, gid) {
     fs.chownSync(p, uid, gid);
 }
 
+/* The game's sound as the runtime's asound.conf makes it: S16LE, 48 kHz,
+ * stereo (bytes per second), and the FIFO's size: 8 KB, ~43 ms. */
+const PCM_RATE = 48000 * 2 * 2;
+const PCM_PIPE = 8192;
+
+/* A FIFO's pipe size (F_SETPIPE_SZ, 1031): Node has no fcntl, Python does.
+ * Kept while anyone holds the FIFO open (game.js does). Best effort. */
+function pipeSize(p, size) {
+    try {
+        execFileSync(fs.existsSync(PYTHON) ? PYTHON : 'python3', ['-c',
+            'import os,fcntl,sys; fd=os.open(sys.argv[1], os.O_RDWR|os.O_NONBLOCK); fcntl.fcntl(fd, 1031, int(sys.argv[2])); os.close(fd)',
+            p, String(size)], { stdio: 'ignore', timeout: 5000 });
+    } catch (e) { /* the default 64 KB: ~340 ms at most behind */ }
+}
+
 /* Linear volume on S16LE samples, in place (the phone page's slider: the car's
  * own volume may not reach SmartXbar's CarPlay input, knowledge/sound.md). */
 function scale(buf, pct) {
@@ -90,9 +105,11 @@ class Game extends EventEmitter {
 
     _startSink() {
         const o = this.o;
+        /* --input: touches on its stdin (input()) become Wine's pointer */
         const args = ['--socket', DISPLAY, '--frame', screen.FILE, '--fps', String(o.fps), '--device', env.RENDER_NODE,
-            '--uid', String(o.uid), '--gid', String(o.gid)];
-        const sink = spawn(process.env.STEAM_WL_SINK || env.RUNTIME + '/wl-sink', args, { env: env.sinkEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+            '--uid', String(o.uid), '--gid', String(o.gid), '--input'];
+        const sink = spawn(process.env.STEAM_WL_SINK || env.RUNTIME + '/wl-sink', args, { env: env.sinkEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+        sink.stdin.on('error', () => { /* it exited */ });
         this.sink = sink;
         let rest = '';
         sink.stdout.setEncoding('utf8');
@@ -134,15 +151,18 @@ class Game extends EventEmitter {
 
     _startSound() {
         const o = this.o;
+        let fd;
         try {
             mkfifo(env.PCM_FIFO, o.uid, o.gid);
-            /* read-write: opening never blocks, nor does Wine's open for writing */
-            const fd = fs.openSync(env.PCM_FIFO, 'r+');
-            this.pcm = new net.Socket({ fd: fd, readable: true, writable: false });
+            /* read-write: opening never blocks, nor does Wine's open for
+             * writing; non-blocking: read on a timer, EAGAIN when empty */
+            fd = fs.openSync(env.PCM_FIFO, fs.constants.O_RDWR | fs.constants.O_NONBLOCK);
         } catch (e) {
             this._log('sound: ' + e.message + ' (the game is silent)');
             return;
         }
+        pipeSize(env.PCM_FIFO, PCM_PIPE);
+        this.pcm = { fd: fd, timer: null };
         let py = null;
         if (o.sound && fs.existsSync(PYTHON)) {
             /* --live: never falls behind (SmartXbar's first connect can block for many seconds) */
@@ -156,15 +176,32 @@ class Game extends EventEmitter {
         } else if (o.sound) {
             this._log('sound: no mgu-python at ' + PYTHON + ' (the game is silent)');
         }
-        let bytes = 0;
-        this.pcm.on('data', (d) => {
-            bytes += d.length;
-            if (!this.py) return;          /* drained and dropped: Wine never waits */
+        /* Read at the sound's own rate, never faster. Wine's ALSA output has
+         * no clock behind it (the runtime's asound.conf: a file plugin over
+         * "null"), so Wine wrote as fast as it could, ~3.6x real time on the
+         * car, and the player dropped nearly all of it (FTL, 2026-11-07).
+         * Read at PCM_RATE the FIFO fills and Wine waits, as on a sound card;
+         * the small pipe (PCM_PIPE) keeps that wait short behind the picture.
+         * Dropped only when the player itself is behind (SmartXbar's first
+         * connect can block for seconds): Wine is never held up by it. */
+        let bytes = 0, allow = 0, last = Date.now();
+        const buf = Buffer.alloc(PCM_RATE / 5);
+        this.pcm.timer = setInterval(() => {
+            const now = Date.now();
+            allow = Math.min(allow + (now - last) * PCM_RATE / 1000, PCM_RATE / 10);
+            last = now;
+            const want = Math.floor(allow / 4) * 4;
+            if (want <= 0) return;
+            let n = 0;
+            try { n = fs.readSync(fd, buf, 0, want, null); } catch (e) { if (e.code !== 'EAGAIN') this._log('sound: ' + e.message); }
+            if (n <= 0) { allow = 0; return; }     /* nothing waiting: no credit builds up */
+            allow -= n;
+            bytes += n;
+            if (!this.py) return;
             const ws = this.py.stdin._writableState;
-            if (ws && ws.length > 48000 * 4) return;
-            try { this.py.stdin.write(scale(d, o.volume ? o.volume() : 100)); } catch (e) { /* gone */ }
-        });
-        this.pcm.on('error', (e) => this._log('sound: ' + e.message));
+            if (ws && ws.length > PCM_RATE / 5) return;
+            try { this.py.stdin.write(scale(Buffer.from(buf.slice(0, n)), o.volume ? o.volume() : 100)); } catch (e) { /* gone */ }
+        }, 10);
         this.soundBytes = () => bytes;
     }
 
@@ -217,6 +254,13 @@ class Game extends EventEmitter {
         this.emit('state', state);
     }
 
+    /* A touch on the game's picture (frame pixels, the size it draws at):
+     * kind 'd' down, 'm' move, 'u' up; wl-sink makes it Wine's pointer. */
+    input(kind, x, y) {
+        if (!this.sink || !this.sink.stdin.writable) return;
+        try { this.sink.stdin.write(kind + ' ' + Math.round(x) + ' ' + Math.round(y) + '\n'); } catch (e) { /* gone */ }
+    }
+
     /* Ends the game and everything it started; why: a note for the status. */
     stop(why) {
         if (this.stopping) return;
@@ -243,7 +287,11 @@ class Game extends EventEmitter {
             this._killLeft();
             if (this.sink) { const s = this.sink; this.sink = null; try { s.kill('SIGTERM'); } catch (e) { /* gone */ } setTimeout(() => { try { s.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000); }
             if (this.py) { const p = this.py; this.py = null; try { p.kill('SIGTERM'); } catch (e) { /* gone */ } setTimeout(() => { try { p.kill('SIGKILL'); } catch (e) { /* gone */ } }, 500); }
-            if (this.pcm) { try { this.pcm.destroy(); } catch (e) { /* gone */ } this.pcm = null; }
+            if (this.pcm) {
+                clearInterval(this.pcm.timer);
+                try { fs.closeSync(this.pcm.fd); } catch (e) { /* gone */ }
+                this.pcm = null;
+            }
             try { fs.unlinkSync(env.PCM_FIFO); } catch (e) { /* none */ }
             screen.removeFrameFile();
             this._end(this.note);

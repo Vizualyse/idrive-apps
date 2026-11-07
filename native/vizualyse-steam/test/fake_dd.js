@@ -44,10 +44,17 @@ function download() {
          * of the test program when there is one: every run plays both */
         const exe32 = GAME_EXE.replace(/64\.exe$/, '32.exe');
         const exe = Number(app) === 4343 && exe32 !== GAME_EXE && fs.existsSync(exe32) ? exe32 : GAME_EXE;
-        fs.copyFileSync(exe, path.join(dir, 'TestGame.exe'));
+        /* read and write, not copyFile (which sets the mode: EPERM on FAT32) */
+        const copy = (a, b) => fs.writeFileSync(b, fs.readFileSync(a));
+        copy(exe, path.join(dir, 'TestGame.exe'));
         /* the DLLs beside it too (a real game's, copied off the car: T_GAME) */
         fs.readdirSync(path.dirname(GAME_EXE)).filter((n) => /\.dll$/i.test(n))
-            .forEach((n) => fs.copyFileSync(path.join(path.dirname(GAME_EXE), n), path.join(dir, n)));
+            .forEach((n) => copy(path.join(path.dirname(GAME_EXE), n), path.join(dir, n)));
+        /* Steam's API beside it, as a Steamworks game has (stand-ins: "Run
+         * without Steam" swaps them for gbe_fork's, unit_test.js) */
+        ['steam_api64.dll', 'steam_api.dll'].forEach((n) => {
+            if (!fs.existsSync(path.join(dir, n))) fs.writeFileSync(path.join(dir, n), 'MZ stand-in for Steam\'s ' + n + '\n');
+        });
         mkdirp(path.join(dir, 'redist'));
         fs.writeFileSync(path.join(dir, 'redist', 'vcredist_x64.exe'), 'MZ');
         console.log('Depot ' + (Number(app) + 1) + ' - Downloaded 1234 bytes (5678 bytes uncompressed)');

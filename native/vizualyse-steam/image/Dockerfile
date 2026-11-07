@@ -31,5 +31,5 @@ RUN rm -f /etc/apt/sources.list.d/* && printf '%s\n' \
         libstdc++6 libgcc-s1 ca-certificates \
         python3 libvulkan1 \
         gcc libc6-dev pkg-config libwayland-dev wayland-protocols patchelf binutils file \
-        curl unzip xz-utils \
+        curl unzip xz-utils 7zip \
     && rm -rf /var/lib/apt/lists/*

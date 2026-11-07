@@ -49,6 +49,12 @@ DOTNET=10.0.14
 DOTNET_SHA512=634326028645f38731c8c4e71a68356e4ca0d6b6607139a234ab760687f742063edaf33a1f20dda615742d2dc8300ca2ff857619d51fbb38090383b71334af89
 DD=3.4.0
 DD_SHA256=7419f65efb7eb16b6e56987ed1b76475f29c02475c0016166c84798388e796bc
+# gbe_fork (Goldberg's Steam emulator, LGPL-3.0): its steam_api(64).dll for
+# a game's "Run without Steam" (server.js), for games that quit without the
+# Steam client (Slay the Spire 2: "run the game from Steam")
+GBE=release-2026_09_27
+GBE_SHA256=300186c34f49a9ea75b33ce2af299267cc1dad0225cf45e81a229578d4e11c85
+GBE_LICENSE_SHA256=e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118
 
 say() { echo "bundle: $*"; }
 # fetch URL FILE ALGO SUM: into /dl once, checked every time
@@ -63,6 +69,8 @@ mkdir -p "$DL"
 fetch "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$GE/$GE-x86_64.tar.gz" "$GE-x86_64.tar.gz" sha512 $GE_SHA512
 fetch "https://builds.dotnet.microsoft.com/dotnet/Runtime/$DOTNET/dotnet-runtime-$DOTNET-linux-x64.tar.gz" "dotnet-runtime-$DOTNET-linux-x64.tar.gz" sha512 $DOTNET_SHA512
 fetch "https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_$DD/DepotDownloader-framework.zip" "DepotDownloader-$DD-framework.zip" sha256 $DD_SHA256
+fetch "https://github.com/Detanup01/gbe_fork/releases/download/$GBE/emu-win-release-vs22.7z" "gbe-$GBE-win.7z" sha256 $GBE_SHA256
+fetch "https://raw.githubusercontent.com/Detanup01/gbe_fork/$GBE/LICENSE" "gbe-$GBE-LICENSE" sha256 $GBE_LICENSE_SHA256
 
 rm -rf "$ROOT" /tmp/ge
 mkdir -p "$R/lib" "$R/licenses" "$P" "$X" /tmp/ge
@@ -137,6 +145,14 @@ cp "$R/dotnet/ThirdPartyNotices.txt" "$R/licenses/dotnet-ThirdPartyNotices.txt"
 unzip -q -o "$DL/DepotDownloader-$DD-framework.zip" -d "$R/depotdownloader"
 rm -f "$R/depotdownloader/DepotDownloader.exe" "$R/depotdownloader/DepotDownloader.pdb"
 cp "$R/depotdownloader/LICENSE" "$R/licenses/DepotDownloader-LICENSE.txt"
+# gbe_fork's regular (not experimental) Steam API DLLs: goldberg/x64, x86
+mkdir -p /tmp/gbe "$R/goldberg/x64" "$R/goldberg/x86"
+7z x -y -o/tmp/gbe "$DL/gbe-$GBE-win.7z" release/regular/x64/steam_api64.dll release/regular/x86/steam_api.dll > /dev/null
+cp /tmp/gbe/release/regular/x64/steam_api64.dll "$R/goldberg/x64/"
+cp /tmp/gbe/release/regular/x86/steam_api.dll "$R/goldberg/x86/"
+chmod 0644 "$R/goldberg/x64/steam_api64.dll" "$R/goldberg/x86/steam_api.dll"
+cp "$DL/gbe-$GBE-LICENSE" "$R/licenses/gbe_fork-LICENSE.txt"
+echo "$GBE" > "$R/goldberg/VERSION"
 
 G2=/tmp/wl-gen
 mkdir -p $G2
@@ -154,6 +170,12 @@ gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -I/m/src -I$G2 \
     /m/src/wl_sink.c /m/src/rgb.c /m/src/frame_out.c $G2/xdg-shell-protocol.c $G2/wayland-drm-protocol.c $G2/viewporter-protocol.c \
     $(pkg-config --cflags --libs wayland-server) -ldl
 strip --strip-unneeded "$R/wl-sink"
+# the display's touches while a game is shown, read passively (src/touch_main.c,
+# vizualyse-chromium's helper): server.js turns them into wl-sink's pointer
+gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror \
+    -Wl,--dynamic-linker=$LOADER -Wl,-rpath,$R/lib -Wl,--build-id=sha1 -o "$R/steam-touch" \
+    /m/src/touch_main.c /m/src/touch.c -lpthread
+strip --strip-unneeded "$R/steam-touch"
 
 # ---- the runtime's libraries ---------------------------------------------------
 M=/usr/lib/x86_64-linux-gnu
@@ -172,7 +194,7 @@ cp -L /lib64/ld-linux-x86-64.so.2 "$R/lib/"
 # Every library the ELF files need, resolved in this image; Proton's own
 # (files/lib/x86_64-linux-gnu) stay where they are.
 PL=$F/lib/x86_64-linux-gnu
-ELFS="$R/wl-sink $R/dotnet/dotnet $(find "$R/dotnet" -name '*.so') $(ls "$R"/lib/*.so*) \
+ELFS="$R/wl-sink $R/steam-touch $R/dotnet/dotnet $(find "$R/dotnet" -name '*.so') $(ls "$R"/lib/*.so*) \
       $(find "$F/bin" "$F/lib/wine/x86_64-unix" "$PL" -type f ! -name xrandr \( -name '*.so*' -o -perm -u+x \))"
 closure() {
     for e in "$@"; do LD_LIBRARY_PATH=$PL ldd "$e" 2>/dev/null; done | awk '/=> \// {print $1" "$3}' | sort -u

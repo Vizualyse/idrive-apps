@@ -35,6 +35,21 @@ const ROOT = '/var/opt/vizualyse-steam';
 const UID = 12996;
 const APP = 4242;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* A tap at screen pixel sx, sy for steam-touch --touch-file (the display's
+ * touch PDU as vizualyse-chromium's test makes it: down, then up 40 ms later);
+ * readable by nobody, which steam-touch drops to. */
+function touchFile(sx, sy) {
+    const pdu = (ev) => {
+        const b = Buffer.alloc(112);
+        b.writeUInt32BE(0xB0048002, 0); b.writeUInt32BE(96, 4);
+        b[28] = 0x80; b[53] = 1; b.writeUInt16BE(sx, 54); b.writeUInt16BE(sy, 60); b[62] = 50; b[63] = ev << 4;
+        return b.toString('hex');
+    };
+    fs.writeFileSync('/dev/shm/touch.txt.tmp', ['300 160.48.199.115 112 ' + pdu(1), '340 160.48.199.115 112 ' + pdu(3)].join('\n') + '\n');
+    fs.chmodSync('/dev/shm/touch.txt.tmp', 0o644);
+    fs.renameSync('/dev/shm/touch.txt.tmp', '/dev/shm/touch.txt');
+}
 let failed = 0;
 function ok(what, cond, more) {
     console.log((cond ? '  ok   ' : '  FAIL ') + what + (more ? ' (' + more + ')' : ''));
@@ -55,7 +70,10 @@ const senv = Object.assign({}, process.env, {
     STEAM_RUNTIME_ARCHIVE: T + '/build/runtime.tgz', STEAM_PROTON_ARCHIVE: T + '/build/proton.tgz',
     STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_LAUNCH: T + '/build/launch.json',
     STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/' + (process.env.T_GAME || 't_d3d964.exe'),
-    STEAM_RENDER_CLIENT: '/nonexistent/mgu_render_client.js', STEAM_LINK_IP: '127.0.0.1',
+    /* mgu-render's client: a stand-in (show works); the display's touches: a
+     * replayed capture (touchFile) for steam-touch */
+    STEAM_RENDER_CLIENT: T + '/test/fake_render_client.js', STEAM_TEST_RENDER_LOG: '/tmp/render.log',
+    STEAM_TOUCH_FILE: '/dev/shm/touch.txt', STEAM_LINK_IP: '127.0.0.1',
     /* the test stick's device: the tmpfs's name, or the vfat image's loop device */
     STEAM_USB_TEST_DEV: (fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')
         .filter((l) => l.split(' ')[1] === '/media/TESTSTICK')[0] || 'teststick').split(' ')[0],
@@ -181,6 +199,29 @@ async function main() {
     try { st = JSON.parse(first); } catch (e) { /* no */ }
     ok('the app\'s socket sends the status', st && st.ev === 'status' && st.library.length === 1);
 
+    /* Run without Steam: gbe_fork's steam_api DLLs in place of the game's
+     * (fake_dd.js puts stand-ins beside it), and back */
+    {
+        const gd = ROOT + '/games/' + APP, gbe = ROOT + '/runtime/goldberg/x64/steam_api64.dll';
+        const same = (a, b) => { try { return fs.readFileSync(a).equals(fs.readFileSync(b)); } catch (e) { return false; } };
+        let s2 = await status();
+        const g0 = s2.library.filter((x) => x.appId === APP)[0];
+        ok('a game with Steam\'s API offers Run without Steam', g0 && g0.steamApi === 2 && g0.noSteam === false, g0 && JSON.stringify({ steamApi: g0.steamApi, noSteam: g0.noSteam }));
+        r = await api('/api/game', { appId: APP, noSteam: true });
+        ok('Run without Steam: on', r.code === 200, r.body && r.body.error);
+        ok('gbe_fork\'s steam_api64.dll in place, Steam\'s kept beside it',
+            same(gd + '/steam_api64.dll', gbe) && /stand-in/.test(fs.readFileSync(gd + '/steam_api64.dll.vzs-orig', 'utf8')));
+        let appid = '';
+        try { appid = fs.readFileSync(gd + '/steam_settings/steam_appid.txt', 'utf8').trim(); } catch (e) { /* none */ }
+        ok('its settings: the app id, no networking', appid === String(APP) && /disable_networking=1/.test(fs.readFileSync(gd + '/steam_settings/configs.main.ini', 'utf8')), appid);
+        if (!process.env.T_NOSTEAM) {
+            r = await api('/api/game', { appId: APP, noSteam: false });
+            ok('Run without Steam: off puts Steam\'s back, our settings gone',
+                r.code === 200 && /stand-in/.test(fs.readFileSync(gd + '/steam_api64.dll', 'utf8')) && !fs.existsSync(gd + '/steam_api64.dll.vzs-orig') && !fs.existsSync(gd + '/steam_settings'),
+                r.body && r.body.error);
+        }
+    }
+
     /* playing it */
     r = await api('/api/play', { appId: APP });
     ok('play starts', r.code === 200, r.body && r.body.error);
@@ -201,8 +242,25 @@ async function main() {
         for (let i = 0; i < y.length; i += 97) max = Math.max(max, y[i]);
         if (GPU === 'swrast') ok('the frame file has the game\'s picture', max > 40, w + 'x' + h + ', brightest Y ' + max);
         else ok('the frame file is there at the picture\'s size', w === 1280 && h === 720, w + 'x' + h);
+        /* a tap where the picture's middle is on the screen (mgu-render fits
+         * 1280x720 into the app area 1790x638+108+82, aspect kept): t_d3d9's
+         * window (640x360 with a title bar) shows only its client area, centred,
+         * so the click lands in the middle of the client area */
+        const sc = Math.min(1790 / 1280, 638 / 720);
+        touchFile(Math.round(108 + (1790 - 1280 * sc) / 2 + 640 * sc), Math.round(82 + (638 - 720 * sc) / 2 + 360 * sc));
         r = await api('/api/show', {});
-        ok('show without mgu-render says so', r.code === 400 && /mgu-render/.test(r.body.error), r.body && r.body.error);
+        ok('show (a stand-in for mgu-render)', r.code === 200, r.body && r.body.error);
+        let clicks = '';
+        for (let i = 0; i < 40 && !/t_d3d9: click/.test(clicks); i++) {
+            await sleep(250);
+            try { clicks = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        }
+        ok('touch reads the display (steam-touch)', /touch: ready \(reading\)/.test(serverLog));
+        const cl = /t_d3d9: client (\d+) (\d+)/.exec(clicks), ck = /t_d3d9: click (-?\d+) (-?\d+)/.exec(clicks);
+        ok('a tap on the picture is a click there: only the client area is shown (no title bar), the touch mapped into it',
+            cl && ck && Math.abs(Number(ck[1]) - cl[1] / 2) <= 2 && Math.abs(Number(ck[2]) - cl[2] / 2) <= 2,
+            (ck ? 'click ' + ck[1] + ',' + ck[2] : 'no click') + (cl ? ', client ' + cl[1] + 'x' + cl[2] : ''));
+        await api('/api/hide', {});
         let mkdirRunning = null;
         try { mkdirRunning = JSON.parse(fs.readFileSync(ROOT + '/state/game-running', 'utf8')); } catch (e) { /* none */ }
         ok('a running game is marked', mkdirRunning && mkdirRunning.appId === APP);
