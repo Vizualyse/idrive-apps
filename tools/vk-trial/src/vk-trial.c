@@ -5,7 +5,7 @@
 // that a restart always ends it (README.md).
 //
 //   vk-trial arm STAGE [--timeout S] [--again]   STAGE: instance | enumerate |
-//                                                device | compute | draw
+//                                                device | compute | draw | present
 //   vk-trial arm command [--timeout S] [--again] -- PROGRAM [ARG...]
 //   vk-trial run          the one start the arming allows
 //   vk-trial disarm
@@ -84,7 +84,7 @@
 #define STALL_S    8
 #define MAX_ARGS   32
 
-static const char *STAGES[] = { "instance", "enumerate", "device", "compute", "draw", "command", NULL };
+static const char *STAGES[] = { "instance", "enumerate", "device", "compute", "draw", "present", "command", NULL };
 
 /* where the system's Vulkan loader looks for ICDs and implicit layers */
 static const char *LOADER_DIRS[] = {
@@ -285,7 +285,7 @@ static int system_icds(int print) {
 /* ---- arm ------------------------------------------------------------------ */
 
 static int cmd_arm(int argc, char **argv) {
-    if (argc < 3) die(2, "arm what? one of instance, enumerate, device, compute, draw, command");
+    if (argc < 3) die(2, "arm what? one of instance, enumerate, device, compute, draw, present, command");
     int st = stage_index(argv[2]);
     if (st < 0) die(2, "unknown stage '%s'", argv[2]);
     int timeout = 30, again = 0, i = 3;
@@ -732,7 +732,9 @@ static int cmd_run(void) {
         }
     }
 
-    /* 8. It ended: no hang held it. */
+    /* 8. It ended: no hang held it. Anything it left in its group (the
+     * probe's wl-sink after a failure) goes with it. */
+    kill(-child, SIGKILL);
     usleep(300000);
     if (kfd >= 0) pump_kmsg(kfd, kout, &kflags);
     fsync(kout);
@@ -794,6 +796,6 @@ int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "status")) { mkdirs(); settle_marker(); return cmd_status(); }
     fprintf(stderr, "usage: vk-trial arm STAGE [--timeout S] [--again] | arm command [...] -- PROGRAM [ARG...]\n"
                     "       vk-trial run | disarm | status\n"
-                    "STAGE: instance enumerate device compute draw\n");
+                    "STAGE: instance enumerate device compute draw present\n");
     return 2;
 }

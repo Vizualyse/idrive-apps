@@ -37,7 +37,7 @@ docker run --rm --network none --cap-add SYS_ADMIN --tmpfs /tmp --tmpfs /run:mod
     export SSH_CONNECTION="127.0.0.1 $(cat /tmp/sshport) 127.0.0.1 22"
     mkdir -p /var/opt/vk-trial && tar xzf /b/vk-trial.tgz -C /var/opt/vk-trial && chmod 755 /var/opt/vk-trial
     G=/var/opt/vk-trial/bin/vk-trial
-    for s in instance enumerate device compute draw; do
+    for s in instance enumerate device compute draw present; do
         $G arm $s >/dev/null && $G run > /o/$s.gate 2>&1; echo "rc=$?" >> /o/$s.gate
         d=$(cat /var/opt/vk-trial/state/last)
         for f in out.log crumbs.log result; do cp $d/$f /o/$s.$f; done
@@ -47,7 +47,7 @@ docker run --rm --network none --cap-add SYS_ADMIN --tmpfs /tmp --tmpfs /run:mod
         /bench/gltest --desktop-gl > /o/i965.out.log 2>&1 3>/o/i965.crumbs.log; echo "rc=$?" >> /o/i965.out.log
     true' 2>&1 | sed 's/^/  | /'
 
-for s in instance enumerate device compute draw; do
+for s in instance enumerate device compute draw present; do
     echo "== stage $s"
     has "$OUT/$s.gate" "rc=0" "the gate: ok"
     has "$OUT/$s.result" "result=ok" "result: ok"
@@ -71,7 +71,19 @@ for s in instance enumerate device compute draw; do
           has "$OUT/$s.crumbs.log" "probe: compiling the draw shaders" "the graphics pipeline compiled"
           has "$OUT/$s.crumbs.log" "probe: submitting the draw" "the draw submitted"
           has "$OUT/$s.out.log" "65536 untouched" "the stub ran nothing: every pixel as before (expected here)"
-          has "$OUT/$s.out.log" "draw: not run (the bench's stub GPU" "accepted on the bench only" ;;
+          has "$OUT/$s.out.log" "draw: not run (the bench's stub GPU" "accepted on the bench only"
+          hasnt "$OUT/$s.out.log" "stage present" "stopped after draw" ;;
+    present) has "$OUT/$s.out.log" "\"ev\":\"ready\"" "wl-sink started (the unit's EGL on the stub)"
+             has "$OUT/$s.out.log" "\"drm\":true" "wl-sink offers wl_drm (the render node through the unit's i965)"
+             has "$OUT/$s.out.log" "surface + wayland_surface enabled" "the window-system extensions, at this stage only"
+             has "$OUT/$s.out.log" "present: 60 frames presented" "60 FIFO frames presented"
+             has "$OUT/$s.out.log" "and 0 shared-memory buffers" "no frame by shared memory"
+             if grep -q "pictures from [1-9][0-9]* GPU (wl_drm)" "$OUT/$s.out.log"; then ok "wl-sink took GPU (wl_drm PRIME) buffers"
+             else bad "wl-sink took no wl_drm buffer"; fi
+             has "$OUT/$s.out.log" "GPU buffers reached wl-sink, the picture black" "black on the stub (expected here)"
+             if grep -q "^[0-9.]* \[[0-9]*\] > GEM_EXECBUFFER2" "$OUT/$s.crumbs.log" && [ "$(grep -o '^[0-9.]* \[[0-9]*\]' "$OUT/$s.crumbs.log" | awk '{print $2}' | sort -u | wc -l)" -ge 2 ]; then
+                 ok "the crumbs hold both the probe's and wl-sink's calls"
+             else bad "the crumbs don't show two processes"; fi ;;
     esac
 done
 echo "== the unit's i965 (gltest) through the same crumbs"
@@ -82,8 +94,8 @@ calls() { grep -o '> [A-Z_0-9]*\( fd [0-9]*\)\?\( param [0-9]*\| ctx [0-9]* para
 calls "$OUT/draw.crumbs.log" > "$OUT/anv.calls"
 calls "$OUT/i965.crumbs.log" > "$OUT/i965.calls"
 comm -23 "$OUT/anv.calls" "$OUT/i965.calls" > "$OUT/anv-only.calls"
-grep -h '< GETPARAM' "$OUT/draw.crumbs.log" | sed 's/^[0-9.]* //' | sort -u > "$OUT/anv.params"
-grep -h '< GETPARAM' "$OUT/i965.crumbs.log" | sed 's/^[0-9.]* //' | sort -u > "$OUT/i965.params"
+grep -h '< GETPARAM' "$OUT/draw.crumbs.log" | sed 's/^[0-9.]* \[[0-9]*\] //' | sort -u > "$OUT/anv.params"
+grep -h '< GETPARAM' "$OUT/i965.crumbs.log" | sed 's/^[0-9.]* \[[0-9]*\] //' | sort -u > "$OUT/i965.params"
 grep -h 'EXECBUFFER2' "$OUT/draw.crumbs.log" | grep -o 'flags 0x[0-9a-f]*' | sort | uniq -c > "$OUT/anv.execflags"
 grep -h 'EXECBUFFER2' "$OUT/i965.crumbs.log" | grep -o 'flags 0x[0-9a-f]*' | sort | uniq -c > "$OUT/i965.execflags"
 echo "== ioctls ANV asks that the unit's i965 doesn't ($OUT/anv-only.calls)"
@@ -93,9 +105,9 @@ sed 's/^/  /' "$OUT/anv.params"
 echo "== execbuffer2 flags: ANV / i965"
 sed 's/^/  anv  /' "$OUT/anv.execflags"; sed 's/^/  i965 /' "$OUT/i965.execflags"
 echo "== ANV's submissions (draw: every stage)"
-grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM\|> GEM_WAIT' "$OUT/draw.crumbs.log" | sed 's/^[0-9.]* /  /' | sort | uniq -c
+grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM\|> GEM_WAIT' "$OUT/draw.crumbs.log" | sed 's/^[0-9.]* \[[0-9]*\] /  /' | sort | uniq -c
 echo "== i965's submissions (gltest)"
-grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM' "$OUT/i965.crumbs.log" | sed 's/^[0-9.]* /  /; s/ batch_len [0-9]*//' | sort | uniq -c | head -12
+grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM' "$OUT/i965.crumbs.log" | sed 's/^[0-9.]* \[[0-9]*\] /  /; s/ batch_len [0-9]*//' | sort | uniq -c | head -12
 
 [ $fails -eq 0 ] || { echo "vk-trial anv: $fails failed (logs: $OUT)" >&2; exit 1; }
 echo "vk-trial anv: all passed (logs: $OUT)"

@@ -303,6 +303,22 @@ refuse scripts; `git` works) and a web search.
   array again; done within ~3 ms. No new kind of ioctl; nothing in `dmesg`,
   same boot. The probe's own expectations were first checked on lavapipe
   (Debian bookworm, `test/lavapipe_test.sh`), which got the same 65536.
+- **Presenting through Wayland, off the car (2026-11-07, vk-trial's
+  `present` stage):** ANV rebuilt with `-Dplatforms=drm,wayland` needs only
+  `libwayland-client.so.0` more, and all 18 `wl_` symbols it imports are in
+  the unit's own (older) build. Its surface offers `B8G8R8A8_SRGB` and
+  `_UNORM`, at least 4 images; a FIFO swapchain makes 5 X-tiled images
+  (`GEM_SET_TILING`) shared as PRIME fds. Into our wl-sink on the stub: 60
+  frames presented, wl-sink made 60 pictures from 60 `wl_drm` buffers
+  imported through the unit's i965 (`PRIME_FD_TO_HANDLE`, `GEM_GET_TILING`),
+  none by shared memory. Each present adds a tiny batch (`0x81001`, one
+  buffer below 4 GB) signalling a syncobj. On lavapipe the picture wl-sink
+  composed was right in every pixel. wl-sink as on main needs libwayland ≥
+  1.20 (`wl_output` 4, newer xdg-shell): the unit's is older, so vk-trial
+  ships a libwayland-server 1.22 built for glibc 2.27 for it alone.
+  Winston offers `zwp_linux_dmabuf_v1` and `wl_drm` (seen on the car), so
+  the same buffers could go to it directly (the Winston session's
+  `winston_out`, branch `winston-render`).
 - **The unit's kernel isn't mainline 4.14** (its uapi header,
   `intel/linux-intel-lts` `4.14/base`): it has context param 6
   (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where

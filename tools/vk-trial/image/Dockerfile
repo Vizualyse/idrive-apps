@@ -5,7 +5,7 @@
 # what the trial needs from /out):
 #   /out/lib/libvulkan_intel.so  Mesa 19.0.6's ANV, the release of the unit's
 #       own i965 (knowledge/browser.md, "Vulkan on this kernel"), built on
-#       glibc 2.27 like the unit. No X11 / Wayland WSI.
+#       glibc 2.27 like the unit. Wayland WSI (no X11).
 #   /out/lib/libvulkan.so.1      Ubuntu 18.04's Khronos loader 1.1.70 (the
 #       unit has none).
 #   /out/shaders.spv.h           the probe's shaders: compute, draw (glslang, below).
@@ -27,6 +27,7 @@ RUN apt-get update -qq \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
       ca-certificates curl xz-utils pkg-config gcc g++ make python3 python3-mako ninja-build flex bison \
       gettext libexpat1-dev zlib1g-dev libdrm-dev meson strace \
+      libwayland-dev libwayland-bin wayland-protocols \
       libvulkan1=1.1.70+dfsg1-1ubuntu0.18.04.1 libvulkan-dev=1.1.70+dfsg1-1ubuntu0.18.04.1 >/dev/null \
  && rm -rf /var/lib/apt/lists/*
 # Mesa 19.0.6's source from the GPU bench's image (build.sh passes it as the
@@ -36,11 +37,13 @@ RUN apt-get update -qq \
 COPY --from=gpubench /src/mesa-19.0.6 /src/mesa-19.0.6
 # ANV only. platforms=drm is the least Mesa 19 accepts; it brings
 # VK_KHR_display, which opens the primary node (card0, Winston's) only when
-# an instance enables it: the probe never does, and vk_crumbs.so refuses
-# /dev/dri/card* whatever asks.
+# an instance enables it: the probe never does, and the gate hides
+# /dev/dri/card* from the child whatever asks. wayland adds
+# VK_KHR_wayland_surface: frames to a Wayland compositor as wl_drm PRIME
+# buffers (or dmabuf), linking the unit's own libwayland-client.so.0.
 RUN cd /src/mesa-19.0.6 \
  && meson b --buildtype=release --prefix=/opt/anv --libdir=lib \
-      -Dplatforms=drm -Ddri-drivers= -Dgallium-drivers= -Dvulkan-drivers=intel \
+      -Dplatforms=drm,wayland -Ddri-drivers= -Dgallium-drivers= -Dvulkan-drivers=intel \
       -Dglx=disabled -Degl=false -Dgbm=false -Dgles1=false -Dgles2=false -Dopengl=false \
       -Dllvm=false -Dvalgrind=false -Dlibunwind=false -Dbuild-tests=false >/dev/null \
  && ninja -C b install >/dev/null \
@@ -49,6 +52,23 @@ RUN cd /src/mesa-19.0.6 \
  && cp -L /usr/lib/x86_64-linux-gnu/libvulkan.so.1 /out/lib/ \
  && rm -rf b
 COPY --from=spv /src/shaders.spv.h /out/
+# libwayland 1.22 for wl-sink only (the present stage's compositor, the Steam
+# tool's source): it uses wl_output 4 and newer xdg-shell, which need a
+# libwayland-server >= 1.20; the unit's is older, and 18.04's 1.16. Shipped
+# as lib/libwayland-server.so.0 alone: ANV and vkprobe keep the unit's own
+# libwayland-client. /opt/wlp: wayland-protocols 1.32's XML.
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends python3-pip python3-setuptools libffi-dev >/dev/null \
+ && rm -rf /var/lib/apt/lists/* && pip3 -q install meson==0.61.5 \
+ && cd /src && curl -fsSLO --retry 5 --retry-delay 5 https://gitlab.freedesktop.org/wayland/wayland/-/releases/1.22.0/downloads/wayland-1.22.0.tar.xz \
+ && curl -fsSLO --retry 5 --retry-delay 5 https://gitlab.freedesktop.org/wayland/wayland-protocols/-/releases/1.32/downloads/wayland-protocols-1.32.tar.xz \
+ && printf '%s\n' "1540af1ea698a471c2d8e9d288332c7e0fd360c8f1d12936ebb7e7cbc2425842  wayland-1.22.0.tar.xz" \
+      "7459799d340c8296b695ef857c07ddef24c5a09b09ab6a74f7b92640d2b1ba11  wayland-protocols-1.32.tar.xz" | sha256sum -c - \
+ && tar xJf wayland-1.22.0.tar.xz && tar xJf wayland-protocols-1.32.tar.xz && mkdir -p /opt/wlp \
+ && cp -r wayland-protocols-1.32/stable wayland-protocols-1.32/staging wayland-protocols-1.32/unstable /opt/wlp/ \
+ && cd wayland-1.22.0 && /usr/local/bin/meson setup b --prefix=/opt/wl --libdir=lib -Ddocumentation=false -Dtests=false -Ddtd_validation=false >/dev/null \
+ && ninja -C b install >/dev/null && cp -L /opt/wl/lib/libwayland-server.so.0 /out/lib/ && strip --strip-unneeded /out/lib/libwayland-server.so.0 \
+ && cd /src && rm -rf wayland-1.22.0* wayland-protocols-1.32*
 # Nothing may need more than the unit's glibc 2.27.
 RUN for f in /out/lib/*; do \
       v=$(objdump -T "$f" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1); \

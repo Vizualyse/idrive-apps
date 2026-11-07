@@ -14,6 +14,12 @@
 //   draw       offscreen: a render pass clears a 256x256 tiled image, a
 //              graphics pipeline draws one triangle coloured by position,
 //              the image is copied into a buffer and every pixel checked
+//   present    on a window: starts bin/wl-sink (the Steam tool's
+//              compositor) in a private /tmp folder, opens an xdg_toplevel
+//              on it, a FIFO swapchain (VK_KHR_wayland_surface), 60 frames
+//              of the triangle; then wl-sink's counts (pictures, GPU
+//              buffers) and its last picture checked pixel by pixel. Only
+//              this stage enables the window-system extensions
 //
 // Never asks for VK_KHR_display (that would open the display node). Each
 // stage leaves a crumb (vk_crumbs.so) before and after. On the bench's stub
@@ -22,6 +28,14 @@
 
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <errno.h>
+#include <poll.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <wayland-client.h>
+#include "xdg-shell-client-protocol.h"
+#define VK_USE_PLATFORM_WAYLAND_KHR
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +49,7 @@ static void (*crumb_fn)(const char *, ...);
 #define CRUMB(...) do { if (crumb_fn) crumb_fn(__VA_ARGS__); } while (0)
 
 static int stop_after;
-static const char *NAMES[] = { "instance", "enumerate", "device", "compute", "draw" };
+static const char *NAMES[] = { "instance", "enumerate", "device", "compute", "draw", "present" };
 
 static void say(const char *fmt, ...) {
     va_list ap;
@@ -315,21 +329,328 @@ static int draw(VkPhysicalDevice pd, VkDevice dev, VkQueue q, uint32_t family) {
     return ok ? 0 : 1;
 }
 
+/* ---- present: frames to a Wayland compositor (our wl-sink), checked there ---- */
+
+#define FRAMES 60
+
+static struct {
+    pid_t pid;
+    int out;                      /* its stdout */
+    char dir[64], snap[96];
+    char line[512];
+    long pictures, drm, shm;
+} sink;
+
+/* one line of wl-sink's stdout within ms; 1 = got one, 0 = none */
+static int sink_line(int ms) {
+    size_t n = 0;
+    for (;;) {
+        struct pollfd pf = { sink.out, POLLIN, 0 };
+        if (poll(&pf, 1, ms) <= 0) return 0;
+        char c;
+        if (read(sink.out, &c, 1) != 1) return 0;
+        if (c == '\n') { sink.line[n] = 0; return 1; }
+        if (n < sizeof sink.line - 1) sink.line[n++] = c;
+    }
+}
+
+static long jnum(const char *line, const char *key) {
+    char k[40];
+    snprintf(k, sizeof k, "\"%s\":", key);
+    const char *p = strstr(line, k);
+    return p ? atol(p + strlen(k)) : -1;
+}
+
+/* wl-sink next to us (bin/wl-sink), in a private folder under /tmp: its
+ * socket, a 256x256 frame file and the snapshot of each picture */
+static int sink_start(const char *self) {
+    snprintf(sink.dir, sizeof sink.dir, "/tmp/vkprobe-XXXXXX");
+    if (!mkdtemp(sink.dir)) { say("FAIL mkdtemp: %s", strerror(errno)); return -1; }
+    snprintf(sink.snap, sizeof sink.snap, "%s/snap.ppm", sink.dir);
+    char bin[512], frame[96];
+    snprintf(bin, sizeof bin, "%s", self);
+    char *s = strrchr(bin, '/');
+    snprintf(s ? s + 1 : bin, sizeof bin - (size_t)(s ? s + 1 - bin : 0), "wl-sink");
+    snprintf(frame, sizeof frame, "%s/frame", sink.dir);
+    setenv("XDG_RUNTIME_DIR", sink.dir, 1);
+    int p[2];
+    if (pipe(p) < 0) return -1;
+    sink.pid = fork();
+    if (sink.pid < 0) return -1;
+    if (sink.pid == 0) {
+        dup2(p[1], 1);
+        close(p[0]);
+        execl(bin, bin, "--socket", "vkprobe-0", "--frame", frame, "--create", "256x256", "--snap", sink.snap, (char *)0);
+        _exit(127);
+    }
+    close(p[1]);
+    sink.out = p[0];
+    while (sink_line(5000)) {
+        if (strstr(sink.line, "\"ev\":\"ready\"")) { say("sink: %s", sink.line); return 0; }
+        if (strstr(sink.line, "\"ev\":\"error\"")) break;
+    }
+    say("FAIL wl-sink (%s) did not start: %s", bin, sink.line);
+    return -1;
+}
+
+static void sink_stop(void) {
+    if (sink.pid > 0) { kill(sink.pid, SIGTERM); waitpid(sink.pid, NULL, 0); sink.pid = 0; }
+    char p[128];
+    snprintf(p, sizeof p, "%s/frame", sink.dir); unlink(p);
+    unlink(sink.snap);
+    snprintf(p, sizeof p, "%s/vkprobe-0", sink.dir); unlink(p);
+    snprintf(p, sizeof p, "%s/vkprobe-0.lock", sink.dir); unlink(p);
+    rmdir(sink.dir);
+}
+
+/* the newest stats line within ms */
+static void sink_stats(int ms) {
+    while (sink_line(ms))
+        if (strstr(sink.line, "\"ev\":\"stats\"")) {
+            sink.pictures += jnum(sink.line, "pictures");
+            sink.drm += jnum(sink.line, "drm");
+            sink.shm += jnum(sink.line, "shm");
+            ms = 200;
+        }
+}
+
+/* the snapshot: P6 256x256, the last picture, against pixel_ok's rule */
+static int check_snap(int *right, int *wrong, int *black, char *first, size_t cap) {
+    FILE *f = fopen(sink.snap, "rb");
+    if (!f) return -1;
+    int w, h, mx;
+    if (fscanf(f, "P6 %d %d %d", &w, &h, &mx) != 3 || w != W || h != W || fgetc(f) == EOF) { fclose(f); return -1; }
+    static uint8_t rgb[W * W * 3];
+    size_t n = fread(rgb, 3, W * W, f);
+    fclose(f);
+    if (n != W * W) return -1;
+    *right = *wrong = *black = 0;
+    first[0] = 0;
+    for (uint32_t y = 0; y < W; y++)
+        for (uint32_t x = 0; x < W; x++) {
+            const uint8_t *q = rgb + (y * W + x) * 3;
+            uint8_t p4[4] = { q[0], q[1], q[2], 255 };
+            int inside;
+            *black += !q[0] && !q[1] && !q[2];
+            if (pixel_ok(x, y, p4, &inside)) (*right)++;
+            else if ((*wrong)++ == 0) snprintf(first, cap, "(%u,%u) = %u %u %u", x, y, q[0], q[1], q[2]);
+        }
+    return 0;
+}
+
+static struct wl_compositor *wl_comp;
+static struct xdg_wm_base *wm;
+static int configured;
+
+static void reg_global(void *d, struct wl_registry *r, uint32_t name, const char *iface, uint32_t ver) {
+    (void)d;
+    if (!strcmp(iface, "wl_compositor")) wl_comp = wl_registry_bind(r, name, &wl_compositor_interface, ver < 4 ? ver : 4);
+    else if (!strcmp(iface, "xdg_wm_base")) wm = wl_registry_bind(r, name, &xdg_wm_base_interface, 1);
+}
+static void reg_remove(void *d, struct wl_registry *r, uint32_t name) { (void)d; (void)r; (void)name; }
+static const struct wl_registry_listener reg_l = { reg_global, reg_remove };
+static void wm_ping(void *d, struct xdg_wm_base *b, uint32_t serial) { (void)d; xdg_wm_base_pong(b, serial); }
+static const struct xdg_wm_base_listener wm_l = { wm_ping };
+static void xs_configure(void *d, struct xdg_surface *s, uint32_t serial) { (void)d; xdg_surface_ack_configure(s, serial); configured = 1; }
+static const struct xdg_surface_listener xs_l = { xs_configure };
+static void tl_configure(void *d, struct xdg_toplevel *t, int32_t w, int32_t h, struct wl_array *st) { (void)d; (void)t; (void)w; (void)h; (void)st; }
+static void tl_close(void *d, struct xdg_toplevel *t) { (void)d; (void)t; }
+static const struct xdg_toplevel_listener tl_l = { tl_configure, tl_close };
+
+static int present(VkInstance inst, VkPhysicalDevice pd, VkDevice dev, VkQueue q, uint32_t family) {
+    struct wl_display *dpy = wl_display_connect("vkprobe-0");
+    if (!dpy) { say("FAIL connecting to wl-sink: %s", strerror(errno)); return 1; }
+    struct wl_registry *reg = wl_display_get_registry(dpy);
+    wl_registry_add_listener(reg, &reg_l, 0);
+    wl_display_roundtrip(dpy);
+    if (!wl_comp || !wm) { say("FAIL wl-sink lacks wl_compositor or xdg_wm_base"); return 1; }
+    xdg_wm_base_add_listener(wm, &wm_l, 0);
+    struct wl_surface *ws = wl_compositor_create_surface(wl_comp);
+    struct xdg_surface *xs = xdg_wm_base_get_xdg_surface(wm, ws);
+    xdg_surface_add_listener(xs, &xs_l, 0);
+    struct xdg_toplevel *tl = xdg_surface_get_toplevel(xs);
+    xdg_toplevel_add_listener(tl, &tl_l, 0);
+    xdg_toplevel_set_title(tl, "vkprobe");
+    wl_surface_commit(ws);
+    while (!configured && wl_display_roundtrip(dpy) >= 0) { }
+
+    VkWaylandSurfaceCreateInfoKHR wsi = { VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR, 0, 0, dpy, ws };
+    VkSurfaceKHR surf;
+    CHECK(vkCreateWaylandSurfaceKHR(inst, &wsi, 0, &surf));
+    VkBool32 sup = 0;
+    CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(pd, family, surf, &sup));
+    if (!sup) { say("FAIL the queue can't present to Wayland"); return 1; }
+    VkSurfaceCapabilitiesKHR caps;
+    CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pd, surf, &caps));
+    uint32_t nf = 0;
+    CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(pd, surf, &nf, 0));
+    VkSurfaceFormatKHR fmts[32];
+    if (nf > 32) nf = 32;
+    CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(pd, surf, &nf, fmts));
+    VkFormat fmt = VK_FORMAT_UNDEFINED;
+    char list[256] = "";
+    for (uint32_t i = 0; i < nf; i++) {
+        snprintf(list + strlen(list), sizeof list - strlen(list), "%s%d", i ? "," : "", (int)fmts[i].format);
+        if (fmts[i].format == VK_FORMAT_B8G8R8A8_UNORM) fmt = fmts[i].format;
+    }
+    say("present: surface formats %s; images %u-%u", list, caps.minImageCount, caps.maxImageCount);
+    if (fmt == VK_FORMAT_UNDEFINED) { say("FAIL no B8G8R8A8_UNORM to present"); return 1; }
+    uint32_t nimg = caps.minImageCount + 1;
+    if (caps.maxImageCount && nimg > caps.maxImageCount) nimg = caps.maxImageCount;
+    VkSwapchainCreateInfoKHR sci = { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, 0, 0, surf, nimg, fmt, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        { W, W }, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_SHARING_MODE_EXCLUSIVE, 0, 0,
+        VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, VK_PRESENT_MODE_FIFO_KHR, VK_TRUE, 0 };
+    if (!(caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)) sci.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    VkSwapchainKHR sc;
+    CRUMB("probe: creating the swapchain");
+    CHECK(vkCreateSwapchainKHR(dev, &sci, 0, &sc));
+    VkImage imgs[8];
+    CHECK(vkGetSwapchainImagesKHR(dev, sc, &nimg, 0));
+    if (nimg > 8) nimg = 8;
+    CHECK(vkGetSwapchainImagesKHR(dev, sc, &nimg, imgs));
+
+    VkAttachmentDescription ad = { 0, fmt, VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE,
+        VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR };
+    VkAttachmentReference ar = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkSubpassDescription sd = { 0, VK_PIPELINE_BIND_POINT_GRAPHICS, 0, 0, 1, &ar, 0, 0, 0, 0 };
+    VkSubpassDependency dep = { VK_SUBPASS_EXTERNAL, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0 };
+    VkRenderPassCreateInfo rpi = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, 0, 0, 1, &ad, 1, &sd, 1, &dep };
+    VkRenderPass rp;
+    CHECK(vkCreateRenderPass(dev, &rpi, 0, &rp));
+    VkImageView views[8];
+    VkFramebuffer fbs[8];
+    for (uint32_t i = 0; i < nimg; i++) {
+        VkImageViewCreateInfo vi = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, 0, 0, imgs[i], VK_IMAGE_VIEW_TYPE_2D, fmt,
+            { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY },
+            { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } };
+        CHECK(vkCreateImageView(dev, &vi, 0, &views[i]));
+        VkFramebufferCreateInfo fbi = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, 0, 0, rp, 1, &views[i], W, W, 1 };
+        CHECK(vkCreateFramebuffer(dev, &fbi, 0, &fbs[i]));
+    }
+    VkShaderModuleCreateInfo vsi = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, 0, 0, sizeof draw_vert_spv, draw_vert_spv };
+    VkShaderModuleCreateInfo fsi = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, 0, 0, sizeof draw_frag_spv, draw_frag_spv };
+    VkShaderModule vs, fs;
+    CHECK(vkCreateShaderModule(dev, &vsi, 0, &vs));
+    CHECK(vkCreateShaderModule(dev, &fsi, 0, &fs));
+    VkPipelineShaderStageCreateInfo stages[2] = {
+        { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_VERTEX_BIT, vs, "main", 0 },
+        { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", 0 } };
+    VkPipelineVertexInputStateCreateInfo vin = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, 0, 0, 0, 0, 0, 0 };
+    VkPipelineInputAssemblyStateCreateInfo ia = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, 0, 0, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE };
+    VkViewport vp = { 0, 0, W, W, 0, 1 };
+    VkRect2D scr = { { 0, 0 }, { W, W } };
+    VkPipelineViewportStateCreateInfo vps = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, 0, 0, 1, &vp, 1, &scr };
+    VkPipelineRasterizationStateCreateInfo rs = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, 0, 0, VK_FALSE, VK_FALSE,
+        VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, VK_FALSE, 0, 0, 0, 1.0f };
+    VkPipelineMultisampleStateCreateInfo ms = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO, 0, 0, VK_SAMPLE_COUNT_1_BIT, VK_FALSE, 0, 0, VK_FALSE, VK_FALSE };
+    VkPipelineColorBlendAttachmentState cba = { VK_FALSE, 0, 0, 0, 0, 0, 0,
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT };
+    VkPipelineColorBlendStateCreateInfo cb = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, 0, 0, VK_FALSE, 0, 1, &cba, { 0, 0, 0, 0 } };
+    VkPipelineLayoutCreateInfo pli = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 0, 0, 0, 0 };
+    VkPipelineLayout pl;
+    CHECK(vkCreatePipelineLayout(dev, &pli, 0, &pl));
+    VkGraphicsPipelineCreateInfo gpi = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, 0, 0, 2, stages, &vin, &ia, 0, &vps, &rs, &ms, 0, &cb, 0,
+        pl, rp, 0, 0, -1 };
+    VkPipeline pipe;
+    CHECK(vkCreateGraphicsPipelines(dev, 0, 1, &gpi, 0, &pipe));
+
+    /* one command buffer per swapchain image, recorded once */
+    VkCommandPoolCreateInfo cpci = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, 0, 0, family };
+    VkCommandPool cp;
+    CHECK(vkCreateCommandPool(dev, &cpci, 0, &cp));
+    VkCommandBuffer cmds[8];
+    VkCommandBufferAllocateInfo cbai = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, 0, cp, VK_COMMAND_BUFFER_LEVEL_PRIMARY, nimg };
+    CHECK(vkAllocateCommandBuffers(dev, &cbai, cmds));
+    VkClearValue clear = { .color = { .float32 = { 0.0f, 0.0f, CLEAR_B / 255.0f, 1.0f } } };
+    for (uint32_t i = 0; i < nimg; i++) {
+        VkCommandBufferBeginInfo cbbi = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, 0, 0 };
+        CHECK(vkBeginCommandBuffer(cmds[i], &cbbi));
+        VkRenderPassBeginInfo rpb = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, 0, rp, fbs[i], { { 0, 0 }, { W, W } }, 1, &clear };
+        vkCmdBeginRenderPass(cmds[i], &rpb, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(cmds[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
+        vkCmdDraw(cmds[i], 3, 1, 0, 0);
+        vkCmdEndRenderPass(cmds[i]);
+        CHECK(vkEndCommandBuffer(cmds[i]));
+    }
+    VkSemaphoreCreateInfo semi = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, 0, 0 };
+    VkSemaphore acquired, rendered;
+    CHECK(vkCreateSemaphore(dev, &semi, 0, &acquired));
+    CHECK(vkCreateSemaphore(dev, &semi, 0, &rendered));
+    VkFenceCreateInfo fi = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 0, 0 };
+    VkFence f;
+    CHECK(vkCreateFence(dev, &fi, 0, &f));
+
+    CRUMB("probe: presenting %d frames", FRAMES);
+    int presented = 0;
+    for (int fr = 0; fr < FRAMES; fr++) {
+        uint32_t idx;
+        CHECK(vkAcquireNextImageKHR(dev, sc, 5000000000ull, acquired, VK_NULL_HANDLE, &idx));
+        VkPipelineStageFlags wst = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        VkSubmitInfo sub = { VK_STRUCTURE_TYPE_SUBMIT_INFO, 0, 1, &acquired, &wst, 1, &cmds[idx], 1, &rendered };
+        CHECK(vkQueueSubmit(q, 1, &sub, f));
+        VkPresentInfoKHR pi = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, 0, 1, &rendered, 1, &sc, &idx, 0 };
+        CHECK(vkQueuePresentKHR(q, &pi));
+        CHECK(vkWaitForFences(dev, 1, &f, VK_TRUE, 5000000000ull));
+        CHECK(vkResetFences(dev, 1, &f));
+        wl_display_dispatch_pending(dpy);   /* xdg_wm_base pings */
+        presented++;
+    }
+    CHECK(vkDeviceWaitIdle(dev));
+    wl_display_roundtrip(dpy);
+    CRUMB("probe: %d frames presented", presented);
+    sink_stats(1500);   /* wl-sink's stats come once a second */
+    int right = 0, wrong = 0, black = 0;
+    char first[80];
+    int got = check_snap(&right, &wrong, &black, first, sizeof first);
+    say("present: %d frames presented; wl-sink made %ld pictures from %ld GPU (wl_drm) and %ld shared-memory buffers",
+        presented, sink.pictures, sink.drm, sink.shm);
+    if (got < 0) say("present: no snapshot from wl-sink");
+    else say("present: wl-sink's picture: %d of %d pixels right, %d wrong, %d black%s%s", right, W * W, wrong, black,
+             wrong ? ", first wrong " : "", wrong ? first : "");
+    CRUMB("probe: present %d frames, sink %ld pictures %ld drm %ld shm, snap %d right %d wrong", presented, sink.pictures, sink.drm, sink.shm, right, wrong);
+    int stub = getenv("INTEL_STUB_GPU_PLATFORM") != NULL;
+    int ok = presented == FRAMES && sink.pictures > 0 && got == 0
+        && (wrong == 0 || (stub && black == W * W && sink.drm > 0));
+    if (ok && wrong) say("present: GPU buffers reached wl-sink, the picture black (the bench's stub GPU runs nothing): accepted on the bench only");
+
+    vkDestroyFence(dev, f, 0);
+    vkDestroySemaphore(dev, acquired, 0);
+    vkDestroySemaphore(dev, rendered, 0);
+    vkDestroyCommandPool(dev, cp, 0);
+    vkDestroyPipeline(dev, pipe, 0);
+    vkDestroyPipelineLayout(dev, pl, 0);
+    vkDestroyShaderModule(dev, vs, 0);
+    vkDestroyShaderModule(dev, fs, 0);
+    for (uint32_t i = 0; i < nimg; i++) { vkDestroyFramebuffer(dev, fbs[i], 0); vkDestroyImageView(dev, views[i], 0); }
+    vkDestroyRenderPass(dev, rp, 0);
+    vkDestroySwapchainKHR(dev, sc, 0);
+    vkDestroySurfaceKHR(inst, surf, 0);
+    xdg_toplevel_destroy(tl);
+    xdg_surface_destroy(xs);
+    wl_surface_destroy(ws);
+    wl_display_disconnect(dpy);
+    return ok ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     crumb_fn = (void (*)(const char *, ...))dlsym(RTLD_DEFAULT, "vk_crumb");
     stop_after = -1;
-    for (int i = 0; argc > 1 && i < 5; i++) if (!strcmp(argv[1], NAMES[i])) stop_after = i;
-    if (stop_after < 0) { fprintf(stderr, "usage: vkprobe instance|enumerate|device|compute|draw\n"); return 2; }
+    for (int i = 0; argc > 1 && i < 6; i++) if (!strcmp(argv[1], NAMES[i])) stop_after = i;
+    if (stop_after < 0) { fprintf(stderr, "usage: vkprobe instance|enumerate|device|compute|draw|present\n"); return 2; }
     setvbuf(stdout, 0, _IOLBF, 0);
+    int wsi = stop_after >= 5;   /* only the present stage asks for the window-system extensions */
+    if (wsi && sink_start(argv[0]) < 0) { sink_stop(); return 1; }
 
     begin(0);
+    const char *iext[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME };
     VkApplicationInfo app = { VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, "vkprobe", 1, 0, 0, VK_API_VERSION_1_0 };
-    VkInstanceCreateInfo ici = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, 0, 0, &app, 0, 0, 0, 0 };
+    VkInstanceCreateInfo ici = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, 0, 0, &app, 0, 0, wsi ? 2 : 0, wsi ? iext : 0 };
     VkInstance inst;
     CHECK(vkCreateInstance(&ici, 0, &inst));
     uint32_t ne = 0;
     vkEnumerateInstanceExtensionProperties(0, &ne, 0);
-    say("instance: %u extensions offered (none enabled)", ne);
+    say("instance: %u extensions offered, %s", ne, wsi ? "surface + wayland_surface enabled" : "none enabled");
     int rc = 0;
     if (end(0)) goto out_inst;
 
@@ -364,7 +685,8 @@ int main(int argc, char **argv) {
     begin(2);
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qci = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, 0, family, 1, &prio };
-    VkDeviceCreateInfo dci = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 0, 0, 1, &qci, 0, 0, 0, 0, 0 };
+    const char *dext[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    VkDeviceCreateInfo dci = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 0, 0, 1, &qci, 0, 0, wsi ? 1 : 0, wsi ? dext : 0, 0 };
     VkDevice dev;
     CHECK(vkCreateDevice(pd, &dci, 0, &dev));
     VkQueue q;
@@ -379,11 +701,16 @@ int main(int argc, char **argv) {
     begin(4);
     if (!(qf[family].queueFlags & VK_QUEUE_GRAPHICS_BIT)) { say("FAIL the queue has no graphics"); rc = 1; goto out_dev; }
     rc = draw(pd, dev, q, family);
-    if (!rc) end(4);
+    if (rc || end(4)) goto out_dev;
+
+    begin(5);
+    rc = present(inst, pd, dev, q, family);
+    if (!rc) end(5);
 out_dev:
     vkDestroyDevice(dev, 0);
 out_inst:
     vkDestroyInstance(inst, 0);
+    if (wsi) sink_stop();
     CRUMB("probe: done, %d", rc);
     say("probe: %s", rc ? "failed" : "done");
     return rc;

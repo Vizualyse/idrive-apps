@@ -52,6 +52,7 @@ Each try goes one stage further than the last one that came back:
 | `device` | `vkCreateDevice` | **the first GPU work**: a context, and two small batches submitted and waited for **without a timeout** (ANV's device init) |
 | `compute` | a compute shader on 1024 numbers, waited for 5 s, checked on the CPU | a real dispatch (7 buffers, a fence array: the car's kernel has syncobj waits) |
 | `draw` | offscreen: a render pass clears a 256x256 tiled image, a graphics pipeline draws a triangle coloured by position, the image copied back, every pixel checked | the 3D pipeline (one 5.9 KB batch) |
+| `present` | the probe starts `bin/wl-sink` (the Steam tool's compositor, main's source, on our `lib/libwayland-server.so.0` 1.22) in a private `/tmp` folder, opens an `xdg_toplevel`, a FIFO swapchain (`VK_KHR_wayland_surface`, 5 X-tiled images shared as `wl_drm` PRIME buffers), presents 60 frames; then wl-sink's counts and its picture, every pixel. Nothing reaches the screen: wl-sink reads the buffers back through the unit's i965 into its own frame file | ANV's swapchain and its presentation batches; wl-sink importing them through the unit's EGL |
 | `command` | `arm command -- PROGRAM ARG...`: anything (vkcube, a game through Proton + DXVK) | whatever it does |
 
 ## Use
@@ -62,7 +63,7 @@ Off the car:
 sh tools/vk-trial/build.sh             # build/vk-trial.tgz (needs gpu-bench's image; ~2 min first time)
 sh tools/vk-trial/test/gate_test.sh    # the gate's guarantees, in the unit's rootfs
 sh tools/vk-trial/test/anv_test.sh     # ANV through the gate on gpu-bench's stub HD 505, every stage
-sh tools/vk-trial/test/lavapipe_test.sh  # the probe on lavapipe (CPU Vulkan): its own checks against real results
+sh tools/vk-trial/test/lavapipe_test.sh  # the probe on lavapipe (CPU Vulkan): its own checks against real results, present included
 ```
 
 On the car, **only with the owner's go-ahead for each step** (anything that

@@ -51,7 +51,8 @@ __attribute__((visibility("default"))) void vk_crumb(const char *fmt, ...) {
     char b[512];
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    int n = snprintf(b, sizeof b, "%ld.%03ld ", (long)ts.tv_sec, ts.tv_nsec / 1000000);
+    /* the pid: the probe and its wl-sink write to the same file */
+    int n = snprintf(b, sizeof b, "%ld.%03ld [%d] ", (long)ts.tv_sec, ts.tv_nsec / 1000000, (int)getpid());
     va_list ap;
     va_start(ap, fmt);
     int m = vsnprintf(b + n, sizeof b - n - 1, fmt, ap);
