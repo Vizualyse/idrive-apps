@@ -28,22 +28,13 @@
     "build.sh"
   ],
   "platform": {
-    "version": "1.0.0",
-    "files": {
-      "src/frame_out.c": "native/frame_out.c",
-      "src/frame_out.h": "native/frame_out.h",
-      "src/pcm_play.py": "tool/pcm_play.py",
-      "src/protocol/wayland-drm.xml": "native/wayland-drm.xml",
-      "src/touch.c": "native/touch.c",
-      "src/touch.h": "native/touch.h",
-      "src/pads.c": "native/pads.c",
-      "src/pads.h": "native/pads.h",
-      "src/pad_flags.h": "native/pad_flags.h",
-      "src/usb_pads.c": "native/usb_pads.c",
-      "src/usb_pads.h": "native/usb_pads.h",
-      "test/pads_test.c": "test/pads_test.c",
-      "test/usbip_pad.c": "test/usbip_pad.c"
-    }
+    "native/frame_out": { "version": "1.0.0", "files": { "src/frame_out.c": "frame_out.c", "src/frame_out.h": "frame_out.h" } },
+    "native/pads": { "version": "1.0.0", "files": { "src/pads.c": "pads.c", "src/pads.h": "pads.h", "src/pad_flags.h": "pad_flags.h", "test/pads_test.c": "test/pads_test.c" } },
+    "native/touch": { "version": "1.0.0", "files": { "src/touch.c": "touch.c", "src/touch.h": "touch.h" } },
+    "native/usb_pads": { "version": "1.0.0", "files": { "src/usb_pads.c": "usb_pads.c", "src/usb_pads.h": "usb_pads.h" } },
+    "native/usbip_pad": { "version": "1.0.0", "files": { "test/usbip_pad.c": "usbip_pad.c" } },
+    "native/wayland_drm": { "version": "1.0.0", "files": { "src/protocol/wayland-drm.xml": "wayland-drm.xml" } },
+    "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },

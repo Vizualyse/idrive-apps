@@ -4,10 +4,7 @@
   "uninstallable": true,
   "mguHmi": ["ID7"],
   "platform": {
-    "version": "1.0.0",
-    "files": {
-      "src/qr_png.js": "app/qr_png.js",
-      "src/qrcode.js": "common/qrcode.js"
-    }
+    "app/qr_png": { "version": "1.0.0", "files": { "src/qr_png.js": "qr_png.js" } },
+    "common/qrcode": { "version": "1.0.0", "files": { "src/qrcode.js": "qrcode.js" } }
   }
 }

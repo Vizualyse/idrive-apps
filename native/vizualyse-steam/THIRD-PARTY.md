@@ -3,7 +3,8 @@
 The tool's own code (`src/`, `tools/`, `test/`, `image/`) is GPL-3.0-or-later
 (`LICENSE`). `src/protocol/wayland-drm.xml` is Mesa's, under its own
 permissive notice (in the file); it, `src/frame_out.*` and `src/pcm_play.py` are
-copies of platform/<version>/ (those two ours, GPL-3.0-or-later).
+copies of platform modules (native/wayland_drm, native/frame_out,
+tool/pcm_play; those two ours, GPL-3.0-or-later).
 
 The tool ships three archives, built by `tools/bundle.sh`:
 
@@ -38,7 +39,8 @@ The tool ships three archives, built by `tools/bundle.sh`:
 - `src/touch_main.c` (`steam-touch`) and
   `test/fake_render_client.js` are copies of vizualyse-chromium's; `src/touch.*`,
   `src/pads.*`, `src/pad_flags.h`, `src/usb_pads.*`, `test/pads_test.c` and
-  `test/usbip_pad.c` are the platform's (vizualyse-moonlight's gamepad code);
+  `test/usbip_pad.c` are the platform's (modules native/touch, native/pads,
+  native/usb_pads, native/usbip_pad; vizualyse-moonlight's gamepad code);
   `src/xinput.c` builds the Windows `xinput1_4.dll` the prefix gets (all ours,
   GPL-3.0-or-later). `pad_flags.h`'s button values are moonlight-common-c's
   (XInput's bits).

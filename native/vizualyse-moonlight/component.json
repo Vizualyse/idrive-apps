@@ -29,15 +29,10 @@
     "build.sh"
   ],
   "platform": {
-    "version": "1.0.0",
-    "files": {
-      "core/frame_out.c": "native/frame_out.c",
-      "core/frame_out.h": "native/frame_out.h",
-      "core/touch.c": "native/touch.c",
-      "core/touch.h": "native/touch.h",
-      "src/cluster_render_client.js": "tool/cluster_render_client.js",
-      "src/pcm_play.py": "tool/pcm_play.py"
-    }
+    "native/frame_out": { "version": "1.0.0", "files": { "core/frame_out.c": "frame_out.c", "core/frame_out.h": "frame_out.h" } },
+    "native/touch": { "version": "1.0.0", "files": { "core/touch.c": "touch.c", "core/touch.h": "touch.h" } },
+    "tool/cluster_render_client": { "version": "1.0.0", "files": { "src/cluster_render_client.js": "cluster_render_client.js" } },
+    "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [
     {

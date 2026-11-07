@@ -267,7 +267,8 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
 - [ ] **Controllers, next:** rumble (XInputSetState into a file
   steam-pads sends to the pad's OUT endpoint); DualShock / DualSense over
   usbfs (HID reports; as Moonlight's TODO); vizualyse-moonlight onto the
-  platform's `pads.c` / `usb_pads.c` (it still has its own copy).
+  platform modules `native/pads` / `native/usb_pads` (it still has its own
+  copy).
 - [ ] **32-bit games, a long session:** threads come and go with an LDT
   entry each (`patches/wine-no-ia32.patch`), freed with the thread: watch a
   long FTL session for "too many threads".
@@ -278,26 +279,53 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).
 
-## Platform (platform/ 1.0.0)
+## Platform (platform/<side>/<module>/<version>)
 
-The shared code, versioned: [platform/README.md](platform/README.md). 1.0.0
-holds the files that were byte-identical copies; Cast 0.3.9, Moonlight
-0.2.2, Browser 0.2.8 and Steam 0.1.5 build from it (bumped for the move;
-Steam 0.1.5 also takes its touch.c / touch.h from the platform).
+The shared code as modules, each versioned on its own:
+[platform/README.md](platform/README.md). Every module's 1.0.0 is a file
+that was a byte-identical copy; Cast 0.3.9, Moonlight 0.2.2, Browser 0.2.8
+and Steam 0.1.5 build from them; Steam 0.1.6 adds `native/pads`,
+`native/usb_pads` and `native/usbip_pad` (its controllers).
+
+- [ ] **Bumps for the move:** the module move changed every component's
+  shipped paths, so each one's next publish needs a new version (none
+  changed in bytes but the build date).
 
 - [ ] **On the car: Cast 0.3.9's sound.** Cast now plays through the
   platform's `pcm_play.py`, which makes the SmartX stream lock as the system
   does (Cast's own copy predated that fix). Play a stream URL with sound,
   then check CarPlay's own sound still works after it.
-- [ ] **Merge the small forks into the next platform version** (they differ
-  in names and options, not logic): the tools' `control.js` and
-  `firewall.js` (Moonlight's UDP rule as an option), `proxy.js`, the apps'
-  `*_control.js` socket clients, the apps' `tools/build.js`.
-- [ ] **Then the bigger pieces:** the server scaffold (token, link,
-  settings, HTTP helpers, on/off, shutdown) as a `service.js`, starting with
-  Browser (fullest off-car suite); one mgu-render layer client from
-  `console_out.js` / `screen.js`; the cluster placement; the apps' page
-  generator and fake-HMI test harness.
+- [ ] **Merge the small forks into new modules** (measured 2026-11-07,
+  whitespace and line ends ignored; they differ in names, ports and env
+  prefixes, not logic):
+  - `tool/control`: the four tools' `control.js` (19-25 lines apart, all
+    socket path / env name / comment);
+  - `tool/firewall`: four `firewall.js` (Chromium and Steam 12 lines
+    apart; Moonlight's UDP host rule as an option);
+  - `tool/proxy`: Cast's and Browser's `proxy.js` (the port only);
+  - `tool/phone_page`: `token()`, `uplinkIp()`, `link()`, `readBody()`,
+    `send()` / `json()` and `authorised()`, the same in all four
+    `server.js` but for the token header's name. Security code: the token
+    check and the firewall are worth having once;
+  - `app/control_client`: the four `*_control.js` socket clients (connect,
+    retry once a second, status / error events);
+  - `app/build`: the four `tools/build.js` (the app id in a comment only);
+  - `native/touch_main`: Browser's and Steam's `touch_main.c` (8 lines
+    apart: the program's name);
+  - the fake render client of the tools' tests (three copies, the env name).
+- [ ] **Then the bigger pieces:** `tool/screen`, one mgu-render layer
+  client and frame file from four (Cast's and Moonlight's
+  `console_out.js`, Browser's and Steam's `screen.js`); `tool/unpack`
+  (Steam's is Browser's plus links); the server scaffold (settings,
+  on/off, command dispatch, shutdown, the speed gate), starting with
+  Browser (fullest off-car suite); the apps' fake SDK / HMI from the four
+  `test_page.js` (`OnlineApp`, `FakeComponent`, `startFakeTool`, `until`;
+  the scenarios stay per app); the page base (`qrDir`, `oneRow`, QR row,
+  button dedupe, the screen state that guards Show, focus loss: Browser's
+  and Steam's app modules are mostly this); `make_page.js`'s writer.
+- Not worth moving: `env.js`, `page.html`, `gamestream.js`, `usb.js`,
+  `carplay_screen.js`, the decoders, `bundle.sh` and the Dockerfiles. Each
+  is one app's own or has grown apart.
 - [ ] **Last: one Wayland compositor** from `sink/wl.c` and `src/wl_sink.c`,
   only on the gpu-bench harness with a recovery path.
 - [ ] **A scaffold** (`platform.js` or `new-app`): a tool and app pair from

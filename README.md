@@ -37,7 +37,7 @@ and `mgu-render`.
 ## Build and test
 
 ```sh
-node platform/platform.js sync                # after a checkout: each component's copies of its platform version
+node platform/platform.js sync                # after a checkout: each component's copies of its platform modules
 node platform/test/platform_test.js
 node apps/vizualyse_cast/tools/test_page.js   # the page against a fake HMI and the tool's real control socket
 node apps/vizualyse_moonlight/tools/test_page.js
@@ -57,7 +57,7 @@ The release tooling (`release/`, `tools/`, `.github/workflows/release.yml`)
 and the structure of the iDrive app come from Robert Nisipeanu's
 [idrive-apps](https://github.com/robertnisipeanu/idrive-apps) (GPL-3.0-or-later),
 where this repository started as a fork. Cast to cluster draws through his
-cluster-render, whose client `platform/<version>/tool/cluster_render_client.js`
+cluster-render, whose client `platform/tool/cluster_render_client/<version>/cluster_render_client.js`
 is copied here.
 
 ## License

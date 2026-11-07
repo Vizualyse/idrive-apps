@@ -175,11 +175,8 @@ explanations, not file content):
   "uids": [12995],
   "deactivate": ["node", "firewall.js", "remove"],   // root hook on removal: drop the firewall rule
   "build": ["sh", "build.sh"],              // optional: runs in the tool folder before packing
-  "platform": {                             // section 7
-    "version": "1.0.0",
-    "files": {
-      "src/pcm_play.py": "tool/pcm_play.py"
-    }
+  "platform": {                             // section 7: a version per module
+    "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [                                // what lands in /var/opt/vizualyse-foo/current/
     { "path": "server.js",   "from": "src/server.js",   "mode": "0644" },
@@ -873,22 +870,20 @@ The parts worth copying as they are:
 
 ## 7. The platform in your app
 
-The platform holds the code the apps share, versioned ([README.md](README.md)).
-You pin a version and say which files you copy and where; `sync` writes the
-copies where your code and build already look. They are never committed.
+The platform holds the code the apps share as modules, each versioned on its
+own ([README.md](README.md)). For each module you use you pin a version and
+say which of its files you copy and where; `sync` writes the copies where
+your code and build already look. They are never committed. Modules mix
+freely: `common/qrcode` 1.0.0 beside `native/touch` 1.0.1.
 
 **In the tool's `component.json`** (and list each copy in `files[]` as usual):
 
 ```json
 "platform": {
-  "version": "1.0.0",
-  "files": {
-    "src/pcm_play.py": "tool/pcm_play.py",
-    "src/cluster_render_client.js": "tool/cluster_render_client.js",
-    "src/qrcode.js": "common/qrcode.js",
-    "core/frame_out.c": "native/frame_out.c",
-    "core/frame_out.h": "native/frame_out.h"
-  }
+  "common/qrcode": { "version": "1.0.0", "files": { "src/qrcode.js": "qrcode.js" } },
+  "native/frame_out": { "version": "1.0.0", "files": { "core/frame_out.c": "frame_out.c", "core/frame_out.h": "frame_out.h" } },
+  "tool/cluster_render_client": { "version": "1.0.0", "files": { "src/cluster_render_client.js": "cluster_render_client.js" } },
+  "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
 }
 ```
 
@@ -901,12 +896,9 @@ copies where your code and build already look. They are never committed.
   "uninstallable": true,
   "mguHmi": ["ID7"],
   "platform": {
-    "version": "1.0.0",
-    "files": {
-      "src/qr_png.js": "app/qr_png.js",
-      "src/qrcode.js": "common/qrcode.js",
-      "src/vehicle_speed.js": "app/vehicle_speed.js"
-    }
+    "app/qr_png": { "version": "1.0.0", "files": { "src/qr_png.js": "qr_png.js" } },
+    "app/vehicle_speed": { "version": "1.0.0", "files": { "src/vehicle_speed.js": "vehicle_speed.js" } },
+    "common/qrcode": { "version": "1.0.0", "files": { "src/qrcode.js": "qrcode.js" } }
   }
 }
 ```
@@ -919,29 +911,33 @@ git add apps/vizualyse_foo/src/.gitignore native/vizualyse-foo/src/.gitignore
 node platform/platform.js check
 ```
 
-What platform 1.0.0 has:
+The modules (`node platform/platform.js list` for their versions):
 
-| File | Side | What it is |
+| Module | Files | What it is |
 |---|---|---|
-| `tool/pcm_play.py` | tool | PCM into SmartXbar, `--live`, the lock made right (5.7) |
-| `tool/cluster_render_client.js` | tool | cluster-render's Node 8 client, MPL-2.0 (5.6) |
-| `common/qrcode.js` | both | Kazuhiko Arase's QR generator, MIT |
-| `app/qr_png.js` | app | `qrPng(text, maxPx)`, `png(w, h, rgba)` |
-| `app/vehicle_speed.js` | app | `watchSpeed(builders, logger, onSpeed)` (6.4) |
-| `native/frame_out.{c,h}` | C | the mgu-render frame-file writer (5.5) |
-| `native/touch.{c,h}` | C | the iDrive 7 touch PDU decoder and hold-to-stop (5.9; Moonlight, Browser, Steam) |
-| `native/wayland-drm.xml` | C | Mesa's `wl_drm` protocol, for a Wayland compositor |
+| `tool/pcm_play` | `pcm_play.py` | PCM into SmartXbar, `--live`, the lock made right (5.7) |
+| `tool/cluster_render_client` | `cluster_render_client.js` | cluster-render's Node 8 client, MPL-2.0 (5.6) |
+| `common/qrcode` | `qrcode.js` | Kazuhiko Arase's QR generator, MIT (both sides) |
+| `app/qr_png` | `qr_png.js` | `qrPng(text, maxPx)`, `png(w, h, rgba)` |
+| `app/vehicle_speed` | `vehicle_speed.js` | `watchSpeed(builders, logger, onSpeed)` (6.4) |
+| `native/frame_out` | `frame_out.{c,h}` | the mgu-render frame-file writer (5.5) |
+| `native/touch` | `touch.{c,h}` | the iDrive 7 touch PDU decoder and hold-to-stop (5.9; Moonlight, Browser, Steam) |
+| `native/wayland_drm` | `wayland-drm.xml` | Mesa's `wl_drm` protocol, for a Wayland compositor |
+| `native/pads` | `pads.{c,h}`, `pad_flags.h`, `test/pads_test.c` | gamepad reports to XInput's buttons and sticks (Moonlight's mapping; Steam) |
+| `native/usb_pads` | `usb_pads.{c,h}` | XInput USB pads found, claimed and read through usbfs, player LEDs (needs `native/pads`) |
+| `native/usbip_pad` | `usbip_pad.c` | a virtual XInput USB pad through vhci_hcd, for off-car tests |
 
-Still **copied per app** (moving into a later platform version, `TODO.md`):
+Still **copied per app** (moving into modules of their own, `TODO.md`):
 the tool's `control.js`, `firewall.js`, `proxy.js`, `screen.js` /
 `console_out.js`, `unpack.js`; the app's `*_control.js`, `tools/build.js`,
 `make_page.js`, `test_page.js`. Copy them from Steam and rename. When one of
 them reaches the platform, move your app onto it with a pin instead of
 fixing your copy.
 
-A **fix to a platform file** is a new platform version, never an edit to
-your copy (`check` refuses a copy that differs). `platform.js use <version>`
-moves every component, or the ones you name, and bumps them.
+A **fix to a platform file** is a new version of its module, never an edit
+to your copy (`check` refuses a copy that differs). `platform.js use
+<module> <version>` moves every component using it, or the ones you name,
+and bumps them.
 
 Every script that reads the copies syncs first; add the same line to yours:
 

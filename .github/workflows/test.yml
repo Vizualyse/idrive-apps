@@ -42,7 +42,7 @@ jobs:
           node platform/test/platform_test.js
       - name: Platform audio player (mgu-python's Python, as root)
         run: |
-          for t in platform/*/test/pcm_play_test.py; do
+          for t in platform/tool/pcm_play/*/test/pcm_play_test.py; do
             docker run --rm -v "$PWD:/r:ro" -w /r python:3.12-slim python3 "$t" || exit 1
           done
       - name: Cast page

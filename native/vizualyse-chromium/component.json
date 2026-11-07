@@ -27,14 +27,9 @@
     "build.sh"
   ],
   "platform": {
-    "version": "1.0.0",
-    "files": {
-      "sink/frame_out.c": "native/frame_out.c",
-      "sink/frame_out.h": "native/frame_out.h",
-      "sink/protocol/wayland-drm.xml": "native/wayland-drm.xml",
-      "sink/touch.c": "native/touch.c",
-      "sink/touch.h": "native/touch.h"
-    }
+    "native/frame_out": { "version": "1.0.0", "files": { "sink/frame_out.c": "frame_out.c", "sink/frame_out.h": "frame_out.h" } },
+    "native/touch": { "version": "1.0.0", "files": { "sink/touch.c": "touch.c", "sink/touch.h": "touch.h" } },
+    "native/wayland_drm": { "version": "1.0.0", "files": { "sink/protocol/wayland-drm.xml": "wayland-drm.xml" } }
   },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },

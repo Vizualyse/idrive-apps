@@ -8,7 +8,7 @@ but blocks every write for 2 s once, as SmartXbar's first connect after boot
 did on the car (the sound then stayed behind the picture). Every frame
 carries its number, so the test knows how late each one plays.
 
-    python3 platform/<version>/test/pcm_play_test.py   (CI, the Test workflow)
+    python3 platform/tool/pcm_play/<version>/test/pcm_play_test.py   (CI, the Test workflow)
 """
 import array
 import os
@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tool"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import pcm_play  # noqa: E402
 
 RATE, CH = 48000, 2

@@ -16,7 +16,7 @@ Requires the Cluster renderer tool installed from the Store. With the car
 parked, ignition on:
 
 ```sh
-scp gauge.js ../../platform/1.0.0/tool/cluster_render_client.js root@<mgu-ip>:/tmp/
+scp gauge.js ../../platform/tool/cluster_render_client/1.0.0/cluster_render_client.js root@<mgu-ip>:/tmp/
 ssh root@<mgu-ip> 'cd /tmp && node gauge.js --target map --seconds 60'
 ```
 

@@ -29,12 +29,9 @@
     "tools/fetch_ffmpeg.js"
   ],
   "platform": {
-    "version": "1.0.0",
-    "files": {
-      "src/cluster_render_client.js": "tool/cluster_render_client.js",
-      "src/pcm_play.py": "tool/pcm_play.py",
-      "src/qrcode.js": "common/qrcode.js"
-    }
+    "common/qrcode": { "version": "1.0.0", "files": { "src/qrcode.js": "qrcode.js" } },
+    "tool/cluster_render_client": { "version": "1.0.0", "files": { "src/cluster_render_client.js": "cluster_render_client.js" } },
+    "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [
     {

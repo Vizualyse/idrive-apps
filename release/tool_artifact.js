@@ -9,7 +9,7 @@
  * name), files/<path>, units/<name> and dropins/<unit>.d/<name>, sorted,
  * owner 0:0, one mtime
  * (SOURCE_DATE_EPOCH, else oap_pack's fixed one). First the component's
- * copies of the platform version its component.json pins are written
+ * copies of the platform module versions its component.json pins are written
  * (platform/platform.js), then a component.json `build` command runs in the
  * folder.
  *
@@ -62,7 +62,8 @@ function buildArtifact(compDir, outDir) {
     }
     const synced = platform.sync(dir);
     if (synced.length) {
-        process.stderr.write(`${id}: platform ${c.platform.version}, ${synced.length} files\n`);
+        process.stderr.write(`${id}: platform ${Object.keys(c.platform).map((m) => `${m}@${c.platform[m].version}`).join(' ')}, ` +
+            `${synced.length} files\n`);
     }
     const buildCmd = Array.isArray(c.build) && c.build.length ? c.build : null;
     if (buildCmd) {

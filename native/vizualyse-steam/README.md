@@ -52,8 +52,8 @@ rebuilt `ntdll.so`, below).
   vizualyse-moonlight reads them: the car's kernel has no evdev, HID or
   xpad, so `steam-pads` (`src/pads_main.c`, root, while a game runs) finds
   them under `/sys/bus/usb/devices`, claims them through usbfs, lights each
-  one's player LED and maps its reports (the platform's `native/pads.c`,
-  `native/usb_pads.c`: Moonlight's code) into `/dev/shm/vizualyse-steam/pads`
+  one's player LED and maps its reports (the platform modules `native/pads`,
+  `native/usb_pads`: Moonlight's code) into `/dev/shm/vizualyse-steam/pads`
   (`src/vzs_pads.h`). Wine's own XInput reads its winebus, which has nothing
   to read here, so the prefix gets ours (`src/xinput.c`, 64- and 32-bit,
   mingw) as `xinput1_1` .. `xinput1_4` and `xinput9_1_0` (`=n` overrides):

@@ -41,7 +41,7 @@ Index: [index.md](index.md).
 
 - No evdev / HID / uinput in the car's kernel; XInput USB pads through usbfs
   (`native/vizualyse-moonlight/README.md`). Moonlight and vizualyse-steam
-  read them (the platform's `native/pads.c` and `native/usb_pads.c` since
+  read them (the platform modules `native/pads` and `native/usb_pads` since
   2026-11-07); each claims a pad only while it streams or a game runs.
 - For Windows games (Wine) the pad goes through our own XInput DLL, not
   Wine's: Wine's XInput reads its winebus, whose backends (udev evdev /
