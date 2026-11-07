@@ -43,12 +43,11 @@ workflow (Actions > Release, the component ids).
   run on the car done (2026-11-07, no driver: every safety held;
   the real package installed in `/var/opt/vk-trial`). **Every probe stage
   ok on the car (2026-11-07): Vulkan 1.1.96, a compute dispatch 1024 of
-  1024 right, no hang.** Ask before each step. Next, `command` stages, each
-  run off the car on the stub first: something that draws offscreen
-  (render pass, image copy back), then a longer run (minutes, many
-  submissions: the crumbs keep only the risky calls after 4000 lines), then
-  WSI on Wayland (ANV is built without it: a rebuild) for vkcube and
-  DXVK under Proton. After a hang: `vk-trial status`, the try's
+  1024 right, an offscreen draw 65536 of 65536 pixels right, no hang.**
+  Ask before each step. Next, each on the stub and lavapipe first: a longer
+  run (minutes, many submissions: the crumbs keep only the risky calls
+  after 4000 lines), then WSI on Wayland (ANV is built without it: a
+  rebuild) for vkcube and DXVK under Proton. After a hang: `vk-trial status`, the try's
   `crumbs.log` (the ioctl that never returned) and `kmsg.log`. It would give
   Proton DXVK / VKD3D in place of WineD3D and full WebGPU
   ([knowledge/browser.md](knowledge/browser.md), "Vulkan on this kernel").

@@ -8,15 +8,18 @@
 #       glibc 2.27 like the unit. No X11 / Wayland WSI.
 #   /out/lib/libvulkan.so.1      Ubuntu 18.04's Khronos loader 1.1.70 (the
 #       unit has none).
-#   /out/compute.spv.h           the probe's compute shader (glslang, below).
+#   /out/shaders.spv.h           the probe's shaders: compute, draw (glslang, below).
 # Plus strace, for the test that the gate's first syscall is the disarm.
 
 # The shader only: 18.04 has no glslang.
 FROM debian:bookworm-20241016-slim@sha256:36e591f228bb9b99348f584e83f16e012c33ba5cad44ef5981a1d7c0a93eca22 AS spv
 RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends glslang-tools spirv-tools >/dev/null
-COPY compute.comp /src/
-RUN glslangValidator --target-env vulkan1.0 -V --vn compute_spv -o /src/compute.spv.h /src/compute.comp \
- && glslangValidator --target-env vulkan1.0 -V -o /src/compute.spv /src/compute.comp && spirv-val --target-env vulkan1.0 /src/compute.spv
+COPY compute.comp draw.vert draw.frag /src/
+RUN cd /src && for s in compute.comp draw.vert draw.frag; do \
+      n=$(echo $s | tr . _)_spv; \
+      glslangValidator --target-env vulkan1.0 -V --vn $n -o $n.h $s \
+      && glslangValidator --target-env vulkan1.0 -V -o $n.spv $s && spirv-val --target-env vulkan1.0 $n.spv || exit 1; \
+    done && cat compute_comp_spv.h draw_vert_spv.h draw_frag_spv.h > /src/shaders.spv.h
 
 FROM ubuntu:18.04@sha256:dca176c9663a7ba4c1f0e710986f5a25e672842963d95b960191e2d9f7185ebe
 ENV LC_ALL=C.UTF-8
@@ -45,7 +48,7 @@ RUN cd /src/mesa-19.0.6 \
  && strip --strip-unneeded /out/lib/libvulkan_intel.so \
  && cp -L /usr/lib/x86_64-linux-gnu/libvulkan.so.1 /out/lib/ \
  && rm -rf b
-COPY --from=spv /src/compute.spv.h /out/
+COPY --from=spv /src/shaders.spv.h /out/
 # Nothing may need more than the unit's glibc 2.27.
 RUN for f in /out/lib/*; do \
       v=$(objdump -T "$f" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1); \

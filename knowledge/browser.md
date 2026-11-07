@@ -294,6 +294,15 @@ refuse scripts; `git` works) and a web search.
   (`i * 3 + 7`). Nothing in `dmesg`, the HMI unchanged, same boot. Mesa
   19.0.6's ANV is a working Vulkan 1.1 driver on the unit, under vk-trial
   (by hand, one start per arming); not yet anything that draws or presents.
+- **Stage `draw` on the car (2026-11-07): ok, Vulkan graphics works
+  offscreen.** A render pass cleared a 256x256 tiled RGBA image, a graphics
+  pipeline (vertex + fragment shader, ~10 ms to compile) drew one triangle
+  coloured by position, and the image was copied into a buffer: **65536 of
+  65536 pixels right** (32640 in the triangle, 32640 cleared, the 256 on
+  its edge either). One 5.9 KB batch of 3D state, 8 buffers, the fence
+  array again; done within ~3 ms. No new kind of ioctl; nothing in `dmesg`,
+  same boot. The probe's own expectations were first checked on lavapipe
+  (Debian bookworm, `test/lavapipe_test.sh`), which got the same 65536.
 - **The unit's kernel isn't mainline 4.14** (its uapi header,
   `intel/linux-intel-lts` `4.14/base`): it has context param 6
   (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where

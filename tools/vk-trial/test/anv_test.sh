@@ -37,7 +37,7 @@ docker run --rm --network none --cap-add SYS_ADMIN --tmpfs /tmp --tmpfs /run:mod
     export SSH_CONNECTION="127.0.0.1 $(cat /tmp/sshport) 127.0.0.1 22"
     mkdir -p /var/opt/vk-trial && tar xzf /b/vk-trial.tgz -C /var/opt/vk-trial && chmod 755 /var/opt/vk-trial
     G=/var/opt/vk-trial/bin/vk-trial
-    for s in instance enumerate device compute; do
+    for s in instance enumerate device compute draw; do
         $G arm $s >/dev/null && $G run > /o/$s.gate 2>&1; echo "rc=$?" >> /o/$s.gate
         d=$(cat /var/opt/vk-trial/state/last)
         for f in out.log crumbs.log result; do cp $d/$f /o/$s.$f; done
@@ -47,7 +47,7 @@ docker run --rm --network none --cap-add SYS_ADMIN --tmpfs /tmp --tmpfs /run:mod
         /bench/gltest --desktop-gl > /o/i965.out.log 2>&1 3>/o/i965.crumbs.log; echo "rc=$?" >> /o/i965.out.log
     true' 2>&1 | sed 's/^/  | /'
 
-for s in instance enumerate device compute; do
+for s in instance enumerate device compute draw; do
     echo "== stage $s"
     has "$OUT/$s.gate" "rc=0" "the gate: ok"
     has "$OUT/$s.result" "result=ok" "result: ok"
@@ -65,7 +65,13 @@ for s in instance enumerate device compute; do
                hasnt "$OUT/$s.crumbs.log" "GEM_EXECBUFFER2" "nothing submitted" ;;
     device) hasnt "$OUT/$s.out.log" "stage compute" "stopped after device" ;;
     compute) has "$OUT/$s.crumbs.log" "> GEM_EXECBUFFER2" "the dispatch submitted"
-             has "$OUT/$s.out.log" "compute: not run (the bench's stub GPU" "the stub ran nothing (expected here)" ;;
+             has "$OUT/$s.out.log" "compute: not run (the bench's stub GPU" "the stub ran nothing (expected here)"
+             hasnt "$OUT/$s.out.log" "stage draw" "stopped after compute" ;;
+    draw) has "$OUT/$s.out.log" "stage compute: ok" "compute first"
+          has "$OUT/$s.crumbs.log" "probe: compiling the draw shaders" "the graphics pipeline compiled"
+          has "$OUT/$s.crumbs.log" "probe: submitting the draw" "the draw submitted"
+          has "$OUT/$s.out.log" "65536 untouched" "the stub ran nothing: every pixel as before (expected here)"
+          has "$OUT/$s.out.log" "draw: not run (the bench's stub GPU" "accepted on the bench only" ;;
     esac
 done
 echo "== the unit's i965 (gltest) through the same crumbs"
@@ -73,12 +79,12 @@ has "$OUT/i965.out.log" "result: ok" "gltest ran"
 
 # what ANV asks the kernel that i965 never does on the car
 calls() { grep -o '> [A-Z_0-9]*\( fd [0-9]*\)\?\( param [0-9]*\| ctx [0-9]* param 0x[0-9a-f]*\)\?' "$1" | sed 's/ fd [0-9]*//; s/ ctx [0-9]*//' | sort -u; }
-calls "$OUT/compute.crumbs.log" > "$OUT/anv.calls"
+calls "$OUT/draw.crumbs.log" > "$OUT/anv.calls"
 calls "$OUT/i965.crumbs.log" > "$OUT/i965.calls"
 comm -23 "$OUT/anv.calls" "$OUT/i965.calls" > "$OUT/anv-only.calls"
-grep -h '< GETPARAM' "$OUT/compute.crumbs.log" | sed 's/^[0-9.]* //' | sort -u > "$OUT/anv.params"
+grep -h '< GETPARAM' "$OUT/draw.crumbs.log" | sed 's/^[0-9.]* //' | sort -u > "$OUT/anv.params"
 grep -h '< GETPARAM' "$OUT/i965.crumbs.log" | sed 's/^[0-9.]* //' | sort -u > "$OUT/i965.params"
-grep -h 'EXECBUFFER2' "$OUT/compute.crumbs.log" | grep -o 'flags 0x[0-9a-f]*' | sort | uniq -c > "$OUT/anv.execflags"
+grep -h 'EXECBUFFER2' "$OUT/draw.crumbs.log" | grep -o 'flags 0x[0-9a-f]*' | sort | uniq -c > "$OUT/anv.execflags"
 grep -h 'EXECBUFFER2' "$OUT/i965.crumbs.log" | grep -o 'flags 0x[0-9a-f]*' | sort | uniq -c > "$OUT/i965.execflags"
 echo "== ioctls ANV asks that the unit's i965 doesn't ($OUT/anv-only.calls)"
 sed 's/^/  /' "$OUT/anv-only.calls"
@@ -86,8 +92,8 @@ echo "== GETPARAM answers ANV got (kernel414 + stub)"
 sed 's/^/  /' "$OUT/anv.params"
 echo "== execbuffer2 flags: ANV / i965"
 sed 's/^/  anv  /' "$OUT/anv.execflags"; sed 's/^/  i965 /' "$OUT/i965.execflags"
-echo "== ANV's submissions (compute)"
-grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM\|> GEM_WAIT' "$OUT/compute.crumbs.log" | sed 's/^[0-9.]* /  /' | sort | uniq -c
+echo "== ANV's submissions (draw: every stage)"
+grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM\|> GEM_WAIT' "$OUT/draw.crumbs.log" | sed 's/^[0-9.]* /  /' | sort | uniq -c
 echo "== i965's submissions (gltest)"
 grep '> GEM_EXECBUFFER2\|CONTEXT_[GS]ETPARAM' "$OUT/i965.crumbs.log" | sed 's/^[0-9.]* /  /; s/ batch_len [0-9]*//' | sort | uniq -c | head -12
 

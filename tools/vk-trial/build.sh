@@ -19,7 +19,7 @@ WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 sh "$HERE/../gpu-bench/build.sh" >&2
 BENCH=$HERE/../gpu-bench
 BENCH_IMG=idrive-gpu-bench:mesa19.0.6-$(cat "$BENCH/image/Dockerfile" "$BENCH"/image/*.patch "$BENCH"/image/*.py | sha256sum | cut -c1-8)
-IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE/image/compute.comp"; echo "$BENCH_IMG") | sha256sum | cut -c1-8)
+IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag; echo "$BENCH_IMG") | sha256sum | cut -c1-8)
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/vk-trial-image.$$.log
     echo "vk-trial: building $IMG (Mesa 19.0.6 ANV, ~5 min the first time)"
@@ -44,6 +44,7 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" "$IMG" s
     gcc $W -shared -fPIC -o /m/build/pkg/lib/vk_crumbs.so /m/src/vk_crumbs.c -ldl
     gcc $W -shared -fPIC -o /m/build/bench/kernel414.so /m/test/kernel414.c -ldl
     cp /out/lib/libvulkan_intel.so /out/lib/libvulkan.so.1 /m/build/pkg/lib/
+    cp /out/shaders.spv.h /m/build/bench/   # for test/lavapipe_test.sh
     strip --strip-unneeded /m/build/pkg/bin/* /m/build/pkg/lib/vk_crumbs.so
     # the gate needs nothing; nothing else more than glibc 2.27
     ! readelf -d /m/build/pkg/bin/vk-trial | grep -q NEEDED || { echo "vk-trial is not static"; exit 1; }
