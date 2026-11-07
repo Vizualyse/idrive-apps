@@ -319,6 +319,16 @@ refuse scripts; `git` works) and a web search.
   Winston offers `zwp_linux_dmabuf_v1` and `wl_drm` (seen on the car), so
   the same buffers could go to it directly (the Winston session's
   `winston_out`, branch `winston-render`).
+- **Stage `present` on the car (2026-11-07): ok, ANV's frames through
+  Wayland.** 60 FIFO frames into our wl-sink (pid beside the probe's, both
+  uid 12990, `card0` hidden), every one a `wl_drm` PRIME buffer imported
+  and read back through the unit's i965 (`drm":true` on the render node):
+  **wl-sink's picture 65536 of 65536 pixels right**, no shared memory, 6 s
+  for the whole probe, nothing in `dmesg`, same boot, the HMI unchanged,
+  nothing left (no wl-sink, no `/tmp/vkprobe-*`, `/run/vk-trial` empty).
+  Still nothing on the screen: wl-sink keeps its frames to itself. (That
+  run's "109 GPU buffers" was the probe adding up wl-sink's running total;
+  fixed after: `drm`/`shm` are totals, `pictures` per line.)
 - **The unit's kernel isn't mainline 4.14** (its uapi header,
   `intel/linux-intel-lts` `4.14/base`): it has context param 6
   (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where

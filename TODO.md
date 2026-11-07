@@ -44,13 +44,13 @@ workflow (Actions > Release, the component ids).
   the real package installed in `/var/opt/vk-trial`). **Every probe stage
   ok on the car (2026-11-07): Vulkan 1.1.96, a compute dispatch 1024 of
   1024 right, an offscreen draw 65536 of 65536 pixels right, no hang.**
-  Ask before each step. **Next on the car: `present`** (built and tested
-  off the car 2026-11-07: ANV with Wayland WSI, 60 FIFO frames into our
-  wl-sink as GPU buffers, read back through the unit's i965, nothing on the
-  screen; install the new `build/vk-trial.tgz` first, and fetch
-  `/var/opt/vk-trial/state` into `tools/vk-trial/car-logs/`). Then frames
-  on the screen through Winston, once the Winston session's `winston_out`
-  (branch `winston-render`) has run on the car; then DXVK under Proton. After a hang: `vk-trial status`, the try's
+  Ask before each step. **`present` ok on the car too (2026-11-07):** 60
+  FIFO frames through Wayland into our wl-sink as GPU buffers, read back
+  through the unit's i965, every pixel right; nothing on the screen yet.
+  Next: frames on the screen through Winston, once the Winston session's
+  `winston_out` (branch `winston-render`) has run on the car; then DXVK
+  under Proton. (The car's probe still adds up wl-sink's GPU-buffer total:
+  fixed in the next package.) After a hang: `vk-trial status`, the try's
   `crumbs.log` (the ioctl that never returned) and `kmsg.log`. It would give
   Proton DXVK / VKD3D in place of WineD3D and full WebGPU
   ([knowledge/browser.md](knowledge/browser.md), "Vulkan on this kernel").

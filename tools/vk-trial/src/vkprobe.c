@@ -403,13 +403,14 @@ static void sink_stop(void) {
     rmdir(sink.dir);
 }
 
-/* the newest stats line within ms */
+/* wl-sink's stats lines within ms: "pictures" counts since the last line,
+ * "drm" and "shm" are totals (so the newest one counts) */
 static void sink_stats(int ms) {
     while (sink_line(ms))
         if (strstr(sink.line, "\"ev\":\"stats\"")) {
             sink.pictures += jnum(sink.line, "pictures");
-            sink.drm += jnum(sink.line, "drm");
-            sink.shm += jnum(sink.line, "shm");
+            sink.drm = jnum(sink.line, "drm");
+            sink.shm = jnum(sink.line, "shm");
             ms = 200;
         }
 }
