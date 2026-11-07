@@ -7,6 +7,24 @@ Release rule: every change to what a component ships needs a version bump
 (`node release/release.js bump <id> <x.y.z>`); publish with the Release
 workflow (Actions > Release, the component ids).
 
+## High priority
+
+- [ ] **Render through Winston:** our pictures straight onto the centre
+  screen as a native client of Winston's Wayland (`/run/wayland/wayland-0`,
+  an `ivi_application` surface, [knowledge/head-unit.md](knowledge/head-unit.md))
+  instead of the I420 frame file through mgu-render: no CPU readback and
+  colour conversion, full colour.
+- [ ] **Investigate Vulkan again**, with the safety net (by hand, the
+  gpu-trial marker, an off-car harness first; see Browser's "Retry Vulkan
+  (ANV)" below and [knowledge/browser.md](knowledge/browser.md), "Vulkan on
+  this kernel"). It would give Proton DXVK / VKD3D in place of WineD3D and
+  full WebGPU.
+- [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
+  volume does nothing until a CarPlay phone connects (our sound goes into
+  CarPlay's SmartXbar input; see Moonlight's item below and
+  [knowledge/sound.md](knowledge/sound.md)): our own source and domain
+  through the audio manager's routing interface, studied offline first.
+
 ## hook111 (CarPlay's second screen)
 
 - [ ] **Load it with the Store's `preload`** (an LD_PRELOAD into a firmware
@@ -231,6 +249,13 @@ the unit's own root filesystem (2026-11-06): download flow, Wine starting,
 frames as PRIME buffers through the unit's i965 (stub), the right picture
 (swrast), Stop. **Ask before running anything on the unit.**
 
+- [ ] **Small fixes:**
+  - add an 1136x640 (or 1120x630) resolution and make it the default
+    (now 1280x720, `src/server.js`); 960x540 stays the lighter choice, only
+    slightly scaled up;
+  - the 4:2:0 colour (I420) blurs small coloured text, which matters for
+    UI-heavy games (FTL, card games): rendering through Winston (High
+    priority) would avoid it.
 - [ ] **On the car: the USB stick, what's left.** FTL (212680) installed
   onto the Kingston FAT32 stick with 0.1.1 (2026-11-07): sign-in approved in
   the Steam app, 199.5 MB downloaded (287 MB unpacked) in 2.5 minutes. Still
@@ -269,6 +294,10 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   usbfs (HID reports; as Moonlight's TODO); vizualyse-moonlight onto the
   platform modules `native/pads` / `native/usb_pads` (it still has its own
   copy).
+- [ ] **Try the "Should work" games** in
+  [knowledge/game-compatibility.md](knowledge/game-compatibility.md)
+  (Balatro first) and move each to Supported / Unsupported with the date
+  and version; Unity games with `-force-glcore`, Godot 3 as is.
 - [ ] **32-bit games, a long session:** threads come and go with an LDT
   entry each (`patches/wine-no-ia32.patch`), freed with the thread: watch a
   long FTL session for "too many threads".
