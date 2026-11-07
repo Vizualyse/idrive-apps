@@ -286,10 +286,12 @@ run('wineboot', '-u')
 # wineboot's server shuts down after it: a reg add that met it on the way
 # out failed with "recvmsg: Connection reset by peer" (one build in three)
 subprocess.run([server, '-w'], env=env, timeout=300)
-d3d = r'HKCU\Software\Wine\Direct3D'
-for name, kind, value in (('VideoPciVendorID', 'REG_DWORD', '32902'), ('VideoPciDeviceID', 'REG_DWORD', '6402'),
-                          ('VideoMemorySize', 'REG_SZ', '1024')):   # read as a string ("is 0" as a DWORD)
-    run('reg', 'add', d3d, '/v', name, '/t', kind, '/d', value, '/f')
+# one regedit for all three values: separate reg adds each started and
+# stopped a server, and the next met it on the way out the same way (CI)
+open('/tmp/d3d.reg', 'w').write('REGEDIT4\r\n\r\n[HKEY_CURRENT_USER\\Software\\Wine\\Direct3D]\r\n'
+    '"VideoPciVendorID"=dword:00008086\r\n"VideoPciDeviceID"=dword:00001902\r\n'
+    '"VideoMemorySize"="1024"\r\n')   # read as a string ("is 0" as a DWORD)
+run('regedit', '/S', 'Z:\\tmp\\d3d.reg')
 subprocess.run([server, '-w'], env=env, timeout=300)
 print('bundle: prefix made')
 EOF
