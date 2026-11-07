@@ -79,6 +79,17 @@ test('sync writes the pinned copies and a .gitignore block listing them', () => 
     assert.strictEqual(fs.readFileSync(path.join(dir, 'src', '.gitignore'), 'utf8'), before);
 });
 
+test('a .gitignore checked out with CRLF (Windows) keeps one block', () => {
+    const { dir } = fixture({ version: '1.0.0', files: { 'src/sound.py': 'tool/sound.py' } });
+    platform.sync(dir);
+    const file = path.join(dir, 'src', '.gitignore');
+    const crlf = fs.readFileSync(file, 'utf8').replace(/\n/g, '\r\n');
+    fs.writeFileSync(file, crlf);
+    platform.sync(dir);
+    assert.strictEqual(fs.readFileSync(file, 'utf8'), crlf, 'left as it was');
+    assert.strictEqual(crlf.split('# end platform').length, 2, 'one block');
+});
+
 test('a new pin brings the new version; a dropped copy and its block go', () => {
     const { dir } = fixture({ version: '1.0.0', files: { 'src/sound.py': 'tool/sound.py', 'core/frame.c': 'native/frame.c' } });
     platform.sync(dir);
