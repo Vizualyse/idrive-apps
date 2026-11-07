@@ -1,0 +1,113 @@
+--- a/dlls/ntdll/unix/signal_x86_64.c
++++ b/dlls/ntdll/unix/signal_x86_64.c
+@@ -105,32 +105,13 @@
+ #ifdef linux
+ 
+ #include <asm/prctl.h>
++#include <errno.h>
+ static inline int arch_prctl( int func, void *ptr ) { return syscall( __NR_arch_prctl, func, ptr ); }
+ 
+-extern int alloc_fs_sel( int sel, void *base );
+-__ASM_GLOBAL_FUNC( alloc_fs_sel,
+-                   /* switch to 32-bit stack */
+-                   "pushq %rbx\n\t"
+-                   "pushq %r12\n\t"
+-                   "movq %rsp,%r12\n\t"
+-                   "movl 0x4(%rsi),%esp\n\t"  /* Tib.StackBase */
+-                   "subl $0x20,%esp\n\t"
+-                   /* setup modify_ldt struct on 32-bit stack */
+-                   "movl %edi,(%rsp)\n\t"     /* entry_number */
+-                   "movl %esi,4(%rsp)\n\t"    /* base */
+-                   "movl $~0,8(%rsp)\n\t"     /* limit */
+-                   "movl $0x41,12(%rsp)\n\t"  /* seg_32bit | usable */
+-                   /* invoke 32-bit syscall */
+-                   "movl %esp,%ebx\n\t"
+-                   "movl $0xf3,%eax\n\t"      /* SYS_set_thread_area */
+-                   "int $0x80\n\t"
+-                   /* restore stack */
+-                   "movl (%rsp),%eax\n\t"     /* entry_number */
+-                   "leal 0x3(,%eax,8),%eax\n\t"  /* make GDT selector */
+-                   "movq %r12,%rsp\n\t"
+-                   "popq %r12\n\t"
+-                   "popq %rbx\n\t"
+-                   "ret" );
++/* No GDT selector for the 32-bit %fs (set_thread_area): it is only an i386
++ * system call, which faults on a kernel without IA32 emulation. Each 32-bit
++ * thread gets an LDT selector of its own instead (signal_alloc_thread), set
++ * with the 64-bit modify_ldt. */
+ 
+ struct modify_ldt_s
+ {
+@@ -146,28 +127,11 @@
+     unsigned int  garbage : 25;
+ };
+ 
+-extern int modify_ldt( struct modify_ldt_s *ldt );
+-__ASM_GLOBAL_FUNC( modify_ldt,
+-                   /* switch to 32-bit stack */
+-                   "pushq %rbx\n\t"
+-                   "pushq %r12\n\t"
+-                   "movq %rsp,%r12\n\t"
+-                   "movq %gs:0x30,%rax\n\t"
+-                   "leal 0x2000(%eax),%esp\n\t"  /* teb32 */
+-                   /* copy modify_ldt struct to 32-bit stack */
+-                   "pushq 8(%rdi)\n\t"
+-                   "pushq 0(%rdi)\n\t"
+-                   /* invoke 32-bit syscall */
+-                   "movl $0x7b,%eax\n\t"  /* SYS_modify_ldt */
+-                   "movl $0x11,%ebx\n\t"  /* func */
+-                   "movl %esp,%ecx\n\t"   /* ldt_ptr */
+-                   "movl $0x10,%edx\n\t"  /* sizeof(*ldt_ptr) */
+-                   "int $0x80\n\t"
+-                   /* restore stack */
+-                   "movq %r12,%rsp\n\t"
+-                   "popq %r12\n\t"
+-                   "popq %rbx\n\t"
+-                   "ret" );
++static int modify_ldt( struct modify_ldt_s *ldt )
++{
++    /* func 0x11: write an entry (new mode) */
++    return syscall( SYS_modify_ldt, 0x11, ldt, sizeof(*ldt) ) ? -errno : 0;
++}
+ 
+ #ifndef PR_SET_SYSCALL_USER_DISPATCH
+ #define PR_SET_SYSCALL_USER_DISPATCH 59
+@@ -928,7 +892,7 @@
+     {
+         struct amd64_thread_data *thread_data = (struct amd64_thread_data *)&get_current_teb()->GdiTebBatch;
+         thread_data->syscall_dispatch = 0; /* SYSCALL_DISPATCH_FILTER_ALLOW */
+-        if (fs32_sel) arch_prctl( ARCH_SET_FS, thread_data->pthread_teb );
++        if (thread_data->fs) arch_prctl( ARCH_SET_FS, thread_data->pthread_teb );
+     }
+ #elif defined __APPLE__
+     {
+@@ -960,7 +924,7 @@
+         !is_inside_syscall( RSP_sig(sigcontext) ))
+     {
+         thread_data->syscall_dispatch = 1;  /* SYSCALL_DISPATCH_FILTER_BLOCK */
+-        if (fs32_sel) __asm__ volatile( "movw %0,%%fs" :: "r" (fs32_sel) );
++        if (thread_data->fs) __asm__ volatile( "movw %0,%%fs" :: "r" ((USHORT)thread_data->fs) );
+     }
+ #elif defined __APPLE__
+     if (!is_inside_signal_stack( (void *)RSP_sig(sigcontext )) &&
+@@ -3110,7 +3074,6 @@
+     {
+ #ifdef __linux__
+         cs32_sel = 0x23;
+-        fs32_sel = alloc_fs_sel( -1, wow_teb );
+ #elif defined(__APPLE__)
+         cs32_sel = ldt_alloc_entry( ldt_make_cs32_entry() );
+ #endif
+@@ -3197,11 +3160,7 @@
+ 
+ #if defined __linux__
+     arch_prctl( ARCH_SET_GS, teb );
+-    if (fs32_sel)
+-    {
+-        arch_prctl( ARCH_GET_FS, &thread_data->pthread_teb );
+-        alloc_fs_sel( fs32_sel >> 3, get_wow_teb( teb ));
+-    }
++    if (thread_data->fs) arch_prctl( ARCH_GET_FS, &thread_data->pthread_teb );
+     if (syscall_dispatch_enabled && prctl( PR_SET_SYSCALL_USER_DISPATCH, PR_SYS_DISPATCH_ON,
+                                            libc_addr, libc_size, &thread_data->syscall_dispatch ) < 0)
+         WARN_(seh)( "could not enable syscall user dispatch\n" );

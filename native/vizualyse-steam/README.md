@@ -10,10 +10,9 @@ Background: [knowledge/games.md](../../knowledge/games.md).
 
 **Not in this version:** any input to the game (no touch, keyboard or game
 controllers yet), .NET Framework games (no Wine Mono), games that need the
-Steam client running (it doesn't run here), and **32-bit games on the car**:
-the unit's kernel has no IA32 emulation, and Wine's WoW64 makes two i386
-system calls that fault there (knowledge/games.md, TODO.md). 64-bit games
-start (Slay the Spire 2 drew on the car).
+Steam client running (it doesn't run here). 64-bit games start on the car
+(Slay the Spire 2 drew there). **32-bit games** need our rebuilt `ntdll.so`
+(below, "32-bit programs"): tested off the car, not yet on it.
 
 1. Install **Steam** (this tool) and the **Steam** iDrive app
    ([apps/vizualyse_steam](../../apps/vizualyse_steam)) from the Store. The
@@ -50,6 +49,19 @@ start (Slay the Spire 2 drew on the car).
   program of Proton and .NET is pointed at that loader (`patchelf`);
   `LD_LIBRARY_PATH` is set only on their exec. The unit's Mesa 19 is linked
   in ahead (`gpu-libs/`: libEGL, libgbm, libglapi, libGLESv2).
+- **32-bit programs**: the unit's 4.14 kernel has no IA32 emulation, so the
+  i386 system-call gate (`int $0x80`) faults. Wine's new WoW64 used it
+  twice, to give each 32-bit thread its `%fs` (set_thread_area,
+  modify_ldt), and every 32-bit program died at start (`Failed to create
+  process ...: 731`). `patches/wine-no-ia32.patch` changes Wine's
+  `signal_x86_64.c`: the 64-bit `modify_ldt`, and an LDT selector per
+  32-bit thread (Wine's own fallback, now wired up for Linux).
+  `tools/build_ntdll.sh` rebuilds `ntdll.so` from GE-Proton11-11's own Wine
+  tree (Valve's Wine at its pinned commit, Wine Staging, GE's patch script)
+  with Proton's compiler flags; built without the patch it matches the
+  shipped file (same exports and section sizes). `bundle.sh` swaps it in
+  only over that Proton's `ntdll.so` (by its sha256). 32-bit code itself and
+  the 64-bit `modify_ldt` work on the unit (tested there).
 - **No Python on the car**: Proton's launcher runs once, at build time, to
   make the **Windows prefix** (`prefix.tgz`: a minute on a PC, many on the
   Atom) and to record how it starts a game (`launch.json`: its environment

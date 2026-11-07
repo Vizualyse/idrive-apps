@@ -40,7 +40,11 @@ function download() {
         console.log(' ' + (i * 100 / n).toFixed(2) + '% ' + dir + '/part' + i);
         if (i < n) return;
         clearInterval(t);
-        fs.copyFileSync(GAME_EXE, path.join(dir, 'TestGame.exe'));
+        /* app 4343 (unit_test.js: the USB stick's game) is the 32-bit build
+         * of the test program when there is one: every run plays both */
+        const exe32 = GAME_EXE.replace(/64\.exe$/, '32.exe');
+        const exe = Number(app) === 4343 && exe32 !== GAME_EXE && fs.existsSync(exe32) ? exe32 : GAME_EXE;
+        fs.copyFileSync(exe, path.join(dir, 'TestGame.exe'));
         /* the DLLs beside it too (a real game's, copied off the car: T_GAME) */
         fs.readdirSync(path.dirname(GAME_EXE)).filter((n) => /\.dll$/i.test(n))
             .forEach((n) => fs.copyFileSync(path.join(path.dirname(GAME_EXE), n), path.join(dir, n)));

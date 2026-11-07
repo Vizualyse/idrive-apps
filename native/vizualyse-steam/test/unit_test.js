@@ -273,6 +273,14 @@ async function usbStick() {
     ok('play from the stick starts', r.code === 200, r.body && r.body.error);
     s = await until('the stick\'s game drawing', (x) => x.game && x.game.appId === USBAPP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
     ok('a game on the stick runs and draws', s.game.state === 'running', s.game.note);
+    /* the stick's game is the 32-bit test program (fake_dd.js): new WoW64
+     * through patches/wine-no-ia32.patch (no int $0x80, an LDT %fs per thread) */
+    if (!process.env.T_GAME) {
+        let tl = '';
+        try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        ok('the 32-bit program draws through Direct3D 9 (WoW64, LDT %fs)', /t_d3d9: 32-bit/.test(tl) && /t_d3d9: device/.test(tl.slice(tl.lastIndexOf('t_d3d9: 32-bit'))),
+            tl.split('\n').filter((l) => /32-bit|device|FAIL/.test(l)).join(' | ').slice(0, 200));
+    }
     await api('/api/stop', {});
     await until('the stick\'s game ending', (x) => x.game && x.game.state === 'ended', 60000);
     await sleep(1500);

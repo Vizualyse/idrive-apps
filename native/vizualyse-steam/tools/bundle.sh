@@ -112,6 +112,21 @@ for f in $(find "$F" -type f); do
     fi
 done
 say "proton: $n programs on $LOADER: $(du -sh "$P" | cut -f1)"
+# 32-bit programs on the unit: its kernel has no IA32 emulation, and Wine's
+# new WoW64 set the 32-bit %fs up through i386 system calls (int $0x80) that
+# fault there. build.sh rebuilds ntdll.so from this Proton's own Wine tree
+# with patches/wine-no-ia32.patch (tools/build_ntdll.sh): the 64-bit
+# modify_ldt and an LDT selector per 32-bit thread. Only over the ntdll.so of
+# the GE-Proton it was built for.
+NT=$F/lib/wine/x86_64-unix/ntdll.so
+echo "37242d504908ed213f24e508ed0c731dc9de64bd980fdd3f0b4fa5fd32cca090  $NT" | sha256sum -c --quiet \
+    || { echo "bundle: Proton's ntdll.so is not $GE's: tools/build_ntdll.sh and the patch need this Proton" >&2; exit 1; }
+[ -f /m/build/ntdll-noia32.so ] || { echo "bundle: build/ntdll-noia32.so missing (build.sh makes it)" >&2; exit 1; }
+cp /m/build/ntdll-noia32.so "$NT"
+strip --strip-unneeded "$NT"
+chmod 0555 "$NT"
+objdump -d "$NT" | grep -q 'int  *\$0x80' && { echo "bundle: ntdll.so still has int \$0x80" >&2; exit 1; }
+say "ntdll.so: rebuilt with patches/wine-no-ia32.patch"
 
 # ---- the runtime: .NET, DepotDownloader, wl-sink -------------------------------
 mkdir -p "$R/dotnet" "$R/depotdownloader"

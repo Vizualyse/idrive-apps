@@ -77,6 +77,21 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   set_thread_area; `modify_ldt`). 32-bit code itself runs (a far return to
   selector 0x23 works), and the 64-bit `modify_ldt` (154) works; the 64-bit
   `set_thread_area` (205) is ENOSYS on any kernel.
+- **The fix: Wine's source, not its binary.** Swapping the two `int $0x80`
+  isn't enough: on Linux Wine assumes a GDT `fs32_sel` (16 places read it:
+  restoring glibc's `%fs` base in signal handlers and the syscall
+  dispatcher, reloading the 32-bit `%fs`). Its per-thread LDT fallback
+  (`signal_alloc_thread`, as on macOS) works on Linux once those spots use
+  the thread's own selector (`thread_data->fs`) and `pthread_teb` is saved
+  (`patches/wine-no-ia32.patch`). GE-Proton's Wine rebuilds from its tag:
+  Valve's Wine at the submodule commit, Staging, then GE's
+  `protonprep-valve-staging.sh` Wine section (it reverts one commit:
+  fetch it, a shallow clone lacks it); then Proton's
+  `make_vulkan -x vk.xml -X video.xml` and `make_specfiles`; configure
+  without `--enable-archs` (no PE compiler needed for ntdll.so) and with
+  Proton's CFLAGS (`-march=nocona -mtune=core-avx2 -O2 -fwrapv ...`). Built
+  unpatched, the stripped `ntdll.so` is the shipped one's size, exports and
+  `.text` / `.bss` (only `.rodata` 256 bytes apart).
 - **USB sticks on the unit:** udisks2 (for the HMI) mounts them at
   `/media/<label or uuid>` (`99-usb-udisks-mountpath.rules`): `ro,nosuid,
   nodev,noexec`, FAT32 as `uid=2010,gid=2010,fmask=0000,dmask=0000`

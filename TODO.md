@@ -219,7 +219,7 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   evdev to read on the unit).
 - [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
-## Steam (vizualyse-steam 0.1.2, vizualyse_steam 0.1.1)
+## Steam (vizualyse-steam 0.1.3, vizualyse_steam 0.1.1)
 
 Windows games from the owner's Steam library through Proton (WineD3D on the
 unit's own Mesa 19, Wine's Wayland driver into `wl-sink`, mgu-render's frame
@@ -266,37 +266,19 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   found, IL-only binary sts2.dll cannot be loaded". 0.1.2 leaves it on
   (off the car the car's own `sts2.dll` loads now: `T_GAME=../il/t_load64.exe
   T_LOAD=sts2.dll`). Update, Play: past its start?
-- [ ] **32-bit games crash on the car: a Wine source patch.**
-  FTL (32-bit) fails with `Failed to create process ...: 731` from the
-  stick and from the hard disk alike. Diagnosed on the car (2026-11-07,
-  `build/diag/`):
-  - The 32-bit process dies (SIGSEGV) right after loading syswow64's
-    ntdll. The car's kernel has no IA32 emulation (no
-    `ia32_sys_call_table`, no `/proc/sys/abi/vsyscall32`): `int $0x80`
-    faults there (`int80test`).
-  - 32-bit code itself runs (`cs32test`: far return to 0x23 and back), and
-    the 64-bit `modify_ldt` (154) works. The 64-bit `set_thread_area` (205)
-    is ENOSYS everywhere.
-  - Proton's `lib/wine/x86_64-unix/ntdll.so` has exactly two `int $0x80`,
-    in Wine's `signal_x86_64.c`: `alloc_fs_sel` (SYS_set_thread_area 243)
-    and `modify_ldt` (SYS_modify_ldt 123). Without `fs32_sel` Wine already
-    falls back to an LDT entry per thread through `modify_ldt`
-    (`signal_alloc_thread`).
-  - Patching just those two calls is not enough: Wine on Linux assumes a
-    `fs32_sel` exists. It is read in 16 places (signal handlers, thread
-    setup, context restore) to restore glibc's thread pointer and reload the
-    32-bit `%fs`, and the per-thread LDT fallback isn't wired up for Linux
-    there. The fix belongs in Wine's source (`signal_x86_64.c`): use the
-    64-bit `modify_ldt`, and on Linux too take the per-thread LDT path with
-    `pthread_teb` saved and each thread's own selector reloaded. Then
-    rebuild `ntdll.so` from the exact GE-Proton11-11 Wine tree (it must
-    match the shipped ntdll.dll and wineserver). A byte-level patch of the
-    shipped ntdll.so was tried and dropped.
-  - Off the car, 32-bit tests must still pass (the PC's kernel takes both
-    ways). The proof is on the car: `t_load32`, then FTL.
-  - The `mmdevapi: Unable to load UNIX functions` line is likely only
-    winepulse failing before ALSA: check that sound plays on a working
-    game.
+- [ ] **On the car: 32-bit games with the rebuilt `ntdll.so`.** FTL
+  (32-bit) died at start on the car (`Failed to create process ...: 731`):
+  its kernel has no IA32 emulation, and Wine's WoW64 used `int $0x80` for
+  the 32-bit `%fs` (knowledge/games.md). `patches/wine-no-ia32.patch`
+  (64-bit `modify_ldt`, an LDT selector per thread), `ntdll.so` rebuilt
+  from GE-Proton11-11's own tree (`tools/build_ntdll.sh`). Off the car the
+  unit test plays the 32-bit Direct3D 9 program through it, and FTL's own
+  exe starts. On the car: FTL, `journalctl` for `run_process` / `game:`;
+  a long session (threads come and go: an LDT entry each, freed with the
+  thread).
+- [ ] **Sound:** the `mmdevapi: Unable to load UNIX functions` line is
+  likely only winepulse failing before ALSA: check that sound plays on a
+  working game.
 - [ ] **Goldberg (gbe_fork, LGPL) for games that need Steam running:** an
   opt-in "Run without Steam" switch per game on the phone page. It puts the
   emulator's `steam_api.dll` / `steam_api64.dll` in place of the game's

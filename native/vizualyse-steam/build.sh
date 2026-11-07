@@ -31,8 +31,22 @@ if ! docker image inspect $IMG >/dev/null 2>&1; then
 fi
 [ "${1:-}" = image ] && exit 0
 mkdir -p "$HERE/build"
-key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/src/*.c "$HERE"/src/*.h "$HERE"/src/protocol/*; \
-        docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
+# Proton's ntdll.so rebuilt from GE's own Wine tree with
+# patches/wine-no-ia32.patch (32-bit programs on the unit's kernel, which has
+# no IA32 emulation): tools/build_ntdll.sh in image/wine.Dockerfile, the
+# sources in the Docker volume steam-wine-src. Kept while its inputs stay.
+WIMG=idrive-steam-wine:trixie-$(sha256sum "$HERE/image/wine.Dockerfile" | cut -c1-8)
+docker image inspect $WIMG >/dev/null 2>&1 \
+    || docker build -q --platform linux/amd64 -t $WIMG -f "$WIN_HERE/image/wine.Dockerfile" "$WIN_HERE/image" >/dev/null
+nkey=$(cat "$HERE/image/wine.Dockerfile" "$HERE/tools/build_ntdll.sh" "$HERE/patches/wine-no-ia32.patch" | sha256sum | cut -c1-16)
+if [ ! -f "$HERE/build/ntdll-noia32.so" ] || [ "$(cat "$HERE/build/ntdll.key" 2>/dev/null)" != "$nkey" ]; then
+    rm -f "$HERE/build/ntdll.key" "$HERE/build/ntdll-noia32.so"
+    docker run --rm --platform linux/amd64 -v steam-wine-src:/w -v "$WIN_HERE:/m" $WIMG \
+        sh /m/tools/build_ntdll.sh /m/build/ntdll-noia32.so /m/patches/wine-no-ia32.patch
+    echo "$nkey" > "$HERE/build/ntdll.key"
+fi
+key=$( (cat "$HERE/image/Dockerfile" "$HERE/tools/bundle.sh" "$HERE"/src/*.c "$HERE"/src/*.h "$HERE"/src/protocol/* \
+        "$HERE/build/ntdll-noia32.so"; docker image inspect -f '{{.Id}}' $IMG) | sha256sum | cut -c1-16)
 if [ -f "$HERE/build/proton.tgz" ] && [ -f "$HERE/build/launch.json" ] && [ "$(cat "$HERE/build/bundle.key" 2>/dev/null)" = "$key" ]; then
     echo "vizualyse-steam bundles: up to date ($key)"
     exit 0
