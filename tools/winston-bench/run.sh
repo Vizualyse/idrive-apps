@@ -27,7 +27,9 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 IMG=idrive-rootfs:I_21w12.2-1-4
 ROOTFS=${ROOTFS:-$HERE/../../../idrive-rootfs/20.40.2/rootfs.tar}
-PRE="-e KMS_SHIM_GRAB=/out/grab -e LD_PRELOAD=/bench/kms_shim.so:/bench/stub/libintel_noop_drm_shim.so -e INTEL_STUB_GPU_PLATFORM=bxt"
+# The DRM shim for everything (a client's GBM buffers on the fake render
+# node); kms_shim (the fake display card, libudev) for Winston only.
+PRE="-e KMS_SHIM_GRAB=/out/grab -e LD_PRELOAD=/bench/stub/libintel_noop_drm_shim.so -e INTEL_STUB_GPU_PLATFORM=bxt"
 case "${1:-}" in
     stub) ENV=$PRE ;;
     swrast) ENV="$PRE -e KMS_SHIM_SWRAST=1 -e GBM_ALWAYS_SOFTWARE=1 -e LIBGL_DRIVERS_PATH=/bench/swrast -e LD_LIBRARY_PATH=/bench/swrast" ;;
@@ -47,7 +49,7 @@ WIN_OUT=$(cd "$OUT" && (pwd -W 2>/dev/null || pwd))
 START='mkdir -p /run/wayland /tmp && chgrp 911 /run/wayland && chmod 0770 /run/wayland
 export XDG_RUNTIME_DIR=/run/wayland XDG_CACHE_HOME=/run/wayland
 umask 0002
-/usr/bin/winston --param "null-output[HDMI-A-1]=0,0,1920,720,60" --param "output-model[HDMI-A-1]=center" \
+LD_PRELOAD=/bench/kms_shim.so:$LD_PRELOAD /usr/bin/winston --param "null-output[HDMI-A-1]=0,0,1920,720,60" --param "output-model[HDMI-A-1]=center" \
   --param "output[HDMI-A-2]=disabled" ${WINSTON_ARGS:-} \
   --param "null-output[Virtual-2]=0,1080,360,208,60" --param "output-model[Virtual-2]=ic1" \
   --param "null-output[Virtual-3]=500,1080,360,208,60" --param "output-model[Virtual-3]=ic2" \
@@ -55,6 +57,7 @@ umask 0002
   --param "null-output[Virtual-5]=500,2000,360,208,60" --param "output-model[Virtual-5]=hud2" \
   > /out/winston.log 2>&1 &
 i=0; while [ ! -S /run/wayland/wayland-0 ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+chgrp 911 /run/wayland/wayland-0 && chmod 0775 /run/wayland/wayland-0   # as Group=mgu_wayland, UMask=0002 make it
 grep -q "render order with" /out/winston.log || sleep 0.5
 "$@"'
 # our compositors (test/build_sinks.sh) at /sinks

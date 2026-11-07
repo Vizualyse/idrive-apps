@@ -254,6 +254,34 @@ function setGpu(on, why) {
     return null;
 }
 
+/* ---- Winston output ------------------------------------------------------------ */
+
+/* The pictures straight onto the centre screen as a client of Winston, the
+ * unit's compositor (chromium-wl's own connection, platform
+ * native/winston_out), instead of the I420 frame file through mgu-render: no
+ * read-back of the GPU mode's buffers, no colour conversion, full colour.
+ * Experimental (tested off the car against the unit's own Winston,
+ * tools/winston-bench): turned on by hand and never kept, like the GPU mode;
+ * the next show uses it. Back on mgu-render by itself if chromium-wl has no
+ * connection to Winston or loses it. */
+let winstonOut = false;
+let winstonNote = null;
+
+function setWinston(on) {
+    on = !!on;
+    if (on === winstonOut) return null;
+    if (on && (!browser || browserState !== 'running')) return 'the browser is not running';
+    if (on && !browser.winston) return 'no connection to Winston (chromium-wl could not connect to ' + env.WINSTON_SOCKET + ')';
+    winstonOut = on;
+    winstonNote = null;
+    log('winston: ' + (on ? 'on: pictures straight onto the screen through Winston; off again at the next start of the tool' : 'off: through mgu-render'));
+    if (screen.shown()) { hide('the output changed'); show(); }
+    if (control) control.broadcast();
+    return null;
+}
+
+function via() { return winstonOut && browser && browser.winston ? 'winston' : 'mgu-render'; }
+
 /* ---- game mode ------------------------------------------------------------- */
 
 /* WebGPU without Dawn's validation and robustness checks (browser.js): less
@@ -302,8 +330,16 @@ function startBrowser() {
     });
     b.on('display', (e) => {
         if (e.ev === 'stats') { stats.pictures += e.pictures; stats.decodeMs = e.ms; }
-        else if (e.ev === 'ready') log('display: ready ' + e.size.join('x') + (e.drm ? ', GPU buffers read through ' + e.device : ', shared memory') + ', uid ' + e.uid);
+        else if (e.ev === 'ready') log('display: ready ' + e.size.join('x') + (e.drm ? ', GPU buffers read through ' + e.device : ', shared memory') +
+            (e.winston ? ', Winston connected (dmabuf v' + e.dmabuf + ')' : ', no Winston') + ', uid ' + e.uid);
         else if (e.ev === 'error') log('display: ' + e.error);
+        else if (e.ev === 'winston') log('display: winston: ' + e.msg);
+        else if (e.ev === 'winston-lost') {
+            winstonNote = 'the connection to Winston was lost: back on mgu-render';
+            log('winston: ' + winstonNote);
+            if (screen.shown() && screen.via === 'winston') { hide('Winston went'); show(); }
+            if (control) control.broadcast();
+        }
     });
     b.on('exit', (code, sig) => {
         log('chromium: exited (' + (sig || code) + ')' + (quiet ? ', ' + quiet + ' quiet lines' : ''));
@@ -401,8 +437,8 @@ function show() {
     if (!browser || browserState !== 'running') return null;   /* shown once it runs */
     if (screen.shown()) return null;
     const touch = TOUCH_FILE ? { file: TOUCH_FILE } : TOUCH_IFACE ? { iface: TOUCH_IFACE, src: TOUCH_SRC } : null;
-    screen.show(VIEW, touch, picSize(settings.scale), browser);
-    log('screen: shown');
+    screen.show(VIEW, touch, picSize(settings.scale), browser, via());
+    log('screen: shown (' + screen.via + ')');
     return null;
 }
 
@@ -579,6 +615,7 @@ function status() {
         bundle: bundle.state, browser: browserState, shown: screen.shown(),
         url: browser ? browser.url : settings.url, title: browser ? browser.title : '', home: settings.home,
         gpu: gpuSummary(), gpuMode: gpuMode, gpuNote: gpuNote, gameMode: gameMode, speed: vehicle.kmh, moving: moving(),
+        winston: { on: winstonOut, connected: !!(browser && browser.winston), via: screen.via, note: winstonNote },
         pictures: stats.pictures, decodeMs: stats.decodeMs,
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
         scale: settings.scale, resolutions: SCALES.map((s) => { const p = picSize(s); return { scale: s, w: p.w, h: p.h }; }),
@@ -620,6 +657,7 @@ const ROUTES = {
     '/api/key': (b) => need().then((x) => x.key(String(b.key || ''))),
     '/api/probe': () => need().then((x) => x.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe')).then((p) => { delete p.gpuPage; gpu = Object.assign({ at: new Date().toISOString() }, p); console.log('@gpu ' + JSON.stringify(gpu)); }),
     '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
+    '/api/winston': (b) => { const e = setWinston(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/game': (b) => { const e = setGame(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/room': (b) => { const e = setRoom(b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/scale': (b) => { const e = setScale(b.scale); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
@@ -660,7 +698,7 @@ function setEnabled(on) {
     if (settings.enabled === on) return;
     settings.enabled = on;
     saveSettings();
-    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; gameMode = false; stopBrowser(); removeFirewall(); giveBack(); }
+    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; gameMode = false; winstonOut = false; stopBrowser(); removeFirewall(); giveBack(); }
     log('browser: ' + (on ? 'on' : 'off'));
 }
 
@@ -674,6 +712,7 @@ function command(c) {
     if (c.cmd === 'hide') { hide('hidden on the iDrive page'); return null; }
     if (c.cmd === 'gpu') return setGpu(!!c.on);
     if (c.cmd === 'game') return setGame(!!c.on);
+    if (c.cmd === 'winston') return setWinston(!!c.on);
     if (c.cmd === 'memory') return setMemory(c.mb);
     if (c.cmd === 'scale') return setScale(c.scale);
     if (c.cmd === 'room') return setRoom(c.on);

@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/un.h>
 #include <time.h>
@@ -402,6 +403,12 @@ void wo_close(struct wo *w) {
 }
 
 int wo_fd(struct wo *w) { return wl_display_get_fd(w->dpy); }
+
+long wo_socket_gid(struct wo *w) {
+    struct stat st;
+    /* never root's group (a process dropping privileges keeps it) */
+    return stat(w->socket, &st) == 0 && st.st_gid != 0 ? (long)st.st_gid : -1;
+}
 
 int wo_dispatch(struct wo *w) {
     if (w->lost) return -1;

@@ -36,6 +36,9 @@ const RENDER_NODE = process.env.CHROMIUM_RENDER_NODE || '/dev/dri/renderD128';
  * in a folder only it and Chromium's group can enter (a tmpfs on the unit) */
 const WL_DIR = process.env.CHROMIUM_WL_DIR || '/run/vizualyse-chromium';
 const WL_SOCKET = 'wayland-0';
+/* Winston's socket (the head unit's compositor): chromium-wl connects to it
+ * at start, while still root, to show pictures straight on the screen */
+const WINSTON_SOCKET = process.env.CHROMIUM_WINSTON || '/run/wayland/wayland-0';
 /* the unit's libraries Mesa 19's libEGL and i965 must get, not the bundle's */
 const UNIT_LIBS = ['libGLESv2.so.2', 'libgbm.so.1', 'libglapi.so.0', 'libwayland-client.so.0', 'libwayland-server.so.0', 'libffi.so.6'];
 
@@ -99,4 +102,4 @@ function wlEnv(gpu) {
     return e;
 }
 
-module.exports = { ROOT, BUNDLE, PROFILE, STATE_DIR, GPU_LIBS, UNIT_LIB, UNIT_EGL, RENDER_NODE, WL_DIR, WL_SOCKET, chromiumEnv, wlEnv, icd, gpuLibs };
+module.exports = { ROOT, BUNDLE, PROFILE, STATE_DIR, GPU_LIBS, UNIT_LIB, UNIT_EGL, RENDER_NODE, WL_DIR, WL_SOCKET, WINSTON_SOCKET, chromiumEnv, wlEnv, icd, gpuLibs };

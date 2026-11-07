@@ -55,6 +55,10 @@ struct wo *wo_open(const struct wo_opts *o, char *err, size_t n);
 void wo_close(struct wo *w);
 /* The connection's fd: wo_dispatch() when it is readable. */
 int wo_fd(struct wo *w);
+/* The group of Winston's socket (mgu_wayland on the car), or -1. A process
+ * that drops its privileges after wo_open must keep it: each show of the
+ * layer connects again (the screen's layer list as it is now). */
+long wo_socket_gid(struct wo *w);
 /* Reads and handles what Winston said; -1 once the connection is lost. */
 int wo_dispatch(struct wo *w);
 /* Sends what is queued; -1 once the connection is lost. */

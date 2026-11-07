@@ -66,6 +66,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <libyuv/convert_argb.h>
 #include <libyuv/convert_from_argb.h>
 #include <wayland-server.h>
 #include "frame_out.h"
@@ -100,6 +101,7 @@ static int wmode;                     /* the last show was "winston" */
 static int wshown;                    /* shown through Winston now */
 static struct wo_ring *ring;          /* our buffers for pictures we make */
 static int ring_w, ring_h;
+static uint32_t *ring_last;           /* the pixels of the last of our buffers shown */
 static uint32_t *lastbgra;            /* the latest picture while hidden (winston mode) */
 static int lastbgra_w, lastbgra_h, lastbgra_ok;
 static unsigned long n_fwd;           /* GPU buffers passed on as they are */
@@ -400,6 +402,7 @@ static void picture_winston(const uint8_t *src, int stride, int w, int h) {
     if (wshown && wo) {
         if (!ring || ring_w != out_w || ring_h != out_h) {
             wo_ring_free(ring);
+            ring_last = NULL;
             ring = wo_ring_new(wo, out_w, out_h, 3);
             ring_w = out_w; ring_h = out_h;
             if (!ring) { error_event("no buffers for Winston"); return; }
@@ -410,6 +413,7 @@ static void picture_winston(const uint8_t *src, int stride, int w, int h) {
         copy_out(dst, src, stride, w, h);
         if (wo_present(wo, b, out_w, out_h) < 0) { wo_lost(); return; }
         last_drm = NULL;
+        ring_last = dst;
     } else {
         if (!lastbgra || lastbgra_w != out_w || lastbgra_h != out_h) {
             free(lastbgra);
@@ -418,7 +422,7 @@ static void picture_winston(const uint8_t *src, int stride, int w, int h) {
             if (!lastbgra) return;
         }
         copy_out(lastbgra, src, stride, w, h);
-        lastbgra_ok = 1;
+        lastbgra_ok = 1; last_ok = 0;   /* the newest kept picture */
     }
     write_snap(src, stride, w < out_w ? w : out_w, h < out_h ? h : out_h);
     n_pictures++;
@@ -462,7 +466,7 @@ static void picture(const uint8_t *src, int stride, int w, int h) {
         memset(U, 128, (size_t)(ow / 2) * (oh / 2) * 2);
     }
     if (cw > 0 && ch > 0) ARGBToJ420(src, stride, Y, ow, U, ow / 2, V, ow / 2, cw, ch);
-    if (shown) frame_out_publish(&fo); else last_ok = 1;
+    if (shown) frame_out_publish(&fo); else { last_ok = 1; lastbgra_ok = 0; }
     write_snap(src, stride, w < ow ? w : ow, h < oh ? h : oh);
     n_pictures++;
     src_w = w; src_h = h;
@@ -1028,12 +1032,22 @@ static int ensure_last_from_drm(void) {
 
 static void winston_hide(void) {
     if (!wshown) return;
-    /* the picture on the screen now, for the next show (shown, ours are read
-     * in place; a GPU buffer of Chromium's is read back once) */
-    if (last_drm && ensure_last_from_drm()) lastbgra_ok = 1;
+    /* the picture on the screen now, for the next show: ours copied, a GPU
+     * buffer of Chromium's read back once */
+    if (last_drm) {
+        if (ensure_last_from_drm()) { lastbgra_ok = 1; last_ok = 0; }
+    } else if (ring_last && ring_w == out_w && ring_h == out_h) {
+        if (!lastbgra || lastbgra_w != out_w || lastbgra_h != out_h) {
+            free(lastbgra);
+            lastbgra = malloc((size_t)out_w * out_h * 4);
+            lastbgra_w = out_w; lastbgra_h = out_h;
+        }
+        if (lastbgra) { memcpy(lastbgra, ring_last, (size_t)out_w * out_h * 4); lastbgra_ok = 1; last_ok = 0; }
+    }
     if (wo) wo_hide(wo);
     drm_buffers_unhold();
     wo_ring_free(ring); ring = NULL;
+    ring_last = NULL;
     last_drm = NULL;
     wshown = 0;
 }
@@ -1046,6 +1060,7 @@ static void wo_lost(void) {
     wl_list_for_each(b, &drm_buffers, link)
         if (b->wb) { wo_buf_free(b->wb); b->wb = NULL; }
     wo_ring_free(ring); ring = NULL;
+    ring_last = NULL;
     wo_close(wo); wo = NULL;
     wshown = 0;
     puts("{\"ev\":\"winston-lost\"}");
@@ -1076,7 +1091,17 @@ static void cmd_winston(const char *arg) {
     wo_place(wo, x, y, w, h);
     if (wo_show(wo, 1) < 0) { wo_lost(); return; }
     wshown = 1;
-    /* what Chromium drew while hidden, at once (a still page draws nothing new) */
+    /* what Chromium drew while hidden, at once (a still page draws nothing
+     * new); kept as I420 when the last show was through mgu-render */
+    if ((!lastbgra_ok || lastbgra_w != out_w || lastbgra_h != out_h) && last && last_ok && last_w == out_w && last_h == out_h) {
+        free(lastbgra);
+        lastbgra = malloc((size_t)out_w * out_h * 4);
+        lastbgra_w = out_w; lastbgra_h = out_h; lastbgra_ok = 0;
+        if (lastbgra) {
+            const uint8_t *Y = last, *U = last + (long)out_w * out_h, *V = U + (long)(out_w / 2) * (out_h / 2);
+            lastbgra_ok = J420ToARGB(Y, out_w, U, out_w / 2, V, out_w / 2, (uint8_t *)lastbgra, out_w * 4, out_w, out_h) == 0;
+        }
+    }
     if (lastbgra && lastbgra_ok && lastbgra_w == out_w && lastbgra_h == out_h)
         picture_winston((const uint8_t *)lastbgra, out_w * 4, out_w, out_h);
     arm_frames();
@@ -1095,6 +1120,11 @@ static void cmd_show(const char *file) {
     if (last && last_ok && last_w == fo.w && last_h == fo.h) {
         memcpy(frame_out_next(&fo), last, (size_t)fo.w * fo.h * 3 / 2);
         frame_out_publish(&fo);
+    } else if (lastbgra && lastbgra_ok && lastbgra_w == fo.w && lastbgra_h == fo.h) {
+        /* kept in full colour when the last show was through Winston */
+        uint8_t *Y = frame_out_next(&fo), *U = Y + (long)fo.w * fo.h, *V = U + (long)(fo.w / 2) * (fo.h / 2);
+        ARGBToJ420((const uint8_t *)lastbgra, fo.w * 4, Y, fo.w, U, fo.w / 2, V, fo.w / 2, fo.w, fo.h);
+        frame_out_publish(&fo);
     }
     arm_frames();
 }
@@ -1105,7 +1135,7 @@ static void cmd_hide(void) {
     /* the picture on the screen now, for the next show */
     size_t n = (size_t)fo.w * fo.h * 3 / 2;
     if (!last || last_w != fo.w || last_h != fo.h) { free(last); last = malloc(n); last_w = fo.w; last_h = fo.h; }
-    if (last) { memcpy(last, fo.map + SLOT0 + (size_t)fo.slot * n, n); last_ok = fo.seq > 0; }
+    if (last) { memcpy(last, fo.map + SLOT0 + (size_t)fo.slot * n, n); last_ok = fo.seq > 0; if (last_ok) lastbgra_ok = 0; }
     frame_out_close(&fo);
     shown = 0;
 }
@@ -1209,8 +1239,12 @@ int main(int argc, char **argv) {
         wo = wo_open(&wopts, err, sizeof err);
         if (!wo) error_event(err);
     }
-    /* before anything else: the frame files are opened as U, the socket made as U:G */
-    if (drop_gid >= 0 && (setgroups(0, NULL) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
+    /* before anything else: the frame files are opened as U, the socket made
+     * as U:G. With Winston, its socket's group (mgu_wayland) stays our one
+     * other group: putting our layer on the screen takes a new connection
+     * each time (winston_out.h), long after the drop. */
+    gid_t keep = wo ? (gid_t)wo_socket_gid(wo) : (gid_t)-1;
+    if (drop_gid >= 0 && (setgroups(keep != (gid_t)-1 ? 1 : 0, &keep) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
                           || getuid() != (uid_t)drop_uid || geteuid() != (uid_t)drop_uid)) {
         char m[96];
         snprintf(m, sizeof m, "cannot drop to uid %ld gid %ld", drop_uid, drop_gid);

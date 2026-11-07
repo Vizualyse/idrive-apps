@@ -56,6 +56,8 @@
   <p class="dim">More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.</p>
   <div class="row" style="margin-top:8px"><button id="room">Make room: off</button></div>
   <p class="dim">Make room pauses the Moonlight and Cast tools while the browser is on (Cast's cluster map too) and starts them again when it goes off.</p>
+  <div class="row" style="margin-top:8px"><button id="winston">Winston output: off</button></div>
+  <p class="dim">Winston output (experimental): the pictures go straight to the car's own screen compositor instead of through mgu-render: in full colour, and in the GPU mode without copying them back from the graphics card. Off again whenever the tool starts.</p>
   <div class="row" style="margin-top:8px"><button id="game">Game mode: off</button></div>
   <p class="dim">Game mode (experimental): WebGPU stops checking each command a page sends, which saves time in games. Only for sites you trust: a page with mistakes can crash the browser's graphics. Chromium restarts for it, and it is off again whenever the tool starts.</p>
   <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
@@ -99,6 +101,10 @@ function render(s) {
   const rm = s.room || {};
   roomOn = !!rm.on;
   $('room').textContent = 'Make room: ' + (roomOn ? 'on (turn off)' : 'off (turn on)');
+  const wn = s.winston || {};
+  winstonOn = !!wn.on;
+  $('winston').textContent = 'Winston output: ' + (winstonOn ? 'on (turn off)' : 'off (turn on)');
+  $('winston').disabled = !winstonOn && !wn.connected;
   gameOn = !!s.gameMode;
   $('game').textContent = 'Game mode: ' + (gameOn ? 'on (turn off)' : 'off (turn on)');
   $('game').disabled = !gameOn && (s.browser !== 'running' || s.bundle !== 'ready');
@@ -114,6 +120,7 @@ function render(s) {
     (m.note ? row('Memory', m.note + ' (' + String(m.oomAt || '').slice(11, 19) + ')', 'err') : '') +
     row('JSPI', g.jspi, g.jspi === 'ok' ? 'ok' : g.jspi ? 'err' : '') +
     row('Speed', s.speed === null ? 'unknown (counts as parked)' : s.speed + ' km/h' + (s.moving ? ', moving' : '')) +
+    row('Output', (wn.via || (winstonOn ? 'winston' : 'mgu-render')) + (wn.connected ? '' : ', no connection to Winston') + (wn.note ? ' - ' + wn.note : ''), wn.note ? 'err' : '') +
     row('Pictures', s.pictures + (s.decodeMs ? ', ' + s.decodeMs + ' ms each' : '')) +
     row('Uplink', s.uplink) +
     (s.error ? row('Error', s.error, 'err') : '');
@@ -127,6 +134,8 @@ let gpuOn = false;
 $('gpumode').onclick = () => api('/api/gpu', { on: !gpuOn }).catch(() => null);
 let roomOn = false;
 $('room').onclick = () => api('/api/room', { on: !roomOn }).catch(() => null);
+let winstonOn = false;
+$('winston').onclick = () => api('/api/winston', { on: !winstonOn }).catch(() => null);
 let gameOn = false;
 $('game').onclick = () => api('/api/game', { on: !gameOn }).catch(() => null);
 $('res').onchange = () => api('/api/scale', { scale: Number($('res').value) }).then(() => $('res').blur(), () => null);
