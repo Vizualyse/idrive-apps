@@ -12,6 +12,12 @@
  * foreground gate does not apply; the renderer hides layer apps itself while
  * the reversing camera shows. A draw once a second keeps it up.
  *
+ * Or through Winston (via 'winston', the experimental output): wl-sink puts
+ * the pictures straight onto the centre screen itself, as a client of the
+ * unit's compositor (platform native/winston_out), fitted into the same
+ * place; mgu-render isn't asked. Winston hides them while the reversing
+ * camera shows, as mgu-render does.
+ *
  * The frame file exists while a game runs (server.js makes it before
  * wl-sink, removes it after); showing is separate: a game keeps running
  * hidden.
@@ -57,13 +63,25 @@ class Screen extends EventEmitter {
         this.log = log;
         this.gpu = null;
         this.view = null;
+        this.via = null;
+        this.game = null;
     }
 
-    shown() { return !!this.gpu; }
+    shown() { return !!this.gpu || this.via === 'winston'; }
 
-    /* view: { x, y, w, h } on the screen */
-    show(view) {
+    /* view: { x, y, w, h } on the screen; via 'winston' (game: the Game, its
+     * wl-sink connected to Winston) or 'mgu-render' (the default) */
+    show(view, via, game) {
         this.hide();
+        if (via === 'winston') {
+            if (!fs.existsSync(FILE)) return 'no game is running';
+            this.view = view;
+            this.via = 'winston';
+            this.game = game;
+            game.showWinston(view);
+            this.log('screen: through Winston, game ' + view.w + 'x' + view.h + '+' + view.x + '+' + view.y);
+            return null;
+        }
         if (!available()) { this.log('screen: no mgu-render client at ' + CLIENT); return 'mgu-render is not installed'; }
         if (!fs.existsSync(FILE)) return 'no game is running';
         this.view = view;
@@ -72,6 +90,7 @@ class Screen extends EventEmitter {
         const say = (s) => this.log('screen: ' + s);
         const gpu = new RenderClient(NAME, { info: say, warn: say, error: say }, { mode: 'layer' });
         this.gpu = gpu;
+        this.via = 'mgu-render';
         gpu.on('ready', (screenInfo, info) => {
             const a = info && info.appArea;
             say('ready: screen ' + screenInfo.w + 'x' + screenInfo.h + (a ? ', app area ' + a.w + 'x' + a.h + '+' + a.x + '+' + a.y : '') +
@@ -102,6 +121,9 @@ class Screen extends EventEmitter {
             try { this.gpu.show(false); this.gpu.video(VIDEO_ID, null); this.gpu.close(); } catch (e) { /* gone */ }
             this.gpu = null;
         }
+        if (this.via === 'winston' && this.game) this.game.hideWinston();
+        this.game = null;
+        this.via = null;
         this.view = null;
     }
 }

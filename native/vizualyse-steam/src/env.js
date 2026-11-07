@@ -55,6 +55,9 @@ const PADS_FILE = RUN_DIR + '/pads';
 const DNS_FILE = process.env.STEAM_DNS_FILE || '/dev/shm/vzs.dns';
 const UNIT_LIB = process.env.STEAM_UNIT_LIB || '/usr/lib';
 const RENDER_NODE = process.env.STEAM_RENDER_NODE || '/dev/dri/renderD128';
+/* Winston's socket (the head unit's compositor): wl-sink connects to it at
+ * start, while still root, to show pictures straight on the screen */
+const WINSTON_SOCKET = process.env.STEAM_WINSTON || '/run/wayland/wayland-0';
 /* the unit's Mesa 19, ahead of the runtime: these four only (not its
  * libwayland 1.15 or libdrm: the runtime's newer ones serve Mesa too) */
 const UNIT_GL = ['libEGL.so.1', 'libgbm.so.1', 'libglapi.so.0', 'libGLESv2.so.2'];
@@ -174,6 +177,6 @@ function userDirs(uid, gid) {
 
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
-    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB,
+    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

@@ -3,12 +3,13 @@
 /*
  * wo_bench: clients of the real Winston for tools/winston-bench/test/run_test.sh.
  *
- *   wo_bench app shm|dmabuf|ring WxH X,Y,W,H [SECONDS]
+ *   wo_bench app shm|dmabuf|nv12|ring WxH X,Y,W,H [SECONDS]
  *       the platform's winston_out as our tools use it: a test pattern
  *       (four quadrants red, green, blue, white) of WxH shown at the place,
  *       a new picture each frame callback; events as JSON lines on stdout.
  *       shm: our shared memory pool (as a client's, passed on); dmabuf: a GBM
- *       buffer on the render node (the unit's libgbm, dlopened); ring:
+ *       buffer on the render node (the unit's libgbm, dlopened); nv12: a video
+ *       decoder's kind of picture, NV12 in one GBM buffer, drawn once; ring:
  *       winston_out's own buffers.
  *   wo_bench grab                     the centre screen as Winston composed it, into
  *                                     $KMS_SHIM_GRAB.ppm (kms_shim reads back its next picture)
@@ -82,8 +83,15 @@ static int app(int argc, char **argv) {
     struct wo_opts o = { .x = x, .y = y, .w = w, .h = h, .log = lg, .frame = on_frame, .yielding = on_yield };
     struct wo *wo = wo_open(&o, err, sizeof err);
     if (!wo) { printf("{\"ev\":\"error\",\"error\":\"%s\"}\n", err); return 1; }
-    printf("{\"ev\":\"open\",\"dmabuf\":%d,\"xrgb_dmabuf\":%d,\"argb_shm\":%d}\n", wo_dmabuf_version(wo),
+    printf("{\"ev\":\"open\",\"dmabuf\":%d,\"xrgb_dmabuf\":%d,\"argb_shm\":%d,\"dmabuf_formats\":\"", wo_dmabuf_version(wo),
            wo_has_dmabuf_format(wo, 0x34325258u), wo_has_shm_format(wo, WO_SHM_ARGB8888));
+    /* which of the usual ones Winston takes as dmabufs (NV12: a video decoder's) */
+    static const char *probe[] = { "XR24", "AR24", "XB24", "AB24", "RG16", "NV12", "YUYV", "YU12", "P010", "AR30", "XR30" };
+    for (size_t i = 0; i < sizeof probe / sizeof *probe; i++) {
+        uint32_t f = (uint32_t)probe[i][0] | (uint32_t)probe[i][1] << 8 | (uint32_t)probe[i][2] << 16 | (uint32_t)probe[i][3] << 24;
+        if (wo_has_dmabuf_format(wo, f)) printf("%s ", probe[i]);
+    }
+    printf("\"}\n");
     fflush(stdout);
 
     struct wo_buf *bufs[2] = { 0 };
@@ -127,6 +135,45 @@ static int app(int argc, char **argv) {
             if (!bufs[i]) { printf("{\"ev\":\"error\",\"error\":\"dmabuf refused\"}\n"); fflush(stdout); return 1; }
             wo_buf_on_release(bufs[i], on_release, NULL);
         }
+    } else if (!strcmp(kind, "nv12")) {
+        /* a video decoder's picture: NV12 in one GBM buffer (R8, h * 3/2 rows): Y, then UV interleaved */
+        void *lib = dlopen("libgbm.so.1", RTLD_NOW | RTLD_GLOBAL);
+        if (!lib) { printf("{\"ev\":\"error\",\"error\":\"no libgbm\"}\n"); return 1; }
+        g.create_device = dlsym(lib, "gbm_create_device"); g.bo_create = dlsym(lib, "gbm_bo_create");
+        g.bo_get_fd = dlsym(lib, "gbm_bo_get_fd"); g.bo_get_stride = dlsym(lib, "gbm_bo_get_stride");
+        g.bo_map = dlsym(lib, "gbm_bo_map"); g.bo_unmap = dlsym(lib, "gbm_bo_unmap");
+        int dfd = open("/dev/dri/renderD128", O_RDWR | O_CLOEXEC);
+        gdev = dfd >= 0 ? g.create_device(dfd) : NULL;
+        if (!gdev) { printf("{\"ev\":\"error\",\"error\":\"no GBM device\"}\n"); return 1; }
+        for (int i = 0; i < 2; i++) {
+            gbm_bo[i] = g.bo_create(gdev, (uint32_t)bw, (uint32_t)(bh * 3 / 2), 0x20203852u /* R8 */, 4 | 16);
+            if (!gbm_bo[i]) { printf("{\"ev\":\"error\",\"error\":\"gbm_bo_create R8 failed\"}\n"); return 1; }
+            int fd = g.bo_get_fd(gbm_bo[i]);
+            uint32_t st = g.bo_get_stride(gbm_bo[i]);
+            int fds[2] = { fd, fd };
+            uint32_t offs[2] = { 0, st * (uint32_t)bh }, strides[2] = { st, st };
+            bufs[i] = wo_buf_dmabuf_planes(wo, 2, fds, offs, strides, bw, bh, 0x3231564eu /* NV12 */, getenv("NV12_MOD") ? strtoull(getenv("NV12_MOD"), NULL, 0) : 0x00ffffffffffffffull);
+            close(fd);
+            if (!bufs[i]) { printf("{\"ev\":\"error\",\"error\":\"NV12 dmabuf refused\"}\n"); fflush(stdout); return 1; }
+            wo_buf_on_release(bufs[i], on_release, NULL);
+            /* the quadrants in BT.601 limited range: red, green, blue, white */
+            void *md = NULL;
+            uint32_t mst = 0;
+            uint8_t *p = g.bo_map(gbm_bo[i], 0, 0, (uint32_t)bw, (uint32_t)(bh * 3 / 2), 2, &mst, &md);
+            if (p) {
+                static const uint8_t yuv[4][3] = { { 81, 90, 240 }, { 145, 54, 34 }, { 41, 240, 110 }, { 235, 128, 128 } };
+                for (int y = 0; y < bh; y++)
+                    for (int x = 0; x < bw; x++) p[(long)y * mst + x] = yuv[(y >= bh / 2) * 2 + (x >= bw / 2)][0];
+                for (int y = 0; y < bh / 2; y++)
+                    for (int x = 0; x < bw / 2; x++) {
+                        const uint8_t *c = yuv[(y >= bh / 4) * 2 + (x >= bw / 4)];
+                        p[(long)(bh + y) * mst + 2 * x] = c[1];
+                        p[(long)(bh + y) * mst + 2 * x + 1] = c[2];
+                    }
+                g.bo_unmap(gbm_bo[i], md);
+            }
+        }
+        gbm_bo[0] = gbm_bo[1] = NULL;   /* drawn once: nothing to draw per frame */
     } else if (!strcmp(kind, "ring")) {
         ring = wo_ring_new(wo, bw, bh, 2);
         if (!ring) { printf("{\"ev\":\"error\",\"error\":\"no ring\"}\n"); return 1; }

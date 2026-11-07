@@ -261,6 +261,7 @@ async function main() {
             cl && ck && Math.abs(Number(ck[1]) - cl[1] / 2) <= 2 && Math.abs(Number(ck[2]) - cl[2] / 2) <= 2,
             (ck ? 'click ' + ck[1] + ',' + ck[2] : 'no click') + (cl ? ', client ' + cl[1] + 'x' + cl[2] : ''));
         await api('/api/hide', {});
+        if (process.env.WINSTON_CHECK) await winston();
         let mkdirRunning = null;
         try { mkdirRunning = JSON.parse(fs.readFileSync(ROOT + '/state/game-running', 'utf8')); } catch (e) { /* none */ }
         ok('a running game is marked', mkdirRunning && mkdirRunning.appId === APP);
@@ -304,6 +305,51 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* Winston output (run_winston_test.sh: the unit's own Winston runs in this
+ * container, tools/winston-bench): the running game's picture straight on
+ * the centre screen through wl-sink's own connection, read back from what
+ * Winston composed (kms_shim's grab), then hidden, then off. */
+async function winston() {
+    const grab = () => {
+        const f = (process.env.KMS_SHIM_GRAB || '/out/grab') + '.ppm';
+        try { fs.unlinkSync(f); } catch (e) { /* none */ }
+        try { require('child_process').execFileSync('/bench/wo_bench', ['grab'], { stdio: 'ignore', timeout: 10000 }); } catch (e) { return null; }
+        const b = fs.readFileSync(f);
+        let off = 0, fields = [];
+        while (fields.length < 4) { const e = b.indexOf(0x0a, off); fields = fields.concat(b.slice(off, e).toString().split(/\s+/).filter(Boolean)); off = e + 1; }
+        const W = Number(fields[1]);
+        return (x, y) => { const i = off + (y * W + x) * 3; return b[i] + b[i + 1] + b[i + 2]; };
+    };
+    /* the brightest of a grid of points in the app area, and left of it */
+    const scan = (px) => {
+        let inside = 0, outside = 0;
+        for (let y = 90; y < 715; y += 13) for (let x = 0; x < 1920; x += 17) {
+            const v = px(x, y);
+            if (x >= 112 && x < 1894 && y >= 86) inside = Math.max(inside, v); else if (x < 100) outside = Math.max(outside, v);
+        }
+        return { inside, outside };
+    };
+    let s = await status();
+    ok('wl-sink connected to Winston', s.winston && s.winston.connected === true, JSON.stringify(s.winston));
+    let r = await api('/api/winston', { on: true });
+    ok('Winston output on', r.code === 200 && s.running, r.body && r.body.error);
+    r = await api('/api/show', {});
+    await sleep(3000);
+    s = await status();
+    ok('shown through Winston', r.code === 200 && s.shown && s.winston.via === 'winston', JSON.stringify(s.winston));
+    let px = grab();
+    let v = px ? scan(px) : null;
+    ok('the game\'s picture is on Winston\'s centre screen, in the app area', !!v && v.inside > 120 && v.outside === 0, JSON.stringify(v));
+    await api('/api/hide', {});
+    await sleep(1000);
+    px = grab();
+    v = px ? scan(px) : null;
+    ok('hidden: gone from the screen', !!v && v.inside === 0, JSON.stringify(v));
+    r = await api('/api/winston', { on: false });
+    s = await status();
+    ok('Winston output off', r.code === 200 && s.winston.on === false);
 }
 
 /* A controller: a virtual XInput USB pad (test/usbip_pad.c through the

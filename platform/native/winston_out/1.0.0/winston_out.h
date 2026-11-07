@@ -80,6 +80,11 @@ struct wo_buf *wo_buf_shm(struct wo_pool *p, int32_t offset, int width, int heig
  * Winston refused it. */
 struct wo_buf *wo_buf_dmabuf(struct wo *w, int fd, int width, int height, uint32_t fourcc,
                              uint32_t offset, uint32_t stride, uint64_t modifier);
+/* The same with n planes (at most 4: NV12 has 2, Y then UV, often in one
+ * buffer, fds[1] == fds[0], offsets[1] = the UV plane's). */
+struct wo_buf *wo_buf_dmabuf_planes(struct wo *w, int n, const int *fds, const uint32_t *offsets,
+                                    const uint32_t *strides, int width, int height, uint32_t fourcc,
+                                    uint64_t modifier);
 /* Called once Winston no longer reads the buffer after a present. */
 void wo_buf_on_release(struct wo_buf *b, void (*cb)(void *data, struct wo_buf *b), void *data);
 int wo_buf_busy(const struct wo_buf *b);

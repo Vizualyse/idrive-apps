@@ -491,7 +491,14 @@ static const struct zwp_linux_buffer_params_v1_listener params_listener = { para
 
 struct wo_buf *wo_buf_dmabuf(struct wo *w, int fd, int width, int height, uint32_t fourcc,
                              uint32_t offset, uint32_t stride, uint64_t modifier) {
-    if (!w->dmabuf || w->lost) return NULL;
+    return wo_buf_dmabuf_planes(w, 1, &fd, &offset, &stride, width, height, fourcc, modifier);
+}
+
+struct wo_buf *wo_buf_dmabuf_planes(struct wo *w, int n, const int *fds, const uint32_t *offsets,
+                                    const uint32_t *strides, int width, int height, uint32_t fourcc,
+                                    uint64_t modifier) {
+    if (!w->dmabuf || w->lost || n < 1 || n > 4) return NULL;
+    uint32_t stride = strides[0];
     struct zwp_linux_buffer_params_v1 *p = zwp_linux_dmabuf_v1_create_params(w->dmabuf);
     if (!p) return NULL;
     struct dmabuf_wait x = { NULL, 0 };
@@ -499,7 +506,8 @@ struct wo_buf *wo_buf_dmabuf(struct wo *w, int fd, int width, int height, uint32
      * nothing else is dispatched while we wait */
     wl_proxy_set_queue((struct wl_proxy *)p, w->q);
     zwp_linux_buffer_params_v1_add_listener(p, &params_listener, &x);
-    zwp_linux_buffer_params_v1_add(p, fd, 0, offset, stride, (uint32_t)(modifier >> 32), (uint32_t)modifier);
+    for (int i = 0; i < n; i++)
+        zwp_linux_buffer_params_v1_add(p, fds[i], (uint32_t)i, offsets[i], strides[i], (uint32_t)(modifier >> 32), (uint32_t)modifier);
     zwp_linux_buffer_params_v1_create(p, width, height, fourcc, 0);
     while (!x.done)
         if (wl_display_roundtrip_queue(w->dpy, w->q) < 0) { w->lost = 1; break; }

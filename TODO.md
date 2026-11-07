@@ -9,11 +9,27 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
-- [ ] **Render through Winston:** our pictures straight onto the centre
-  screen as a native client of Winston's Wayland (`/run/wayland/wayland-0`,
-  an `ivi_application` surface, [knowledge/head-unit.md](knowledge/head-unit.md))
-  instead of the I420 frame file through mgu-render: no CPU readback and
-  colour conversion, full colour.
+- [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8; built and
+  tested off the car against the unit's own Winston, `tools/winston-bench`,
+  [knowledge/central-screen.md](knowledge/central-screen.md) "Winston
+  directly"). Release both, then on the phone page "Winston output" on, Show
+  (by hand, never kept; **ask before running anything on the unit**). Read
+  the journal: `display: ready ... Winston connected (dmabuf v1)`,
+  `display: winston: on the screen`, no `relist: ... Permission denied`, and
+  `screen: shown (winston)`. Check: the picture in the app area in full
+  colour; the HMI's bar and back arrow still usable; a pop-up or the back
+  arrow hides it; the reversing camera hides it (Winston's camera surfaces)
+  and it comes back; an HMI scene change while shown (`layer taken off the
+  screen, put back`). Browser GPU mode: `"fwd"` in chromium-wl's stats
+  (Chromium's buffers passed on as they are) and a smooth WebGL page; the
+  CPU of chromium-wl against mgu-render's path.
+- [ ] **Winston output, next:** Steam's wl-sink still reads Wine's GPU
+  buffers back (its picture is composed: title bar, GL client area): pass
+  the GL area's wl_drm buffer on as a dmabuf when it is shown alone, as
+  chromium-wl does. Moonlight: NV12 straight to Winston (advertised; the
+  bench's import failed with EGL_BAD_ALLOC, `wo_bench app nv12` on the car
+  says whether i965 takes it). Then the default output, and mgu-render's
+  frame file only as the fallback.
 - [ ] **Investigate Vulkan again**, with the safety net (by hand, the
   gpu-trial marker, an off-car harness first; see Browser's "Retry Vulkan
   (ANV)" below and [knowledge/browser.md](knowledge/browser.md), "Vulkan on

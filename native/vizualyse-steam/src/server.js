@@ -272,14 +272,37 @@ function moving() { return vehicle.kmh !== null && vehicle.kmh > MAX_KMH && Date
 const screen = new Screen(log);
 let wantShown = false;
 
+/* Winston output (experimental): the game's pictures straight onto the
+ * centre screen as a client of Winston, the unit's compositor (wl-sink's own
+ * connection, platform native/winston_out), in full colour, instead of the
+ * I420 frame file through mgu-render. Tested off the car against the unit's
+ * own Winston (tools/winston-bench). Turned on by hand and never kept, like
+ * the Browser's; the next show uses it; back on mgu-render by itself when
+ * wl-sink has no connection to Winston or loses it. */
+let winstonOut = false;
+let winstonNote = null;
+
+function via() { return winstonOut && game && game.state !== 'ended' && game.winston ? 'winston' : 'mgu-render'; }
+
+function setWinston(on) {
+    on = !!on;
+    if (on === winstonOut) return null;
+    winstonOut = on;
+    winstonNote = null;
+    log('winston: ' + (on ? 'on: pictures straight onto the screen through Winston (from the next show); off again at the next start of the tool' : 'off: through mgu-render'));
+    if (screen.shown()) { hide('the output changed'); show(); }
+    if (control) control.broadcast();
+    return null;
+}
+
 function show() {
     if (moving()) return 'not while driving';
     if (!game || game.state === 'ended') return 'no game is running';
     wantShown = true;
     if (screen.shown()) return null;
-    const e = screen.show(VIEW);
+    const e = screen.show(VIEW, via(), game);
     if (e) { wantShown = false; return e; }
-    log('screen: shown');
+    log('screen: shown (' + screen.via + ')');
     startTouch();
     return null;
 }
@@ -613,6 +636,12 @@ function play(appId) {
         frame: { w: res.w, h: res.h }, fps: settings.fps, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, log: log });
     game = x;
+    x.on('winston-lost', () => {
+        winstonNote = 'the connection to Winston was lost: back on mgu-render';
+        log('winston: ' + winstonNote);
+        if (game === x && screen.shown() && screen.via === 'winston') { hide('Winston went'); show(); }
+        if (control) control.broadcast();
+    });
     x.on('state', (st) => {
         if (st === 'ended') {
             try { fs.unlinkSync(GAME_RUNNING); } catch (e) { /* gone */ }
@@ -699,6 +728,7 @@ function status() {
             /* the controllers in use: [{ player, name }] (steam-pads) */
             pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),
+        winston: { on: winstonOut, connected: !!(g && g.winston), via: screen.via, note: winstonNote },
         settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume },
         choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, disk: diskAvailable(),
             usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
@@ -738,6 +768,7 @@ const ROUTES = {
     '/api/remove': (b) => removeGame(b.appId),
     '/api/game': (b) => setGameOptions(b.appId, b),
     '/api/settings': (b) => setSetting(b),
+    '/api/winston': (b) => setWinston(b.on),
 };
 
 const web = http.createServer((req, res) => {
@@ -778,6 +809,7 @@ function setEnabled(on) {
     saveSettings();
     if (on) addFirewall();
     else {
+        winstonOut = false;
         stopGame('Steam was turned off');
         if (download) download.stop();
         removeFirewall();
@@ -796,6 +828,7 @@ function command(c) {
     if (c.cmd === 'play') return play(c.appId);
     if (c.cmd === 'stop') return stopGame('stopped on the iDrive page');
     if (c.cmd === 'resolution') return setResolution('next');
+    if (c.cmd === 'winston') return setWinston(c.on);
     return 'unknown command';
 }
 

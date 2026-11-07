@@ -48,6 +48,17 @@ rebuilt `ntdll.so`, below).
   game's client area in a subsurface over its window frame (title bar
   included, drawn in software): wl-sink shows only that client area, so
   there is no title bar (a plain window shows whole; `--whole-window`).
+- **Winston output (0.1.8, experimental)**: "Winston output" on the phone
+  page (by hand, off again whenever the tool starts) shows the picture
+  straight on the centre screen instead: wl-sink is also a client of
+  Winston, the unit's compositor (platform `native/winston_out`, connected
+  at start while still root; it keeps Winston's socket group after its
+  drop), and hands it the composed picture in full colour, no I420. Same
+  place, fitted by Winston; hidden by Winston while the reversing camera
+  shows; back on mgu-render by itself if the connection goes. Wine's GPU
+  buffers are still read back (passing them on untouched is next). Tested
+  off the car against the unit's own Winston (`tools/winston-bench`), not
+  yet on the car.
 - **Controllers**: wired XInput (Xbox 360-style) USB pads, up to four, as
   vizualyse-moonlight reads them: the car's kernel has no evdev, HID or
   xpad, so `steam-pads` (`src/pads_main.c`, root, while a game runs) finds

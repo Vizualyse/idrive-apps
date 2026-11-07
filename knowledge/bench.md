@@ -14,6 +14,17 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   HD Graphics 505 (driver, shader compiler, limits; no pixels), and `swrast`
   runs Mesa 19.0.6 llvmpipe through the unit's libEGL / libgbm (pixels; not
   i965). Neither shows the kernel (i915 hangs) or the Atom's speed.
+- **Winston off the car** ([tools/winston-bench](../tools/winston-bench),
+  2026-11-07): the unit's own `winston` with its config, plugins and scene
+  provider, the command line of `winston.service` but the centre display a
+  null output, in the rootfs container on the GPU bench's stand-ins.
+  `kms_shim.so` (preloaded into Winston only) fakes the display card
+  (libudev, `/dev/dri/card0`, KMS ioctls) and reads back what Winston
+  composes; a null output composes only for a screenshot, which `wo_bench
+  grab` asks for. `swrast`: real pixels, shared memory only; `stub`: the
+  unit's i965 imports dmabufs, no pixels. Our compositors run between a
+  stand-in client (`fake_client`) and Winston; the Browser runs end to end
+  (`native/vizualyse-chromium/test/run_winston_test.sh`).
 - Test frames and filter graphs on a PC first: a still from
   `winston-grabber -n 1 x.jpg` or a few seconds of its UDP stream through the
   same ffmpeg build in a Linux container, then the unit.

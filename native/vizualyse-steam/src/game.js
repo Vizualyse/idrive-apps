@@ -108,6 +108,8 @@ class Game extends EventEmitter {
         /* --input: touches on its stdin (input()) become Wine's pointer */
         const args = ['--socket', DISPLAY, '--frame', screen.FILE, '--fps', String(o.fps), '--device', env.RENDER_NODE,
             '--uid', String(o.uid), '--gid', String(o.gid), '--input'];
+        /* connected now, used only when shown that way (showWinston) */
+        if (fs.existsSync(env.WINSTON_SOCKET)) args.push('--winston', env.WINSTON_SOCKET);
         const sink = spawn(process.env.STEAM_WL_SINK || env.RUNTIME + '/wl-sink', args, { env: env.sinkEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
         sink.stdin.on('error', () => { /* it exited */ });
         this.sink = sink;
@@ -124,6 +126,7 @@ class Game extends EventEmitter {
                 if (e.ev === 'ready') {
                     this._log('wl-sink: ready ' + e.size.join('x') + (e.drm ? ', GPU buffers through ' + e.device : ', no GPU buffers (shared memory only)'));
                     this.gpuBuffers = !!e.drm;
+                    this.winston = !!e.winston;
                     this._startWine();
                 } else if (e.ev === 'stats') {
                     this.stats = { pictures: this.stats.pictures + e.pictures, fps: e.pictures, drm: e.drm, shm: e.shm, ms: e.ms };
@@ -133,6 +136,12 @@ class Game extends EventEmitter {
                     this.title = e.title;
                     this._log('game: window "' + String(e.title || '').slice(0, 80) + '"');
                     this.emit('toplevel', e);
+                } else if (e.ev === 'winston') {
+                    this._log('wl-sink: winston: ' + e.msg);
+                } else if (e.ev === 'winston-lost') {
+                    this.winston = false;
+                    this._log('wl-sink: the connection to Winston was lost');
+                    this.emit('winston-lost');
                 } else if (e.ev === 'error') {
                     this._log('wl-sink: ' + e.error);
                     if (!this.wine) this._end('the compositor: ' + e.error);
@@ -287,6 +296,16 @@ class Game extends EventEmitter {
 
     /* A touch on the game's picture (frame pixels, the size it draws at):
      * kind 'd' down, 'm' move, 'u' up; wl-sink makes it Wine's pointer. */
+    /* The pictures straight onto the centre screen through Winston, fitted
+     * into view { x, y, w, h } (wl-sink's own connection: this.winston), or
+     * not (the frame file goes on either way). */
+    showWinston(view) { this._sink('winston ' + [view.x, view.y, view.w, view.h].join(',')); }
+    hideWinston() { this._sink('hide'); }
+    _sink(line) {
+        if (!this.sink || !this.sink.stdin.writable) return;
+        try { this.sink.stdin.write(line + '\n'); } catch (e) { /* gone */ }
+    }
+
     input(kind, x, y) {
         if (!this.sink || !this.sink.stdin.writable) return;
         try { this.sink.stdin.write(kind + ' ' + Math.round(x) + ' ' + Math.round(y) + '\n'); } catch (e) { /* gone */ }

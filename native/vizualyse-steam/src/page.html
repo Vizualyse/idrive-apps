@@ -42,6 +42,8 @@
   <h2>Playing</h2>
   <p id="playing" class="dim">Nothing.</p>
   <div class="row"><button class="acc" id="show">Show on the screen</button><button id="hide">Hide</button><button class="bad" id="stop">Stop the game</button></div>
+  <div class="row"><button id="winston">Winston output: off</button></div>
+  <p class="dim">Winston output (experimental): the game's pictures go straight to the car's own screen compositor instead of through mgu-render, in full colour. From the next Show; off again whenever the tool starts.</p>
   <p class="dim">Only while parked. A hidden game keeps running; Stop ends it. Games can't be controlled yet (no touch or gamepad input in this version).</p>
 </div>
 
@@ -124,6 +126,9 @@ function render(s) {
   } else {
     $('playing').textContent = g ? 'Nothing. ' + g.name + ' ended' + (g.note ? ': ' + g.note : '') + '.' : 'Nothing.';
   }
+  const wn = s.winston || {};
+  $('winston').textContent = 'Winston output: ' + (wn.on ? 'on (turn off)' : 'off (turn on)') +
+    (wn.on && s.shown ? ' - showing through ' + wn.via : '') + (wn.note ? ' - ' + wn.note : '');
   $('show').disabled = !s.running || s.shown || s.moving;
   $('hide').disabled = !s.shown;
   $('stop').disabled = !s.running;
@@ -190,6 +195,7 @@ function render(s) {
 }
 
 $('show').onclick = () => api('/api/show', {}).catch(() => null);
+$('winston').onclick = () => api('/api/winston', { on: !(last && last.winston && last.winston.on) }).catch(() => null);
 $('hide').onclick = () => api('/api/hide', {}).catch(() => null);
 $('stop').onclick = () => api('/api/stop', {}).catch(() => null);
 $('install').onclick = () => api('/api/install', { appId: Number($('appid').value) }).catch(() => null);
