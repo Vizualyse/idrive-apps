@@ -56,6 +56,8 @@
   <p class="dim">More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.</p>
   <div class="row" style="margin-top:8px"><button id="room">Make room: off</button></div>
   <p class="dim">Make room pauses the Moonlight and Cast tools while the browser is on (Cast's cluster map too) and starts them again when it goes off.</p>
+  <div class="row" style="margin-top:8px"><button id="game">Game mode: off</button></div>
+  <p class="dim">Game mode (experimental): WebGPU stops checking each command a page sends, which saves time in games. Only for sites you trust: a page with mistakes can crash the browser's graphics. Chromium restarts for it, and it is off again whenever the tool starts.</p>
   <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
 </div>
 <p id="msg" class="err"></p>
@@ -88,7 +90,7 @@ function render(s) {
   const g = s.gpu || {};
   const m = s.memory || {};
   if (document.activeElement !== $('res') && s.resolutions) {
-    const names = { 1: 'Full', 0.75: '3/4', 0.5: '1/2' };
+    const names = { 1: 'Full', 0.75: '3/4', 0.5: '1/2', [1 / 3]: '1/3', 0.25: '1/4' };
     $('res').innerHTML = s.resolutions.map((r) => '<option value="' + r.scale + '"' + (r.scale === s.scale ? ' selected' : '') + '>' + (names[r.scale] || r.scale) + ' (' + r.w + 'x' + r.h + ')</option>').join('');
   }
   if (document.activeElement !== $('mem') && m.choices) {
@@ -97,6 +99,9 @@ function render(s) {
   const rm = s.room || {};
   roomOn = !!rm.on;
   $('room').textContent = 'Make room: ' + (roomOn ? 'on (turn off)' : 'off (turn on)');
+  gameOn = !!s.gameMode;
+  $('game').textContent = 'Game mode: ' + (gameOn ? 'on (turn off)' : 'off (turn on)');
+  $('game').disabled = !gameOn && (s.browser !== 'running' || s.bundle !== 'ready');
   const gpuOk = g.webgpu && !/^no |error/.test(g.webgpu) && !g.webgpuFallback;
   $('info').innerHTML =
     row('Browser', s.browser + (s.shown ? ', on the screen' : '') + (s.bundle !== 'ready' ? ' (bundle ' + s.bundle + ')' : '')) +
@@ -122,6 +127,8 @@ let gpuOn = false;
 $('gpumode').onclick = () => api('/api/gpu', { on: !gpuOn }).catch(() => null);
 let roomOn = false;
 $('room').onclick = () => api('/api/room', { on: !roomOn }).catch(() => null);
+let gameOn = false;
+$('game').onclick = () => api('/api/game', { on: !gameOn }).catch(() => null);
 $('res').onchange = () => api('/api/scale', { scale: Number($('res').value) }).then(() => $('res').blur(), () => null);
 $('mem').onchange = () => api('/api/memory', { mb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
 $('send').onclick = () => api('/api/text', { text: $('text').value }).then(() => { $('text').value = ''; }, () => null);

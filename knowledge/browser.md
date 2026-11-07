@@ -314,6 +314,16 @@ refuse scripts; `git` works) and a web search.
   - On the car (0.2.5, CPU mode, vel.gg's menu, 2026-11-07): chromium-wl
     3 ms a picture (the screencast's decode was 30 ms); the four cores 327 %
     busy: renderer 101 %, GPU process 61 %, chromium-wl 32 %.
+  - In game (0.2.6, GPU mode, scale 0.5, ~5 pictures/s), by thread: the GPU
+    process's main thread 82 % (Dawn's GLES backend, then ANGLE, then
+    Mesa), vel.gg's main Web Worker 68 % and five more 10-24 %, the
+    renderer's main thread 14 %, chromium-wl 3 %. The game runs in workers;
+    the single busiest thread is WebGPU's translation to GL.
+- **Game mode** (0.2.7): `--enable-dawn-features=skip_validation,disable_robustness`
+  reaches Dawn in Chromium 156 (off the car, 2026-11-07, on SwiftShader): a
+  buffer with `MAP_READ | MAP_WRITE` gives a validation error without it
+  and none with it; a compute shader still gives the right numbers.
+  Whether it saves time on the car's GPU process: not yet measured.
   - The GPU mode: Ozone Wayland has ANGLE ask for a **GBM platform display on
     Chromium's own GBM device** (made on the render node it finds with
     `drmGetDevices2`), or with **no device** when it finds none; Mesa's GBM

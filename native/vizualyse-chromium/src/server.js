@@ -87,8 +87,10 @@ const PRESSURE_MS = 15000;
  * stays VIEW's size in CSS pixels, so touches map as they are) and
  * mgu-render scales the smaller pictures up to the app area. Fewer pixels:
  * less drawing (SwiftShader draws on the CPU), smaller buffers, cheaper
- * conversions; a page sees devicePixelRatio 0.75 or 0.5. */
-const SCALES = [1, 0.75, 0.5];
+ * conversions; a page sees devicePixelRatio 0.75 down to 0.25. Below ~0.28
+ * the window would be narrower than Chromium's 500 px minimum: it draws 500
+ * wide, the page in the left part, and chromium-wl crops to the picture. */
+const SCALES = [1, 0.75, 0.5, 1 / 3, 0.25];
 /* the pictures' size at a scale: Chromium rounds its own way (1341x478 at
  * 0.75), chromium-wl crops to the frame: a multiple of 4, at least 16 */
 function picSize(s) {
@@ -252,6 +254,30 @@ function setGpu(on, why) {
     return null;
 }
 
+/* ---- game mode ------------------------------------------------------------- */
+
+/* WebGPU without Dawn's validation and robustness checks (browser.js): less
+ * work in the GPU process for games, but a page's wrong command is no longer
+ * caught, so trusted pages only. Like the GPU mode it is turned on by hand
+ * and never kept (a restart of the tool is without it), and Chromium
+ * restarts for it. */
+let gameMode = false;
+
+function setGame(on) {
+    on = !!on;
+    if (on === gameMode) return null;
+    if (on && !settings.enabled) return 'the browser is off';
+    if (on && bundle.state !== 'ready') return 'the browser is not installed yet';
+    gameMode = on;
+    log('game: ' + (on ? 'on: Chromium restarts with WebGPU\'s checks off (trusted pages only); off again at the next start of the tool' : 'off'));
+    restarts = [];
+    lastError = null;
+    stopBrowser();
+    setTimeout(startBrowser, 1500);
+    if (control) control.broadcast();
+    return null;
+}
+
 function startBrowser() {
     if (browser || bundle.state !== 'ready' || !settings.enabled || stopping) return;
     startProxy();
@@ -259,7 +285,7 @@ function startBrowser() {
     if (useGpu) {
         try { writeJson(GPU_TRIAL, { at: new Date().toISOString() }); } catch (e) { log('gpu: ' + e.message); }
     }
-    const b = new Browser({ w: VIEW.w, h: VIEW.h, scale: settings.scale, pic: picSize(settings.scale), uid: NET_UID, gid: useGpu ? VIDEO_GID : CHROMIUM_GID, gpu: useGpu,
+    const b = new Browser({ w: VIEW.w, h: VIEW.h, scale: settings.scale, pic: picSize(settings.scale), uid: NET_UID, gid: useGpu ? VIDEO_GID : CHROMIUM_GID, gpu: useGpu, game: gameMode,
         proxy: NO_PROXY ? 0 : PROXY_PORT, cgroup: (cgroupDir = cgroup()), url: 'about:blank' });
     browser = b;
     browserState = 'starting';
@@ -552,7 +578,7 @@ function status() {
         enabled: settings.enabled, link: link(), uplink: up.state || 'unknown',
         bundle: bundle.state, browser: browserState, shown: screen.shown(),
         url: browser ? browser.url : settings.url, title: browser ? browser.title : '', home: settings.home,
-        gpu: gpuSummary(), gpuMode: gpuMode, gpuNote: gpuNote, speed: vehicle.kmh, moving: moving(),
+        gpu: gpuSummary(), gpuMode: gpuMode, gpuNote: gpuNote, gameMode: gameMode, speed: vehicle.kmh, moving: moving(),
         pictures: stats.pictures, decodeMs: stats.decodeMs,
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
         scale: settings.scale, resolutions: SCALES.map((s) => { const p = picSize(s); return { scale: s, w: p.w, h: p.h }; }),
@@ -594,6 +620,7 @@ const ROUTES = {
     '/api/key': (b) => need().then((x) => x.key(String(b.key || ''))),
     '/api/probe': () => need().then((x) => x.probe('http://127.0.0.1:' + LOCAL_PORT + '/probe')).then((p) => { delete p.gpuPage; gpu = Object.assign({ at: new Date().toISOString() }, p); console.log('@gpu ' + JSON.stringify(gpu)); }),
     '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
+    '/api/game': (b) => { const e = setGame(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/room': (b) => { const e = setRoom(b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/scale': (b) => { const e = setScale(b.scale); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/memory': (b) => { const e = setMemory(b.mb); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
@@ -633,7 +660,7 @@ function setEnabled(on) {
     if (settings.enabled === on) return;
     settings.enabled = on;
     saveSettings();
-    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; stopBrowser(); removeFirewall(); giveBack(); }
+    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; gameMode = false; stopBrowser(); removeFirewall(); giveBack(); }
     log('browser: ' + (on ? 'on' : 'off'));
 }
 
@@ -646,6 +673,7 @@ function command(c) {
     if (c.cmd === 'show') return show();
     if (c.cmd === 'hide') { hide('hidden on the iDrive page'); return null; }
     if (c.cmd === 'gpu') return setGpu(!!c.on);
+    if (c.cmd === 'game') return setGame(!!c.on);
     if (c.cmd === 'memory') return setMemory(c.mb);
     if (c.cmd === 'scale') return setScale(c.scale);
     if (c.cmd === 'room') return setRoom(c.on);

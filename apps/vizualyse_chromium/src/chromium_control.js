@@ -9,7 +9,8 @@
  * browser runs or not), {"cmd":"show"} / {"cmd":"hide"} (the page on the
  * central screen), {"cmd":"home"}, {"cmd":"reload"}, {"cmd":"back"},
  * {"cmd":"gpu","on":true|false} (the GPU mode, experimental),
- * {"cmd":"scale","scale":1|0.75|0.5} (the resolution),
+ * {"cmd":"scale","scale":1|0.75|0.5|1/3|0.25} (the resolution),
+ * {"cmd":"game","on":true|false} (game mode, experimental),
  * {"cmd":"room","on":true|false} (pause Moonlight and Cast while browsing) and
  * {"cmd":"speed","kmh":...} (the car's speed, about once a second, for "only
  * while parked"). Connected while the app runs (the speed goes on while the
@@ -105,8 +106,12 @@ class BrowserControl extends EventEmitter {
     /* the GPU mode (experimental): the tool restarts Chromium on the unit's own
      * GPU driver; never kept over a restart of the tool */
     gpu(on) { return this._send({ cmd: 'gpu', on: !!on }); }
-    /* the resolution: the tool's device scale factor, 1 / 0.75 / 0.5 */
+    /* the resolution: the tool's device scale factor, 1 down to 0.25 */
     scale(s) { return this._send({ cmd: 'scale', scale: s }); }
+    /* game mode (experimental): the tool restarts Chromium with WebGPU's checks
+     * off, for trusted games; never kept over a restart of the tool */
+    game(on) { return this._send({ cmd: 'game', on: !!on }); }
+    gameMode() { return !!(this.status && this.status.gameMode); }
     /* make room: the tool pauses the Moonlight and Cast tools while the browser is on */
     room(on) { return this._send({ cmd: 'room', on: !!on }); }
     roomOn() { return !!(this.status && this.status.room && this.status.room.on); }
@@ -134,7 +139,7 @@ class BrowserControl extends EventEmitter {
     shown() { return !!(this.status && this.status.shown); }
     gpuMode() { return !!(this.status && this.status.gpuMode); }
     scaleNow() { return (this.status && this.status.scale) || 1; }
-    /* the next resolution, round: full, 3/4, 1/2 */
+    /* the next resolution, round: full, 3/4, 1/2, 1/3, 1/4 (the tool's list) */
     nextScale() {
         const all = ((this.status && this.status.resolutions) || []).map((r) => r.scale);
         const list = all.length ? all : [1, 0.75, 0.5];
@@ -143,7 +148,7 @@ class BrowserControl extends EventEmitter {
     resolutionText() {
         const s = this.status, now = this.scaleNow();
         const r = s && (s.resolutions || []).filter((x) => x.scale === now)[0];
-        return 'Resolution: ' + ({ 1: 'full', 0.75: '3/4', 0.5: '1/2' }[now] || now) + (r ? ' (' + r.w + 'x' + r.h + ')' : '');
+        return 'Resolution: ' + ({ 1: 'full', 0.75: '3/4', 0.5: '1/2', [1 / 3]: '1/3', 0.25: '1/4' }[now] || now) + (r ? ' (' + r.w + 'x' + r.h + ')' : '');
     }
     moving() { return !!(this.status && this.status.moving); }
     link() { return (this.status && this.status.link) || ''; }

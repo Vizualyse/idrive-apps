@@ -231,7 +231,7 @@ async function main() {
 
     /* the resolution, live while shown: half the pixels, the same place, the same touches */
     const sc = await req('POST', '/api/scale', { scale: 0.5 }, tok);
-    check(sc.code === 200 && sc.body.scale === 0.5 && sc.body.resolutions.length === 3, '/api/scale 0.5');
+    check(sc.code === 200 && sc.body.scale === 0.5 && sc.body.resolutions.length === 5, '/api/scale 0.5');
     const half = await until('pictures at half size', () => {
         const b = fs.readFileSync(FRAME);
         return b.readUInt32LE(8) === 892 && b.readUInt32LE(12) === 316 && b.readUInt32LE(16) > 0 ? b : null;
@@ -282,6 +282,20 @@ async function main() {
     if (back) console.log('     ' + back.gpuNote);
     const refused = await req('POST', '/api/gpu', { on: false }, tok);
     check(refused.code === 200 && refused.body.gpuMode === false, '/api/gpu off when it is off: nothing to do');
+
+    /* game mode from the app: Chromium restarts with Dawn's checks off (that
+     * the switch really skips validation: knowledge/browser.md, "Game mode") */
+    const dawn = () => fs.readdirSync('/proc').filter((p) => /^\d+$/.test(p)).some((p) => {
+        try { return /\/chromium\0(?:[^\0]*\0)*--enable-dawn-features=skip_validation,disable_robustness\0/.test(fs.readFileSync('/proc/' + p + '/cmdline', 'utf8')); } catch (e) { return false; }
+    });
+    check(!dawn(), 'without game mode Chromium keeps Dawn\'s checks');
+    c.send({ cmd: 'game', on: true });
+    await until('"game" turns game mode on', () => c.last() && c.last().gameMode === true, 5000);
+    await until('Chromium runs again in game mode', () => c.last() && c.last().browser === 'running' && dawn(), 60000);
+    check(dawn(), 'game mode: Chromium runs with --enable-dawn-features=skip_validation,disable_robustness');
+    c.send({ cmd: 'game', on: false });
+    await until('game mode off: Chromium runs without it', () => c.last() && c.last().gameMode === false && c.last().browser === 'running' && !dawn(), 60000);
+    check(true, 'game mode off: Chromium runs with Dawn\'s checks again');
 
     c.send({ cmd: 'disable' });
     await until('"disable" stops Chromium', () => c.last() && c.last().browser === 'off' && !c.last().enabled, 10000);

@@ -47,7 +47,7 @@ const SCREEN_OPEN_MS = 3000;
 const N = {
     status: 'browserStatus', qr: 'browserQr', link: 'browserLink', hint: 'browserHint', page: 'browserPage', gpu: 'browserGpu',
     show: 'browserShow', enable: 'browserEnable', home: 'browserHome', reload: 'browserReload', back: 'browserBack',
-    gpuMode: 'browserGpuMode', resolution: 'browserResolution', room: 'browserRoom',
+    gpuMode: 'browserGpuMode', resolution: 'browserResolution', room: 'browserRoom', game: 'browserGame',
 };
 /* an HMI pop-up takes the focus while the page stays visible; leaving or
  * switching states takes it too, just before 'visible' goes: wait this long
@@ -170,6 +170,7 @@ class BrowserApp extends OnlineApp {
         this._bind(N.gpuMode, () => this._control.gpu(!this._control.gpuMode()));
         this._bind(N.resolution, () => this._control.scale(this._control.nextScale()));
         this._bind(N.room, () => this._control.room(!this._control.roomOn()));
+        this._bind(N.game, () => this._control.game(!this._control.gameMode()));
         rhmi.on('userEvent', (ev) => {
             const entry = ev && ev.eventType === 'ACTION' && this._actionById[Number(ev.sourceId)];
             if (entry) this._press(entry.name, entry.handler);
@@ -370,6 +371,7 @@ class BrowserApp extends OnlineApp {
         this._write(N.resolution, up ? c.resolutionText() : 'Resolution');
         this._write(N.room, up ? c.roomText() : 'Make room');
         this._write(N.gpuMode, 'GPU mode: ' + (on && c.gpuMode() ? 'on (experimental)' : 'off (WebGL on the CPU)'));
+        this._write(N.game, 'Game mode: ' + (on && c.gameMode() ? 'on (trusted games only)' : 'off'));
         /* while the browser covers the page, nothing under it can be pressed */
         const covered = c.shown();
         this._setEnabled(N.enable, up && !covered);
@@ -381,6 +383,7 @@ class BrowserApp extends OnlineApp {
         this._setEnabled(N.gpuMode, on && !covered && (run || c.gpuMode()));
         this._setEnabled(N.resolution, on && !covered);
         this._setEnabled(N.room, up && !covered);
+        this._setEnabled(N.game, on && !covered && (run || c.gameMode()));
         this._showQr(link);
     }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- **Resolution** also offers 1/3 (596x212) and 1/4 (444x156), for heavy
+  pages and games; the button names them.
+- **Game mode** button (experimental): the tool restarts Chromium with
+  WebGPU's checks off, for trusted games; off again when the tool restarts.
+- Requires vizualyse-chromium 0.2.7 (which offers both).
+
 ## 0.2.3
 
 - **Make room** button: while the browser is on, the Moonlight and Cast

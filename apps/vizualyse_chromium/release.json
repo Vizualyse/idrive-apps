@@ -1,1 +1,1 @@
-{ "build": "node tools/build.js", "requires": { "vizualyse-chromium": "0.2.4" }, "uninstallable": true, "mguHmi": ["ID7"] }
+{ "build": "node tools/build.js", "requires": { "vizualyse-chromium": "0.2.7" }, "uninstallable": true, "mguHmi": ["ID7"] }

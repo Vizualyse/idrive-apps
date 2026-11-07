@@ -96,7 +96,7 @@ unit.**
   received by the core, frames decoded / written, CPU of each process; then
   the latency end to end.
 
-## Browser (vizualyse-chromium 0.2.6, vizualyse_chromium 0.2.3)
+## Browser (vizualyse-chromium 0.2.7, vizualyse_chromium 0.2.4)
 
 Chromium 156 with its own glibc, on its own Wayland compositor (chromium-wl), WebGL and WebGPU on the CPU
 (SwiftShader) or, in the GPU mode, on the unit's own Mesa 19 (WebGL 2 on
@@ -154,6 +154,32 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   that vel.gg starts and plays by touch while locked; if it then wants
   relative motion from the touches, `zwp_pointer_constraints_v1` /
   `zwp_relative_pointer_v1` in chromium-wl. Sound is still `--mute-audio`.
+- [ ] **0.2.7 on the car: game mode and 1/3, 1/4.** Game mode restarts
+  Chromium with `--enable-dawn-features=skip_validation,disable_robustness`
+  (off the car: the switch reaches Dawn, compute still right). In vel.gg,
+  GPU mode, the same scale: pictures per second and the GPU process's main
+  thread (82 % of a core without it, 2026-11-07), with and without; that
+  the game still draws right; `dmesg` after (in the GPU mode a wrong command
+  now reaches Mesa). Then 1/3 (596x212) and 1/4 (444x156): readable, the
+  pictures per second, touches still landing.
+- [ ] **Patch Chromium (a build of our own)** if game mode is not enough.
+  On the car the busiest thread is the GPU process's main thread turning
+  WebGPU into GL: Dawn's GLES backend, then ANGLE, then Mesa 19. Patch:
+  Dawn's GLES backend straight on the unit's EGL / GLES (no ANGLE in
+  between). With it, a build for the Atom (`-march=goldmont`) and without
+  what the car doesn't use (memory, size). Needs a build machine (~100 GB,
+  hours per build on many cores: not GitHub's free runners) and a rebuild
+  for each Chromium security update; start from Debian's chromium source
+  package and its patches, built in our Docker image as the bundle is now.
+  Measure first what a patched GPU process would save (a CDP trace).
+- [ ] **Retry Vulkan (ANV) for WebGPU**, with the safety net (by hand,
+  the gpu-trial marker, never kept; an off-car harness first). Dawn on
+  Vulkan would give full WebGPU (not compatibility mode) and skip the GL
+  translation. Mesa 22.3's ANV hung the kernel (0.1.1), ≥ 23.2 refuses the
+  4.14 kernel; the candidate is **ANV from Mesa 19.0.6**, the unit's own
+  i965's release, built for the unit's glibc (knowledge/browser.md, "Vulkan
+  on this kernel"). Chromium on Wayland refuses Vulkan for compositing only:
+  Dawn (and ANGLE) can still use it.
 - [ ] **vel.gg on the CPU, measured on the car with 0.2.5** (2026-11-07, on
   its menu, 30 s): chromium-wl's ms per picture 30 → 3 (the app), but the
   four cores 327 % of 400 busy, load 12.7: renderer 101 % (one core, the
@@ -162,6 +188,21 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   Memory: 42 MB free, 1.4 GB cache, 296 MB swap used; renderer 1.47 GB RSS,
   GPU process 0.55 GB. The renderer's core is the limit now: the GPU mode
   (WebGPU on GLES, below) is the next step, then the resolution.
+  **In the GPU mode with 0.2.6** (2026-11-07, in game, Kino der Toten,
+  ~46 s): ~1.6 pictures/s, chromium-wl 4.5-5.5 ms each and 3 % CPU; the
+  cores only 216 % busy but load 16.7; renderer 106 % (its main thread
+  pinned), browser process 50 %, GPU process 43 %, GPU clock 417 of
+  450 MHz. Memory: Chromium 2.44 of its 3 GB cap, MemAvailable 0.5 GB,
+  swap in use 768 MB (296 on the CPU run), the HMI 88 MB in swap. It
+  flickered, and the GPU process died once at 12:16 ("GPU state invalid",
+  exit 5; vel.gg: "Direct3D not available"), no GPU hang in dmesg. Next:
+  find the flicker (chromium-wl's shm / drm counts in the journal), then
+  less memory. **At scale 0.5** (892x316, same run): ~5 pictures/s (3x),
+  chromium-wl 1.1-1.4 ms; renderer 174 %, GPU process 81 %, cores 238 %,
+  load 11.6; memory unchanged (swap 794 MB). Next: a CDP trace of the
+  renderer for a few seconds, to see whether the game's JS, WebGPU's
+  command encoding or Blink takes its time, before any Chromium build of
+  our own.
 - [ ] **0.2.5 on the car: the GPU mode on the Wayland path.** The CPU mode
   works on the car (pictures, colours, 3 ms each). **The GPU
   mode is new on this path and untested on a GPU**: Chromium hands its GBM

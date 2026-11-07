@@ -54,8 +54,8 @@ const FPS = 30;   /* chromium-wl's pace while shown, by default */
 /* the window's size: the pictures' */
 function picOf(opts) { return opts.pic || { w: opts.w, h: opts.h }; }
 
-/* opts: { w, h, uid, gid, gpu (the GPU mode: env.js), scale (the device scale
- * factor, 1 / 0.75 / 0.5: the layout stays w x h CSS pixels, the pictures are
+/* opts: { w, h, uid, gid, gpu (the GPU mode: env.js), game (game mode: below),
+ * scale (the device scale factor, 1 down to 0.25: the layout stays w x h CSS pixels, the pictures are
  * smaller), pic ({ w, h }: the pictures' size at that scale), fps (at most,
  * while shown), proxy (port), cgroup (dir or null), url, extraArgs } */
 function args(opts) {
@@ -106,6 +106,11 @@ function args(opts) {
         '--disable-features=SpareRendererForSitePerProcess,BackForwardCache,Translate',
         '--force-gpu-mem-available-mb=256', '--force-gpu-mem-discardable-limit-mb=64',
     ]);
+    /* Game mode (opts.game, by hand, never kept): Dawn skips WebGPU's
+     * validation and robustness checks in the GPU process (on the car its
+     * main thread, which turns WebGPU into GL, was the busiest thread in
+     * vel.gg). For trusted pages only: a wrong command is no longer caught. */
+    if (opts.game) a.push('--enable-dawn-features=skip_validation,disable_robustness');
     /* loopback (the probe's page) stays direct: Chromium's default */
     if (opts.proxy) a.push('--proxy-server=http://127.0.0.1:' + opts.proxy);
     return a.concat(opts.extraArgs || [], [opts.url || 'about:blank']);

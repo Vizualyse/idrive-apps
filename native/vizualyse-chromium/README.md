@@ -84,6 +84,15 @@ filesystem (`../idrive-rootfs`):
   features fails there and runs (slowly) in the CPU mode. Seen on the car
   with 0.2.1: WebGL 2 on `Mesa DRI Intel(R) HD Graphics 505 (Broxton),
   OpenGL ES 3.2`, compositing and canvas hardware accelerated.
+- **Game mode (0.2.7, experimental)**: Chromium restarts with
+  `--enable-dawn-features=skip_validation,disable_robustness`, so Dawn
+  stops checking each WebGPU call and adding bounds checks to shaders. In
+  vel.gg on the car (0.2.6, GPU mode) the GPU process's main thread, which
+  runs Dawn and ANGLE, was the busiest thread (82 % of a core). A wrong
+  command from the page is no longer caught (it can crash the GPU process
+  or, in the GPU mode, reach the driver): trusted pages only. On by hand
+  (phone page, app: `game`), never kept, like the GPU mode; in both the CPU
+  and the GPU mode.
 - **WebGPU**: `--enable-unsafe-webgpu` (Chromium's WebGPU allow-list);
   ANGLE and Dawn on Vulkan, which is SwiftShader (`--use-angle=vulkan`,
   `--enable-features=Vulkan,...`). **JSPI** is on by
@@ -106,13 +115,15 @@ filesystem (`../idrive-rootfs`):
   HMI's title bar and left strip (with its back arrow) uncovered, so the
   driver can always leave; the app hides the browser when its page loses
   visibility or focus (pop-ups, calls: knowledge/idrive-app-ui.md).
-- **The resolution (0.2.3)**: full, 3/4 or 1/2 (the phone page, the app's
-  Resolution button; kept). Chromium's window is that much smaller
-  (1340x476 / 892x316, a multiple of 4) and the page is drawn scaled into
+- **The resolution (0.2.3; 1/3 and 1/4 since 0.2.7)**: full, 3/4, 1/2,
+  1/3 or 1/4 (the phone page, the app's Resolution button; kept).
+  Chromium's window is that much smaller (1340x476 / 892x316 / 596x212 /
+  444x156, a multiple of 4; at 1/4 Chromium keeps its 500 px minimum width,
+  the page in the left part, and chromium-wl crops) and the page is drawn scaled into
   it (`Emulation.setDeviceMetricsOverride` with `deviceScaleFactor` and
   `scale`: in a window, unlike headless, the scale factor alone doesn't draw
   smaller): the page keeps its 1790x638 CSS layout and sees
-  `devicePixelRatio` 0.75 / 0.5; touches are scaled into the window. The
+  `devicePixelRatio` 0.75 down to 0.25; touches are scaled into the window. The
   frame file is the window's size and mgu-render's VIDEO op fits it to the
   app area (aspect kept, linear filtering). Fewer pixels for SwiftShader to
   draw, smaller buffers, cheaper conversions. It changes live. (A Chromium
