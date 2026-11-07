@@ -27,10 +27,20 @@ run() {
     NAME=steam-unit-test-$$
     trap 'docker rm -f $NAME >/dev/null 2>&1' EXIT INT TERM
     # SYS_ADMIN: the tool's mounts of a USB stick; a tmpfs at /media/TESTSTICK
-    # stands in for one the HMI mounted (read-only, noexec, files 0777 as FAT)
-    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g --cap-add SYS_ADMIN \
-        -v "$WIN_HERE:/t:ro" -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$1" ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG="$GREP_LOG"} $IMG \
-        /bin/sh -c "mkdir -p /var/opt /tmp /media/TESTSTICK && chmod 1777 /tmp && mount -t tmpfs -o ro,nosuid,nodev,noexec,mode=0777,size=256m teststick /media/TESTSTICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; /usr/bin/node /t/test/unit_test.js /t"
+    # stands in for one the HMI mounted (read-only, noexec, files 0777 as FAT).
+    # USB_FS=vfat: a real FAT32 image (build/vfat.img, mkfs.vfat -F 32) on a
+    # loop device instead, with the HMI's own options (needs --privileged)
+    if [ "${USB_FS:-tmpfs}" = vfat ]; then
+        CAPS=--privileged
+        # the loop device read-write (as the car's sdb1), only the mount read-only
+        STICK="cp /t/build/vfat.img /tmp/vfat.img && L=\$(losetup -f) && losetup \$L /tmp/vfat.img && mount -t vfat -o ro,nosuid,nodev,noexec,uid=2010,gid=2010,fmask=0000,dmask=0000,allow_utime=0022,shortname=mixed,showexec,utf8,flush \$L /media/TESTSTICK"
+    else
+        CAPS="--cap-add SYS_ADMIN"
+        STICK="mount -t tmpfs -o ro,nosuid,nodev,noexec,mode=0777,size=256m teststick /media/TESTSTICK"
+    fi
+    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS \
+        -v "$WIN_HERE:/t:ro" -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$1" -e USB_FS="${USB_FS:-tmpfs}" ${T_GAME:+-e T_GAME="$T_GAME"} ${T_LOAD:+-e T_LOAD="$T_LOAD"} ${T_DLLOV:+-e T_DLLOV="$T_DLLOV"} ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG="$GREP_LOG"} $IMG \
+        /bin/sh -c "mkdir -p /var/opt /tmp /media/TESTSTICK && chmod 1777 /tmp && $STICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; /usr/bin/node /t/test/unit_test.js /t"
 }
 case "${1:-all}" in
     stub|swrast) run "$1" ;;

@@ -46,13 +46,19 @@ fs.writeFileSync('/tmp/lease.json', JSON.stringify({ ip: '127.0.0.1', dns: ['192
 const T_LOG = '/tmp/t_d3d9.log';
 const extra = { LD_PRELOAD: '/g/stub/libintel_noop_drm_shim.so', INTEL_STUB_GPU_PLATFORM: 'bxt', T_FRAMES: '100000',
     T_LOG: 'Z:' + T_LOG.replace(/\//g, '\\') };
+/* with T_GAME: t_load's list (T_LOAD), and T_DLLOV in place of the tool's
+ * WINEDLLOVERRIDES (to see a failure the tool's own overrides caused) */
+if (process.env.T_LOAD) extra.T_LOAD = process.env.T_LOAD;
+if (process.env.T_DLLOV) extra.WINEDLLOVERRIDES = process.env.T_DLLOV;
 const senv = Object.assign({}, process.env, {
     STEAM_NO_FIREWALL: '1', STEAM_LEASE: '/tmp/lease.json', STEAM_CTL_SOCKET: '/tmp/ctl/ctl.sock',
     STEAM_RUNTIME_ARCHIVE: T + '/build/runtime.tgz', STEAM_PROTON_ARCHIVE: T + '/build/proton.tgz',
     STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_LAUNCH: T + '/build/launch.json',
-    STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/t_d3d964.exe',
+    STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/' + (process.env.T_GAME || 't_d3d964.exe'),
     STEAM_RENDER_CLIENT: '/nonexistent/mgu_render_client.js', STEAM_LINK_IP: '127.0.0.1',
-    STEAM_USB_TEST_DEV: 'teststick',
+    /* the test stick's device: the tmpfs's name, or the vfat image's loop device */
+    STEAM_USB_TEST_DEV: (fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')
+        .filter((l) => l.split(' ')[1] === '/media/TESTSTICK')[0] || 'teststick').split(' ')[0],
 });
 if (GPU === 'swrast') {
     extra.GBM_ALWAYS_SOFTWARE = '1';
@@ -214,6 +220,10 @@ async function main() {
     ok('the frame file goes', !fs.existsSync('/dev/shm/mgu-video-vizualyse_steam'));
     ok('the running mark goes', !fs.existsSync(ROOT + '/state/game-running'));
 
+    /* mscoree is on for games: a prefix update would offer Wine Mono's
+     * installer in a window nobody can press */
+    ok('no Wine Mono installer window (no prefix update)', !/window "Wine Mono Installer"/.test(serverLog));
+
     await usbStick();
 
     server.kill('SIGTERM');
@@ -222,6 +232,11 @@ async function main() {
     const counts = {};
     wineErr.forEach((l) => { counts[l] = (counts[l] || 0) + 1; });
     console.log('  Wine\'s errors: ' + (Object.keys(counts).map((k) => counts[k] + 'x ' + k).join(', ') || 'none'));
+    if (process.env.T_GAME) {
+        let tl = '';
+        try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        console.log('---- ' + process.env.T_GAME + '\'s own lines ----\n' + tl);
+    }
     if (failed || process.env.VERBOSE) {
         console.log('---- the tool\'s log (last 80 lines) ----');
         console.log(serverLog.split('\n').slice(-80).join('\n'));

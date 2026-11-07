@@ -219,7 +219,7 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   evdev to read on the unit).
 - [ ] **Sound:** `--mute-audio` for now; through SmartXbar as Moonlight does.
 
-## Steam (vizualyse-steam 0.1.0, vizualyse_steam 0.1.0)
+## Steam (vizualyse-steam 0.1.2, vizualyse_steam 0.1.1)
 
 Windows games from the owner's Steam library through Proton (WineD3D on the
 unit's own Mesa 19, Wine's Wayland driver into `wl-sink`, mgu-render's frame
@@ -231,12 +231,21 @@ the unit's own root filesystem (2026-11-06): download flow, Wine starting,
 frames as PRIME buffers through the unit's i965 (stub), the right picture
 (swrast), Stop. **Ask before running anything on the unit.**
 
-- [ ] **Release** vizualyse-steam 0.1.0 and vizualyse_steam 0.1.0 (about
-  410 MB to download, 1.3 GB unpacked), install from the Store, and read the
-  journal: `bundle:` lines (the three archives unpacked), `dns:` (the phone's
-  DNS). Then on the phone page: the account, Install Slay the Spire 2
-  (2868840), Steam Guard; `steam:` lines, the download's progress.
-- [ ] **On the car: the first game.** Play from the iDrive page:
+- [ ] **On the car: the USB stick, what's left.** FTL (212680) installed
+  onto the Kingston FAT32 stick with 0.1.1 (2026-11-07): sign-in approved in
+  the Steam app, 199.5 MB downloaded (287 MB unpacked) in 2.5 minutes. Still
+  to check: that the HMI's media player still sees the stick; pulling it
+  during a game; a game with a file over 4 GB failing with the FAT32
+  message.
+- [ ] **Downloads to a stick are slow:** the stick wrote at about 4 MB/s
+  while wlan0 brought about 4.3 MB/s and finished early. DepotDownloader
+  pre-allocates every file, and FAT32 (no fallocate) writes zeros for that
+  first, so each byte is written twice. Try exFAT (Tuxera texfat) and the
+  hard disk for comparison; maybe show MB/s on the phone page.
+- [ ] **On the car: the first game.** STS2 (64-bit, on the hard disk)
+  already drew its first frames and was shown (`wl-sink: ready ... GPU
+  buffers`, `game: running`, no GPU errors in dmesg) before the `mscoree`
+  crash. Play from the iDrive page:
   `wl-sink: ready ... GPU buffers`, `game: running`, the pictures per second
   and the sink's ms on the phone page, the picture in the app area. Then
   `dmesg | grep -iE 'i915|blocked for more'` (no GPU hang) and the memory
@@ -252,13 +261,57 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   Pro (as Moonlight's tests): Proton's winebus through SDL2 (built with
   hidapi on libusb, as the car has no evdev / HID / uinput), else an XInput
   DLL fed by Moonlight's `pads.c`.
+- [ ] **On the car: STS2 with 0.1.2.** 0.1.1 disabled Wine's `mscoree` for
+  games, and STS2 (Godot, .NET 9) drew, then crashed: "mscoree.dll not
+  found, IL-only binary sts2.dll cannot be loaded". 0.1.2 leaves it on
+  (off the car the car's own `sts2.dll` loads now: `T_GAME=../il/t_load64.exe
+  T_LOAD=sts2.dll`). Update, Play: past its start?
+- [ ] **32-bit games crash on the car: a Wine source patch.**
+  FTL (32-bit) fails with `Failed to create process ...: 731` from the
+  stick and from the hard disk alike. Diagnosed on the car (2026-11-07,
+  `build/diag/`):
+  - The 32-bit process dies (SIGSEGV) right after loading syswow64's
+    ntdll. The car's kernel has no IA32 emulation (no
+    `ia32_sys_call_table`, no `/proc/sys/abi/vsyscall32`): `int $0x80`
+    faults there (`int80test`).
+  - 32-bit code itself runs (`cs32test`: far return to 0x23 and back), and
+    the 64-bit `modify_ldt` (154) works. The 64-bit `set_thread_area` (205)
+    is ENOSYS everywhere.
+  - Proton's `lib/wine/x86_64-unix/ntdll.so` has exactly two `int $0x80`,
+    in Wine's `signal_x86_64.c`: `alloc_fs_sel` (SYS_set_thread_area 243)
+    and `modify_ldt` (SYS_modify_ldt 123). Without `fs32_sel` Wine already
+    falls back to an LDT entry per thread through `modify_ldt`
+    (`signal_alloc_thread`).
+  - Patching just those two calls is not enough: Wine on Linux assumes a
+    `fs32_sel` exists. It is read in 16 places (signal handlers, thread
+    setup, context restore) to restore glibc's thread pointer and reload the
+    32-bit `%fs`, and the per-thread LDT fallback isn't wired up for Linux
+    there. The fix belongs in Wine's source (`signal_x86_64.c`): use the
+    64-bit `modify_ldt`, and on Linux too take the per-thread LDT path with
+    `pthread_teb` saved and each thread's own selector reloaded. Then
+    rebuild `ntdll.so` from the exact GE-Proton11-11 Wine tree (it must
+    match the shipped ntdll.dll and wineserver). A byte-level patch of the
+    shipped ntdll.so was tried and dropped.
+  - Off the car, 32-bit tests must still pass (the PC's kernel takes both
+    ways). The proof is on the car: `t_load32`, then FTL.
+  - The `mmdevapi: Unable to load UNIX functions` line is likely only
+    winepulse failing before ALSA: check that sound plays on a working
+    game.
+- [ ] **Goldberg (gbe_fork, LGPL) for games that need Steam running:** an
+  opt-in "Run without Steam" switch per game on the phone page. It puts the
+  emulator's `steam_api.dll` / `steam_api64.dll` in place of the game's
+  (the original kept, restored when switched off), with the account name and
+  app id in its settings. It doesn't help exes wrapped in SteamStub DRM
+  (removing that is out of scope). Achievements and cloud saves become
+  local. Replacing the DLL may go against Steam's terms: the owner decides.
+  Only once a game is found that quits on `SteamAPI_Init` (STS2 is the
+  first to try).
 - [ ] **32-bit D3D9 on `stub` exits 1 at teardown** after a full run
   (`wined3d_device_cleanup Context array not freed!`; 64-bit and `swrast`
   are fine).
 - [ ] **Later:** Wine Mono for .NET Framework games (left out: 285 MB);
   where the CPU goes per picture (wl-sink reads each frame back and converts
-  it to I420 on the CPU: a dmabuf handed to mgu-render would save that);
-  a USB stick as the games' place (udisks2 mounts at `/media/<label>`).
+  it to I420 on the CPU: a dmabuf handed to mgu-render would save that).
 
 ## Dropped
 

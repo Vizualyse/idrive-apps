@@ -9,9 +9,11 @@ unit's own root filesystem (below); **nothing has run on the car yet.**
 Background: [knowledge/games.md](../../knowledge/games.md).
 
 **Not in this version:** any input to the game (no touch, keyboard or game
-controllers yet), .NET Framework games (no Wine Mono), and games that need
-the Steam client running (it doesn't run here). A 32-bit Direct3D 9 program
-exited with an error at its end on the bench's stub GPU (TODO.md).
+controllers yet), .NET Framework games (no Wine Mono), games that need the
+Steam client running (it doesn't run here), and **32-bit games on the car**:
+the unit's kernel has no IA32 emulation, and Wine's WoW64 makes two i386
+system calls that fault there (knowledge/games.md, TODO.md). 64-bit games
+start (Slay the Spire 2 drew on the car).
 
 1. Install **Steam** (this tool) and the **Steam** iDrive app
    ([apps/vizualyse_steam](../../apps/vizualyse_steam)) from the Store. The

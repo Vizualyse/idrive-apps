@@ -64,6 +64,19 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   /dev/shm is empty after every start of the unit and only a game made the
   folder. The bench missed it: it ran DepotDownloader without arguments
   (usage only, no account store).
+- **On the car (2026-11-07): 64-bit games start, 32-bit don't.** Slay the
+  Spire 2 drew through the unit's i965 and was shown, no GPU errors. It then
+  died on the tool's own `WINEDLLOVERRIDES=mscoree=`: Wine's loader needs
+  its built-in mscoree.dll for every IL-only DLL, even with the game's own
+  .NET 9 runtime ("IL-only binary sts2.dll cannot be loaded"). FTL
+  (32-bit): `Failed to create process ...: 731`, the new process dying
+  (SIGSEGV) after loading syswow64's ntdll. **The unit's 4.14 kernel has no
+  IA32 emulation:** `int $0x80` faults (no `ia32_sys_call_table`, no
+  `/proc/sys/abi/vsyscall32`), and Wine's new WoW64 makes two i386 system
+  calls through it in `signal_x86_64.c` (`alloc_fs_sel`:
+  set_thread_area; `modify_ldt`). 32-bit code itself runs (a far return to
+  selector 0x23 works), and the 64-bit `modify_ldt` (154) works; the 64-bit
+  `set_thread_area` (205) is ENOSYS on any kernel.
 - **USB sticks on the unit:** udisks2 (for the HMI) mounts them at
   `/media/<label or uuid>` (`99-usb-udisks-mountpath.rules`): `ro,nosuid,
   nodev,noexec`, FAT32 as `uid=2010,gid=2010,fmask=0000,dmask=0000`

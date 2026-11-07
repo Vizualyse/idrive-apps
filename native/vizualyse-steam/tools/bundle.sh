@@ -314,6 +314,13 @@ for name in ('system.reg', 'user.reg', 'userdef.reg'):
     s = re.sub(r'("InstallTime"=hex\(b\):)[0-9a-f,]+', r'\g<1>00,00,00,00,00,00,00,00', s)
     open(p, 'w', encoding='utf-8', errors='surrogateescape').write(s)
 print('bundle: registry normalised')
+# No prefix update on the unit: Wine compares .update-timestamp with
+# wine.inf's time, which the archives zero, so the first start ran
+# wineboot --update, and with mscoree on (games need it) that offered Wine
+# Mono's installer in a window nobody can press (2026-11-07). The prefix is
+# made by the same Wine that runs it: "disable" skips the check.
+open(os.path.join(pfx, '.update-timestamp'), 'w').write('disable\n')
+print('bundle: prefix updates disabled')
 EOF
 rm -f "$X/pfx.lock"
 # launch.json: Proton's environment for a game, the container's own noise left out

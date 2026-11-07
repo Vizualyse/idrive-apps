@@ -139,9 +139,14 @@ function wineEnv(launch, appId, display) {
     e.SteamGameId = e.SteamAppId = String(appId);
     e.STEAM_COMPAT_APP_ID = String(appId);
     e.WINEDEBUG = process.env.STEAM_WINEDEBUG || 'err+all,fixme-all';
-    /* no Wine Mono or Gecko in the bundle: without this a program that asks
-     * for them waits on an installer's dialog nobody can press */
-    e.WINEDLLOVERRIDES = (e.WINEDLLOVERRIDES ? e.WINEDLLOVERRIDES + ';' : '') + 'mscoree=;mshtml=';
+    /* no Gecko in the bundle: without this a program that asks for it waits
+     * on an installer's dialog nobody can press. mscoree stays on (only
+     * bundle.sh's wineboot turns it off): Wine's loader needs its built-in
+     * mscoree.dll to load any IL-only DLL, even for a modern .NET game with
+     * its own runtime. Slay the Spire 2 (Godot, .NET 9) crashed on the car
+     * with "mscoree.dll not found, IL-only binary sts2.dll cannot be loaded"
+     * (2026-11-07). A .NET Framework game still has no Wine Mono. */
+    e.WINEDLLOVERRIDES = (e.WINEDLLOVERRIDES ? e.WINEDLLOVERRIDES + ';' : '') + 'mshtml=';
     return mesaEnv(e);
 }
 

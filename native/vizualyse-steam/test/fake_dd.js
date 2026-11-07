@@ -41,6 +41,9 @@ function download() {
         if (i < n) return;
         clearInterval(t);
         fs.copyFileSync(GAME_EXE, path.join(dir, 'TestGame.exe'));
+        /* the DLLs beside it too (a real game's, copied off the car: T_GAME) */
+        fs.readdirSync(path.dirname(GAME_EXE)).filter((n) => /\.dll$/i.test(n))
+            .forEach((n) => fs.copyFileSync(path.join(path.dirname(GAME_EXE), n), path.join(dir, n)));
         mkdirp(path.join(dir, 'redist'));
         fs.writeFileSync(path.join(dir, 'redist', 'vcredist_x64.exe'), 'MZ');
         console.log('Depot ' + (Number(app) + 1) + ' - Downloaded 1234 bytes (5678 bytes uncompressed)');
