@@ -113,6 +113,13 @@ function platformOf(dir) {
     return path.join(dir, '..', '..', 'platform');
 }
 
+/* A .gitignore's text with LF line ends ('' when there is none): a Windows
+ * checkout (core.autocrlf) has CRLF, and the block must still be found, or
+ * sync would add a second one. */
+function readIgnore(file) {
+    return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : '';
+}
+
 /* The managed block of a .gitignore's text: { names, before, after }. */
 function parseIgnore(text) {
     const lines = text.split('\n');
@@ -171,7 +178,7 @@ function sync(dir) {
     byDir.forEach((names, d) => {
         const folder = path.join(dir, d);
         const ignore = path.join(folder, '.gitignore');
-        const existing = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+        const existing = readIgnore(ignore);
         parseIgnore(existing).names.filter((n) => names.indexOf(n) < 0).forEach((n) => {
             fs.rmSync(path.join(folder, n), { force: true });
         });
@@ -211,7 +218,7 @@ function walkIgnores(dir) {
                 if (e.name !== 'build' && e.name !== 'node_modules' && e.name !== 'third_party' && !e.name.startsWith('.')) {
                     walk(path.join(d, e.name), rel === '.' ? e.name : `${rel}/${e.name}`);
                 }
-            } else if (e.name === '.gitignore' && parseIgnore(fs.readFileSync(path.join(d, e.name), 'utf8')).names.length) {
+            } else if (e.name === '.gitignore' && parseIgnore(readIgnore(path.join(d, e.name))).names.length) {
                 out.push(rel);
             }
         });
@@ -304,7 +311,7 @@ function check(base) {
         });
         ignoresFor(dir, pin).forEach((names, d) => {
             const ignore = path.join(dir, d, '.gitignore');
-            const text = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+            const text = readIgnore(ignore);
             if (ignoreText(text, names) !== text) {
                 problems.push(`${rel}/${d === '.' ? '' : d + '/'}.gitignore does not list the platform copies (run sync, commit it)`);
             }
