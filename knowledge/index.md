@@ -24,6 +24,7 @@ What's next: [`../TODO.md`](../TODO.md). The CarPlay second screen in depth:
 | [store.md](store.md) | Releases, catalogs, `component.json` fields, the uplink's firewall |
 | [browser.md](browser.md) | Chromium on the unit: what the image lacks (Vulkan), **GPU drivers only with a safety net**, Vulkan on the 4.14 kernel (Mesa history), bringing a newer userland, WebGPU / JSPI in headless Chromium |
 | [games.md](games.md) | Windows games through Proton / Wine: WineD3D on Mesa 19, GL frames as PRIME buffers, the adapter's name, Proton without Python, the prefix, DepotDownloader |
+| [game-compatibility.md](game-compatibility.md) | Which Steam games run: Supported / Unsupported / Untested, the unit as a desktop, the rule of thumb, the Black Ops 1 era |
 | [bench.md](bench.md) | Working off the car: PCs, containers, emulators |
 | [reference-repos.md](reference-repos.md) | The other iDrive repositories we read, their licenses and what each is good for |
 
