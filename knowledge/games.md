@@ -46,6 +46,14 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   stamp) and the computer name (the container's host name): zero / fix those
   and it is reproducible. Wine wants the prefix to be
   owned by the user running it.
+- **A prefix links out of itself: never `chown -R` it without `-h`.**
+  `dosdevices/z:` is `/`, `com1`..`com4` are `/dev/ttyS0..3`, and ~1300
+  files of `drive_c` are symlinks into Proton's own `files/lib/wine` and
+  `share`. BusyBox's `chown -R` without `-h` changes the targets: on the car
+  (2026-11-07, vk-trial's DXVK setup) it gave Proton's files and the serial
+  ports to the trial's uid and tried `/` (read-only, refused); put back by
+  hand (Proton's tree `0:0`, `ttyS*` `root:dialout` per the unit's udev
+  rule). The Steam tool's `unpack.chownR` skips links (lstat), as it must.
 - **wineserver's socket is in `/tmp/.wine-<uid>`**, a fixed place: `/tmp` must
   be 1777 (the unit's is a tmpfs).
 - **Our programs on the unit:** every ELF program of Proton and .NET pointed

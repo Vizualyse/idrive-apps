@@ -47,8 +47,9 @@ function crumb(s) {
 
 function findLaunch() {
     const tries = [LAUNCH];
-    /* the tool keeps launch.json beside its server.js; look where mgu-deploy installs */
-    ['/var/opt/vizualyse-steam/tool', '/var/opt/vizualyse-steam/app', '/var/opt/vizualyse-steam/current'].forEach((d) => tries.push(d + '/launch.json'));
+    /* the tool keeps launch.json beside its server.js: current/ -> versions/<installed>
+     * (the service runs current/server.js; older versions/ stay beside it) */
+    tries.push(STEAM + '/current/launch.json');
     for (let i = 0; i < tries.length; i++) if (fs.existsSync(tries[i])) return tries[i];
     const r = cp.spawnSync('find', [STEAM, '/var/opt/mgu-deploy', '-maxdepth', '5', '-name', 'launch.json'], { encoding: 'utf8' });
     const f = (r.stdout || '').split('\n').filter((l) => l)[0];
@@ -72,7 +73,14 @@ function setup() {
         if (!fs.existsSync(win + '/' + a[1])) return;
         DLLS.forEach((d) => sh('cp "' + DXVK + '/' + a[0] + '/' + d + '.dll" "' + win + '/' + a[1] + '/' + d + '.dll"'));
     });
-    sh('chown -R ' + UID + ':' + UID + ' "' + PFX + '" "' + HOME + '"');
+    /* -h: the links themselves, never their targets. The prefix links out of
+     * itself (dosdevices/z: is /, com1..4 are /dev/ttyS*, ~1300 files are
+     * Proton's own): without -h BusyBox's chown -R handed those to the uid
+     * (on the car, 2026-11-07; put back by hand) */
+    sh('chown -R -h ' + UID + ':' + UID + ' "' + PFX + '" "' + HOME + '"');
+    /* the root filesystem, /var/opt (its own mount on the car) and /dev */
+    const out = cp.spawnSync('/bin/sh', ['-c', 'find / /var/opt /dev -xdev -user ' + UID + ' 2>/dev/null | grep -v "^' + VKT + '/" | head -5'], { encoding: 'utf8' }).stdout.trim();
+    if (out) { say('FAIL setup changed owners outside ' + VKT + ': ' + out.replace(/\n/g, ', ')); return 1; }
     const du = cp.spawnSync('du', ['-sh', PFX], { encoding: 'utf8' }).stdout.trim();
     say('prefix ready: ' + du + ', DXVK ' + fs.readFileSync(DXVK + '/VERSION', 'utf8').trim() + ' in system32' +
         (fs.existsSync(win + '/syswow64') ? ' and syswow64' : ''));
@@ -110,7 +118,7 @@ function run() {
     crumb('starting wl-sink');
     const sink = cp.spawn(VKT + '/bin/wl-sink', ['--socket', 'wayland-1', '--frame', tmp + '/frame', '--create', '640x360', '--snap', tmp + '/snap.ppm'],
         { env: sinkEnv, stdio: ['pipe', sinkLog, sinkLog] });
-    if (!waitFor(() => fs.existsSync(xdg + '/wayland-1'), 10000)) { say('FAIL wl-sink did not start: ' + readLines(tmp + '/wl-sink.log').join(' | ')); sink.kill(); return 1; }
+    if (!waitFor(() => fs.existsSync(xdg + '/wayland-1') && readLines(tmp + '/wl-sink.log')[0], 10000)) { say('FAIL wl-sink did not start: ' + readLines(tmp + '/wl-sink.log').join(' | ')); sink.kill(); return 1; }
     say('wl-sink: ' + readLines(tmp + '/wl-sink.log')[0]);
 
     /* Wine as the tool starts it (env.js wineEnv), with our prefix, ANV, DXVK */

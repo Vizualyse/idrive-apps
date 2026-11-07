@@ -345,6 +345,15 @@ refuse scripts; `git` works) and a web search.
   Steam runtime has no Vulkan loader (its bundle.sh refuses GPU drivers and
   ICDs): vk-trial's loader 1.1.70 works under Wine. DXVK's D3D9 reports the
   driver as `igdumd64.dll`.
+- **DXVK under Proton on the car (2026-11-07, vk-trial `command` try):
+  works, real pixels.** GE-Proton 11's Wine from the Steam tool's bundles,
+  DXVK 1.9.4 in a private prefix, ANV 19.0.6: D3D11 at feature level 11_1,
+  60 frames, the back buffer read back exactly (255 64 0); D3D9, 60 frames,
+  its pixel check right; 120 frames into wl-sink as GPU buffers; 386 GPU
+  submissions, 23 s, nothing in the kernel log, no hang, same boot.
+  Adapter memory as DXVK reports it: 4209 MB. Not yet: a real game, the
+  screen (Winston), 32-bit (WoW64 needs placed / host memory mapping in
+  winevulkan), a long run.
 - **The unit's kernel isn't mainline 4.14** (its uapi header,
   `intel/linux-intel-lts` `4.14/base`): it has context param 6
   (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where

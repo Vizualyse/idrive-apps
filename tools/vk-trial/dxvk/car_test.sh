@@ -26,12 +26,14 @@ out=$(docker run --rm --name $NAME --network none --shm-size=1g --cap-add SYS_AD
     echo c0000000-0000-0000-0000-00000000000c > /tmp/bid && mount --bind /tmp/bid /proc/sys/kernel/random/boot_id
     mkdir -p /var/opt && cd / && for t in runtime proton prefix; do tar xzf /sb/$t.tgz; done
     cp /sb/launch.json /var/opt/vizualyse-steam/launch.json
-    chown -R 12996:12996 /var/opt/vizualyse-steam/prefix
+    chown -R -h 12996:12996 /var/opt/vizualyse-steam/prefix
     mkdir -p /var/opt/vizualyse-steam/gpu-libs && for l in libEGL.so.1 libgbm.so.1 libglapi.so.0 libGLESv2.so.2; do ln -sf /usr/lib/$l /var/opt/vizualyse-steam/gpu-libs/$l; done
     mkdir -p /var/opt/vk-trial && tar xzf /b/vk-trial.tgz -C /var/opt/vk-trial && tar xzf /b/vk-trial-dxvk.tgz -C /var/opt/vk-trial && chmod 755 /var/opt/vk-trial
     node /tst/fake_ssh.js & n=0; while [ ! -s /tmp/sshport ] && [ $n -lt 50 ]; do sleep 1; n=$((n + 1)); done
     export SSH_CONNECTION="127.0.0.1 $(cat /tmp/sshport) 127.0.0.1 22"
     echo "== setup (root)"; node /var/opt/vk-trial/dxvk/run.js setup; echo "setup rc=$?"
+    # nothing outside vk-trial may change owner (the prefix links to /, /dev/ttyS*, Proton)
+    echo "owner of / $(stat -c %u /), ttyS0 $(stat -c %u /dev/ttyS0 2>/dev/null || echo none), 12990 outside vk-trial: [$(find / -xdev -user 12990 2>/dev/null | grep -v "^/var/opt/vk-trial/" | wc -l)] in /dev: [$(find /dev -user 12990 2>/dev/null | wc -l)]"
     G=/var/opt/vk-trial/bin/vk-trial
     echo "== arm, run"; $G arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run && $G run; echo "run rc=$?"
     d=$(cat /var/opt/vk-trial/state/last); echo "== out.log"; cat $d/out.log; echo "== result"; cat $d/result
@@ -39,7 +41,7 @@ out=$(docker run --rm --name $NAME --network none --shm-size=1g --cap-add SYS_AD
     echo "== left: run-dir:[$(ls -A /run/vk-trial)] procs:[$(ps | grep -c "[w]ine\|[w]l-sink")]"' 2>&1 || true)
 printf '%s\n' "$out"
 fails=0
-for want in "setup rc=0" "prefix ready" "run rc=0" "result=ok" "t_d3d11: device, feature level 11_1" "t_d3d1164.exe: ok" \
+for want in "setup rc=0" "prefix ready" "owner of / 0," "12990 outside vk-trial: [0] in /dev: [0]" "run rc=0" "result=ok" "t_d3d11: device, feature level 11_1" "t_d3d1164.exe: ok" \
         "t_d3d9: device" "t_d3d964.exe: ok" "GPU (wl_drm)" "dxvk: ok" "run-dir:[]"; do
     printf '%s\n' "$out" | grep -qF -- "$want" && echo "  ok   $want" || { echo "  FAIL $want"; fails=$((fails + 1)); }
 done

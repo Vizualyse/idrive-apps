@@ -72,15 +72,14 @@ workflow (Actions > Release, the component ids).
   Ask before each step. **`present` ok on the car too (2026-11-07):** 60
   FIFO frames through Wayland into our wl-sink as GPU buffers, read back
   through the unit's i965, every pixel right; nothing on the screen yet.
-  **DXVK 1.9.4 under Proton ready for the car** (built and tested off the
-  car 2026-11-07, `tools/vk-trial/dxvk`: D3D11 at 11_1 and D3D9 on the stub
-  ANV, the car's exact steps in the unit's rootfs with the Steam bundles
-  through the gate). Next, on the car together: install the new
-  `vk-trial.tgz` and `vk-trial-dxvk.tgz`, `run.js setup`, then one
-  `command` try (README, "DXVK under Proton"); then the same with wl-sink's
-  Winston output (on the screen), then a per-game DXVK switch in the Steam
-  tool (by hand, off after any unclean end). VKD3D (D3D12) needs Vulkan 1.1
-  + much more; not with ANV 19. After a hang: `vk-trial status`, the try's
+  **DXVK 1.9.4 under Proton works on the car (2026-11-07,
+  `tools/vk-trial/dxvk`, one gated `command` try):** D3D11 at 11_1 and D3D9,
+  real pixels read back right, 120 frames into wl-sink as GPU buffers, no
+  hang. Next: the same with wl-sink's Winston output (on the screen), then
+  a per-game DXVK switch in the Steam tool (by hand, off after any unclean
+  end) for a real game; 32-bit games (WoW64 winevulkan's memory mapping on
+  ANV 19). VKD3D (D3D12) needs much more than ANV 19. After a hang:
+  `vk-trial status`, the try's
   `crumbs.log` (the ioctl that never returned) and `kmsg.log`. It would give
   Proton DXVK / VKD3D in place of WineD3D and full WebGPU
   ([knowledge/browser.md](knowledge/browser.md), "Vulkan on this kernel").
