@@ -345,6 +345,32 @@ under Proton): a line says which. Index: [index.md](index.md).
   compiles them at its start when the GPU has GLES 3, so only the three
   output buffers are made at the switch.
 
+## On the car: Slay the Spire 2 (Steam 0.1.11, 2026-11-08)
+
+Godot 4, native Vulkan (`--rendering-driver vulkan`) on ANV 19.0.6, full
+screen; Detail doesn't reach it (not DXVK, no engine flags).
+
+- **960x540:** about 13-15 fps in play, 1 % lows 2-4; GPU busy 96-100 %
+  (its clock 450-750 MHz even at 100 %, not pinned: the user's call), CPU
+  98-100 %, the game about 1.6 cores. **896x320:** about 18 fps, 1 % low
+  about 12 when not stalling, GPU still about 100 %, the game 2 cores.
+- **Memory, not the GPU, made the freezes** (1-15 s frames): the game
+  grows to 3.0-3.4 GB (cap 3.58, not reached) plus about 1 GB of shared
+  memory (`free`'s shared fell from 1003 to 59 MB when it ended), the
+  unit's MemAvailable fell to 282 MB, and zram (3 GB, lzo, about 3.5:1,
+  `zram.service`) filled with the HMI's, navigation's and the Node apps'
+  pages. Freezes stopped once swap stopped growing. A second run on top of
+  a full zram hung for good (the game alive, no frames). Hence 0.1.12's
+  swap file on the disk behind zram. The kernel (4.14.147-apl) has no
+  zswap, lz4, zstd, zram writeback or KSM; only lzo and deflate for zram.
+- **FSR never drew** (0.1.11): the modes switched, but no perf line had
+  FSR pictures, and wl-sink took 12-27 ms a picture (passing a buffer on
+  is under 1 ms on the bench): put together in software, where FSR isn't
+  tried. FSR on a windowed DXVK game through Winston works on the bench
+  (stub, 0.1.12's test). 0.1.12 says why in the perf lines.
+- **Taps scrolled its map:** a 14 px slop was too tight for a tap in the
+  car; 0.1.12 has 32 px, 64 in a tap's first 250 ms.
+
 ## iris / Gallium Nine (bench, 2026-11-08)
 
 [tools/iris-bench](../tools/iris-bench/README.md): Mesa 19.3.5's iris for

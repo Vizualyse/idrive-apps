@@ -43,6 +43,7 @@ const { Screen } = require('./screen.js');
 const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
 const { Bus } = require('./mqtt_bus.js');
+const swap = require('./swap.js');
 
 const HERE = __dirname;
 const PORT = Number(process.env.STEAM_PORT) || 8494;           /* the phone page, on the uplink's Wi-Fi */
@@ -201,6 +202,12 @@ function checkSpace() {
 }
 setInterval(checkSpace, 30000);
 checkSpace();
+
+/* the games' swap file on the hard disk (swap.js): made in the background a
+ * while after the tool starts (not at the unit's boot), never during a game */
+function swapEnsure() { if (!game || game.state === 'ended') swap.ensure(log); }
+setTimeout(swapEnsure, Number(process.env.STEAM_SWAP_DELAY_MS || 120000));
+setInterval(swapEnsure, 10 * 60000);
 
 /* the stick a game is on; and whether it is plugged in */
 function gameStick(g) { return g && usb.idOfPath(g.dir); }
@@ -411,10 +418,18 @@ function toFrame(sx, sy) {
 /* A tap's finger wobbles a few pixels between down and up: with the button
  * held each wobble is a drag, and a game that drags on any motion (Slay the
  * Spire 2's map, 2026-11-08) scrolled instead of clicking. So moves count only
- * once the finger has gone TAP_SLOP screen pixels from where it went down;
- * a touch that never did is a click where it went down. */
-const TAP_SLOP = 14;
-let touchDown = null;      /* { sx, sy (screen), x, y (frame), dragging } */
+ * once the finger has gone TAP_SLOP screen pixels from where it went down,
+ * and in a tap's first TAP_MS twice that (a quick tap in a moving car wobbles
+ * more: 14 px still scrolled the map, 2026-11-08); a touch that never did is
+ * a click where it went down. */
+const TAP_SLOP = 32, TAP_MS = 250;
+let touchDown = null;      /* { sx, sy (screen), x, y (frame), at, dragging } */
+
+/* a move far enough from where the finger went down to be a drag */
+function dragged(d, sx, sy, now) {
+    const far = Math.max(Math.abs(sx - d.sx), Math.abs(sy - d.sy));
+    return far >= (now - d.at < TAP_MS ? 2 * TAP_SLOP : TAP_SLOP);
+}
 
 function onTouch(e) {
     if (!game || game.state === 'ended' || !screen.shown()) return;
@@ -425,12 +440,12 @@ function onTouch(e) {
     if (e.p === 1) {            /* down */
         if (!p.on) return;
         touching = true;
-        touchDown = { sx: e.x, sy: e.y, x: p.x, y: p.y, dragging: false };
+        touchDown = { sx: e.x, sy: e.y, x: p.x, y: p.y, at: Date.now(), dragging: false };
         game.input('d', p.x, p.y);
     } else if (e.p === 2) {     /* move */
         if (!touching) return;
         if (touchDown && !touchDown.dragging) {
-            if (Math.abs(e.x - touchDown.sx) < TAP_SLOP && Math.abs(e.y - touchDown.sy) < TAP_SLOP) return;
+            if (!dragged(touchDown, e.x, e.y, Date.now())) return;
             touchDown.dragging = true;
         }
         game.input('m', cx, cy);
@@ -822,6 +837,7 @@ function play(appId) {
         if (st === 'ended') {
             if (game === x) bus.ask(null);
             if (vulkan) vulkanEnd();
+            if (game === x) swap.off(log);
             try { fs.unlinkSync(GAME_RUNNING); } catch (e) { /* gone */ }
             if (game === x) hide('the game ended');
         }
@@ -829,6 +845,7 @@ function play(appId) {
     });
     gameStartedAt = Date.now();
     askedOffNote = null;
+    swap.on(log);
     x.start();
     bus.ask(BUS_ASK, g.name + ' is running');
     log('game: ' + g.name + ' (' + appId + ') at ' + res.w + 'x' + res.h + ', ' + settings.fps + ' fps, ' + settings.memMb + ' MB cap, upscaling ' + settings.upscale);
@@ -926,9 +943,10 @@ function status() {
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
-            buffers: { drm: game.stats.drm, shm: game.stats.shm, fwd: game.stats.fwd || 0, scaled: game.stats.scaled || 0, commits: game.stats.commits || 0 }, note: game.note,
+            buffers: { drm: game.stats.drm, shm: game.stats.shm, fwd: game.stats.fwd || 0, scaled: game.stats.scaled || 0, commits: game.stats.commits || 0, ms: game.stats.ms }, note: game.note,
             /* FSR in wl-sink: pictures drawn (in all), skipped, its GPU time (ms, the newest measured), its size */
             fsr: game.stats.fsr ? { pictures: game.stats.fsr, skipped: game.stats.fsrSkipped || 0, gpuMs: game.stats.fsrGpuMs, size: game.stats.fsrSize } : null,
+            fsrWhy: game.stats.fsrWhy || null,
             /* the controllers in use: [{ player, name }] (steam-pads) */
             pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),
@@ -939,6 +957,7 @@ function status() {
             upscales: UPSCALES.map((u) => ({ id: u.id, name: u.name })), details: env.DETAILS,
             usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
         space: space, memory: { capMb: settings.memMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
+        swap: swap.status(),
     };
 }
 

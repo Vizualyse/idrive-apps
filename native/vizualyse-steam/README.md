@@ -105,7 +105,9 @@ rebuilt `ntdll.so`, below).
   i915's sysfs, the CPU (the unit's, and the game's in % of a core) and
   memory (the game's cgroup against its cap, the unit's available memory,
   swap). Switch modes mid-game, read them after:
-  `journalctl -u vizualyse-steam | grep perf:`.
+  `journalctl -u vizualyse-steam | grep perf:`. With FSR on but not drawing,
+  the line says why (`FSR not used: ...`, wl-sink's `fsrWhy`; 0.1.12), and
+  wl-sink's `ready` line says whether FSR is ready.
 - **The other tools step back while a game runs (0.1.10):** Steam asks on the
   tools' bus (`native/vizualyse-bus`, `mqtt_bus.js`) for the cluster's and the
   HUD's video off; Cast pauses a stream or CarPlay's second screen there and
@@ -134,7 +136,17 @@ rebuilt `ntdll.so`, below).
   game's pixels (aspect-kept fit, bars ignored) and hands it to wl-sink
   (`--input`, stdin `d|m|u X Y`), which makes it Wine's pointer on the shown
   window: a tap is a left click, a drag moves with the button held; the
-  window gets the keyboard focus too (Wine's foreground window).
+  window gets the keyboard focus too (Wine's foreground window). A tap's
+  wobble isn't a drag: moves count from 32 screen pixels away from where
+  the finger went down, 64 in the first 250 ms (0.1.12; 14 px still
+  scrolled Slay the Spire 2's map on a tap).
+- **A swap file for games (0.1.12):** 4 GB on the hard disk
+  (`/var/opt/hdshare/vizualyse-steam/swapfile`, `src/swap.js`), made once in
+  the background two minutes after the tool starts, on while a game runs
+  behind the unit's own compressed swap (zram 3 GB, priority 75; the file
+  10), off after it. A game near its cap pushed the HMI's memory into zram
+  until it was full and the game stalled for seconds. The deactivate turns
+  it off and deletes it; not made with less than 6 GB free on the disk.
 - **Run without Steam** (per game, off by default): a game that quits
   without the Steam client ("run the game from Steam") gets gbe_fork's
   `steam_api64.dll` / `steam_api.dll` (Goldberg's emulator, LGPL-3.0, in the
@@ -225,6 +237,8 @@ rebuilt `ntdll.so`, below).
 | `screen.js` | root | the mgu-render client in layer mode, in the app area |
 | `control.js` | root | `/dev/shm/vizualyse-steam/ctl.sock` for the app only: status; enable, disable, play, stop, show, hide, resolution, upscale, speed |
 | `firewall.js` | root | the phone page's TCP 8494 on `wlan0`, in memory |
+| `swap.js` | root | the games' swap file on the hard disk: made once, on while a game runs |
+| `deactivate.js` | root | the deactivate hook: the firewall rule and the swap file removed |
 
 State in `/var/opt/vizualyse-steam/state` (root): the token, the settings,
 the library (`library.json`), `game-running` while a game runs.

@@ -77,11 +77,22 @@ for (let i = 0; i < 10; i++) {
 const fl = lines[3];
 assert(/^perf: fsr at 896x320: .* fps, 1% low 16\.7/.test(fl), fl);
 assert(/FSR 28\.0\/s at 4\.00 ms GPU \(max 7\.50, 280 measured\), 2 skipped/.test(fl), fl);
+assert(!/not used/.test(fl), fl);
 console.log('ok   a change of mode closes the window; FSR\'s line: ' + fl);
+
+/* FSR on but not drawing (0.1.11 on the car said nothing): wl-sink's reason in the line */
+for (let i = 0; i < 10; i++) {
+    now += 1000;
+    p.sample({ pictures: 18, ms: 12, fsrOn: 1, fsrWhy: 'barely scaled (1792x640 drawn, 1786x638 on the screen)', ft: Array(18).fill(55) });
+}
+const nl = lines[lines.length - 1];
+assert(/^perf: fsr at 896x320: .*, FSR not used: barely scaled \(1792x640 drawn, 1786x638 on the screen\)/.test(nl), nl);
+assert(!/FSR [\d.]+\/s/.test(nl), nl);
+console.log('ok   FSR on but not drawing says why: ' + nl);
 
 p.end();
 const sum = lines[lines.length - 1];
-assert(/^perf: summary for Game: off at 896x320: 30\.0 fps.*\(11 s\); fsr at 896x320: .*\(10 s\)$/.test(sum), sum);
+assert(/^perf: summary for Game: off at 896x320: 30\.0 fps.*\(11 s\); fsr at 896x320: .*\(20 s\)$/.test(sum), sum);
 console.log('ok   the summary per mode: ' + sum);
 
 /* nothing to read (the bench without i915, no cgroup, no /proc): those parts left out, nothing breaks */

@@ -1231,6 +1231,8 @@ static int forward(struct surface *x, int px, int py) {
 
 static struct fsr *fsr;                /* made at the start (main), or at the first use */
 static int fsr_on, fsr_failed;
+static const char *fsr_why;            /* why the last picture wasn't FSR's while on (NULL: it was) */
+static char fsr_why_buf[200];
 static float fsr_sharp = 0.2f;         /* RCAS's, in stops (AMD's default); < 0: EASU alone */
 static const struct surface *fsr_last_s;
 static unsigned long fsr_last_gen;
@@ -1295,30 +1297,46 @@ static int pool_make(int w, int h) {
 /* forward(), through FSR: 1 when the picture is shown (or already was). */
 static int fsr_forward(struct surface *x, int px, int py) {
     struct drm_buffer *d = x->drm;
-    if (!fsr_on || fsr_failed || !gl.es3 || !gl.bo_create || !gl.gbm || !d) return 0;
+    /* fsr_why: why the last picture wasn't FSR's while it was on (the stats'
+     * "fsrWhy", the journal's perf lines): each way out says so */
+#define FSR_NOT(why) do { fsr_why = (why); return 0; } while (0)
+    if (!fsr_on) return 0;
+    if (fsr_failed) FSR_NOT("failed earlier");
+    if (!gl.es3) FSR_NOT("no GLES 3 context");
+    if (!gl.bo_create || !gl.gbm) FSR_NOT("no GBM");
+    if (!d) FSR_NOT("not a GPU buffer");
     int w, h;
     shown_size(x, &w, &h);
-    if (w <= 1 || h <= 1 || px < 0 || py < 0 || px + w > out_w || py + h > out_h) return 0;
+    if (w <= 1 || h <= 1 || px < 0 || py < 0 || px + w > out_w || py + h > out_h) {
+        snprintf(fsr_why_buf, sizeof fsr_why_buf, "the window (%dx%d at %d,%d) is not inside the picture (%dx%d)", w, h, px, py, out_w, out_h);
+        FSR_NOT(fsr_why_buf);
+    }
     int sx = 0, sy = 0, sw = d->w, sh = d->h;
     if (x->vw > 0 && x->vh > 0) {
         sx = (int)(x->vx + 0.5); sy = (int)(x->vy + 0.5); sw = (int)(x->vw + 0.5); sh = (int)(x->vh + 0.5);
-        if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) return 0;
+        if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) {
+            snprintf(fsr_why_buf, sizeof fsr_why_buf, "its viewport (%dx%d+%d+%d) is outside its buffer (%dx%d)", sw, sh, sx, sy, d->w, d->h);
+            FSR_NOT(fsr_why_buf);
+        }
     }
     /* its size on the screen: the picture (out_w x out_h) fitted into the place */
     double k = (double)place_w / out_w < (double)place_h / out_h ? (double)place_w / out_w : (double)place_h / out_h;
     int fw = (int)(w * k + 0.5), fh = (int)(h * k + 0.5);
-    if (fw > 4096 || fh > 4096 || fw < 16 || fh < 16) return 0;
-    if (fw < sw * 11 / 10 && fh < sh * 11 / 10) return 0;   /* barely scaled: Winston's is enough */
+    if (fw > 4096 || fh > 4096 || fw < 16 || fh < 16) FSR_NOT("its size on the screen is out of range");
+    if (fw < sw * 11 / 10 && fh < sh * 11 / 10) {   /* barely scaled: Winston's is enough */
+        snprintf(fsr_why_buf, sizeof fsr_why_buf, "barely scaled (%dx%d drawn, %dx%d on the screen)", sw, sh, fw, fh);
+        FSR_NOT(fsr_why_buf);
+    }
     if (x == fsr_last_s && x->gen == fsr_last_gen && !fsr_redo) return 1;   /* drawn, still shown */
     if (!fsr) {
         char err[1200];
         fsr = fsr_new(gl.getProcAddress, err, sizeof err);
-        if (!fsr) { fsr_failed = 1; fsr_say(err); return 0; }
+        if (!fsr) { fsr_failed = 1; fsr_say(err); FSR_NOT("its shaders failed"); }
     }
     if ((fw != pool_w || fh != pool_h) && pool_make(fw, fh) < 0) {
         fsr_failed = 1;
         fsr_say("fsr: no output buffers (GBM, EGL or Winston refused them): off");
-        return 0;
+        FSR_NOT("no output buffers");
     }
     struct fsr_out *o = NULL;
     for (int i = 0; i < 3 && !o; i++) {
@@ -1326,9 +1344,14 @@ static int fsr_forward(struct surface *x, int px, int py) {
         if (!wo_buf_busy(pool[j].wb)) { o = &pool[j]; pool_next = (j + 1) % 3; }
     }
     if (!o) { n_fsr_skipped++; return 1; }   /* Winston has all three: this picture is skipped */
-    if (drm_buffer_texture(d) < 0) return 0;
-    if (fsr_run(fsr, d->tex, d->w, d->h, sx, sy, sw, sh, o->fb, fw, fh, fsr_sharp) < 0) return 0;
-    if (wo_present_view(wo, o->wb, 0, 0, fw, fh, w, h, out_w, out_h, px, py) < 0) return 0;
+    if (drm_buffer_texture(d) < 0) {
+        snprintf(fsr_why_buf, sizeof fsr_why_buf, "the game's buffer (%dx%d, format 0x%x) did not import as a texture", d->w, d->h, (unsigned)d->format);
+        FSR_NOT(fsr_why_buf);
+    }
+    if (fsr_run(fsr, d->tex, d->w, d->h, sx, sy, sw, sh, o->fb, fw, fh, fsr_sharp) < 0) FSR_NOT("its passes failed (GL error)");
+    if (wo_present_view(wo, o->wb, 0, 0, fw, fh, w, h, out_w, out_h, px, py) < 0) FSR_NOT("Winston refused the picture");
+#undef FSR_NOT
+    fsr_why = NULL;
     fsr_last_s = x; fsr_last_gen = x->gen; fsr_redo = 0;
     n_fsr++;
     n_winston++;
@@ -1376,6 +1399,8 @@ static void compose(void) {
     /* frame times are the game's picture's: the client area, else the window */
     const void *fts = client ? (const void *)client : (const void *)top;
     if (fts != ft_surface) { ft_surface = fts; ft_last_us = 0; }
+    if (fsr_on && wshown && wo && !(alone && alone->drm))
+        fsr_why = !alone ? "the window's surfaces are put together in software (several, or none alone)" : "the game's picture is not a GPU buffer";
     if (alone && wshown && wo && alone->drm) {
         int w, h;
         shown_size(alone, &w, &h);
@@ -1471,6 +1496,8 @@ static int tick(void *data) {
              * timer queries: mean and max ms, how many measured; -1 without
              * timers); its output size */
             printf(",\"fsrOn\":%d", fsr_on && !fsr_failed);
+            /* on, but this second's last picture not FSR's: why (no quotes in them) */
+            if (fsr_on && fsr_why) printf(",\"fsrWhy\":\"%s\"", fsr_why);
             /* the game's frame times this second (ms) */
             fputs(",\"ft\":[", stdout);
             for (int i = 0; i < ft_n; i++) printf(i ? ",%.1f" : "%.1f", ft[i]);
@@ -1623,7 +1650,8 @@ int main(int argc, char **argv) {
     printf("{\"ev\":\"ready\",\"socket\":"); jstr(sock);
     printf(",\"size\":[%d,%d],\"drm\":%s,\"device\":", out_w, out_h, gl.ok ? "true" : "false");
     jstr(gl.ok ? gl.device : NULL);
-    printf(",\"winston\":%s,\"fsr\":%s}\n", wo ? "true" : "false", fsr_on && gl.es3 ? "true" : "false");
+    printf(",\"winston\":%s,\"fsr\":%s,\"es3\":%s,\"fsrReady\":%s}\n", wo ? "true" : "false", fsr_on && gl.es3 ? "true" : "false",
+           gl.es3 ? "true" : "false", fsr ? "true" : "false");
     fflush(stdout);
     last_stats = now_ms();
     wl_event_source_timer_update(tick_timer, 1000 / fps);

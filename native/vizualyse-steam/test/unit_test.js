@@ -71,6 +71,7 @@ let broker = null, browserBus = null;
 const senv = Object.assign({}, process.env, {
     VZ_BUS_SOCKET: BUS_SOCKET,
     STEAM_NO_FIREWALL: '1', STEAM_LEASE: '/tmp/lease.json', STEAM_CTL_SOCKET: '/tmp/ctl/ctl.sock',
+    STEAM_SWAP_MB: '0',   /* the swap file: test/swap_test.js */
     STEAM_RUNTIME_ARCHIVE: T + '/build/runtime.tgz', STEAM_PROTON_ARCHIVE: T + '/build/proton.tgz',
     STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_VULKAN_ARCHIVE: T + '/build/vulkan.tgz', STEAM_LAUNCH: T + '/build/launch.json',
     STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/' + (process.env.T_GAME || 't_d3d964.exe'),
@@ -424,6 +425,57 @@ async function vulkan() {
     /* at most: on the stub DXVK runs below 30 anyway (17-18 a second, with or
      * without the cap: the crumbs log's synchronous writes, 2026-11-08) */
     ok('DXVK draws at most at the tool\'s frame rate (d3d9.maxFrameRate)', rate > 5 && rate <= 36, rate.toFixed(1) + ' frames/s');
+    if (process.env.WINSTON_CHECK) {
+        /* FSR on a Vulkan game's buffers (ANV's WSI), switched on while it runs
+         * as on the car: Slay the Spire 2's fell back to Winston's scaling
+         * without a word (0.1.11, 2026-11-08) */
+        await api('/api/winston', { on: true });
+        await api('/api/show', {});
+        await sleep(3000);
+        await api('/api/settings', { upscale: 'fsr' });
+        await sleep(3000);
+        const f0 = (await status()).game;
+        await sleep(3000);
+        const f1 = (await status()).game;
+        const n0 = f0.fsr ? f0.fsr.pictures : 0, n1 = f1.fsr ? f1.fsr.pictures : 0;
+        ok('FSR on a Vulkan game\'s buffers, switched on while it runs', n1 - n0 > 20,
+            (n1 - n0) + ' FSR pictures in 3 s; ' + (f1.fsrWhy ? 'not used: ' + f1.fsrWhy + '; ' : '') + JSON.stringify(f1.fsr) + ', ' + JSON.stringify(f1.buffers) +
+            '; ' + (serverLog.split('\n').filter((l) => / wl-sink: (ready|fsr)| perf: fsr /.test(l)).slice(-3).join(' | ')));
+        await api('/api/settings', { upscale: 'off' });
+        await api('/api/hide', {});
+        await api('/api/winston', { on: false });
+        /* full screen at the picture's size, as Slay the Spire 2 (Godot on
+         * Vulkan) is: its buffers passed on, then FSR's */
+        await api('/api/stop', {});
+        await until('the windowed Vulkan game ending', (x) => x.game && x.game.state === 'ended', 60000);
+        fs.writeFileSync('/tmp/t_fullscreen', '960x540\n');
+        try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+        await api('/api/play', { appId: APP });
+        s = await until('the full-screen Vulkan game drawing', (x) => x.game && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+        await api('/api/winston', { on: true });
+        await api('/api/show', {});
+        await sleep(3000);
+        const p0 = (await status()).game;
+        await sleep(3000);
+        const p1 = (await status()).game;
+        let ftl = '';
+        try { ftl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        ok('full screen on Vulkan: its buffers go to Winston as they are, wl-sink\'s time under 3 ms a picture',
+            /full screen 960x540/.test(ftl) && p1.buffers.fwd - p0.buffers.fwd > 20 && p1.buffers.ms < 3,
+            JSON.stringify(p1.buffers) + '; ' + ftl.split(/\r?\n/).filter((l) => /full screen|FAIL/.test(l)).join(' | '));
+        await api('/api/settings', { upscale: 'fsr' });
+        await sleep(3000);
+        const q0 = (await status()).game;
+        await sleep(3000);
+        const q1 = (await status()).game;
+        const m0 = q0.fsr ? q0.fsr.pictures : 0, m1 = q1.fsr ? q1.fsr.pictures : 0;
+        ok('full screen on Vulkan: FSR draws it', m1 - m0 > 20,
+            (m1 - m0) + ' FSR pictures in 3 s; ' + (q1.fsrWhy ? 'not used: ' + q1.fsrWhy + '; ' : '') + JSON.stringify(q1.fsr) + ', ' + JSON.stringify(q1.buffers));
+        await api('/api/settings', { upscale: 'off' });
+        await api('/api/hide', {});
+        await api('/api/winston', { on: false });
+        fs.unlinkSync('/tmp/t_fullscreen');
+    }
     let crumbs = '';
     try { crumbs = fs.readFileSync(CRUMBS, 'utf8'); } catch (e) { /* none */ }
     ok('its DRM calls in state/vulkan-crumbs.log', /> GEM_EXECBUFFER2/.test(crumbs), crumbs.split('\n').length + ' lines');

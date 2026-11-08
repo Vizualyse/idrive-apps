@@ -89,7 +89,8 @@ const MAX_FT = 216000;
 
 function emptyAcc() {
     return { s: 0, pictures: 0, sinkMsW: 0, fsrPictures: 0, fsrMsW: 0, fsrN: 0, fsrMax: 0, skipped: 0, busyMs: 0, busySpan: 0, mhzSum: 0, mhzN: 0, ft: [],
-        cpuBusy: 0, cpuTotal: 0, gameTicks: 0, wallMs: 0, memN: 0, gameN: 0, gameSum: 0, gameMax: 0, peak: 0, cap: 0, availSum: 0, availMin: Infinity, swapSum: 0, swapMax: 0 };
+        cpuBusy: 0, cpuTotal: 0, gameTicks: 0, wallMs: 0, memN: 0, gameN: 0, gameSum: 0, gameMax: 0, peak: 0, cap: 0, availSum: 0, availMin: Infinity, swapSum: 0, swapMax: 0,
+        why: '' };   /* FSR on but not drawing: wl-sink's last reason (fsrWhy) */
 }
 
 const MAXED = { fsrMax: 1, gameMax: 1, peak: 1, cap: 1, swapMax: 1 };
@@ -97,6 +98,7 @@ function add(a, b) {
     Object.keys(b).forEach((k) => {
         if (k === 'ft') { if (a.ft.length < MAX_FT) a.ft = a.ft.concat(b.ft.slice(0, MAX_FT - a.ft.length)); }
         else if (k === 'availMin') a[k] = Math.min(a[k], b[k]);
+        else if (k === 'why') a[k] = b[k] || a[k];
         else a[k] = MAXED[k] ? Math.max(a[k], b[k]) : a[k] + b[k];
     });
 }
@@ -146,6 +148,7 @@ function fmt(a, mode, frame) {
         t += ', FSR ' + r(a.fsrPictures) + '/s' + (a.fsrN ? ' at ' + (a.fsrMsW / a.fsrN).toFixed(2) + ' ms GPU (max ' + a.fsrMax.toFixed(2) +
             ', ' + a.fsrN + ' measured)' : ' (no GPU timer)') + ', ' + a.skipped + ' skipped';
     }
+    if (a.why && a.fsrPictures < a.pictures) t += ', FSR not used: ' + a.why;
     if (a.busySpan) t += ', GPU busy ' + Math.round(100 * a.busyMs / a.busySpan) + ' %';
     if (a.mhzN) t += ' at ' + Math.round(a.mhzSum / a.mhzN) + ' MHz';
     return t + fmtSys(a) + ' (' + a.s + ' s)';
@@ -193,6 +196,7 @@ class Perf {
             a.fsrPictures += e.fsrNow;
             if (e.fsrGpuN > 0 && e.fsrGpuMs >= 0) { a.fsrMsW += e.fsrGpuMs * e.fsrGpuN; a.fsrN += e.fsrGpuN; a.fsrMax = Math.max(a.fsrMax, e.fsrGpuMaxMs || 0); }
         }
+        if (e.fsrWhy) a.why = String(e.fsrWhy).slice(0, 200);
         if (e.fsrSkipped !== undefined) {
             if (this.lastSkipped !== null) a.skipped += Math.max(0, e.fsrSkipped - this.lastSkipped);
             this.lastSkipped = e.fsrSkipped;

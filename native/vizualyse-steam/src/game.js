@@ -131,14 +131,15 @@ class Game extends EventEmitter {
                 let e;
                 try { e = JSON.parse(l); } catch (x) { this._log('wl-sink: ' + l.slice(0, 300)); continue; }
                 if (e.ev === 'ready') {
-                    this._log('wl-sink: ready ' + e.size.join('x') + (e.drm ? ', GPU buffers through ' + e.device : ', no GPU buffers (shared memory only)'));
+                    this._log('wl-sink: ready ' + e.size.join('x') + (e.drm ? ', GPU buffers through ' + e.device : ', no GPU buffers (shared memory only)') +
+                        (!e.winston ? '' : e.fsrReady ? ', FSR ready' : e.es3 === false ? ', no FSR (no GLES 3 context)' : ', no FSR (its shaders failed)'));
                     this.gpuBuffers = !!e.drm;
                     this.winston = !!e.winston;
                     this._startWine();
                 } else if (e.ev === 'stats') {
                     this.stats = { pictures: this.stats.pictures + e.pictures, fps: e.pictures, drm: e.drm, shm: e.shm, fwd: e.fwd || 0,
                         scaled: e.scaled || 0, commits: e.commits || 0, ms: e.ms,
-                        fsr: e.fsr || 0, fsrSkipped: e.fsrSkipped || 0, fsrGpuMs: e.fsrGpuMs, fsrSize: e.fsrSize };
+                        fsr: e.fsr || 0, fsrSkipped: e.fsrSkipped || 0, fsrGpuMs: e.fsrGpuMs, fsrSize: e.fsrSize, fsrWhy: e.fsrWhy || null };
                     /* the journal's "perf:" lines (src/perf.js) */
                     if (!this.perf) this.perf = new Perf({ log: (s) => this._log(s), label: o.name, frame: Object.assign({}, o.frame, { detail: o.detail }), mode: o.upscale || 'off', cgroup: o.cgroup });
                     this.perf.sample(e);

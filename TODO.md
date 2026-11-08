@@ -11,13 +11,25 @@ workflow (Actions > Release, the component ids).
 
 - [ ] **The car list for game performance (built and tested off the car
   2026-11-08, on main; Steam 0.1.11 and the app 0.1.3 released
-  2026-11-08 with FSR, perf lines and Detail; 32-bit DXVK, newer ANV and
+  2026-11-08 with FSR, perf lines and Detail, 0.1.12 with FSR's reasons,
+  the tap deadzone and the swap file; 32-bit DXVK, newer ANV and
   iris are by-hand trials, not shipped).** Each step asked first; the
-  journal read after, not polled during. In order:
-  1. Install 0.1.11 / 0.1.3 from the Store. On the car: a game still
-     starts, shows through Winston, hides; `perf:` lines in the journal.
-  2. FSR: "Game performance, next" step 1 (Picture 896x320, Upscaling off
-     / FSR / FSR no sharpening, the `perf: summary` lines, a photo).
+  journal read after, not polled during. Step 1 passed on the car
+  2026-11-08 (Slay the Spire 2 started, showed, hid; perf lines). In order:
+  2. FSR with 0.1.12: on 0.1.11 it never drew on Slay the Spire 2 (Godot,
+     Vulkan, full screen; no "FSR n/s" in any perf line, and wl-sink took
+     12-27 ms a picture where passing a buffer on takes under 1: likely
+     put together in software). 0.1.12's perf lines say why FSR isn't
+     used (`FSR not used: ...`) and the `wl-sink: ready` line whether FSR
+     is ready. Then Picture 896x320, off / FSR / FSR no sharpening, a
+     photo. Plain 896x320 already beat 960x540 there (about 18 fps, 1%
+     low 12, against 13-15 and 2-4).
+  2b. 0.1.12's tap deadzone (32 px, 64 in a tap's first 250 ms): the
+     Slay the Spire 2 map no longer scrolls on a tap; drags still drag.
+  2c. 0.1.12's swap file: `swap: ... ready` about two minutes after the
+     tool starts (4 GB on the disk; the hand-made one at the same path is
+     taken as it is), `swap: ... on` at a game's start and `off` after it
+     in the journal; `cat /proc/swaps` during a game (one read).
   3. Detail: step 4 (Normal / Lite / Potato on a DXVK game and a WineD3D
      game; which refuse Potato).
   4. The app's page on the real HMI: the new Upscaling button draws,

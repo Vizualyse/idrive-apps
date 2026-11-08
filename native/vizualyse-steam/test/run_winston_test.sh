@@ -20,8 +20,12 @@ sh "$HERE/build.sh" >&2
 sh "$HERE/test/build_win.sh" >&2
 sh "$GPU_BENCH/build.sh" >&2
 WIN_GPU_BENCH=$(cd "$GPU_BENCH/build" && (pwd -W 2>/dev/null || pwd))
+# Vulkan (the stub): tools/vk-trial's build at /vkt (kernel414), when built,
+# for the Vulkan game through Winston with FSR (unit_test.js vulkan())
+VKT=
+[ -f "$HERE/../../tools/vk-trial/build/bench/kernel414.so" ] && VKT="-v $(cd "$HERE/../../tools/vk-trial/build" && (pwd -W 2>/dev/null || pwd)):/vkt:ro"
 run() {
-    DOCKER_ARGS="--shm-size=1g --cap-add SYS_ADMIN -v $WIN_HERE:/t:ro -v $WIN_GPU_BENCH:/g:ro -e GPU=$1 -e USB_FS=tmpfs -e WINSTON_CHECK=1 ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG} ${SKIP_FSR_CHECK:+-e SKIP_FSR_CHECK}" \
+    DOCKER_ARGS="--shm-size=1g --cap-add SYS_ADMIN $VKT -v $WIN_HERE:/t:ro -v $WIN_GPU_BENCH:/g:ro -e GPU=$1 -e USB_FS=tmpfs -e WINSTON_CHECK=1 ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG} ${SKIP_FSR_CHECK:+-e SKIP_FSR_CHECK}" \
         sh "$HERE/../../tools/winston-bench/run.sh" "$1" /bin/sh -c \
         'mkdir -p /var/opt /tmp /media/TESTSTICK && chmod 1777 /tmp && mount -t tmpfs -o ro,nosuid,nodev,noexec,mode=0777,size=256m teststick /media/TESTSTICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; unset LD_PRELOAD LD_LIBRARY_PATH LIBGL_DRIVERS_PATH GBM_ALWAYS_SOFTWARE; /usr/bin/node /t/test/unit_test.js /t'
 }
