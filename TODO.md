@@ -155,8 +155,10 @@ workflow (Actions > Release, the component ids).
        and run.js with `t_d3d1164.exe t_d3d964.exe t_d3d1132.exe
        t_d3d932.exe`. The same ANV hung the car unpatched in 0.1.1: if
        this one runs, `I915_QUERY` was very likely the cause (record it).
-       Off the car first: `MESA_VER=22.3.7 DXVK_VER=2.6.2 DXVK_PROGRAMS=...
-       sh tools/vk-trial/dxvk/car_test.sh` (not run yet).
+       Off the car: `MESA_VER=22.3.7 DXVK_VER=2.6.2 DXVK_PROGRAMS="t_d3d1164.exe
+       t_d3d964.exe t_d3d1132.exe t_d3d932.exe" sh tools/vk-trial/dxvk/car_test.sh`
+       passed (2026-11-08: the four programs ok, result=ok, no GPU hang or
+       blocked tasks on the stub, 33 s).
      - If both hold: a candidate Steam bundle,
        `STEAM_MESA_VER=22.3.7 STEAM_DXVK_VER=2.6.2 sh tools/vulkan.sh`
        (game.js gives wl-sink `--dmabuf` by `lib/mesa`), one game on it, its
