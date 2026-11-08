@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Yousaf Khan
 #
-# Mesa 19.0.6's ANV through the real gate and probe, in the unit's root
+# Mesa 19.0.6's ANV (or MESA_VER's) through the real gate and probe, in the unit's root
 # filesystem, on gpu-bench's stub GPU (the no-op shim faking the unit's HD
 # 505) behind test/kernel414.c (the unit's IOTG 4.14 kernel's answers).
 # Every stage, as each try on the car would be armed, then the ioctls ANV
@@ -17,6 +17,9 @@ WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 WIN_BENCH=$(cd "$HERE/../gpu-bench" && (pwd -W 2>/dev/null || pwd))
 ROOTFS_IMG=idrive-rootfs:I_21w12.2-1-4
 sh "$HERE/build.sh" >&2
+# which ANV build.sh made (MESA_VER), and the Vulkan version it reports
+MESA=$(cat "$HERE/build/mesa")
+case $MESA in 19.0.6) VK_API=1.1.96 ;; 19.1.8) VK_API=1.1.102 ;; *) echo "anv_test: no Vulkan version known for Mesa $MESA" >&2; exit 2 ;; esac
 OUT=${OUT:-$HERE/build/anv-test}
 mkdir -p "$OUT"
 WIN_OUT=$(cd "$OUT" && (pwd -W 2>/dev/null || pwd))
@@ -57,10 +60,10 @@ for s in instance enumerate device compute draw present; do
     hasnt "$OUT/$s.crumbs.log" "! refused" "the display node never asked for"
     case $s in
     instance) hasnt "$OUT/$s.crumbs.log" "open /dev/dri" "no device opened yet" ;;
-    enumerate) has "$OUT/$s.out.log" "device: Intel(R) HD Graphics 505 (Broxton), Vulkan 1.1.96, driver 19.0.6, 8086:5a84" "ANV on the unit's chip, Vulkan 1.1 as on the car"
+    enumerate) has "$OUT/$s.out.log" "device: Intel(R) HD Graphics 505 (Broxton), Vulkan $VK_API, driver $MESA, 8086:5a84" "ANV on the unit's chip, Vulkan 1.1 as on the car"
                has "$OUT/$s.crumbs.log" "< SYNCOBJ_WAIT = -1 Timer expired" "a fresh syncobj's wait: ETIME, as the car answered"
                has "$OUT/$s.crumbs.log" "< GETPARAM = 0 param 30 -> 1" "MMAP_VERSION 1, as the car answered"
-               has "$OUT/$s.out.log" "driver 19.0.6, 8086:5a84" "Mesa 19.0.6, the car's PCI id"
+               has "$OUT/$s.out.log" "driver $MESA, 8086:5a84" "Mesa $MESA, the car's PCI id"
                has "$OUT/$s.crumbs.log" "< GETPARAM = -1 Invalid argument param 50" "asked for context isolation, told no (as 4.14)"
                hasnt "$OUT/$s.crumbs.log" "GEM_EXECBUFFER2" "nothing submitted" ;;
     device) hasnt "$OUT/$s.out.log" "stage compute" "stopped after device" ;;

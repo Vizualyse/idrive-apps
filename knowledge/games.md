@@ -164,9 +164,35 @@ under Proton): a line says which. Index: [index.md](index.md).
   host_query_reset (1.10.x), Mesa 22+ has Vulkan 1.3 (2.x); see
   [browser.md](browser.md), "Vulkan on this kernel", for what stands in the
   way of each. DXVK 1.9.4 has no LOD-bias option (2.x's `samplerLodBias`).
-- **32-bit DXVK isn't working yet:** off the car `t_d3d932.exe` finds DXVK's
-  adapter and exits 1 (WoW64 winevulkan on ANV 19?); 32-bit games stay on
-  WineD3D (TODO: recheck with Teslagrad).
+- **32-bit DXVK needs ANV 19.1+ (bench, 2026-11-08):** under new WoW64 a
+  32-bit program's mapped GPU memory must sit below 4 GB. Wine (win32u's
+  `vulkan.c`) gets that through `VK_EXT_map_memory_placed` (Mesa 23.3+) or
+  else `VK_EXT_external_memory_host` (its own low allocation imported into
+  ANV, `I915_GEM_USERPTR` in the kernel); ANV 19.0.6 has neither, so every
+  `vkMapMemory` lands above 4 GB and is refused: DXVK logs `Mapping memory
+  failed with VK_ERROR_OUT_OF_HOST_MEMORY`, `CreateDevice` gives
+  `D3DERR_NOTAVAILABLE` (0x8876086a), D3D11 `E_FAIL`. **ANV 19.1.8 has
+  external_memory_host** (and host_query_reset): `t_d3d932` and `t_d3d1132`
+  pass on it, on the bench and through the car's steps
+  (`MESA_VER=19.1.8 DXVK_PROGRAMS=... sh tools/vk-trial/dxvk/car_test.sh`),
+  DXVK 1.9.4 and 1.10.3 alike; 64-bit unchanged; vk-trial's stages ask the
+  kernel nothing new (the probe doesn't use USERPTR: the 32-bit path is the
+  first user). Wine also warns "Cannot export WOW64 memory without
+  VK_EXT_map_memory_placed": a 32-bit game can't share D3D resources with
+  another process (rare). Not on the car yet: vk-trial first (TODO).
+- **Mesa 19.1 builds with meson 0.61** (18.04's 0.45 is too old) once
+  `src/util/xmlpool/options.h` is built first (else "No such file":
+  vk-trial's `image/Dockerfile`, `MESA_VER`).
+- **The DXVK bench before 2026-11-08** ran 32-bit programs without
+  `PROTON_USE_WOW64=1` (they never started: "Failed to create process": 731)
+  and turned `t_d3d932` into `t_d3d93264`; fixed in `dxvk/bench.sh`,
+  `in_bench.sh` (its prefix volume is now `...-wow64`, Proton's `i386-unix`
+  64-bit-only as the Steam bench's).
+- **WineD3D 32-bit on the stub** passes through wl-sink (`COMPOSITOR=wl-sink
+  sh test/run_bench.sh stub t_d3d932`, exit 0; the "Context array not
+  freed!" line remains at teardown). The bench's default, weston, fails on
+  the stub ("Failed to find a suitable pixel format"): a bench limit, not the
+  tool (which uses wl-sink).
 - **wl-sink forwards DXVK's buffers to Winston as they are (120 fwd), but
   not Godot's** (STS2: 0 fwd, each picture read back, ~109 ms): not yet
   understood. Up to 0.1.9 wl-sink read back any surface with a viewport or

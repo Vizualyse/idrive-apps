@@ -23,7 +23,8 @@ VKT=$(cd "$HERE/../../tools/vk-trial" && pwd)
 WIN_VKT=$(cd "$VKT" && (pwd -W 2>/dev/null || pwd))
 DXVK_VER=1.9.4
 DXVK_SHA=854f564c3b58a4cdf7b16eb9a4b6bc6ddc0f83d68c4f979a529fc23f7a770502
-sh "$VKT/build.sh" >&2
+# Steam ships 19.0.6 until 19.1.8 has had its vk-trial on the car (TODO)
+MESA_VER=19.0.6 sh "$VKT/build.sh" >&2
 mkdir -p "$HERE/build"
 # DXVK's release tarball into the build's download volume (as Proton's), checked
 docker run --rm --platform linux/amd64 -v steam-build-dl:/dl -v "$WIN_VKT/build:/v:ro" -v "$WIN_HERE:/m" -v "$WIN_HERE/tools:/t:ro" \

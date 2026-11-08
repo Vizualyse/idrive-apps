@@ -420,15 +420,48 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
 - [ ] **32-bit games, a long session:** threads come and go with an LDT
   entry each (`patches/wine-no-ia32.patch`), freed with the thread: watch a
   long FTL session for "too many threads".
-- [ ] **32-bit D3D9 on `stub` exits 1 at teardown** after a full run
-  (`wined3d_device_cleanup Context array not freed!`; 64-bit and `swrast`
-  are fine).
-- [ ] **32-bit games on Vulkan:** recheck with Teslagrad (249590, Unity,
-  32-bit D3D9) some time after 0.1.9. Off the car `tools/vk-trial/dxvk`'s
-  `t_d3d932.exe` exits 1 after finding DXVK's adapter (WoW64 winevulkan's
-  memory mapping on ANV 19?) and `t_d3d964.exe` hung 150 s once in the same
-  run (64-bit passed every run before): find out first, on the bench.
-  Gunpoint and FTL are OpenGL (no D3D test).
+- [ ] **32-bit games on Vulkan: needs ANV 19.1.8** (found on the bench
+  2026-11-08, [knowledge/games.md](knowledge/games.md) "Vulkan": 19.0.6 has
+  no `VK_EXT_external_memory_host`, so WoW64 can't map GPU memory below
+  4 GB). Branch `steam-32bit`: vk-trial builds either (`MESA_VER`), Steam
+  still pins 19.0.6. On the car, each step asked first, read the logs
+  after (no polling during):
+  1. Read-only: `zcat /proc/config.gz | grep -E "MMU_NOTIFIER|DRM_I915_USERPTR"`
+     (if the unit has it): 32-bit DXVK's memory goes through
+     `I915_GEM_USERPTR`, which vk-trial's stages never used; 4.14 needs
+     `CONFIG_MMU_NOTIFIER` for it.
+  2. `MESA_VER=19.1.8 sh tools/vk-trial/build.sh` and `dxvk/package.sh`,
+     both onto the car, then the 32-bit try through the gate
+     (`tools/vk-trial/README.md`, "The 32-bit try": `run.js run t_d3d932.exe
+     t_d3d1132.exe t_d3d1164.exe t_d3d964.exe`). Read `out.log`, `result`,
+     `crumbs.log` (`USERPTR` lines). If it hangs: the gate's marker, `hung`
+     at the next boot, `arm --again` wanted; the last `>` crumb without its
+     `<` is the call; Steam itself untouched (19.0.6).
+  3. If it passes: Steam with 19.1.8 (`tools/vulkan.sh`'s pin, `VERSION`,
+     server.js's "ANV 19.0.6" log line), Vulkan allowed for 32-bit games
+     (`vulkanDefault`: x64 only now), released, then Teslagrad (below).
+- [ ] **`t_d3d964` sometimes hangs to run.js's 150 s timeout** off the car
+  (twice in ~20 runs of vk-trial's DXVK tests, once on ANV 19.0.6 and once
+  on 19.1.8, both run after `t_d3d1164` in the same go): not the driver.
+  Not caught with logs yet; next time keep the whole `car_test.sh` output
+  (run.js prints the program's Wine errors) and its `.wine.log`.
+- [ ] **Teslagrad on the car (249590; Unity 4, 2013, 32-bit, D3D9):**
+  1. `pidof dotnet` (read-only; a DepotDownloader left from the stalled try,
+     pid 28447 then): if there is one, ask before killing it.
+  2. Download with "Download from" Amsterdam (or Frankfurt), not
+     Automatic (London's certificates). If it stalls again, note
+     DepotDownloader's last lines (journal) and stop: `-depot` by default is
+     the CDN item below.
+  3. On WineD3D (Vulkan off, today's default for 32-bit): it starts, draws,
+     touch / pad work. Unity 4 may open its resolution dialog first (a Win32
+     dialog: tap Play). Options to try: `-screen-width 960 -screen-height 540
+     -screen-fullscreen 1`; `-force-opengl` (Unity 4's own GL renderer,
+     WineD3D out of the way). Unity 4 has no `-force-glcore`. Its log:
+     `Teslagrad_Data/output_log.txt` (Unity version, renderer).
+  4. On DXVK, only after the vk-trial try above passed and Steam has
+     19.1.8: Vulkan on for it, the same checks; frame times from wl-sink's
+     stats against WineD3D's.
+  Then `vulkan-crumbs.log` and the journal, once, after.
 - [ ] **Steam's CDN in London serves the wrong certificates** (lhr1
   servers, 2026-11-08; DNS the same over the phone and 8.8.8.8; Amsterdam
   and Frankfurt fine). The phone page's "Download from" region (`-cellid`)

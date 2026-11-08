@@ -107,6 +107,12 @@ before anything of it goes into the Steam tool.
   own 3.1 need 1.3; 1.10.x wants `VK_EXT_host_query_reset` at every feature
   level (Mesa 19.1+; seen: "Requested feature level not supported"). 1.9.4
   needs transform feedback from 10_0, which ANV 19.0 has.
+- **32-bit programs need ANV 19.1.8** (`MESA_VER=19.1.8` for `build.sh` and
+  everything that calls it): 19.0.6 lacks `VK_EXT_external_memory_host`, so
+  WoW64 can't map GPU memory below 4 GB ([knowledge/games.md](../../knowledge/games.md),
+  "Vulkan"). The Steam tool pins 19.0.6 (`tools/vulkan.sh`) until 19.1.8
+  has had its try here. `build/mesa` says which one `build/` holds;
+  `package.sh` packs whatever that is.
 - **The Steam tool's bundles, unchanged:** its runtime, Proton and
   `launch.json` (Proton's environment and argv, as `game.js` starts Wine).
   A private prefix: a copy of the Steam prefix, uid 12990's, with DXVK in
@@ -132,6 +138,17 @@ node /var/opt/vk-trial/dxvk/run.js setup         # root: the private prefix (~26
 G=/var/opt/vk-trial/bin/vk-trial
 $G arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run && $G run
 cat $(cat /var/opt/vk-trial/state/last)/out.log  # each program's lines, wl-sink's GPU buffers
+```
+
+The 32-bit try: `MESA_VER=19.1.8 sh tools/vk-trial/build.sh`, then
+`package.sh`, both packages onto the car as above (vk-trial.tgz now holds
+ANV 19.1.8). Off the car first:
+`MESA_VER=19.1.8 DXVK_PROGRAMS="t_d3d932.exe t_d3d1132.exe t_d3d1164.exe t_d3d964.exe" sh tools/vk-trial/dxvk/car_test.sh`.
+On the car, the programs as run.js's arguments (the gate passes no
+environment):
+
+```sh
+$G arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run t_d3d932.exe t_d3d1132.exe t_d3d1164.exe t_d3d964.exe && $G run
 ```
 
 On the car the programs check their read-back pixels (`T_D3D11_CHECK_PIXELS`
