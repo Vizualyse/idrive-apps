@@ -241,11 +241,17 @@ refuse scripts; `git` works) and a web search.
   `gitlab.freedesktop.org/mesa/mesa/-/raw/<tag>/...`): ANV from **19.1** has
   `VK_EXT_host_query_reset` (DXVK 1.10.x's requirement on record; the rest
   unchecked); Vulkan 1.3 (DXVK 2.x) from Mesa 22. **iris 19.3.5 has no
-  context-isolation check** (`iris_screen.c`; it arrives in 20.0), so 19.3's
-  iris may load on 4.14 unpatched; whether it's safe without isolation is
-  the open question (20.0 added the check for a reason), so only through
-  vk-trial's gate. iris would bring Gallium Nine (D3D9 natively) and
-  probably a faster GL than i965.
+  context-isolation check** (`iris_screen.c`; it arrives in 20.0), and it
+  loads on the 4.14 stand-in, but **stock it isn't safe here**: it writes
+  CS_DEBUG_MODE2 (constant buffer 0 absolute) unconditionally, the
+  register that isn't the context's own without isolation and that the
+  HMI's i965 leaves alone on this kernel (buffer 0 relative); and it asks
+  `I915_QUERY` (ioctl 0x39), GEM_GVTBUFFER on the unit's kernel.
+  [tools/iris-bench](../tools/iris-bench/README.md) patches both (and
+  CS_CHICKEN1) for kernels without isolation; on the stub it then writes
+  only what i965 writes (2026-11-08, [games.md](games.md) "iris / Gallium
+  Nine (bench)"). **Any newer `src/intel` (ANV 19.3+, too?) may ask 0x39
+  the same way**: check with kernel414's HAZARD before a car try.
 - **The first candidate (now proven, below): ANV from Mesa 19.0.6**, the release the
   unit's own i965 is from (same era as the kernel, no context-isolation
   dependence), built for the unit's glibc, under the safety net above.

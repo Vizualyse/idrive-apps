@@ -124,11 +124,18 @@ workflow (Actions > Release, the component ids).
      tool writes): Unity `-screen-quality Fastest`, Unreal `Engine.ini`
      `r.ScreenPercentage`, `sg.ShadowQuality=0`, post-processing off,
      Source `-dxlevel 90`; the game's own render scale keeps its HUD sharp.
-  6. **Later, only if 3 lands:** iris 19.3 under the gate (no isolation
-     check before 20.0) and Gallium Nine for D3D9 (open question: Nine
-     loads a native library into the game, and our 32-bit games are WoW64
-     with no 32-bit Linux libraries); frame generation (lsfg-vk 2.0 needs
-     Vulkan 1.2 and costs GPU we lack).
+  6. **Later:** iris 19.3 (bench 2026-11-08, [tools/iris-bench](tools/iris-bench/README.md),
+     [knowledge/games.md](knowledge/games.md) "iris / Gallium Nine"):
+     patched for the unit's kernel (no CS_DEBUG_MODE2 / CS_CHICKEN1, no
+     I915_QUERY), WineD3D 64 / 32-bit on it on the stub, GL 4.6, wl-sink
+     on the unit's i965 importing its buffers. Car: one gated try like
+     vk-trial's (iris's own EGL set, gpu-bench's gltest, then t_d3d9 in
+     Wine; `dmesg` for i915 errors and the HMI drawing right during and
+     after, the picture's colours through wl-sink), and only then a
+     per-game "OpenGL: iris" switch in Steam. Gallium Nine
+     dropped: its only Wine front end presents through X11, and 32-bit
+     would need a new WoW64 front end and below-4 GB mappings in Gallium.
+     Frame generation (lsfg-vk 2.0 needs Vulkan 1.2 and costs GPU we lack).
 - [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
   volume does nothing until a CarPlay phone connects (our sound goes into
   CarPlay's SmartXbar input; see Moonlight's item below and

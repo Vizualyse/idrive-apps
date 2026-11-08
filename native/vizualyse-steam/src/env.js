@@ -161,9 +161,14 @@ function baseEnv() {
 /* wl-sink: the unit's EGL ahead of the runtime (it imports Wine's frames on the GPU). */
 function sinkEnv() {
     const e = baseEnv();
-    e.LD_LIBRARY_PATH = EXTRA_LIBS + GPU_LIBS + ':' + RUNTIME + '/lib';
+    /* STEAM_SINK_UNIT_MESA (off the car: tools/iris-bench): wl-sink on the
+     * unit's own Mesa while Wine has the bench's (iris), as it would be */
+    const unit = !!process.env.STEAM_SINK_UNIT_MESA;
+    e.LD_LIBRARY_PATH = (unit ? '' : EXTRA_LIBS) + GPU_LIBS + ':' + RUNTIME + '/lib';
     if (process.env.STEAM_SINK_DEBUG) e.WL_SINK_DEBUG = '1';   /* its buffers' state each second (tests) */
-    return mesaEnv(e);
+    mesaEnv(e);
+    if (unit) { e.LIBGL_DRIVERS_PATH = UNIT_LIB + '/dri'; delete e.MESA_LOADER_DRIVER_OVERRIDE; }
+    return e;
 }
 
 /* DepotDownloader on .NET: no ICU (InvariantGlobalization), OpenSSL from the

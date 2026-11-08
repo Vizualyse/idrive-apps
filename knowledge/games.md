@@ -226,6 +226,47 @@ under Proton): a line says which. Index: [index.md](index.md).
   (Broxton)" with 4209 MB, which few games' tables know. `DXVK_CONFIG_FILE`
   is opened through Windows' file calls: give it a `Z:\` path.
 
+## iris / Gallium Nine (bench, 2026-11-08)
+
+[tools/iris-bench](../tools/iris-bench/README.md): Mesa 19.3.5's iris for
+the unit, on gpu-bench's stub behind vk-trial's kernel414 (the unit's 4.14
+answers). Nothing has run on the car.
+
+- **iris needs its own EGL / GBM / GLES / glapi set:** the unit's libEGL
+  19.0.6 loading iris_dri.so 19.3.5 crashes (a different GL dispatch).
+  Process-local for Wine (as the runtime's libraries are); the HMI keeps
+  the unit's i965. With its set: **OpenGL ES 3.2, desktop GL 4.6 core and
+  4.6 compatibility, GLSL 4.60** (the unit's i965: 4.5 core, 3.0
+  compatibility, so Proton's GLSL 3.30 compatibility shaders, e.g. the
+  fullscreen hack's gamma, would compile).
+- **Stock 19.3 iris isn't safe on this kernel** (knowledge/browser.md,
+  "Vulkan on this kernel"): CS_DEBUG_MODE2 written unconditionally,
+  CS_CHICKEN1 (object preemption), and `I915_QUERY` = GEM_GVTBUFFER here.
+  Patched (`image/iris_no_isolation.py`, only when the kernel has no
+  isolation), it writes on the stub only CACHE_MODE_1 and GT_MODE with
+  the unit's i965's own values, and L3CNTLREG; no ioctl kernel414 flags.
+- **The Steam bench's Wine on iris** (`IRIS=1 sh
+  native/vizualyse-steam/test/run_unit_test.sh stub`): every check passes,
+  64-bit and 32-bit (WoW64) Direct3D 9 through WineD3D, wl-sink on iris
+  too, frames held to 28.6 a second. Wine reports the prefix's adapter
+  (HD Graphics 510) as on i965. With `IRIS=sink-unit` (wl-sink on the
+  unit's i965, as on the car) it imports iris's PRIME buffers (wl_drm, no
+  modifier) and every check passes too; the stub has no pixels, so a
+  tiling mismatch would show only on the car.
+- **Gallium Nine: its Mesa side works, the Wine side can't here.** Mesa's
+  d3dadapter9 makes an adapter on the render node through iris (VS / PS
+  3.0, `bench/ninetest`; Mesa 19.3 still maps Gen9 to i965:
+  `MESA_LOADER_DRIVER_OVERRIDE=iris`). But wine-nine-standalone (v0.10,
+  the only front end; Proton and wine-staging carry none) is an old-style
+  winelib `.dll.so` that presents only through X11 (DRI3 / DRI2 via xcb,
+  the drawable from winex11.drv's `X11DRV_GET_DRAWABLE` escape): no X
+  server here, and Wine's Wayland driver has no such escape. 64-bit Nine
+  would need a front end that presents to Wayland (wl-sink); 32-bit, under
+  new WoW64, also a PE d3d9 with a 64-bit unixlib, WoW64 thunks for the
+  whole D3D9 interface, and every Lock's mapping placed below 4 GB in
+  Gallium (32-bit DXVK's problem, without an extension to lean on).
+  Not worth it while 32-bit DXVK works on ANV 19.1.8.
+
 ## Steam's CDN (2026-11-08)
 
 - **London's servers (lhr1) present the wrong TLS certificates** from the
