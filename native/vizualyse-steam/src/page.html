@@ -156,6 +156,10 @@ function render(s) {
         '<p class="dim">Direct3D 9-11 through DXVK, or a Godot 4 game\'s own Vulkan renderer, instead of OpenGL: on by default for 64-bit games' +
         (x.arch === 'x86' ? ' (this one is 32-bit: OpenGL by default)' : '') + '. If the unit restarts during the game, Vulkan turns itself off for it. ' +
         'A Godot 4 game\'s default launch options switch to Vulkan by themselves.</p>' : '') +
+      '<div class="row"><button data-act="detail">Detail: ' + esc(x.detail || 'normal') + '</button></div>' +
+      '<p class="dim">Lite: no anti-aliasing or tessellation, and the game\'s own low settings where the tool knows its engine ' +
+      '(Unity, Unreal, Source). Potato: also Direct3D 11 at 10.1, shader model 2 for Direct3D 9, less video memory reported: ' +
+      'faster and plainer, and some games won\'t start (then Lite). From the next start.</p>' +
       '<div class="row"><button data-act="validate">Check and update files</button><button class="bad" data-act="remove">Remove</button></div>' +
       '</details></div>').join('') : '<p class="dim">No games yet: install one below.</p>';
   }
@@ -249,6 +253,12 @@ $('library').addEventListener('click', (e) => {
   if (act === 'vulkan') {
     const g = last && last.library.filter((x) => x.appId === appId)[0];
     api('/api/game', { appId: appId, vulkan: !(g && g.vulkan) }).catch(() => null);
+  }
+  if (act === 'detail') {
+    const g = last && last.library.filter((x) => x.appId === appId)[0];
+    const ds = (last && last.choices && last.choices.details) || ['normal', 'lite', 'potato'];
+    const next = ds[(ds.indexOf((g && g.detail) || 'normal') + 1) % ds.length];
+    api('/api/game', { appId: appId, detail: next }).catch(() => null);
   }
   if (act === 'validate') api('/api/validate', { appId: appId }).catch(() => null);
   if (act === 'remove' && confirm('Remove this game and its files from the car? (Saves in the Windows prefix stay.)')) {

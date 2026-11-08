@@ -137,7 +137,7 @@ class Game extends EventEmitter {
                         scaled: e.scaled || 0, commits: e.commits || 0, ms: e.ms,
                         fsr: e.fsr || 0, fsrSkipped: e.fsrSkipped || 0, fsrGpuMs: e.fsrGpuMs, fsrSize: e.fsrSize };
                     /* the journal's "perf:" lines (src/perf.js) */
-                    if (!this.perf) this.perf = new Perf({ log: (s) => this._log(s), label: o.name, frame: o.frame, mode: o.upscale || 'off', cgroup: o.cgroup });
+                    if (!this.perf) this.perf = new Perf({ log: (s) => this._log(s), label: o.name, frame: Object.assign({}, o.frame, { detail: o.detail }), mode: o.upscale || 'off', cgroup: o.cgroup });
                     this.perf.sample(e);
                     if (this.state === 'starting' && (e.drm || e.shm)) this._set('running');
                     this.emit('stats', this.stats);
@@ -230,7 +230,7 @@ class Game extends EventEmitter {
         this._startSound();
         this._startPads();
         const exe = path.join(o.dir, o.exe);
-        const e = env.wineEnv(o.launch, o.appId, DISPLAY, !!o.vulkan);
+        const e = env.wineEnv(o.launch, o.appId, DISPLAY, !!o.vulkan, o.detail);
         const libs = e.LD_LIBRARY_PATH;
         delete e.LD_LIBRARY_PATH;
         /* into the memory cgroup first, then exec: every Wine process stays in

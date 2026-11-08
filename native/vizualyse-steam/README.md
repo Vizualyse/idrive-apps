@@ -85,6 +85,18 @@ rebuilt `ntdll.so`, below).
   phone page. It enlarges the HUD and text too; a game's own render scale
   keeps those sharp. Off the car: `test/run_fsr_test.sh` (the shaders on the
   unit's i965 compiler; pixels on llvmpipe, against bilinear).
+- **Detail (0.1.11, per game, experimental):** Options on the phone page,
+  Normal / Lite / Potato, from the game's next start, on top of its own
+  settings and launch options (never saved into them). Lite: MSAA off and
+  tessellation capped (DXVK: `d3d11.disableMsaa`, `d3d9.forceSwapchainMSAA`,
+  `maxTessFactor 8`; WineD3D: `WINE_D3D_CONFIG` without multisample
+  textures or hull / domain shaders) and the engine's own low settings
+  (`steam.detailArgs`: Unity `-screen-quality Fast`, Unreal `-ExecCmds` with
+  scalability groups at 0, Source convars). Potato: also Direct3D 11 at
+  feature level 10_1, tessellation 1, 512 MB reported (DXVK); shader model 2
+  for Direct3D 9 and 512 MB (WineD3D); Unity `Fastest`, more Unreal and
+  Source groups. Some games refuse Potato: then Lite. The journal's
+  `detail:` line names what was applied.
 - **Performance in the journal (0.1.11):** `perf:` lines (`src/perf.js`)
   every 10 s, at each change of upscaling and as a summary per mode when the
   game ends: fps, the 1 % and 0.1 % lows, the 99th percentile and worst

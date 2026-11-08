@@ -58,7 +58,7 @@ trap 'docker rm -f $NAME >/dev/null 2>&1' EXIT INT TERM
 # shellcheck disable=SC2086 # progs and DOCKER_ARGS are word lists
 docker run --rm --name $NAME --network none --shm-size=512m -v "$WIN_HERE/build:/b" -v "$WIN_HERE/test:/s:ro" \
     -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$GPU" -e BENCH=/g -e UNIT_GL=/b/unit-gl \
-    -e COMPOSITOR="${COMPOSITOR:-weston}" ${WINEDEBUG:+-e WINEDEBUG="$WINEDEBUG"} \
+    -e COMPOSITOR="${COMPOSITOR:-weston}" ${WINEDEBUG:+-e WINEDEBUG="$WINEDEBUG"} ${WINE_D3D_CONFIG:+-e WINE_D3D_CONFIG="$WINE_D3D_CONFIG"} \
     ${SHOW_COMPOSITOR:+-e SHOW_COMPOSITOR=1} ${WL_SINK_ARGS:+-e WL_SINK_ARGS="$WL_SINK_ARGS"} ${WL_SINK_WRAP:+-e WL_SINK_WRAP="$WL_SINK_WRAP"} \
     ${SHOW_LOG:+-e SHOW_LOG="$SHOW_LOG"} ${T_TIMEOUT:+-e T_TIMEOUT="$T_TIMEOUT"} \
     -v steam-bench-proton:/proton:ro $WOW64_ARGS \

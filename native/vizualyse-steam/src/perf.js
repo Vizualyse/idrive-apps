@@ -137,7 +137,7 @@ function frameStats(ft) {
 function fmt(a, mode, frame) {
     const r = (x, d) => (a.s ? x / a.s : 0).toFixed(d === undefined ? 1 : d);
     const f = frameStats(a.ft);
-    let t = mode + ' at ' + frame.w + 'x' + frame.h + ': ' +
+    let t = mode + ' at ' + frame.w + 'x' + frame.h + (frame.detail && frame.detail !== 'normal' ? ' ' + frame.detail : '') + ': ' +
         (f ? f.fps.toFixed(1) + ' fps, 1% low ' + f.low1.toFixed(1) + ', 0.1% low ' + f.low01.toFixed(1) +
             ', frame time p99 ' + f.p99.toFixed(1) + ' ms, worst ' + f.worst.toFixed(1) + ' ms (' + f.frames + ' frames); ' : '') +
         r(a.pictures) + ' pictures/s, wl-sink ' +

@@ -123,15 +123,21 @@ workflow (Actions > Release, the component ids).
      22.x-23.1 as is, or newer with the isolation commit reverted). Each
      through `tools/vk-trial` on the bench and once on the car; the 22.3
      hang needs its witness (crumbs, `sysrq w`) before 22.x ships.
-  4. **After that, the rest of the levers:** `dxvk.conf`
-     `d3d11.disableMsaa`, `d3d9.forceSwapchainMSAA = 0`,
-     `d3d11.maxTessFactor`, per game `d3d11.maxFeatureLevel = 10_1`, and
-     with 2.x `samplerLodBias` (lower texture detail: memory bandwidth);
-     WineD3D `MaxShaderModelPS` / `VS` 2 per game.
-  5. **Per-engine low-spec presets** (launch options / config files the
-     tool writes): Unity `-screen-quality Fastest`, Unreal `Engine.ini`
-     `r.ScreenPercentage`, `sg.ShadowQuality=0`, post-processing off,
-     Source `-dxlevel 90`; the game's own render scale keeps its HUD sharp.
+  4. **Detail Lite / Potato on the car (Steam 0.1.11, built and tested
+     off the car 2026-11-08):** per game on the phone page (Options):
+     DXVK's MSAA / tessellation / feature level 10_1 / 512 MB, WineD3D's
+     `WINE_D3D_CONFIG` (shader model 2 seen applied on the stub), engine
+     presets (Unity `-screen-quality`, Unreal `-ExecCmds` scalability,
+     Source convars). With one game each on DXVK and on WineD3D (and a
+     Unity one: Teslagrad is Unity 4, now recognised): normal, Lite,
+     Potato, each a few minutes in the same scene, then the journal's
+     `perf: summary` lines compared (fps and lows, GPU busy, the game's
+     memory); and whether it starts at all on Potato (feature level 10_1
+     and shader model 2 stop some games: note which). The `detail:` line
+     in the journal says what was applied. Later, with DXVK 2.x:
+     `samplerLodBias` (lower texture detail: memory bandwidth); the
+     game's own render scale (keeps its HUD sharp) where an engine has
+     one we can set from outside.
   6. **Later, only if 3 lands:** iris 19.3 under the gate (no isolation
      check before 20.0) and Gallium Nine for D3D9 (open question: Nine
      loads a native library into the game, and our 32-bit games are WoW64

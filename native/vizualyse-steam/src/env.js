@@ -94,17 +94,48 @@ const VK = {
  *   pick their settings by the adapter pick low ones on either renderer.
  *   d3d9.maxAvailableMemory only reports (d3d9.memoryTrackTest stays off). */
 const ADAPTER = { vendor: '8086', device: '1902', desc: 'Intel(R) HD Graphics 510', memMb: 1024 };
-function dxvkConf(fps) {
+
+/* A game's Detail (per game; the phone page): what is turned down on top of
+ * the game's own settings, at the cost of its look, for a GPU that is the
+ * limit (games on the car were GPU / memory bound, 2026-11-08).
+ *   lite    MSAA off (DXVK: d3d11.disableMsaa, d3d9.forceSwapchainMSAA 0;
+ *           WineD3D: MultisampleTextures 0), tessellation capped (DXVK
+ *           maxTessFactor 8; WineD3D: no hull / domain shaders, so none);
+ *           plus the engine's own low settings (steam.detailArgs).
+ *   potato  as lite, and: Direct3D 11 games see feature level 10_1 (DXVK;
+ *           many take their cheaper D3D10 path, some refuse to start),
+ *           tessellation at 1, 512 MB of video memory reported (lower
+ *           texture presets); WineD3D: shader model 2 for Direct3D 9
+ *           (vertex / pixel), 512 MB. If a game won't start: Lite.
+ * WineD3D's through WINE_D3D_CONFIG (its wined3d_main.c reads it over the
+ * registry; checked in GE-Proton 11's Wine). */
+const DETAILS = ['normal', 'lite', 'potato'];
+const DETAIL_DXVK = {
+    normal: [],
+    lite: ['d3d11.disableMsaa = True', 'd3d9.forceSwapchainMSAA = 0', 'd3d11.maxTessFactor = 8'],
+    potato: ['d3d11.disableMsaa = True', 'd3d9.forceSwapchainMSAA = 0', 'd3d11.maxTessFactor = 1', 'd3d11.maxFeatureLevel = 10_1'],
+};
+/* csmt=1 first: Wine's default anyway, and wined3d logs "Setting
+ * multithreaded command stream to 0x1" (winediag) when it reads it: the
+ * journal shows the game's wined3d took the settings */
+const DETAIL_WINED3D = {
+    normal: '',
+    lite: 'csmt=1,MultisampleTextures=0,MaxShaderModelHS=0,MaxShaderModelDS=0',
+    potato: 'csmt=1,MultisampleTextures=0,MaxShaderModelHS=0,MaxShaderModelDS=0,MaxShaderModelVS=2,MaxShaderModelPS=2,VideoMemorySize=512',
+};
+
+function dxvkConf(fps, detail) {
+    const mem = detail === 'potato' ? 512 : ADAPTER.memMb;
     return [
         'dxgi.maxFrameRate = ' + fps, 'd3d9.maxFrameRate = ' + fps,
         'dxgi.maxFrameLatency = 1', 'd3d9.maxFrameLatency = 1',
         'dxvk.numCompilerThreads = 2',
         'd3d11.samplerAnisotropy = 0', 'd3d9.samplerAnisotropy = 0',
         'dxgi.customVendorId = ' + ADAPTER.vendor, 'dxgi.customDeviceId = ' + ADAPTER.device,
-        'dxgi.customDeviceDesc = "' + ADAPTER.desc + '"', 'dxgi.maxDeviceMemory = ' + ADAPTER.memMb,
+        'dxgi.customDeviceDesc = "' + ADAPTER.desc + '"', 'dxgi.maxDeviceMemory = ' + mem,
         'd3d9.customVendorId = ' + ADAPTER.vendor, 'd3d9.customDeviceId = ' + ADAPTER.device,
-        'd3d9.customDeviceDesc = "' + ADAPTER.desc + '"', 'd3d9.maxAvailableMemory = ' + ADAPTER.memMb,
-    ].join('\n') + '\n';
+        'd3d9.customDeviceDesc = "' + ADAPTER.desc + '"', 'd3d9.maxAvailableMemory = ' + mem,
+    ].concat(DETAIL_DXVK[detail] || []).join('\n') + '\n';
 }
 function vulkanMissing() {
     return [VK.driver, VK.lib + '/libvulkan.so.1', VK.crumbs, VK.dxvk + '/x64/d3d11.dll', VK.dxvk + '/x32/d3d11.dll']
@@ -182,7 +213,7 @@ function dotnetEnv() {
 /* Wine for a game, as Proton starts it (build/launch.json, captured from
  * Proton's own launcher at build time), here: the unit's EGL first, the
  * runtime's libraries, then Proton's own. */
-function wineEnv(launch, appId, display, vulkan) {
+function wineEnv(launch, appId, display, vulkan, detail) {
     const e = Object.assign({}, launch.env, baseEnv());
     const protonLibs = (launch.env.LD_LIBRARY_PATH || '').split(':').filter((p) => p && p.indexOf(PROTON) === 0);
     e.LD_LIBRARY_PATH = EXTRA_LIBS + [GPU_LIBS, RUNTIME + '/lib'].concat(protonLibs).join(':');
@@ -226,6 +257,8 @@ function wineEnv(launch, appId, display, vulkan) {
      * at least 1 whatever is asked, so each swap waits for wl-sink's frame
      * callback, answered at the tool's frame rate (wl-sink --fps). */
     e.vblank_mode = '3';
+    /* the game's Detail for WineD3D (DETAIL_WINED3D) */
+    if (!vulkan && DETAIL_WINED3D[detail]) e.WINE_D3D_CONFIG = DETAIL_WINED3D[detail];
     mesaEnv(e);
     /* vk_crumbs.so first, ahead of any preload the bench adds (STEAM_EXTRA_ENV, applied by mesaEnv) */
     if (vulkan) e.LD_PRELOAD = [VK.crumbs].concat((e.LD_PRELOAD || '').split(':').filter((p) => p && !/vk_crumbs\.so$/.test(p))).join(':');
@@ -252,5 +285,6 @@ function userDirs(uid, gid) {
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
     RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, dxvkConf,
+    DETAILS, DETAIL_DXVK, DETAIL_WINED3D,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

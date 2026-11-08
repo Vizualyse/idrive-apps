@@ -226,16 +226,51 @@ function findExes(dir, name) {
  * of which the car has: its OpenGL 3 renderer then (WineD3D isn't involved). */
 function engine(dir, exeRel) {
     const d = path.join(dir, path.dirname(exeRel));
-    let names = [];
+    let names = [], top = [];
     try { names = fs.readdirSync(d); } catch (e) { return null; }
+    try { top = fs.readdirSync(dir); } catch (e) { /* none */ }
+    const base = path.basename(exeRel).replace(/\.exe$/i, '');
     if (names.some((n) => /\.pck$/i.test(n))) return 'godot';
-    if (names.indexOf('UnityPlayer.dll') >= 0) return 'unity';
+    /* Unity 5+ has UnityPlayer.dll; Unity 4 (Teslagrad) only <exe>_Data */
+    if (names.indexOf('UnityPlayer.dll') >= 0 || names.indexOf(base + '_Data') >= 0) return 'unity';
     if (names.some((n) => /^data\.win$/i.test(n))) return 'gamemaker';
+    /* Unreal 4 / 5: <Game>/Binaries/Win64/<Game>-Win64-Shipping.exe, or the launcher beside Engine/ */
+    if (/-Win(64|32)-Shipping$/i.test(base) || (top.indexOf('Engine') >= 0 && top.some((n) => {
+        try { return fs.statSync(path.join(dir, n, 'Binaries')).isDirectory(); } catch (e) { return false; }
+    }))) return 'unreal';
+    /* Source: hl2.exe, or bin/engine.dll beside the exe */
+    if (/^hl2$/i.test(base) || fs.existsSync(path.join(d, 'bin', 'engine.dll'))) return 'source';
     return null;
 }
 
 function defaultArgs(eng) {
     return eng === 'godot' ? ['--rendering-driver', 'opengl3'] : [];
+}
+
+/* A game's Detail (env.js DETAILS) as its engine's own launch options,
+ * added at each start after the game's options (never saved into them):
+ *   unity   -screen-quality: the quality level by name ("Fast", "Fastest":
+ *           Unity's defaults; a game that renamed them keeps its own)
+ *   unreal  -ExecCmds with scalability groups at low (shadows, post
+ *           processing, effects; potato: foliage, textures, view distance,
+ *           motion blur too)
+ *   source  console variables: no shadows or bloom; potato: textures at a
+ *           quarter (mat_picmip 2), DirectX 9 level
+ *   godot, gamemaker, unknown: nothing (env.js's DXVK / WineD3D parts still apply) */
+function detailArgs(eng, detail) {
+    if (detail !== 'lite' && detail !== 'potato') return [];
+    const potato = detail === 'potato';
+    if (eng === 'unity') return ['-screen-quality', potato ? 'Fastest' : 'Fast'];
+    if (eng === 'unreal') {
+        const c = ['sg.ShadowQuality 0', 'sg.PostProcessQuality 0', 'sg.EffectsQuality 0'];
+        if (potato) c.push('sg.FoliageQuality 0', 'sg.TextureQuality 0', 'sg.ViewDistanceQuality 0', 'r.MotionBlurQuality 0');
+        return ['-ExecCmds=' + c.join(',')];
+    }
+    if (eng === 'source') {
+        const a = ['+r_shadows', '0', '+mat_disable_bloom', '1'];
+        return potato ? a.concat(['+mat_picmip', '2', '-dxlevel', '90']) : a;
+    }
+    return [];
 }
 
 /* Bytes in a folder (a game's size), links not followed. */
@@ -320,4 +355,4 @@ function arch(dir, exeRel) {
     }
 }
 
-module.exports = { Download, findExes, engine, arch, defaultArgs, du, storeName, remembered, KNOWN };
+module.exports = { Download, findExes, engine, arch, defaultArgs, detailArgs, du, storeName, remembered, KNOWN };

@@ -342,6 +342,7 @@ async function main() {
     s = await status();
     ok('the game ended: nothing asked of the other tools', s.bus && s.bus.mine === null, JSON.stringify(s.bus));
     if (process.env.WINSTON_CHECK && GPU === 'stub') await scaledMode();
+    if (GPU === 'stub') await detailMode();
 
     /* mscoree is on for games: a prefix update would offer Wine Mono's
      * installer in a window nobody can press */
@@ -467,6 +468,37 @@ async function scaledMode() {
     fs.unlinkSync('/tmp/t_fullscreen');
     await api('/api/stop', {});
     await until('the full-screen game ending', (x) => x.game && x.game.state === 'ended', 60000);
+}
+
+/* Detail Potato on WineD3D: WINE_D3D_CONFIG caps the shader model, which
+ * the test program reads from its device (normal: "vs 3.0 ps 3.0" on the
+ * stub's i965); the tool's log names what it applied. The stub. */
+async function detailMode() {
+    let r = await api('/api/game', { appId: APP, detail: 'potato', vulkan: false });
+    ok('Detail potato is a game option', r.code === 200 && (await status()).library.filter((x) => x.appId === APP)[0].detail === 'potato', r.body && r.body.error);
+    try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+    r = await api('/api/play', { appId: APP });
+    const s = await until('the potato game drawing', (x) => x.game && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    let tl = '';
+    try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+    /* the last caps line: the file can still hold an earlier game's (its truncation above doesn't always take) */
+    const caps = (tl.match(/vs \d\.\d ps \d\.\d/g) || ['none']).pop();
+    /* the game process's own environment (this test is root in the same container) */
+    let genv = 'no game process found';
+    fs.readdirSync('/proc').filter((p) => /^\d+$/.test(p)).forEach((p) => {
+        try {
+            if (!/TestGame\.exe/.test(fs.readFileSync('/proc/' + p + '/cmdline', 'utf8'))) return;
+            const v = fs.readFileSync('/proc/' + p + '/environ', 'utf8').split('\0').filter((x) => /^WINE_D3D_CONFIG=|^WINEDLLOVERRIDES=/.test(x));
+            genv = 'pid ' + p + ': ' + (v.join(' ; ') || 'no WINE_D3D_CONFIG');
+        } catch (e) { /* gone */ }
+    });
+    ok('Detail potato on WineD3D: shader model 2 (WINE_D3D_CONFIG), and the log says what was applied',
+        s.game.state === 'running' && caps === 'vs 2.0 ps 2.0' && /detail: .* potato \(WineD3D: .*MaxShaderModelPS=2/.test(serverLog),
+        caps + ', ' + (serverLog.split('\n').filter((l) => / detail: /.test(l)).pop() || 'no detail line') + '; ' + genv + '; ' +
+        (serverLog.split('\n').filter((l) => / vulkan: App/.test(l)).pop() || '') + '; its lines: ' + tl.split(/\r?\n/).join(' | '));
+    await api('/api/stop', {});
+    await until('the potato game ending', (x) => x.game && x.game.state === 'ended', 60000);
+    await api('/api/game', { appId: APP, detail: 'normal' });
 }
 
 /* Winston output (run_winston_test.sh: the unit's own Winston runs in this

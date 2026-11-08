@@ -263,6 +263,27 @@ under Proton): a line says which. Index: [index.md](index.md).
 - **The stub's timer queries return garbage** (nothing runs): only the
   car's FSR GPU times mean anything.
 
+## Turning a game down from outside (Detail, Steam 0.1.11, bench 2026-11-08)
+
+- **WineD3D takes its options from `WINE_D3D_CONFIG`** over the registry
+  (GE-Proton 11's `dlls/wined3d/wined3d_main.c`, in the `steam-wine-src`
+  volume): `MaxShaderModelVS/HS/DS/GS/PS/CS`, `MultisampleTextures`,
+  `SampleCount`, `VideoMemorySize`, `csmt`, `renderer`, `MaxVersionGL`, ...
+  Per game, no registry write. On the stub `MaxShaderModelVS=2,
+  MaxShaderModelPS=2` turned the test program's caps from "vs 3.0 ps 3.0"
+  into "vs 2.0 ps 2.0".
+- **DXVK 1.9.4's turn-downs:** `d3d11.disableMsaa`, `d3d9.forceSwapchainMSAA`,
+  `d3d11.maxTessFactor` (0 = no limit, so 1 for "none"),
+  `d3d11.maxFeatureLevel`, the memory games are told (`maxDeviceMemory`,
+  `maxAvailableMemory`). No LOD bias before 2.x.
+- **Engines from their folders:** Unity 5+ `UnityPlayer.dll`, Unity 4 only
+  `<exe>_Data` (Teslagrad); Unreal `*-Win64-Shipping.exe` or `Engine/` with
+  `<Game>/Binaries`; Source `hl2.exe` or `bin/engine.dll`; Godot a `.pck`.
+  Their own low settings from the command line: Unity `-screen-quality
+  <level name>` (a game may have renamed "Fast" / "Fastest"), Unreal
+  `-ExecCmds=sg.ShadowQuality 0,...` (scalability groups), Source `+convar`.
+  Not seen on a real game of each yet.
+
 ## Measuring a game (Steam 0.1.11)
 
 - **The journal's `perf:` lines** (`src/perf.js`, from wl-sink's stats and

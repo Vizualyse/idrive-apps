@@ -655,6 +655,11 @@ function setGameOptions(appId, b) {
         if (!!b.vulkan !== vulkanOn(g)) log('vulkan: ' + g.name + ' ' + (b.vulkan ? 'on (from its next start)' : 'off (OpenGL, WineD3D)'));
         g.vulkan = !!b.vulkan;
     }
+    if (b.detail !== undefined) {
+        if (env.DETAILS.indexOf(String(b.detail)) < 0) return 'detail: ' + env.DETAILS.join(', ');
+        if (String(b.detail) !== (g.detail || 'normal')) log('detail: ' + g.name + ' ' + b.detail + ' (from its next start)');
+        g.detail = String(b.detail);
+    }
     saveLibrary();
     if (b.noSteam !== undefined && !!b.noSteam !== !!g.noSteam) return noSteam(appId, !!b.noSteam);
     return null;
@@ -724,14 +729,14 @@ function gameArch(g) {
 function vulkanDefault(g) { return gameArch(g) === 'x64' && env.vulkanMissing().length === 0; }
 function vulkanOn(g) { return g.vulkan === true || g.vulkan === false ? g.vulkan : vulkanDefault(g); }
 
-function vulkanPrepare(fps) {
+function vulkanPrepare(fps, detail) {
     const m = env.vulkanMissing();
     if (m.length) throw new Error('no Vulkan driver here: ' + m[0] + ' is missing');
     try { fs.mkdirSync(env.RUN_DIR, 0o755); } catch (e) { /* there */ }
     fs.writeFileSync(env.VK.icd, JSON.stringify({ file_format_version: '1.0.0', ICD: { library_path: env.VK.driver, api_version: '1.1.102' } }) + '\n');
     fs.chmodSync(env.VK.icd, 0o644);
-    /* DXVK's options (env.dxvkConf: the frame rate, the adapter, ...) */
-    fs.writeFileSync(env.VK.conf, env.dxvkConf(fps));
+    /* DXVK's options (env.dxvkConf: the frame rate, the adapter, the game's Detail, ...) */
+    fs.writeFileSync(env.VK.conf, env.dxvkConf(fps, detail));
     fs.chmodSync(env.VK.conf, 0o644);
     /* DXVK into the prefix, where it differs (Proton does the same for its own) */
     const win = path.join(env.PREFIX, 'pfx', 'drive_c', 'windows');
@@ -788,18 +793,23 @@ function play(appId) {
     const res = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
     try { userDir(env.HOME); writeDns(); } catch (e) { return e.message; }
     const vulkan = vulkanOn(g);
-    if (vulkan) { try { vulkanPrepare(settings.fps); } catch (e) { vulkanEnd(); return 'Vulkan: ' + e.message; } }
+    const detail = g.detail || 'normal';
+    if (vulkan) { try { vulkanPrepare(settings.fps, detail); } catch (e) { vulkanEnd(); return 'Vulkan: ' + e.message; } }
     cgroupDir = cgroup();
     mem.ooms = null; mem.note = null; mem.oomAt = null; mem.peakMb = null;
     restartNote = null;
     /* written (fsynced) before Wine opens the GPU: found at the next start, the unit restarted during it */
     try { writeJson(GAME_RUNNING, { appId: appId, name: g.name, at: new Date().toISOString(), vulkan: vulkan }); } catch (e) { log('game: ' + e.message); }
-    const args = vulkan ? vulkanArgs(g) : g.args;
-    const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch,
+    /* the game's options, then its Detail's for its engine (steam.detailArgs; not saved) */
+    const extra = steam.detailArgs(g.engine, detail);
+    const args = (vulkan ? vulkanArgs(g) : (g.args || [])).concat(extra);
+    if (detail !== 'normal') log('detail: ' + g.name + ' ' + detail + (extra.length ? ': ' + extra.join(' ') : '') +
+        (vulkan ? ' (DXVK: ' + env.DETAIL_DXVK[detail].join(', ') + ')' : ' (WineD3D: ' + env.DETAIL_WINED3D[detail] + ')'));
+    const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch, detail: detail,
         frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, log: log,
         vulkan: vulkan, crumbsFd: vulkan ? vulkanCrumbs : undefined });
-    log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (DXVK 1.9.4 / ANV 19.0.6)' + (args !== g.args ? ', ' + args.join(' ') : '')
+    log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (DXVK 1.9.4 / ANV 19.0.6)' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
         : ' on OpenGL (WineD3D)') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
     game = x;
     x.on('winston-lost', () => {
@@ -912,7 +922,7 @@ function status() {
                 usb: gameStick(x), present: present(x),
                 /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
                 noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
-                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), arch: gameArch(x) };
+                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), arch: gameArch(x), detail: x.detail || 'normal' };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
@@ -926,7 +936,7 @@ function status() {
         bus: bus.state(), busNote: askedOffNote,
         settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume, cellId: settings.cellId || 0, upscale: settings.upscale },
         choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, regions: REGIONS, disk: diskAvailable(),
-            upscales: UPSCALES.map((u) => ({ id: u.id, name: u.name })),
+            upscales: UPSCALES.map((u) => ({ id: u.id, name: u.name })), details: env.DETAILS,
             usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
         space: space, memory: { capMb: settings.memMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
     };
