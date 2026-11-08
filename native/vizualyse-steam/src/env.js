@@ -62,6 +62,26 @@ const WINSTON_SOCKET = process.env.STEAM_WINSTON || '/run/wayland/wayland-0';
  * libwayland 1.15 or libdrm: the runtime's newer ones serve Mesa too) */
 const UNIT_GL = ['libEGL.so.1', 'libgbm.so.1', 'libglapi.so.0', 'libGLESv2.so.2'];
 
+/* Vulkan for the games (per game; the default for 64-bit ones): Mesa
+ * 19.0.6's ANV, its loader, vk_crumbs.so and DXVK 1.9.4 from vulkan.tgz
+ * (tools/vulkan.sh, unpacked into VULKAN; runtime.tgz still carries no GPU
+ * driver: bundle.sh checks). STEAM_VK_TRIAL: tools/vk-trial's install
+ * instead (its layout). Its ICD exists only in RUN_DIR (tmpfs) while such a
+ * game runs; every DRM call of the game is logged to VK.crumbsLog so a hang
+ * leaves a trace. knowledge/browser.md, "Vulkan on this kernel". */
+const VULKAN = ROOT + '/vulkan';
+const VK_BASE = process.env.STEAM_VK_TRIAL || VULKAN;
+const VK = {
+    driver: VK_BASE + '/lib/libvulkan_intel.so', lib: VK_BASE + '/lib', crumbs: VK_BASE + '/lib/vk_crumbs.so',
+    dxvk: process.env.STEAM_VK_TRIAL ? VK_BASE + '/dxvk/dxvk' : VK_BASE + '/dxvk',
+    icd: RUN_DIR + '/vk_icd.json', crumbsLog: STATE_DIR + '/vulkan-crumbs.log',
+    dlls: ['d3d11', 'd3d10core', 'd3d9', 'dxgi'],
+};
+function vulkanMissing() {
+    return [VK.driver, VK.lib + '/libvulkan.so.1', VK.crumbs, VK.dxvk + '/x64/d3d11.dll', VK.dxvk + '/x32/d3d11.dll']
+        .filter((f) => !fs.existsSync(f));
+}
+
 /* GPU_LIBS, made again each time (root's, readable by all): links to the
  * unit's GL libraries. Returns what is missing on this unit. */
 function gpuLibs() {
@@ -133,7 +153,7 @@ function dotnetEnv() {
 /* Wine for a game, as Proton starts it (build/launch.json, captured from
  * Proton's own launcher at build time), here: the unit's EGL first, the
  * runtime's libraries, then Proton's own. */
-function wineEnv(launch, appId, display) {
+function wineEnv(launch, appId, display, vulkan) {
     const e = Object.assign({}, launch.env, baseEnv());
     const protonLibs = (launch.env.LD_LIBRARY_PATH || '').split(':').filter((p) => p && p.indexOf(PROTON) === 0);
     e.LD_LIBRARY_PATH = EXTRA_LIBS + [GPU_LIBS, RUNTIME + '/lib'].concat(protonLibs).join(':');
@@ -156,7 +176,22 @@ function wineEnv(launch, appId, display) {
         /* our XInput (src/xinput.c, server.js installXInput): Wine's reads its
          * winebus, which has nothing to read on the car */
         ';xinput1_1,xinput1_2,xinput1_3,xinput1_4,xinput9_1_0=n';
-    return mesaEnv(e);
+    /* Direct3D: WineD3D on OpenGL (builtin, as ever), or for a game with
+     * Vulkan on, DXVK (native, installed in the prefix by server.js) on ANV,
+     * named only here through its ICD; vk-trial's loader (the runtime has none) */
+    e.WINEDLLOVERRIDES += ';' + VK.dlls.join(',') + (vulkan ? '=n' : '=b');
+    if (vulkan) {
+        e.VK_ICD_FILENAMES = VK.icd;
+        e.LD_LIBRARY_PATH = VK.lib + ':' + e.LD_LIBRARY_PATH;
+        e.DXVK_LOG_LEVEL = 'warn';
+        e.DXVK_LOG_PATH = 'none';   /* warnings to stderr (the tool's log), no files in the game's folder */
+        e.DXVK_STATE_CACHE_PATH = HOME + '/.cache';
+        e.VK_TRIAL_CRUMB_FD = '3';
+    }
+    mesaEnv(e);
+    /* vk_crumbs.so first, ahead of any preload the bench adds (STEAM_EXTRA_ENV, applied by mesaEnv) */
+    if (vulkan) e.LD_PRELOAD = [VK.crumbs].concat((e.LD_PRELOAD || '').split(':').filter((p) => p && !/vk_crumbs\.so$/.test(p))).join(':');
+    return e;
 }
 
 /* The folders baseEnv names, for the uid, before any program of ours runs
@@ -178,6 +213,6 @@ function userDirs(uid, gid) {
 
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
-    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET,
+    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

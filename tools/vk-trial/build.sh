@@ -17,16 +17,13 @@ set -eu
 export MSYS_NO_PATHCONV=1
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
-# the GPU bench first: its image holds Mesa 19.0.6's source, its stub the tests' GPU
-sh "$HERE/../gpu-bench/build.sh" >&2
-BENCH=$HERE/../gpu-bench
-BENCH_IMG=idrive-gpu-bench:mesa19.0.6-$(cat "$BENCH/image/Dockerfile" "$BENCH"/image/*.patch "$BENCH"/image/*.py | sha256sum | cut -c1-8)
-IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag; echo "$BENCH_IMG") | sha256sum | cut -c1-8)
+# (the tests need tools/gpu-bench's stub GPU too: they build it themselves;
+# this build needs nothing local, so the Steam tool's release builds it in CI)
+IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/vk-trial-image.$$.log
     echo "vk-trial: building $IMG (Mesa 19.0.6 ANV, ~5 min the first time)"
-    docker build --platform linux/amd64 --progress=plain --build-context gpubench=docker-image://"$BENCH_IMG" \
-        -t "$IMG" "$WIN_HERE/image" > "$LOG" 2>&1 \
+    docker build --platform linux/amd64 --progress=plain -t "$IMG" "$WIN_HERE/image" > "$LOG" 2>&1 \
         || { tail -30 "$LOG" >&2; echo "vk-trial: the image did not build (log: $LOG)" >&2; exit 1; }
     rm -f "$LOG"
 fi
@@ -48,12 +45,18 @@ rm -rf "$HERE/build"
 mkdir -p "$HERE/build/unitlib"
 # the unit's own Wayland libraries, to check every symbol we use is in them
 # (ours are built on 18.04's 1.16 headers; the unit has an older build)
+# (only where the unit's root filesystem image is: not in CI, which checks
+# the same build's outputs without it)
 UNITLIB=$(cd "$HERE/build/unitlib" && (pwd -W 2>/dev/null || pwd))
-cid=$(docker create idrive-rootfs:I_21w12.2-1-4 true)
-docker cp "$cid:/usr/lib/libwayland-client.so.0.3.0" "$UNITLIB/" >/dev/null
-docker cp "$cid:/usr/lib/libwayland-server.so.0.1.0" "$UNITLIB/" >/dev/null
-docker cp "$cid:/usr/lib/libffi.so.6.0.4" "$UNITLIB/libffi.so.6" >/dev/null   # for dxvk/'s bench (trixie lacks it)
-docker rm "$cid" >/dev/null
+if docker image inspect idrive-rootfs:I_21w12.2-1-4 >/dev/null 2>&1; then
+    cid=$(docker create idrive-rootfs:I_21w12.2-1-4 true)
+    docker cp "$cid:/usr/lib/libwayland-client.so.0.3.0" "$UNITLIB/" >/dev/null
+    docker cp "$cid:/usr/lib/libwayland-server.so.0.1.0" "$UNITLIB/" >/dev/null
+    docker cp "$cid:/usr/lib/libffi.so.6.0.4" "$UNITLIB/libffi.so.6" >/dev/null   # for dxvk/'s bench (trixie lacks it)
+    docker rm "$cid" >/dev/null
+else
+    echo "vk-trial: no unit root filesystem image: the check against its libwayland is skipped" >&2
+fi
 docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN_SINK:/sink:ro" "$IMG" sh -ec '
     W="-O2 -std=gnu11 -Wall -Wextra -Werror"
     mkdir -p /m/build/pkg/bin /m/build/pkg/lib /m/build/bench /tmp/gen
@@ -102,14 +105,17 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
     # libwayland-client; wl-sink'"'"'s in the libwayland 1.22 we ship for it
     have() { nm -D --defined-only "$@" | grep -o " wl_[a-z0-9_]*" | tr -d " " | sort -u; }
     need() { nm -D --undefined-only "$1" | grep -o " wl_[a-z0-9_]*" | tr -d " " | sort -u; }
-    have /m/build/unitlib/libwayland-client.so.0.3.0 > /tmp/unit
     have /m/build/pkg/lib/wl/libwayland-server.so.0 /m/build/pkg/lib/wl/libwayland-client.so.0 > /tmp/ours
     ! ls /m/build/pkg/lib/libwayland* 2>/dev/null || { echo "no libwayland in lib/ (ANV and vkprobe use the unit'"'"'s)"; exit 1; }
     readelf -d /m/build/pkg/bin/wl-sink | grep -q "(RPATH).*\$ORIGIN/../lib/wl" || { echo "wl-sink has no RPATH to lib/wl"; exit 1; }
-    for f in /m/build/pkg/bin/vkprobe /m/build/pkg/lib/libvulkan_intel.so; do
-        miss=$(need "$f" | comm -23 - /tmp/unit)
-        [ -z "$miss" ] || { echo "$f needs what the unit'"'"'s libwayland-client lacks: $miss"; exit 1; }
-    done
+    if [ -f /m/build/unitlib/libwayland-client.so.0.3.0 ]; then
+        have /m/build/unitlib/libwayland-client.so.0.3.0 > /tmp/unit
+        for f in /m/build/pkg/bin/vkprobe /m/build/pkg/lib/libvulkan_intel.so; do
+            miss=$(need "$f" | comm -23 - /tmp/unit)
+            [ -z "$miss" ] || { echo "$f needs what the unit'"'"'s libwayland-client lacks: $miss"; exit 1; }
+        done
+    fi
+    cp /out/licenses/* /m/build/bench/ 2>/dev/null || true   # Mesa'"'"'s and the loader'"'"'s licences (the Steam tool ships them)
     miss=$(need /m/build/pkg/bin/wl-sink | comm -23 - /tmp/ours)
     [ -z "$miss" ] || { echo "wl-sink needs what our libwayland 1.22 lacks: $miss"; exit 1; }
     cd /m/build/pkg && chmod 755 bin/* lib/wl && find lib -type f -exec chmod 644 {} + \

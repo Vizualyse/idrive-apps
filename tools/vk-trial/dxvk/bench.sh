@@ -63,6 +63,8 @@ docker run --rm -v "$(win "$HERE/win"):/src:ro" -v "$(win "$STEAM/test/win"):/tl
     for c in /src/*.c /tlog/t_d3d9.c; do   # ours and the Steam bench'"'"'s Direct3D 9 check
         t=$(basename "$c" .c); libs=$(sed -n "s#^ \* libs: ##p" "$c")
         x86_64-w64-mingw32-gcc -O2 -Wall -Werror -mwindows -I/tlog -o /out/${t}64.exe "$c" $libs
+        # and 32-bit (Wine'"'"'s WoW64, DXVK'"'"'s x32 DLLs)
+        i686-w64-mingw32-gcc -O2 -Wall -Werror -mwindows -I/tlog -o /out/${t}32.exe "$c" $libs
     done'
 
 [ $# -gt 0 ] || set -- t_d3d11 t_d3d9

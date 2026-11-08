@@ -260,21 +260,21 @@ function setGpu(on, why) {
  * unit's compositor (chromium-wl's own connection, platform
  * native/winston_out), instead of the I420 frame file through mgu-render: no
  * read-back of the GPU mode's buffers, no colour conversion, full colour.
- * Experimental (tested off the car against the unit's own Winston,
- * tools/winston-bench): turned on by hand and never kept, like the GPU mode;
- * the next show uses it. Back on mgu-render by itself if chromium-wl has no
- * connection to Winston or loses it. */
-let winstonOut = false;
+ * The default (seen on the car 2026-11-08: chromium-wl at 0.2 % of a core);
+ * turned off, compatibility mode: the frame file through mgu-render. Kept in
+ * settings.winston; the next show uses it. Back on mgu-render by itself
+ * whenever chromium-wl has no connection to Winston or loses it. */
+let winstonOut = settings.winston !== false;
 let winstonNote = null;
 
 function setWinston(on) {
     on = !!on;
     if (on === winstonOut) return null;
-    if (on && (!browser || browserState !== 'running')) return 'the browser is not running';
-    if (on && !browser.winston) return 'no connection to Winston (chromium-wl could not connect to ' + env.WINSTON_SOCKET + ')';
     winstonOut = on;
     winstonNote = null;
-    log('winston: ' + (on ? 'on: pictures straight onto the screen through Winston; off again at the next start of the tool' : 'off: through mgu-render'));
+    settings.winston = on;
+    saveSettings();
+    log('winston: ' + (on ? 'on: pictures straight onto the screen through Winston' : 'off: compatibility mode, through mgu-render'));
     if (screen.shown()) { hide('the output changed'); show(); }
     if (control) control.broadcast();
     return null;
@@ -698,7 +698,7 @@ function setEnabled(on) {
     if (settings.enabled === on) return;
     settings.enabled = on;
     saveSettings();
-    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; gameMode = false; winstonOut = false; stopBrowser(); removeFirewall(); giveBack(); }
+    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; gameMode = false; stopBrowser(); removeFirewall(); giveBack(); }
     log('browser: ' + (on ? 'on' : 'off'));
 }
 

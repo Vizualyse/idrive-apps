@@ -56,8 +56,8 @@
   <p class="dim">More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.</p>
   <div class="row" style="margin-top:8px"><button id="room">Make room: off</button></div>
   <p class="dim">Make room pauses the Moonlight and Cast tools while the browser is on (Cast's cluster map too) and starts them again when it goes off.</p>
-  <div class="row" style="margin-top:8px"><button id="winston">Winston output: off</button></div>
-  <p class="dim">Winston output (experimental): the pictures go straight to the car's own screen compositor instead of through mgu-render: in full colour, and in the GPU mode without copying them back from the graphics card. Off again whenever the tool starts.</p>
+  <div class="row" style="margin-top:8px"><button id="winston">Compatibility mode: off</button></div>
+  <p class="dim">The pictures go straight to the car's own screen compositor (Winston): in full colour, and in the GPU mode without copying them back from the graphics card. Compatibility mode sends them through mgu-render instead, as older versions did; the browser does that by itself if Winston can't be reached.</p>
   <div class="row" style="margin-top:8px"><button id="game">Game mode: off</button></div>
   <p class="dim">Game mode (experimental): WebGPU stops checking each command a page sends, which saves time in games. Only for sites you trust: a page with mistakes can crash the browser's graphics. Chromium restarts for it, and it is off again whenever the tool starts.</p>
   <p class="dim">GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.</p>
@@ -103,8 +103,7 @@ function render(s) {
   $('room').textContent = 'Make room: ' + (roomOn ? 'on (turn off)' : 'off (turn on)');
   const wn = s.winston || {};
   winstonOn = !!wn.on;
-  $('winston').textContent = 'Winston output: ' + (winstonOn ? 'on (turn off)' : 'off (turn on)');
-  $('winston').disabled = !winstonOn && !wn.connected;
+  $('winston').textContent = 'Compatibility mode (mgu-render): ' + (winstonOn ? 'off (turn on)' : 'on (turn off)');
   gameOn = !!s.gameMode;
   $('game').textContent = 'Game mode: ' + (gameOn ? 'on (turn off)' : 'off (turn on)');
   $('game').disabled = !gameOn && (s.browser !== 'running' || s.bundle !== 'ready');

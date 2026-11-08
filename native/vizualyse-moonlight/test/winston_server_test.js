@@ -137,7 +137,15 @@ async function main() {
         srv = start(k, out);
         await sleep(2500);
         s = await until(tok, 'up again', (x) => !!x.winston, 10000);
-        ok('after a restart of the tool Winston output is off (never kept)', s.winston && s.winston.on === false);
+        ok('after a restart of the tool Winston output is still on (kept: the default since 2026-11-08)', s.winston && s.winston.on === true);
+        const off = await req('POST', '/api/winston', { on: false }, tok);
+        ok('compatibility mode (Winston off)', off.code === 200);
+        srv.kill('SIGTERM');
+        await sleep(2500);
+        srv = start(k, out);
+        await sleep(2500);
+        s = await until(tok, 'up again', (x) => !!x.winston, 10000);
+        ok('and compatibility mode is kept over a restart too', s.winston && s.winston.on === false);
     } catch (e) {
         ok('no exception', false, e.stack);
     }

@@ -30,11 +30,15 @@ RUN apt-get update -qq \
       libwayland-dev libwayland-bin wayland-protocols \
       libvulkan1=1.1.70+dfsg1-1ubuntu0.18.04.1 libvulkan-dev=1.1.70+dfsg1-1ubuntu0.18.04.1 >/dev/null \
  && rm -rf /var/lib/apt/lists/*
-# Mesa 19.0.6's source from the GPU bench's image (build.sh passes it as the
-# build context "gpubench"): unpacked there from the release tarball after
-# its sha256 check, so no second download (archive.mesa3d.org can be very
-# slow), and the same source as the bench's swrast.
-COPY --from=gpubench /src/mesa-19.0.6 /src/mesa-19.0.6
+# Mesa 19.0.6's release tarball (the same as tools/gpu-bench's), sha256
+# checked. The Steam tool's release builds this image in CI, so it needs
+# nothing local (archive.mesa3d.org was very slow once: retries).
+RUN mkdir -p /src && cd /src \
+ && curl -fsSLO --retry 8 --retry-delay 10 https://archive.mesa3d.org/older-versions/19.x/mesa-19.0.6.tar.xz \
+ && echo "2db2f2fcaa4048b16e066fad76b8a93944f7d06d329972b0f5fd5ce692ce3d24  mesa-19.0.6.tar.xz" | sha256sum -c - \
+ && tar xJf mesa-19.0.6.tar.xz && rm mesa-19.0.6.tar.xz \
+ && mkdir -p /out/licenses && cp mesa-19.0.6/docs/license.html /out/licenses/mesa.html \
+ && cp /usr/share/doc/libvulkan1/copyright /out/licenses/vulkan-loader.txt
 # ANV only. platforms=drm is the least Mesa 19 accepts; it brings
 # VK_KHR_display, which opens the primary node (card0, Winston's) only when
 # an instance enables it: the probe never does, and the gate hides

@@ -42,14 +42,15 @@ workflow (Actions > Release, the component ids).
   the journal; the picture with black bars and the stop hint for 10 s; the
   decoder event still `msdk (GPU, …)` with moonlight-core as uid 12998; the
   `decodeMs` and moonlight-core's CPU against mgu-render's path; hold-to-stop.
-- [ ] **Winston output, next:** the default output once seen on the car,
-  mgu-render's frame file only as the fallback. On the car with Steam:
+- [ ] **Winston output, next:** now the default in Browser 0.2.10, Steam
+  0.1.9 and Moonlight 0.2.5 (mgu-render as the phone page's "Compatibility
+  mode"). On the car with Steam:
   `"fwd"` in wl-sink's stats (Wine's GL area passed on as it is) and a game
   hidden and shown again a few times without stalling. Moonlight: MSDK
   decoding into VA surfaces exported as dmabufs, so the last copy goes too
   (the unit's libva is 1.x: `vaAcquireBufferHandle`, not
   `vaExportSurfaceHandle`).
-- [ ] **Winston only, once the Vulkan testing (below) is done:** remove the
+- [ ] **Winston only, once 0.2.10 / 0.1.9 / 0.2.5 have been used a while:** remove the
   other centre-screen paths and keep Winston output alone. Browser:
   chromium-wl's I420 frame file and GPU read-back (`sink/wl.c`, libyuv);
   Steam: wl-sink's read-back and frame file; Moonlight and Cast:
@@ -59,31 +60,18 @@ workflow (Actions > Release, the component ids).
   replaces it: retry, or hide). Keep cluster-render (Winston can't reach
   the cluster or the HUD). Then drop mgu-render from each tool's
   `requires` and the knowledge files' "through mgu-render" lines.
-- [ ] **Investigate Vulkan again: try Mesa 19.0.6's ANV on the car with
-  [tools/vk-trial](tools/vk-trial/README.md)** (built and tested off the
-  car 2026-11-07: armed by hand for one start, the arming in tmpfs `/run`
-  and used up before anything loads, so any restart ends it; every stage
-  passes on gpu-bench's stub behind a 4.14 kernel layer; only over a live
-  SSH session; the display node hidden in the child's own namespace). **Dry
-  run on the car done (2026-11-07, no driver: every safety held;
-  the real package installed in `/var/opt/vk-trial`). **Every probe stage
-  ok on the car (2026-11-07): Vulkan 1.1.96, a compute dispatch 1024 of
-  1024 right, an offscreen draw 65536 of 65536 pixels right, no hang.**
-  Ask before each step. **`present` ok on the car too (2026-11-07):** 60
-  FIFO frames through Wayland into our wl-sink as GPU buffers, read back
-  through the unit's i965, every pixel right; nothing on the screen yet.
-  **DXVK 1.9.4 under Proton works on the car (2026-11-07,
-  `tools/vk-trial/dxvk`, one gated `command` try):** D3D11 at 11_1 and D3D9,
-  real pixels read back right, 120 frames into wl-sink as GPU buffers, no
-  hang; **and on the screen through Winston (2026-11-08, `--winston`): 120
-  of ANV's buffers passed to Winston as they are.** Next: a per-game DXVK
-  switch in the Steam tool (by hand, off after any unclean end) for a real
-  game; 32-bit games (WoW64 winevulkan's memory mapping on
-  ANV 19). VKD3D (D3D12) needs much more than ANV 19. After a hang:
-  `vk-trial status`, the try's
-  `crumbs.log` (the ioctl that never returned) and `kmsg.log`. It would give
-  Proton DXVK / VKD3D in place of WineD3D and full WebGPU
-  ([knowledge/browser.md](knowledge/browser.md), "Vulkan on this kernel").
+- [ ] **Vulkan in Steam 0.1.9 on the car:** ANV 19.0.6, the loader and
+  DXVK 1.9.4 now ship in Steam (`vulkan.tgz`, `tools/vulkan.sh`); Vulkan is
+  the default for 64-bit games (the exe's PE header), off for 32-bit ones,
+  switchable per game, off again after any unclean end (the running marker
+  left at a restart). Seen on the car before the release (2026-11-08, hand-
+  patched 0.1.8): STS2 (Godot 4, `--rendering-driver vulkan`, Forward+)
+  plays, fights smooth. Check with 0.1.9: STS2 with no launch options
+  (Godot's opengl3 swapped for vulkan by the tool), no hang over a long
+  session, `state/vulkan-crumbs.log` written. 32-bit stays on WineD3D: see
+  Steam's "32-bit games on Vulkan" below. VKD3D (D3D12) needs much more
+  than ANV 19. After a hang: `state/vulkan-crumbs.log` (the ioctl that never
+  returned); for new drivers, `tools/vk-trial` first (gated, one start).
 - [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
   volume does nothing until a CarPlay phone connects (our sound goes into
   CarPlay's SmartXbar input; see Moonlight's item below and
@@ -378,6 +366,28 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
 - [ ] **32-bit D3D9 on `stub` exits 1 at teardown** after a full run
   (`wined3d_device_cleanup Context array not freed!`; 64-bit and `swrast`
   are fine).
+- [ ] **32-bit games on Vulkan:** recheck with Teslagrad (249590, Unity,
+  32-bit D3D9) some time after 0.1.9. Off the car `tools/vk-trial/dxvk`'s
+  `t_d3d932.exe` exits 1 after finding DXVK's adapter (WoW64 winevulkan's
+  memory mapping on ANV 19?) and `t_d3d964.exe` hung 150 s once in the same
+  run (64-bit passed every run before): find out first, on the bench.
+  Gunpoint and FTL are OpenGL (no D3D test).
+- [ ] **Steam's CDN in London serves the wrong certificates** (lhr1
+  servers, 2026-11-08; DNS the same over the phone and 8.8.8.8; Amsterdam
+  and Frankfurt fine). The phone page's "Download from" region (`-cellid`)
+  helps for content, not manifests. Seen working: `-depot` with the game's
+  own depot (Gunpoint, 507 MB), skipping Steamworks Common Redistributables
+  (app 228980). Make that the default (the game's depots only), and retry
+  a stuck download with another region. Teslagrad's download (depot
+  249591) stalled; a DepotDownloader may still be running on the car (pid
+  28447): check `pidof dotnet` before the next download.
+- [ ] **wl-sink's "fwd" doesn't engage for Godot's Vulkan surface** (STS2:
+  0 fwd, read back at ~109 ms a picture); DXVK's test passes 120 fwd. Find
+  why (buffer format or modifier?) on the bench.
+- [ ] **STS2 memory:** the cgroup at 2862 of 3072 MB, 2.7 GB of swap, the
+  HMI with 270 MB swapped out during a run. Try 960x540 and Godot's Mobile
+  renderer (`--rendering-method mobile` chose D3D12: needs the Vulkan driver
+  forced with it).
 - [ ] **Later:** Wine Mono for .NET Framework games (left out: 285 MB);
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).

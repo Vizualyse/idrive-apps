@@ -50,15 +50,15 @@ Should work when all of these hold:
   keyboard, right click or hover on touch);
 - single-player, offline, no Steam DRM wrapper (SteamStub), no anti-cheat.
 
-Hard limits (Unsupported): D3D12 or Vulkan only (no Vulkan on the 4.14
-kernel); .NET Framework / XNA (no Wine Mono); SteamStub, anti-cheat,
+Hard limits (Unsupported): D3D12 only (no VKD3D on ANV 19); Vulkan 1.2+
+only (ANV 19.0.6 is Vulkan 1.1); .NET Framework / XNA (no Wine Mono); SteamStub, anti-cheat,
 online-only; Games for Windows Live; needs more than the RAM cap.
 
 ## Supported
 
 | Game | Engine / renderer | Notes |
 |---|---|---|
-| Slay the Spire 2 | Godot 4, `--rendering-driver opengl3`, .NET 9 | 64-bit; needs **Run without Steam** (gbe_fork). Hover tooltips need a pad. |
+| Slay the Spire 2 | Godot 4, .NET 9; Vulkan (Forward+) from Steam 0.1.9, `opengl3` with Vulkan off | 64-bit; needs **Run without Steam** (gbe_fork). Hover tooltips need a pad. On Vulkan on the car (2026-11-08, hand-patched 0.1.8): runs well, fights smooth; a tap no longer scrolls the map (14 px dead zone); memory near the cap (2862 of 3072 MB). `--rendering-method mobile` makes it pick D3D12. |
 | FTL: Faster Than Light | Custom, OpenGL, 32-bit | Runs with 0.1.3's rebuilt `ntdll.so` (2026-11-07): 15 pictures/s, 2.0 GB of the 2.5 GB cap. Only half playable: needs Space (pause) and right click, no pad support. |
 
 ## Untested (Should work)
@@ -93,7 +93,7 @@ online-only; Games for Windows Live; needs more than the RAM cap.
 | Counter-Strike: Condition Zero | GoldSrc, OpenGL, 32-bit | Offline bots. Run without Steam. |
 | RetroArch | Native, OpenGL | Pad support; 8/16-bit cores (NES, SNES, Mega Drive, GBA) are light. |
 | Teslagrad / Dreaming Sarah / Vagante / Chime Sharp / Master Spy / Defy Gravity / Chronology / The Fall | Small 2D | Pad support. |
-| Gunpoint / Long Live the Queen / The Inner World / Train Valley / FreeCell Quest / Chainsaw Warrior / Deep Dungeons of Doom | Small 2D | Left click only: touch is enough. |
+| Gunpoint (32-bit OpenGL, Cg) / Long Live the Queen / The Inner World / Train Valley / FreeCell Quest / Chainsaw Warrior / Deep Dungeons of Doom | Small 2D | Left click only: touch is enough. |
 | Leaf Blower Revolution / Idle Skilling | Idle | Click only; suit a parked car. |
 
 ## Untested (Might work)

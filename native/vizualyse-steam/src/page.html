@@ -42,8 +42,8 @@
   <h2>Playing</h2>
   <p id="playing" class="dim">Nothing.</p>
   <div class="row"><button class="acc" id="show">Show on the screen</button><button id="hide">Hide</button><button class="bad" id="stop">Stop the game</button></div>
-  <div class="row"><button id="winston">Winston output: off</button></div>
-  <p class="dim">Winston output (experimental): the game's pictures go straight to the car's own screen compositor instead of through mgu-render, in full colour. From the next Show; off again whenever the tool starts.</p>
+  <div class="row"><button id="winston">Compatibility mode: off</button></div>
+  <p class="dim">The game's pictures go straight to the car's own screen compositor (Winston), in full colour. Compatibility mode sends them through mgu-render instead, as older versions did; Steam does that by itself if Winston can't be reached. From the next Show.</p>
   <p class="dim">Only while parked. A hidden game keeps running; Stop ends it. Games can't be controlled yet (no touch or gamepad input in this version).</p>
 </div>
 
@@ -80,6 +80,7 @@
   <div class="row"><label for="fps">Frames per second</label><select id="fps"></select></div>
   <div class="row"><label for="mem">Memory for the game</label><select id="mem"></select></div>
   <div class="row"><label for="where">Install games on</label><select id="where"></select></div>
+  <div class="row"><label for="region">Download from</label><select id="region"></select></div>
   <p class="dim" id="whereNote"></p>
   <div class="row"><button id="sound">Sound: on</button><label for="vol">Volume</label><input id="vol" type="range" min="0" max="150" step="5"></div>
   <p class="dim">Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens.</p>
@@ -127,7 +128,7 @@ function render(s) {
     $('playing').textContent = g ? 'Nothing. ' + g.name + ' ended' + (g.note ? ': ' + g.note : '') + '.' : 'Nothing.';
   }
   const wn = s.winston || {};
-  $('winston').textContent = 'Winston output: ' + (wn.on ? 'on (turn off)' : 'off (turn on)') +
+  $('winston').textContent = 'Compatibility mode (mgu-render): ' + (wn.on ? 'off (turn on)' : 'on (turn off)') +
     (wn.on && s.shown ? ' - showing through ' + wn.via : '') + (wn.note ? ' - ' + wn.note : '');
   $('show').disabled = !s.running || s.shown || s.moving;
   $('hide').disabled = !s.shown;
@@ -147,6 +148,11 @@ function render(s) {
         '<div class="row"><button data-act="nosteam">Run without Steam: ' + (x.noSteam ? 'on' : 'off') + '</button></div>' +
         '<p class="dim">For a game that says to start it from Steam: its Steam library is swapped for gbe_fork (Goldberg\'s emulator); ' +
         'achievements and cloud saves stay on the car. Off puts Steam\'s back. Steam\'s DRM wrapper still stops some games.</p>') +
+      (s.vulkanAvailable || x.vulkan ?
+        '<div class="row"><button data-act="vulkan">Vulkan: ' + (x.vulkan ? 'on' : 'off') + (x.vulkan === x.vulkanDefault ? ' (the default)' : '') + '</button></div>' +
+        '<p class="dim">Direct3D 9-11 through DXVK, or a Godot 4 game\'s own Vulkan renderer, instead of OpenGL: on by default for 64-bit games' +
+        (x.arch === 'x86' ? ' (this one is 32-bit: OpenGL by default)' : '') + '. If the unit restarts during the game, Vulkan turns itself off for it. ' +
+        'A Godot 4 game\'s default launch options switch to Vulkan by themselves.</p>' : '') +
       '<div class="row"><button data-act="validate">Check and update files</button><button class="bad" data-act="remove">Remove</button></div>' +
       '</details></div>').join('') : '<p class="dim">No games yet: install one below.</p>';
   }
@@ -182,6 +188,7 @@ function render(s) {
   opts($('res'), ch.resolutions.map((r) => ({ v: r.id, t: r.name })), st.resolution);
   opts($('fps'), ch.fps.map((f) => ({ v: f, t: f })), st.fps);
   opts($('mem'), ch.memMb.map((m) => ({ v: m, t: (m / 1024).toFixed(1).replace('.0', '') + ' GB' })), st.memMb);
+  if (ch.regions) opts($('region'), ch.regions.map((r) => ({ v: r.id, t: r.name })), st.cellId || 0);
   opts($('where'), [{ v: 'internal', t: 'The car\'s memory' + (s.space.internalMb !== null ? ' (' + (s.space.internalMb / 1024).toFixed(1) + ' GB free)' : '') }]
     .concat(ch.disk ? [{ v: 'disk', t: 'The hard disk' + (s.space.diskMb !== null ? ' (' + (s.space.diskMb / 1024).toFixed(1) + ' GB free)' : '') }] : [])
     .concat(ch.usb.map((u) => ({ v: 'usb:' + u.id, t: 'USB stick ' + u.id + ' (' + u.fs + (u.fat32 ? ', no file over 4 GB' : '') + ')' +
@@ -207,6 +214,7 @@ $('saveUser').onclick = () => api('/api/user', { username: $('user').value }).ca
 $('res').onchange = () => api('/api/settings', { resolution: $('res').value }).then(() => $('res').blur(), () => null);
 $('fps').onchange = () => api('/api/settings', { fps: Number($('fps').value) }).then(() => $('fps').blur(), () => null);
 $('mem').onchange = () => api('/api/settings', { memMb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
+$('region').onchange = () => api('/api/settings', { cellId: Number($('region').value) }).then(() => $('region').blur(), () => null);
 $('where').onchange = () => api('/api/settings', { where: $('where').value }).then(() => $('where').blur(), () => null);
 $('sound').onclick = () => api('/api/settings', { sound: !(last && last.settings.sound) }).catch(() => null);
 $('vol').onchange = () => api('/api/settings', { volume: Number($('vol').value) }).then(() => $('vol').blur(), () => null);
@@ -232,6 +240,10 @@ $('library').addEventListener('click', (e) => {
   if (act === 'nosteam') {
     const g = last && last.library.filter((x) => x.appId === appId)[0];
     api('/api/game', { appId: appId, noSteam: !(g && g.noSteam) }).catch(() => null);
+  }
+  if (act === 'vulkan') {
+    const g = last && last.library.filter((x) => x.appId === appId)[0];
+    api('/api/game', { appId: appId, vulkan: !(g && g.vulkan) }).catch(() => null);
   }
   if (act === 'validate') api('/api/validate', { appId: appId }).catch(() => null);
   if (act === 'remove' && confirm('Remove this game and its files from the car? (Saves in the Windows prefix stay.)')) {

@@ -44,7 +44,10 @@ const DLLS = ['d3d11', 'd3d10core', 'd3d9', 'dxgi'];
 const WINSTON = process.argv[2] === 'run' && process.argv[3] === 'winston';
 const WINSTON_SOCKET = '/run/wayland/wayland-0';
 const VIEW = '108,82,1790,638';
-const PROGRAMS = ['t_d3d1164.exe', 't_d3d964.exe'];
+/* t_d3d932.exe (32-bit: WoW64, DXVK's x32) is built and packaged too but left
+ * out until it passes off the car (it exits 1 after finding the adapter):
+ * DXVK_PROGRAMS=t_d3d932.exe runs it alone */
+const PROGRAMS = process.env.DXVK_PROGRAMS ? process.env.DXVK_PROGRAMS.split(/[ ,]+/).filter(Boolean) : ['t_d3d1164.exe', 't_d3d964.exe'];
 
 function say(s) { process.stdout.write('dxvk: ' + s + '\n'); }
 function crumb(s) {

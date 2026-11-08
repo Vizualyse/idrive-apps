@@ -270,26 +270,26 @@ function setSpeed(kmh) {
 
 let session = null;   /* { host, app, core, py, frames, fps, started, stopping, ... } */
 
-/* Winston output (experimental): on the centre console, the stream's pictures
- * straight onto the screen through Winston, the unit's compositor
- * (moonlight-core --winston, core/winston_video.c: NV12 GPU buffers that
- * Winston's GPU converts and scales; the stop hint over them), instead of the
- * I420 frame file through mgu-render. Tested off the car against the unit's
- * own Winston (test/run_winston_test.sh). By hand and never kept, like the
- * other tools'; from the next stream. Back on mgu-render by itself when
- * moonlight-core can't use Winston or loses it (the frame file is always
- * made: the way back). */
+/* Winston output: on the centre console, the stream's pictures straight onto
+ * the screen through Winston, the unit's compositor (moonlight-core
+ * --winston, core/winston_video.c: NV12 GPU buffers that Winston's GPU
+ * converts and scales; the stop hint over them), instead of the I420 frame
+ * file through mgu-render. The default (2026-11-08); turned off,
+ * compatibility mode (mgu-render), kept in settings.winston; from the next
+ * stream. Back on mgu-render by itself when moonlight-core can't use Winston
+ * or loses it (the frame file is always made: the way back). */
 const WINSTON_SOCKET = process.env.MOONLIGHT_WINSTON || '/run/wayland/wayland-0';
-let winstonOut = false;
+let winstonOut = settings.winston !== false;
 let winstonNote = null;
 
 function setWinston(on) {
     on = !!on;
     if (on === winstonOut) return null;
-    if (on && !fs.existsSync(WINSTON_SOCKET)) return 'no Winston at ' + WINSTON_SOCKET;
     winstonOut = on;
     winstonNote = null;
-    log('winston: ' + (on ? 'on: the console picture straight onto the screen through Winston, from the next stream; off again at the next start of the tool' : 'off: through mgu-render'));
+    settings.winston = on;
+    saveSettings();
+    log('winston: ' + (on ? 'on: the console picture straight onto the screen through Winston, from the next stream' : 'off: compatibility mode, through mgu-render'));
     if (control) control.broadcast();
     return null;
 }
@@ -694,7 +694,6 @@ function setEnabled(on) {
     saveSettings();
     if (on) { if (!NO_FIREWALL) { try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); } } }
     else {
-        winstonOut = false;
         stopSession('turned off');
         if (!NO_FIREWALL) { try { log('firewall: removed ' + firewall.remove() + ' rule(s)'); } catch (e) { log('firewall: ' + e.message); } }
     }

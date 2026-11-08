@@ -68,7 +68,7 @@ if (process.env.T_DLLOV) extra.WINEDLLOVERRIDES = process.env.T_DLLOV;
 const senv = Object.assign({}, process.env, {
     STEAM_NO_FIREWALL: '1', STEAM_LEASE: '/tmp/lease.json', STEAM_CTL_SOCKET: '/tmp/ctl/ctl.sock',
     STEAM_RUNTIME_ARCHIVE: T + '/build/runtime.tgz', STEAM_PROTON_ARCHIVE: T + '/build/proton.tgz',
-    STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_LAUNCH: T + '/build/launch.json',
+    STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_VULKAN_ARCHIVE: T + '/build/vulkan.tgz', STEAM_LAUNCH: T + '/build/launch.json',
     STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/' + (process.env.T_GAME || 't_d3d964.exe'),
     /* mgu-render's client: a stand-in (show works); the display's touches: a
      * replayed capture (touchFile) for steam-touch */
@@ -78,6 +78,12 @@ const senv = Object.assign({}, process.env, {
     STEAM_USB_TEST_DEV: (fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')
         .filter((l) => l.split(' ')[1] === '/media/TESTSTICK')[0] || 'teststick').split(' ')[0],
 });
+/* Vulkan (env.VK, the bundled vulkan.tgz): checked on the stub only, with
+ * kernel414 (the unit's kernel's answers, tools/vk-trial's build mounted at
+ * /vkt by run_unit_test.sh) behind vk_crumbs.so, which the tool preloads
+ * first itself for a Vulkan game */
+const VK = fs.existsSync('/vkt/bench/kernel414.so') && GPU === 'stub';
+if (VK) extra.LD_PRELOAD = '/vkt/bench/kernel414.so:' + extra.LD_PRELOAD;
 if (GPU === 'swrast') {
     extra.GBM_ALWAYS_SOFTWARE = '1';
     senv.STEAM_DRI_PATH = '/g/swrast';
@@ -222,6 +228,17 @@ async function main() {
         }
     }
 
+    /* Vulkan is the default for a 64-bit game (the bundled ANV and DXVK);
+     * these checks are of WineD3D on OpenGL, so it goes off for them */
+    {
+        const s2 = await status();
+        const g0 = s2.library.filter((x) => x.appId === APP)[0];
+        ok('Vulkan is the default for the 64-bit test game', s2.vulkanAvailable === true && g0 && g0.arch === 'x64' && g0.vulkanDefault === true && g0.vulkan === true,
+            g0 && JSON.stringify({ available: s2.vulkanAvailable, arch: g0.arch, vulkan: g0.vulkan, vulkanDefault: g0.vulkanDefault }));
+        r = await api('/api/game', { appId: APP, vulkan: false });
+        ok('Vulkan: off for the game (WineD3D)', r.code === 200, r.body && r.body.error);
+    }
+
     /* playing it */
     r = await api('/api/play', { appId: APP });
     ok('play starts', r.code === 200, r.body && r.body.error);
@@ -285,6 +302,7 @@ async function main() {
 
     await controller();
     await usbStick();
+    await vulkan();
 
     server.kill('SIGTERM');
     await new Promise((resolve) => { server.on('exit', resolve); setTimeout(resolve, 15000); });
@@ -305,6 +323,51 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* Vulkan, per game: the test game (t_d3d9, 64-bit) on DXVK 1.9.4 and ANV
+ * from the bundled vulkan.tgz, its ICD only while it runs, its DRM calls in
+ * state/vulkan-crumbs.log; then a restart of the unit during it (the marker
+ * left, the tool started again) turns its Vulkan off. */
+async function vulkan() {
+    if (!VK) { console.log('  (Vulkan: kernel414 (tools/vk-trial\'s build) not mounted, or not the stub: skipped)'); return; }
+    const ICD = '/dev/shm/vizualyse-steam/vk_icd.json', CRUMBS = ROOT + '/state/vulkan-crumbs.log';
+    let s = await status();
+    ok('Vulkan is offered (vulkan.tgz unpacked)', s.vulkanAvailable === true);
+    let r = await api('/api/game', { appId: APP, vulkan: true });
+    ok('Vulkan: on for the game', r.code === 200, r.body && r.body.error);
+    ok('no ICD while no game runs', !fs.existsSync(ICD));
+    try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+    r = await api('/api/play', { appId: APP });
+    ok('play on Vulkan starts', r.code === 200, r.body && r.body.error);
+    ok('ANV\'s ICD in the run folder while it runs', fs.existsSync(ICD));
+    let mark = {};
+    try { mark = JSON.parse(fs.readFileSync(ROOT + '/state/game-running', 'utf8')); } catch (e) { /* none */ }
+    ok('the running marker says Vulkan', mark.vulkan === true);
+    s = await until('the game drawing on Vulkan', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    ok('the game draws on Vulkan', s.game.state === 'running', s.game.note);
+    await sleep(3000);
+    let tl = '';
+    try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+    ok('its Direct3D 9 is DXVK\'s, on the HD 505', /t_d3d9: adapter "Intel\(R\) HD Graphics 505 \(Broxton\)" driver "igdumd64\.dll"/.test(tl),
+        tl.split(/\r?\n/).filter((l) => /adapter|FAIL/.test(l)).join(' | ').slice(0, 200));
+    s = await status();
+    const b = (s.game && s.game.buffers) || {};
+    ok('its frames reach wl-sink as GPU buffers', b.drm > 0 || b.fwd > 0, JSON.stringify(b));
+    let crumbs = '';
+    try { crumbs = fs.readFileSync(CRUMBS, 'utf8'); } catch (e) { /* none */ }
+    ok('its DRM calls in state/vulkan-crumbs.log', /> GEM_EXECBUFFER2/.test(crumbs), crumbs.split('\n').length + ' lines');
+    await api('/api/stop', {});
+    await until('the Vulkan game ending', (x) => x.game && x.game.state === 'ended', 60000);
+    ok('the ICD gone after it', !fs.existsSync(ICD));
+    /* the unit restarts during a Vulkan game: the marker stays, the tool starts again */
+    server.kill('SIGTERM');
+    await new Promise((resolve) => { server.on('exit', resolve); setTimeout(resolve, 15000); });
+    fs.writeFileSync(ROOT + '/state/game-running', JSON.stringify({ appId: APP, name: 'TestGame', at: new Date().toISOString(), vulkan: true }));
+    startServer();
+    s = await until('the tool again', (x) => x.bundle === 'ready' || x.bundle === 'failed', 120000);
+    const g = s.library.filter((x) => x.appId === APP)[0];
+    ok('after a restart during it, Vulkan is off for the game', g && g.vulkan === false && /Vulkan is off/.test(s.restartNote || ''), s.restartNote);
 }
 
 /* Winston output (run_winston_test.sh: the unit's own Winston runs in this

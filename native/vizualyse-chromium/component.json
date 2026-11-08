@@ -1,7 +1,7 @@
 {
   "id": "vizualyse-chromium",
   "kind": "tool",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "license": "GPL-3.0-or-later",
   "title": "Browser",
   "description": "EXPERIMENTAL. A web browser (Chromium 156) running on the car, with WebGL 2, WebGPU (on the CPU; WebGL on the car's own GPU driver in an experimental GPU mode) and WebAssembly JSPI, shown on the central screen while parked and driven by touch. Type addresses on the phone page: scan the QR code on the iDrive Browser page. About 181 MB to download, 420 MB on the unit.",

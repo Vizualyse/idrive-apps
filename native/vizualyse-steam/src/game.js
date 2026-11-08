@@ -71,7 +71,8 @@ function scale(buf, pct) {
 class Game extends EventEmitter {
     /* opts: { appId, name, dir (the game's folder), exe (relative), args [],
      *   launch (launch.json), frame {w, h}, fps, uid, gid, cgroup (dir or
-     *   null), sound (bool), volume () -> %, log } */
+     *   null), sound (bool), volume () -> %, log,
+     *   vulkan (bool: DXVK / Vulkan on ANV, env.VK), crumbsFd (its crumbs file) } */
     constructor(opts) {
         super();
         this.o = opts;
@@ -219,7 +220,7 @@ class Game extends EventEmitter {
         this._startSound();
         this._startPads();
         const exe = path.join(o.dir, o.exe);
-        const e = env.wineEnv(o.launch, o.appId, DISPLAY);
+        const e = env.wineEnv(o.launch, o.appId, DISPLAY, !!o.vulkan);
         const libs = e.LD_LIBRARY_PATH;
         delete e.LD_LIBRARY_PATH;
         /* into the memory cgroup first, then exec: every Wine process stays in
@@ -228,7 +229,9 @@ class Game extends EventEmitter {
         const argv = o.launch.argv.concat([exe]).concat(o.args || []);
         this._log('game: ' + o.name + ': ' + argv.slice(2).join(' ') + ' (in ' + path.dirname(exe) + ')');
         const wine = spawn('/bin/sh', ['-c', cg + 'LD_LIBRARY_PATH=' + libs + ' exec "$0" "$@"'].concat(argv), {
-            env: e, cwd: path.dirname(exe), uid: o.uid, gid: o.gid, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+            env: e, cwd: path.dirname(exe), uid: o.uid, gid: o.gid, detached: true,
+            /* Vulkan: fd 3 the crumbs file (vk_crumbs.so writes every DRM call there before it runs) */
+            stdio: ['ignore', 'pipe', 'pipe'].concat(o.vulkan && o.crumbsFd !== undefined ? [o.crumbsFd] : []) });
         this.wine = wine;
         this.wineEnv = Object.assign({}, e, { LD_LIBRARY_PATH: libs });
         const lines = (which) => {

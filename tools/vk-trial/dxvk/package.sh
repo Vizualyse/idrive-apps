@@ -17,13 +17,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 VKT=$(cd "$HERE/.." && pwd)
 win() { (cd "$1" && (pwd -W 2>/dev/null || pwd)); }
 DXVK_VER=${DXVK_VER:-1.9.4}
-[ -f "$VKT/build/dxvk-win/t_d3d1164.exe" ] && [ -f "$VKT/build/dxvk-win/t_d3d964.exe" ] \
+[ -f "$VKT/build/dxvk-win/t_d3d1164.exe" ] && [ -f "$VKT/build/dxvk-win/t_d3d932.exe" ] \
     && docker run --rm -v vk-trial-dxvk:/d alpine test -d "/d/dxvk-$DXVK_VER" 2>/dev/null \
     || { echo "dxvk package: running dxvk/bench.sh first (DXVK, the test programs)" >&2; DXVK_VER=$DXVK_VER sh "$HERE/bench.sh" >&2; }
 docker run --rm -v vk-trial-dxvk:/d:ro -v "$(win "$HERE"):/s:ro" -v "$(win "$VKT/build"):/o" "$(cat "$VKT/build/image")" sh -ec "
     rm -rf /tmp/p && mkdir -p /tmp/p/dxvk/win /tmp/p/dxvk/dxvk
     cp /s/run.js /tmp/p/dxvk/
-    cp /o/dxvk-win/t_d3d1164.exe /o/dxvk-win/t_d3d964.exe /tmp/p/dxvk/win/
+    cp /o/dxvk-win/t_d3d1164.exe /o/dxvk-win/t_d3d964.exe /o/dxvk-win/t_d3d932.exe /tmp/p/dxvk/win/
     cp -r /d/dxvk-$DXVK_VER/x64 /d/dxvk-$DXVK_VER/x32 /tmp/p/dxvk/dxvk/
     echo $DXVK_VER > /tmp/p/dxvk/dxvk/VERSION
     find /tmp/p -type d -exec chmod 755 {} +; find /tmp/p -type f -exec chmod 644 {} +

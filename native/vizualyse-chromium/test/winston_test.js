@@ -128,7 +128,7 @@ async function main() {
     const tok = await until('the token is written', () => fs.readFileSync(path.join(STATE, 'token'), 'utf8').trim(), 10000);
     const st = await until('Chromium runs', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.browser === 'running' ? r.body : null)), 120000);
     if (!st) { console.log(lines.slice(-40).join('\n')); process.exit(1); }
-    check(st.winston && st.winston.connected === true && st.winston.on === false, 'chromium-wl connected to Winston at start; the output is off');
+    check(st.winston && st.winston.connected === true && st.winston.on === true, 'chromium-wl connected to Winston at start; the output is on (the default)');
     check(lines.some((l) => /display: ready .*Winston connected/.test(l)), 'the journal says so (' + (lines.find((l) => /display: ready/.test(l)) || '') + ')');
 
     await req('POST', '/api/go', { url: 'http://127.0.0.1:8999/' }, tok);
@@ -183,14 +183,14 @@ async function main() {
     check(!!px && black(px(AREA.x + 200, AREA.y + 300)), 'and our surface is gone from Winston');
     (void sc);
 
-    /* a restart of the tool: off */
-    await req('POST', '/api/winston', { on: true }, tok);
+    /* a restart of the tool: the choice is kept (here compatibility mode, set above) */
     c.close();
     srv.kill('SIGTERM');
     await wait(4000);
     srv = start();
     const st2 = await until('Chromium runs again', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.browser === 'running' ? r.body : null)), 120000);
-    check(!!st2 && st2.winston.on === false, 'after a restart of the tool Winston output is off (never kept)');
+    check(!!st2 && st2.winston.on === false, 'after a restart of the tool compatibility mode is kept');
+    await req('POST', '/api/winston', { on: true }, tok);
     srv.kill('SIGTERM');
     await wait(2000);
     console.log(fails ? fails + ' FAILED' : 'all ok');
