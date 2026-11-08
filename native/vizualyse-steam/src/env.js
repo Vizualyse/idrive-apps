@@ -77,6 +77,7 @@ const VK = {
     icd: RUN_DIR + '/vk_icd.json', crumbsLog: STATE_DIR + '/vulkan-crumbs.log',
     conf: RUN_DIR + '/dxvk.conf',
     dlls: ['d3d11', 'd3d10core', 'd3d9', 'dxgi'],
+    mesa: VK_BASE + '/lib/mesa',   /* the ANV's Mesa version (vulkan.tgz since the candidates; 19 when absent) */
 };
 
 /* DXVK's options for every game on Vulkan (VK.conf while one runs; DXVK
@@ -140,6 +141,10 @@ function dxvkConf(fps, detail) {
 function vulkanMissing() {
     return [VK.driver, VK.lib + '/libvulkan.so.1', VK.crumbs, VK.dxvk + '/x64/d3d11.dll', VK.dxvk + '/x32/d3d11.dll']
         .filter((f) => !fs.existsSync(f));
+}
+/* the ANV's Mesa major version: 19 for the shipped one (no lib/mesa before the candidates) */
+function vulkanMesaMajor() {
+    try { return parseInt(fs.readFileSync(VK.mesa, 'utf8'), 10) || 19; } catch (e) { return 19; }
 }
 
 /* GPU_LIBS, made again each time (root's, readable by all): links to the
@@ -289,7 +294,7 @@ function userDirs(uid, gid) {
 
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
-    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, dxvkConf,
+    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, vulkanMesaMajor, dxvkConf,
     DETAILS, DETAIL_DXVK, DETAIL_WINED3D,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

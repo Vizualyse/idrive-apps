@@ -114,6 +114,9 @@ class Game extends EventEmitter {
         if (fs.existsSync(env.WINSTON_SOCKET)) args.push('--winston', env.WINSTON_SOCKET);
         /* FSR for a picture Winston would scale up (wl-sink's --fsr: off, or RCAS's stops) */
         if (o.fsr && o.fsr !== 'off') args.push('--fsr', String(o.fsr));
+        /* a Vulkan game on an ANV from Mesa 20+ (a candidate vulkan.tgz: tools/vulkan.sh):
+         * its WSI speaks linux-dmabuf, not wl_drm; 19.x (shipped) keeps wl_drm */
+        if (o.vulkan && env.vulkanMesaMajor() >= 20) args.push('--dmabuf');
         const sink = spawn(process.env.STEAM_WL_SINK || env.RUNTIME + '/wl-sink', args, { env: env.sinkEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
         sink.stdin.on('error', () => { /* it exited */ });
         this.sink = sink;

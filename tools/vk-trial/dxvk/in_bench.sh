@@ -23,8 +23,10 @@ export INTEL_STUB_GPU_PLATFORM=bxt
 # wl-sink: vk-trial's (glibc 2.27, its libwayland-server 1.22), the unit's
 # EGL / i965 on the stub for the wl_drm buffers
 # (the unit's libffi.so.6 from /v/unitlib: our libwayland-server needs it, the unit has it, trixie doesn't)
+# Mesa 20+'s Vulkan WSI wants linux-dmabuf (wl-sink --dmabuf); 19.x keeps wl_drm
+DMABUF=; [ "$(cut -d. -f1 /v/pkg/lib/mesa 2>/dev/null || echo 19)" -ge 20 ] && DMABUF=--dmabuf
 LD_PRELOAD=$STUB LD_LIBRARY_PATH=/v/pkg/lib:/ugl/lib:/v/unitlib LIBGL_DRIVERS_PATH=/ugl/dri \
-    /v/pkg/bin/wl-sink --socket wayland-1 --frame /tmp/frame --create 640x360 --snap /o/snap.ppm >/tmp/log/wl-sink.log 2>&1 &
+    /v/pkg/bin/wl-sink --socket wayland-1 --frame /tmp/frame --create 640x360 --snap /o/snap.ppm $DMABUF >/tmp/log/wl-sink.log 2>&1 &
 SINK=$!
 i=0
 while [ ! -S "$XDG_RUNTIME_DIR/wayland-1" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done

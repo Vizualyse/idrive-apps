@@ -23,7 +23,7 @@ WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 # default; 19.1.8 for a trial of the next (32-bit DXVK, DXVK 1.10.x).
 # build/ holds one at a time: build/mesa says which.
 MESA_VER=${MESA_VER:-19.0.6}
-IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
+IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE/image/anv_new.sh" "$HERE/image/mesa-no-i915-query.patch" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
 [ "$MESA_VER" = 19.0.6 ] || IMG=$IMG-mesa$MESA_VER
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/vk-trial-image.$$.log
@@ -62,7 +62,7 @@ if docker image inspect idrive-rootfs:I_21w12.2-1-4 >/dev/null 2>&1; then
 else
     echo "vk-trial: no unit root filesystem image: the check against its libwayland is skipped" >&2
 fi
-docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id -g)" -v "$WIN_HERE:/m" -v "$WIN_SINK:/sink:ro" "$IMG" sh -ec '
+docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id -g)" -e MESA_VER="$MESA_VER" -v "$WIN_HERE:/m" -v "$WIN_SINK:/sink:ro" "$IMG" sh -ec '
     W="-O2 -std=gnu11 -Wall -Wextra -Werror"
     mkdir -p /m/build/pkg/bin /m/build/pkg/lib /m/build/bench /tmp/gen
     # vkprobe: a client on the unit'"'"'s libwayland-client (18.04'"'"'s 1.16 headers, xdg-shell 1.13)
@@ -88,6 +88,7 @@ docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id
     for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
         $S client-header /sink/protocol/$x.xml $G/$x-client-protocol.h; $S private-code /sink/protocol/$x.xml $G/$x-protocol.c
     done
+    $S server-header /sink/protocol/linux-dmabuf-unstable-v1.xml $G/linux-dmabuf-unstable-v1-server-protocol.h   # wl-sink --dmabuf
     gcc $W -I/sink -I$G -I/opt/wl/include -o /m/build/pkg/bin/wl-sink /sink/wl_sink.c /sink/fsr.c /sink/rgb.c /sink/frame_out.c /sink/winston_out.c \
         $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c $G/viewporter-protocol.c \
         $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c \
@@ -98,6 +99,7 @@ docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id
     gcc $W -shared -fPIC -o /m/build/pkg/lib/vk_crumbs.so /m/src/vk_crumbs.c -ldl
     gcc $W -shared -fPIC -o /m/build/bench/kernel414.so /m/test/kernel414.c -ldl
     cp /out/lib/libvulkan_intel.so /out/lib/libvulkan.so.1 /m/build/pkg/lib/
+    echo "$MESA_VER" > /m/build/pkg/lib/mesa   # which ANV: vkprobe offers wl-sink --dmabuf for 20+
     cp /out/shaders.spv.h /m/build/bench/   # for test/lavapipe_test.sh
     strip --strip-unneeded /m/build/pkg/bin/* /m/build/pkg/lib/vk_crumbs.so
     # the gate needs nothing; nothing else more than glibc 2.27

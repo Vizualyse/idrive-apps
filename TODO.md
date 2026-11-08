@@ -117,12 +117,32 @@ workflow (Actions > Release, the component ids).
      (fewer taps, as mobile ports do).
   2. **32-bit games** (Steam's "32-bit games on Vulkan" and "32-bit games,
      a long session" below), before any of what follows.
-  3. **Then DXVK 2.x by a newer ANV** ([knowledge/browser.md](knowledge/browser.md),
-     "Vulkan on this kernel"): first ANV 19.3 with DXVK 1.10.3 (the
-     smallest step from 19.0.6: host_query_reset), then Vulkan 1.3 (Mesa
-     22.x-23.1 as is, or newer with the isolation commit reverted). Each
-     through `tools/vk-trial` on the bench and once on the car; the 22.3
-     hang needs its witness (crumbs, `sysrq w`) before 22.x ships.
+  3. **Then DXVK 2.x by a newer ANV** (bench done 2026-11-08, branch
+     `steam-mesa`: [knowledge/games.md](knowledge/games.md) "Vulkan",
+     [knowledge/browser.md](knowledge/browser.md) "Vulkan on this kernel").
+     On the car, each step asked first, the gate's recovery known (a hang:
+     the marker, `arm --again`; Steam untouched), crumbs + `sysrq w`:
+     - **ANV 19.1.8 + DXVK 1.10.3** first (Steam's "32-bit games on
+       Vulkan" item has its steps): 19.3.5 is no better for DXVK 1.x and
+       sends `I915_QUERY` (ioctl 0x39 = `GEM_GVTBUFFER` on the unit).
+     - **ANV 22.3.7, patched (no `I915_QUERY`) + DXVK 2.6.2**:
+       `MESA_VER=22.3.7 sh tools/vk-trial/build.sh`, the stages one start
+       each (instance .. present; present now through `wl-sink --dmabuf`),
+       then `MESA_VER=22.3.7 DXVK_VER=2.6.2 sh tools/vk-trial/dxvk/package.sh`
+       and run.js with `t_d3d1164.exe t_d3d964.exe t_d3d1132.exe
+       t_d3d932.exe`. The same ANV hung the car unpatched in 0.1.1: if
+       this one runs, `I915_QUERY` was very likely the cause (record it).
+       Off the car first: `MESA_VER=22.3.7 DXVK_VER=2.6.2 DXVK_PROGRAMS=...
+       sh tools/vk-trial/dxvk/car_test.sh` (not run yet).
+     - If both hold: a candidate Steam bundle,
+       `STEAM_MESA_VER=22.3.7 STEAM_DXVK_VER=2.6.2 sh tools/vulkan.sh`
+       (game.js gives wl-sink `--dmabuf` by `lib/mesa`), one game on it, its
+       perf lines against 19.0.6 + 1.9.4.
+     - Bench, still to do: 23.1.9 (its image build was stopped by the
+       host's memory: rerun `MESA_VER=23.1.9 sh tools/vk-trial/test/anv_test.sh`
+       alone); why DXVK 2.3.1 loses its device after 10 frames (2.6.2 is
+       fine); 23.2+ only with `8a1a49aae40` reverted (sketch in
+       browser.md).
   4. **Detail Lite / Potato on the car (Steam 0.1.11, built and tested
      off the car 2026-11-08):** per game on the phone page (Options):
      DXVK's MSAA / tessellation / feature level 10_1 / 512 MB, WineD3D's

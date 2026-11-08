@@ -81,6 +81,7 @@
 #include "xdg-shell-server-protocol.h"
 #include "wayland-drm-server-protocol.h"
 #include "viewporter-server-protocol.h"
+#include "linux-dmabuf-unstable-v1-server-protocol.h"
 
 #define FOURCC(a, b, c, d) ((uint32_t)(a) | (uint32_t)(b) << 8 | (uint32_t)(c) << 16 | (uint32_t)(d) << 24)
 #define FMT_ARGB8888 FOURCC('A', 'R', '2', '4')
@@ -363,6 +364,100 @@ static void drm_bind(struct wl_client *c, void *data, uint32_t version, uint32_t
     wl_drm_send_format(res, FMT_ARGB8888);
     wl_drm_send_format(res, FMT_XRGB8888);
     if (version >= 2) wl_drm_send_capabilities(res, WL_DRM_CAPABILITY_PRIME);
+}
+
+/* ---- zwp_linux_dmabuf_v1 (version 3): what newer Mesa's Vulkan WSI wants ----
+ *
+ * Mesa 22+'s Wayland WSI (ANV for DXVK 2.x) no longer speaks wl_drm: it
+ * takes linux-dmabuf v3 or wl_shm. One plane, ARGB / XRGB 8888, only the
+ * implicit modifier (DRM_FORMAT_MOD_INVALID: the kernel's tiling, as wl_drm's
+ * buffers are imported here and by Winston); the buffer is the same struct
+ * drm_buffer as wl_drm's, so passing on, read-back and release are shared. */
+
+struct dmabuf_params { struct wl_resource *res; int fd, offset, stride, used; };
+
+static void params_destroy_res(struct wl_resource *res) {
+    struct dmabuf_params *p = wl_resource_get_user_data(res);
+    if (p->fd >= 0) close(p->fd);
+    free(p);
+}
+static void params_destroy(struct wl_client *c, struct wl_resource *r) { (void)c; wl_resource_destroy(r); }
+static void params_add(struct wl_client *c, struct wl_resource *r, int32_t fd, uint32_t plane, uint32_t offset,
+                       uint32_t stride, uint32_t mod_hi, uint32_t mod_lo) {
+    (void)c;
+    struct dmabuf_params *p = wl_resource_get_user_data(r);
+    uint64_t mod = (uint64_t)mod_hi << 32 | mod_lo;
+    if (plane != 0 || p->fd >= 0) {
+        close(fd);
+        wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX, "one plane only");
+        return;
+    }
+    if (mod != 0x00ffffffffffffffull) {   /* DRM_FORMAT_MOD_INVALID: all we offer */
+        close(fd);
+        wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "modifier %#llx not offered", (unsigned long long)mod);
+        return;
+    }
+    p->fd = fd; p->offset = (int)offset; p->stride = (int)stride;
+}
+/* a buffer from the params, or NULL (the reason sent as the protocol says) */
+static struct drm_buffer *params_buffer(struct wl_client *c, struct wl_resource *r, uint32_t id, int32_t w, int32_t h, uint32_t format) {
+    struct dmabuf_params *p = wl_resource_get_user_data(r);
+    if (p->used) { wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED, "used"); return NULL; }
+    p->used = 1;
+    if (p->fd < 0) { wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "no plane"); return NULL; }
+    if (format != FMT_ARGB8888 && format != FMT_XRGB8888) {
+        wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "format 0x%x", format);
+        return NULL;
+    }
+    if (w <= 0 || h <= 0 || w > 4096 || h > 4096) {
+        wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_DIMENSIONS, "%dx%d", w, h);
+        return NULL;
+    }
+    struct drm_buffer *b = calloc(1, sizeof *b);
+    if (!b) { wl_client_post_no_memory(c); return NULL; }
+    b->res = wl_resource_create(c, &wl_buffer_interface, 1, id);
+    if (!b->res) { free(b); wl_client_post_no_memory(c); return NULL; }
+    b->fd = p->fd; p->fd = -1;   /* the buffer owns it now */
+    b->w = w; b->h = h; b->offset = p->offset; b->stride = p->stride; b->format = format;
+    wl_list_insert(&drm_buffers, &b->link);
+    wl_resource_set_implementation(b->res, &drm_buffer_impl, b, drm_buffer_destroy_res);
+    return b;
+}
+static void params_create(struct wl_client *c, struct wl_resource *r, int32_t w, int32_t h, uint32_t format, uint32_t flags) {
+    (void)flags;
+    struct drm_buffer *b = params_buffer(c, r, 0, w, h, format);
+    if (b) zwp_linux_buffer_params_v1_send_created(r, b->res);
+}
+static void params_create_immed(struct wl_client *c, struct wl_resource *r, uint32_t id, int32_t w, int32_t h,
+                                uint32_t format, uint32_t flags) {
+    (void)flags;
+    params_buffer(c, r, id, w, h, format);
+}
+static const struct zwp_linux_buffer_params_v1_interface params_impl = {
+    .destroy = params_destroy, .add = params_add, .create = params_create, .create_immed = params_create_immed,
+};
+
+static void dmabuf_destroy(struct wl_client *c, struct wl_resource *r) { (void)c; wl_resource_destroy(r); }
+static void dmabuf_create_params(struct wl_client *c, struct wl_resource *r, uint32_t id) {
+    struct dmabuf_params *p = calloc(1, sizeof *p);
+    if (!p) { wl_client_post_no_memory(c); return; }
+    p->fd = -1;
+    p->res = wl_resource_create(c, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(r), id);
+    if (!p->res) { free(p); wl_client_post_no_memory(c); return; }
+    wl_resource_set_implementation(p->res, &params_impl, p, params_destroy_res);
+}
+static const struct zwp_linux_dmabuf_v1_interface dmabuf_impl = { .destroy = dmabuf_destroy, .create_params = dmabuf_create_params };
+
+static void dmabuf_bind(struct wl_client *c, void *data, uint32_t version, uint32_t id) {
+    (void)data;
+    struct wl_resource *res = wl_resource_create(c, &zwp_linux_dmabuf_v1_interface, version, id);
+    if (!res) { wl_client_post_no_memory(c); return; }
+    wl_resource_set_implementation(res, &dmabuf_impl, NULL, NULL);
+    const uint32_t fmts[] = { FMT_ARGB8888, FMT_XRGB8888 };
+    for (int i = 0; i < 2; i++) {
+        zwp_linux_dmabuf_v1_send_format(res, fmts[i]);
+        if (version >= 3) zwp_linux_dmabuf_v1_send_modifier(res, fmts[i], 0x00ffffff, 0xffffffff);
+    }
 }
 
 /* ---- surfaces ---- */
@@ -1417,13 +1512,13 @@ static int create_frame(const char *path, int w, int h) {
 
 int main(int argc, char **argv) {
     const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128", *winston = NULL;
-    int create_w = 0, create_h = 0, no_drm = 0, input = 0;
+    int create_w = 0, create_h = 0, no_drm = 0, input = 0, with_dmabuf = 0;
     long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
         { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "input", 0, 0, 'i' }, { "whole-window", 0, 0, 'w' },
-        { "winston", 1, 0, 'W' }, { "fsr", 1, 0, 'F' }, { 0, 0, 0, 0 } };
+        { "winston", 1, 0, 'W' }, { "fsr", 1, 0, 'F' }, { "dmabuf", 0, 0, 'B' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 's': sock = optarg; break;
@@ -1444,8 +1539,9 @@ int main(int argc, char **argv) {
             fsr_cmd(cmd);
             break;
         }
+        case 'B': with_dmabuf = 1; break;
         default:
-            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window] [--winston SOCKET [--fsr off|STOPS]]\n");
+            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window] [--winston SOCKET [--fsr off|STOPS]] [--dmabuf]\n");
             return 2;
         }
     }
@@ -1509,6 +1605,11 @@ int main(int argc, char **argv) {
         char err[1200];
         if (!(fsr = fsr_new(gl.getProcAddress, err, sizeof err))) { fsr_failed = 1; fsr_say(err); }
     }
+    /* --dmabuf: newer Mesa's Vulkan WSI (no wl_drm there). Only when asked:
+     * Mesa 19's EGL (Wine's OpenGL, every WineD3D game) may take it over
+     * wl_drm when it is offered, and wl_drm is the proven path. */
+    if (!no_drm && gl.ok && with_dmabuf)
+        wl_global_create(display, &zwp_linux_dmabuf_v1_interface, 3, NULL, dmabuf_bind);
 
     struct wl_event_loop *loop = wl_display_get_event_loop(display);
     tick_timer = wl_event_loop_add_timer(loop, tick, NULL);
