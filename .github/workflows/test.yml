@@ -75,6 +75,8 @@ jobs:
             node native/vizualyse-cast/test/control_test.js native/vizualyse-moonlight/src/control.js vizualyse_moonlight &&
             node native/vizualyse-cast/test/control_test.js native/vizualyse-chromium/src/control.js vizualyse_chromium &&
             node native/vizualyse-cast/test/control_test.js native/vizualyse-steam/src/control.js vizualyse_steam'
+      - name: Pinned downloads (cached)
+        uses: ./.github/actions/mgu-dl
       - name: The tools' bus (Mosquitto built for the unit, the client and Cast on glibc Node 8, as root)
         run: BUS_TEST_IMAGE=ml-unit:18.04-node8 sh native/vizualyse-bus/test/run_test.sh
       - name: Moonlight against Sunshine (the head unit in a box, Node 8)

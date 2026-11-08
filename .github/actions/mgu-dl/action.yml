@@ -1,0 +1,21 @@
+name: Pinned downloads
+description: Restores the builds' pinned source downloads (~/.cache/mgu-dl, MGU_DL_CACHE) from the cache, or fetches and caches them
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/mgu-dl
+        key: mgu-dl-${{ hashFiles('native/vizualyse-bus/build.sh') }}
+
+    - name: Fetch the downloads
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: sh native/vizualyse-bus/build.sh fetch
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/mgu-dl
+        key: mgu-dl-${{ hashFiles('native/vizualyse-bus/build.sh') }}

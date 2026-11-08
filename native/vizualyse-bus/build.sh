@@ -3,13 +3,17 @@
 # Copyright (C) 2026 Yousaf Khan
 #
 # Builds build/mosquitto (the broker only) for the unit: Mosquitto's source,
-# pinned by version and SHA-256 (downloaded once into build/dl), compiled in
+# pinned by version and SHA-256 (downloaded once into $MGU_DL_CACHE, default
+# ~/.cache/mgu-dl, outside the tree: release builds run on a fresh export of
+# it; CI keeps that folder in the Actions cache, .github/actions/mgu-dl, as
+# mosquitto.org's TLS drops now and then), compiled in
 # image/Dockerfile (Ubuntu 18.04, glibc 2.27 as the unit) without TLS,
 # WebSockets, bridges, persistence or plugins' JSON, asking for the unit's
 # loader (/lib/ld-linux-x86-64.so.2: the unit has no /lib64). Refuses a
 # result that needs a glibc newer than 2.27 or a library the unit may lack.
 # Also copies Mosquitto's licences into build/. Run by the packer
 # (component.json "build"), or by hand:  sh native/vizualyse-bus/build.sh
+# "sh build.sh fetch" only downloads the source into the cache.
 set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -17,15 +21,19 @@ WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 VER=2.0.21
 # mosquitto.org/files/source/mosquitto-2.0.21.tar.gz as downloaded 2026-11-08
 SHA256=7ad5e84caeb8d2bb6ed0c04614b2a7042def961af82d87f688ba33db857b899d
-TGZ=$HERE/build/dl/mosquitto-$VER.tar.gz
-mkdir -p "$HERE/build/dl"
+CACHE=${MGU_DL_CACHE:-$HOME/.cache/mgu-dl}
+TGZ=$CACHE/mosquitto-$VER.tar.gz
+mkdir -p "$CACHE" "$HERE/build/dl"
 if [ ! -f "$TGZ" ] || [ "$(sha256sum "$TGZ" | cut -c1-64)" != $SHA256 ]; then
     # a relative name: Windows' curl can't write to a Git Bash path
-    (cd "$HERE/build/dl" && curl -fsSL -o mosquitto-$VER.tar.gz.part https://mosquitto.org/files/source/mosquitto-$VER.tar.gz)
+    (cd "$CACHE" && curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors \
+        -o mosquitto-$VER.tar.gz.part https://mosquitto.org/files/source/mosquitto-$VER.tar.gz)
     got=$(sha256sum "$TGZ.part" | cut -c1-64)
     [ "$got" = $SHA256 ] || { rm -f "$TGZ.part"; echo "build.sh: mosquitto-$VER.tar.gz is $got, not $SHA256" >&2; exit 1; }
     mv "$TGZ.part" "$TGZ"
 fi
+[ "${1:-}" = fetch ] && exit 0
+cp "$TGZ" "$HERE/build/dl/"
 IMG=idrive-bus-build:18.04-$(sha256sum "$HERE/image/Dockerfile" | cut -c1-8)
 docker image inspect $IMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $IMG "$WIN_HERE/image" >/dev/null
 docker run --rm --platform linux/amd64 -v "$WIN_HERE/build:/out" -v "$WIN_HERE/patches:/p:ro" $IMG sh -euc '

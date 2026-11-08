@@ -46,6 +46,10 @@ jobs:
         if: inputs.components == '' || contains(format(' {0} ', inputs.components), ' vizualyse-chromium ')
         uses: ./.github/actions/chromium-image
 
+      # the builds' pinned source downloads (Mosquitto) from the cache
+      - name: Pinned downloads
+        uses: ./.github/actions/mgu-dl
+
       # the tools' builds run make target: Docker, preinstalled on the runner
       - name: Publish
         env:

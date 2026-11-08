@@ -10,12 +10,12 @@ workflow (Actions > Release, the component ids).
 ## High priority
 
 - [ ] **The car list for game performance (built and tested off the car
-  2026-11-08, branch `steam-next`: FSR, perf lines, Detail, 32-bit DXVK,
-  newer ANV, iris).** Each step asked first; the journal read after, not
-  polled during. In order:
-  1. Merge `steam-next` into main, release Steam 0.1.11 and the app
-     0.1.3 (the Release workflow). On the car: a game still starts, shows
-     through Winston, hides; `perf:` lines in the journal.
+  2026-11-08, on main; Steam 0.1.11 and the app 0.1.3 released
+  2026-11-08 with FSR, perf lines and Detail; 32-bit DXVK, newer ANV and
+  iris are by-hand trials, not shipped).** Each step asked first; the
+  journal read after, not polled during. In order:
+  1. Install 0.1.11 / 0.1.3 from the Store. On the car: a game still
+     starts, shows through Winston, hides; `perf:` lines in the journal.
   2. FSR: "Game performance, next" step 1 (Picture 896x320, Upscaling off
      / FSR / FSR no sharpening, the `perf: summary` lines, a photo).
   3. Detail: step 4 (Normal / Lite / Potato on a DXVK game and a WineD3D
