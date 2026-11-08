@@ -90,9 +90,45 @@ workflow (Actions > Release, the component ids).
     `bus:` lines in both tools' journals. Steam and the Browser: a game
     pauses the browser (and it comes back after); game mode turned on
     during a game stops the game; Make room gone from the app and page.
-  Then measure what's left: one D3D9 and one D3D11 game at 960x540 and
-  848x480, frame times from the stats, CPU per thread (from `/proc`, once,
-  after).
+  Measured since (the user's test, 2026-11-08): the CPU limit has mostly
+  gone; games are now GPU / memory bound. Next: "Game performance, next".
+- [ ] **Game performance, next (GPU / memory bound; plan of 2026-11-08):**
+  1. **FSR 1 in wl-sink, a toggle in the Steam app** (first: it works for
+     every game, WineD3D, DXVK, OpenGL, Vulkan, and doesn't wait on the
+     driver work). EASU + RCAS as a GLES pass on the unit's i965 from the
+     game's buffer into a buffer the size it is shown at, passed to Winston
+     as `fwd` is now (no read-back). Comes with resolutions of the screen's
+     shape below 1344x480 (896x320 = 2x to 1792x640, 1195x427 = 1.5x):
+     16:9 is shown at only ~1134x638, so from 960x540 FSR barely scales;
+     the gain is in drawing far fewer pixels. Guesses to check: 3-8 ms a
+     frame at 1792x640 (an iPhone 12 took 2.7 ms optimised, and Mesa 19's
+     i965 probably has no native fp16); the HUD and text get soft (the
+     game's own render scale avoids that: step 5). Bench first (gpu-bench
+     `swrast` for real pixels: FSR against Winston's bilinear, same
+     sizes), then timed on the car (ask first). Keep it only if it beats
+     bilinear at the same frame rate.
+  2. **32-bit games** (Steam's "32-bit games on Vulkan" and "32-bit games,
+     a long session" below), before any of what follows.
+  3. **Then DXVK 2.x by a newer ANV** ([knowledge/browser.md](knowledge/browser.md),
+     "Vulkan on this kernel"): first ANV 19.3 with DXVK 1.10.3 (the
+     smallest step from 19.0.6: host_query_reset), then Vulkan 1.3 (Mesa
+     22.x-23.1 as is, or newer with the isolation commit reverted). Each
+     through `tools/vk-trial` on the bench and once on the car; the 22.3
+     hang needs its witness (crumbs, `sysrq w`) before 22.x ships.
+  4. **After that, the rest of the levers:** `dxvk.conf`
+     `d3d11.disableMsaa`, `d3d9.forceSwapchainMSAA = 0`,
+     `d3d11.maxTessFactor`, per game `d3d11.maxFeatureLevel = 10_1`, and
+     with 2.x `samplerLodBias` (lower texture detail: memory bandwidth);
+     WineD3D `MaxShaderModelPS` / `VS` 2 per game.
+  5. **Per-engine low-spec presets** (launch options / config files the
+     tool writes): Unity `-screen-quality Fastest`, Unreal `Engine.ini`
+     `r.ScreenPercentage`, `sg.ShadowQuality=0`, post-processing off,
+     Source `-dxlevel 90`; the game's own render scale keeps its HUD sharp.
+  6. **Later, only if 3 lands:** iris 19.3 under the gate (no isolation
+     check before 20.0) and Gallium Nine for D3D9 (open question: Nine
+     loads a native library into the game, and our 32-bit games are WoW64
+     with no 32-bit Linux libraries); frame generation (lsfg-vk 2.0 needs
+     Vulkan 1.2 and costs GPU we lack).
 - [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
   volume does nothing until a CarPlay phone connects (our sound goes into
   CarPlay's SmartXbar input; see Moonlight's item below and
@@ -276,7 +312,8 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   get through `compute` on the car (High priority): then Chromium as a
   vk-trial `command` stage, never kept. Dawn on Vulkan would give full
   WebGPU (not compatibility mode) and skip the GL translation. Mesa 22.3's
-  ANV hung the kernel (0.1.1), ≥ 23.2 refuses the 4.14 kernel. Chromium on
+  ANV hung the kernel once (0.1.1, cause unknown), ≥ 23.2 refuses the 4.14
+  kernel by a check we could revert (untried). Chromium on
   Wayland refuses Vulkan for compositing only: Dawn (and ANGLE) can still
   use it. Chromium's bundled loader would need ANV for glibc 2.27 (ours)
   or its own build.
@@ -468,3 +505,7 @@ libva-based CarPlay feed and the grabber's encoder quality. The CarPlay second
 screen replaces the mirror and avoids the pop-ups; whether it streams in the
 background is the open protocol question above. Rotating the Cast phone link's
 token was skipped.
+
+Pinning the GPU's clock for games (`gt_min_freq_mhz` raised to the maximum)
+was considered on 2026-11-08 and not taken up: more heat and power on a GPU
+the HMI shares.

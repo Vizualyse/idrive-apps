@@ -2,7 +2,8 @@
 
 Found building vizualyse-steam, off the car on the bench (the unit's own
 root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
-2026-11-06. **Nothing here has run on the car yet.** Index: [index.md](index.md).
+2026-11-06, and on the car since 2026-11-07 (FTL, Gunpoint, STS2, DXVK
+under Proton): a line says which. Index: [index.md](index.md).
 
 - **The path:** GE-Proton 11 with `PROTON_USE_WINED3D=1` (Direct3D on
   OpenGL; from Steam 0.1.9 64-bit games on DXVK and ANV instead, "Vulkan"
@@ -158,7 +159,11 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   restart during a Vulkan game turns Vulkan off for it. Proven first with
   `tools/vk-trial` (gated, one start; [bench.md](bench.md)).
 - **DXVK versions:** 1.10.x needs `VK_EXT_host_query_reset`, 2.x and
-  GE-Proton's own (3.x) need Vulkan 1.3: 1.9.4 is the newest for ANV 19.
+  GE-Proton's own (3.x) need Vulkan 1.3: 1.9.4 is the newest for the ANV
+  we ship (19.0.6). Newer ANV is a choice, not a wall: 19.1+ has
+  host_query_reset (1.10.x), Mesa 22+ has Vulkan 1.3 (2.x); see
+  [browser.md](browser.md), "Vulkan on this kernel", for what stands in the
+  way of each. DXVK 1.9.4 has no LOD-bias option (2.x's `samplerLodBias`).
 - **32-bit DXVK isn't working yet:** off the car `t_d3d932.exe` finds DXVK's
   adapter and exits 1 (WoW64 winevulkan on ANV 19?); 32-bit games stay on
   WineD3D (TODO: recheck with Teslagrad).

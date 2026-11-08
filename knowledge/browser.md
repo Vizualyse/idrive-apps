@@ -197,11 +197,17 @@ it renders.
   `I915_PARAM_HAS_CONTEXT_ISOLATION` (4.16+); iris (GL) refuses it too
   ("Kernel is too old (4.16+ required)"). The gem wait / execbuf2 / softpin /
   fence array checks in `i915/anv_device.c` pass, they are not the gate.
+  Both refusals are checks in Mesa's code, not something the kernel can't
+  do: patching them (restoring what ANV 18.2-23.1 did without isolation,
+  below) is untried. A first look, not a verdict.
 - **Mesa 22.3's ANV** (Debian bookworm, `22.3.6-1+deb12u2`) has no such gate:
   it reads the param and, without it, makes constant buffer 0 relative
   (`anv_device.c:794, 963`). Its `libvulkan_intel.so` binds against trixie's
   newer libraries (checked with `RTLD_NOW`). **On the car it hung the
-  kernel** (above): never ship it again.
+  kernel** (above), once, at boot, with no witness of which ioctl: never
+  ship it this way again. Retrying it (or any newer ANV) goes through
+  `tools/vk-trial` (crumbs, `sysrq w`) to find out why; the cause is unknown,
+  not a property of 22.3 we know of.
 - With no Vulkan device, Chromium's GPU process exits on every start
   (`ANGLE Display::initialize ... Internal Vulkan error (-3)`), and Chromium
   turns WebGL off (webglreport: "supports WebGL but it is disabled or
@@ -224,11 +230,23 @@ refuse scripts; `git` works) and a web search.
   dropped that** (`8a1a49aae40`, May 2023, "anv: assume context isolation
   support", issue 7265): it refuses the device ("Vulkan requires context
   isolation") and writes `CS_DEBUG_MODE2` unconditionally, a register that
-  without isolation would leak into other contexts (the HMI's). So **only
-  ANV from Mesa 18.2 to 23.1 could ever be a candidate** here; ≥ 23.2 is
-  out for good. Mesa 25.3 also requires Linux 6.0 and newer i915 features
-  (`affee04bd9c`, `8044f16bd69`, `cb5a2eafd52`, `f28eb1bae66`, Aug 2025).
-- **Candidate if we try again: ANV from Mesa 19.0.6**, the release the
+  without isolation would leak into other contexts (the HMI's). So **ANV
+  from Mesa 18.2 to 23.1 runs here as it is**; 23.2 and later need that
+  commit reverted in a build of our own (the check, the relative constant
+  buffer 0, no `CS_DEBUG_MODE2` write): more work, untried, not ruled out.
+  Mesa 25.3 also requires Linux 6.0 and newer i915 features
+  (`affee04bd9c`, `8044f16bd69`, `cb5a2eafd52`, `f28eb1bae66`, Aug 2025):
+  much harder to get past than one check.
+- **What a newer Mesa would bring the games** (sources read 2026-11-08,
+  `gitlab.freedesktop.org/mesa/mesa/-/raw/<tag>/...`): ANV from **19.1** has
+  `VK_EXT_host_query_reset` (DXVK 1.10.x's requirement on record; the rest
+  unchecked); Vulkan 1.3 (DXVK 2.x) from Mesa 22. **iris 19.3.5 has no
+  context-isolation check** (`iris_screen.c`; it arrives in 20.0), so 19.3's
+  iris may load on 4.14 unpatched; whether it's safe without isolation is
+  the open question (20.0 added the check for a reason), so only through
+  vk-trial's gate. iris would bring Gallium Nine (D3D9 natively) and
+  probably a faster GL than i965.
+- **The first candidate (now proven, below): ANV from Mesa 19.0.6**, the release the
   unit's own i965 is from (same era as the kernel, no context-isolation
   dependence), built for the unit's glibc, under the safety net above.
   Mesa 22.3 hung, and why is not known; an older ANV may hang the same way.

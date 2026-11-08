@@ -57,7 +57,12 @@ Not yet seen on ours ([reference-repos.md](reference-repos.md)).
 - The journal held about 4 minutes on upstream's car. An OAP app's own log goes to DLT. Firmware line: `/etc/os-release-id-dlt`.
 - systemd 237: `DefaultStandardOutput=null` (a unit needs `StandardOutput=journal`); `User=` is refused for a uid with no passwd entry; `BindReadOnlyPaths=` fails the unit while the file is missing. Every Store tool service gets `StartLimitIntervalSec=600`, `Burst=20`, `LimitCORE=1`. No TUN in the kernel. Linux is suspended while the car sleeps. *(ref: IterioDev, mgu-store)*
 - cgroup v1 limits work in units (upstream `native/waze-on-cluster/systemd/waze-on-cluster-journal.service`): the way to cap a big process (Chromium).
-- Mesa 19.0.6 with only the old `i965` GL driver, no Vulkan; render node
+- GPU: Intel HD Graphics 505 (Gen9, Broxton, `8086:5a84`), 18 execution
+  units, up to 750 MHz (Intel's spec for the A3960), about 0.2 TFLOPS: memory
+  shared with the CPU. Games on the car were GPU / memory bound rather than
+  CPU bound once Steam 0.1.10 held frames to 30 (the user's test, 2026-11-08).
+- Mesa 19.0.6 with only the old `i965` GL driver, no Vulkan (the image's;
+  Steam ships its own ANV 19.0.6: [games.md](games.md)); render node
   group `video` = gid 44 (from the rootfs: [browser.md](browser.md)).
 - Groups: `video` (the DRI render node), `mgu_wayland` (Winston's Wayland, `/run/wayland/wayland-0`, `root:mgu_wayland 0770`), `mgu_ufipc` (AVB), `tm_oap_app` (every app), `hmi_resourceaccess` 5001. MainApp's app uids: 12203-12450 and 12453-12700.
 - A native GL client can get onto the centre screen through Winston: root, `Group=mgu_wayland`, `XDG_RUNTIME_DIR=/run/wayland`, an `ivi_application` surface + `wl_egl_window`, an `ivi_controller` layer on the lowest-id screen (centre). The HMI is ivi surface/layer 100; HmiMain3D has its own compositor at `wayland-1`. *(ref: idrive7-apps `deploy/mgu-app-install.sh:451-478`)*
