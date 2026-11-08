@@ -35,6 +35,18 @@
  * Subsurfaces are treated as desynchronised. Surfaces are copied at commit
  * and their buffers released at once, so a client is never held up by us.
  *
+ * --winston SOCKET: connected to Winston at start (before the drop; its
+ * socket is root:mgu_wayland), and stdin also takes "winston X,Y,W,H" (the
+ * pictures straight onto the centre screen through Winston, fitted into
+ * that place, full colour: platform native/winston_out) and "hide" (back to
+ * the frame file only). Through Winston no I420 is made, and when the
+ * picture is one surface (a game's GL / Direct3D client area) whose content
+ * is a GPU buffer, that buffer goes to Winston as it is, placed where the
+ * composed picture would have it, its viewport (Wine's scaling at an emulated
+ * display mode) applied by Winston (no read-back, no copy, no scaling here),
+ * and back to Wine at Winston's release. Otherwise the picture is composed
+ * as ever and handed over in our own buffers.
+ *
  * stdout: one JSON event a line: {"ev":"ready","socket":..,"drm":bool,..},
  * {"ev":"toplevel","title":..}, {"ev":"stats","pictures":n,"commits":n,
  * "shm":n,"drm":n,"ms":avg} once a second while anything happens,
@@ -58,6 +70,7 @@
 #include <wayland-server.h>
 #include "frame_out.h"
 #include "rgb.h"
+#include "winston_out.h"
 #include "xdg-shell-server-protocol.h"
 #include "wayland-drm-server-protocol.h"
 #include "viewporter-server-protocol.h"
@@ -70,6 +83,13 @@ static struct wl_display *display;
 static struct frame_out fo;
 static int out_w = 1280, out_h = 720;
 static uint32_t *canvas;
+/* through Winston (--winston) */
+static struct wo *wo;
+static struct wl_event_source *wo_source;
+static int wshown;
+static struct wo_ring *ring;
+static unsigned long n_winston, n_fwd;   /* pictures through Winston; of them, GPU buffers passed on as they are */
+static unsigned long n_fwd_scaled;       /* of those, scaled or cut by Winston (the surface's viewport) */
 static const char *snap_path;
 static int dirty;
 static unsigned long n_pictures, n_commits, n_shm, n_drm, n_ms_total;
@@ -182,12 +202,31 @@ struct drm_buffer {
     struct wl_resource *res;
     int fd, w, h, offset, stride;
     uint32_t format;
+    struct wl_list link;          /* drm_buffers */
+    struct wo_buf *wb;            /* the same buffer in Winston, once passed on */
+    int refused;                  /* Winston refused it: read back instead */
+    int held;                     /* Winston has it: the client gets it back at its release */
 };
+
+static struct wl_list drm_buffers;
+static void drm_buffer_gone(struct drm_buffer *b);   /* surfaces forget it */
 
 static void drm_buffer_destroy_res(struct wl_resource *res) {
     struct drm_buffer *b = wl_resource_get_user_data(res);
+    drm_buffer_gone(b);
     if (b->fd >= 0) close(b->fd);
+    if (b->wb) wo_buf_free(b->wb);   /* Winston keeps what it shows */
+    wl_list_remove(&b->link);
     free(b);
+}
+
+/* Winston no longer reads it: back to the client. */
+static void drm_buffer_released(void *data, struct wo_buf *wb) {
+    struct drm_buffer *b = data;
+    (void)wb;
+    if (!b->held) return;
+    b->held = 0;
+    wl_buffer_send_release(b->res);
 }
 
 static void buffer_destroy(struct wl_client *c, struct wl_resource *res) { (void)c; wl_resource_destroy(res); }
@@ -260,6 +299,7 @@ static void drm_create_prime_buffer(struct wl_client *c, struct wl_resource *res
     b->res = wl_resource_create(c, &wl_buffer_interface, 1, id);
     if (!b || !b->res) { close(fd); free(b); wl_client_post_no_memory(c); return; }
     b->fd = fd; b->w = w; b->h = h; b->offset = o0; b->stride = s0; b->format = format;
+    wl_list_insert(&drm_buffers, &b->link);
     wl_resource_set_implementation(b->res, &drm_buffer_impl, b, drm_buffer_destroy_res);
 }
 
@@ -305,10 +345,22 @@ struct surface {
     struct wl_resource *viewport, *subsurface;
     int dw, dh, pend_dw, pend_dh;
     double vx, vy, vw, vh, pend_vx, pend_vy, pend_vw, pend_vh;
+    /* shown through Winston: its GPU buffer, not read back yet (pix is
+     * stale); compose() passes it on as it is, or reads it back */
+    struct drm_buffer *drm;
 };
 
 static struct wl_list surfaces;
 static long next_order;
+
+static void drm_done(struct surface *s);
+
+/* A GPU buffer the client destroyed: no surface shows it any more. */
+static void drm_buffer_gone(struct drm_buffer *b) {
+    struct surface *s;
+    wl_list_for_each(s, &surfaces, link)
+        if (s->drm == b) { s->drm = NULL; dirty = 1; }
+}
 
 static void remove_cb(struct wl_resource *res) { wl_list_remove(wl_resource_get_link(res)); }
 
@@ -320,6 +372,7 @@ static int org_x, org_y;
 static void surface_destroy_res(struct wl_resource *res) {
     struct surface *s = wl_resource_get_user_data(res);
     struct surface *o;
+    drm_done(s);
     if (entered == s) entered = NULL;
     if (shown_top == s) shown_top = NULL;
     wl_list_for_each(o, &surfaces, link)
@@ -363,23 +416,56 @@ static void s_region(struct wl_client *c, struct wl_resource *r, struct wl_resou
 }
 
 /* Copies the attached buffer into the surface: shm directly, wl_drm through GL. */
-static void take_buffer(struct surface *s, struct wl_resource *buffer) {
+/* A GPU buffer the surface no longer shows: back to the client, unless
+ * Winston still has it (then at Winston's release). */
+static void drm_done(struct surface *s) {
+    struct drm_buffer *b = s->drm;
+    s->drm = NULL;
+    if (b && !b->held) wl_buffer_send_release(b->res);
+}
+
+/* The surface's deferred GPU buffer into its pixels, then done with it. */
+static void drm_read_back(struct surface *s) {
+    struct drm_buffer *b = s->drm;
+    if (!b) return;
+    if (!s->pix || s->w != b->w || s->h != b->h) {
+        free(s->pix);
+        s->pix = calloc((size_t)b->w * b->h, 4);
+        s->w = s->pix ? b->w : 0; s->h = s->pix ? b->h : 0;
+    }
+    if (s->pix && drm_buffer_read(b, s->pix) == 0) n_drm++;
+    drm_done(s);
+}
+
+/* Copies the attached buffer into the surface: shm directly, wl_drm through
+ * GL; while shown through Winston a wl_drm buffer is kept as it is instead
+ * (compose: passed on, or read back then). 1: kept, released later. */
+static int take_buffer(struct surface *s, struct wl_resource *buffer) {
     struct wl_shm_buffer *shm = wl_shm_buffer_get(buffer);
+    struct drm_buffer *drm = NULL;
     int w, h;
     if (shm) {
         w = wl_shm_buffer_get_width(shm); h = wl_shm_buffer_get_height(shm);
     } else if (wl_resource_instance_of(buffer, &wl_buffer_interface, &drm_buffer_impl)) {
-        struct drm_buffer *b = wl_resource_get_user_data(buffer);
-        w = b->w; h = b->h;
+        drm = wl_resource_get_user_data(buffer);
+        w = drm->w; h = drm->h;
     } else {
-        return;
+        return 0;
     }
-    if (w <= 0 || h <= 0 || w > 4096 || h > 4096) return;
-    if (w != s->w || h != s->h) {
+    if (w <= 0 || h <= 0 || w > 4096 || h > 4096) return 0;
+    if (s->drm && s->drm != drm) drm_done(s);   /* superseded */
+    if (drm && wshown && wo && !drm->refused) {
+        s->drm = drm;
+        s->w = w; s->h = h;   /* the size it is shown at; pix is filled only if it is read back */
+        if (s->pix) { free(s->pix); s->pix = NULL; }
+        return 1;
+    }
+    if (drm && s->drm == drm) s->drm = NULL;   /* read back below and released now */
+    if (!s->pix || w != s->w || h != s->h) {   /* (no pixels after a buffer passed on) */
         free(s->pix);
         s->pix = calloc((size_t)w * h, 4);
         s->w = s->pix ? w : 0; s->h = s->pix ? h : 0;
-        if (!s->pix) return;
+        if (!s->pix) return 0;
     }
     if (shm) {
         int stride = wl_shm_buffer_get_stride(shm);
@@ -389,8 +475,9 @@ static void take_buffer(struct surface *s, struct wl_resource *buffer) {
         wl_shm_buffer_end_access(shm);
         n_shm++;
     } else {
-        if (drm_buffer_read(wl_resource_get_user_data(buffer), s->pix) == 0) n_drm++;
+        if (drm_buffer_read(drm, s->pix) == 0) n_drm++;
     }
+    return 0;
 }
 
 static void s_commit(struct wl_client *c, struct wl_resource *r) {
@@ -399,9 +486,9 @@ static void s_commit(struct wl_client *c, struct wl_resource *r) {
     n_commits++;
     if (s->pend_attached) {
         if (s->pend_buffer) {
-            take_buffer(s, s->pend_buffer);
-            wl_buffer_send_release(s->pend_buffer);
+            if (!take_buffer(s, s->pend_buffer)) wl_buffer_send_release(s->pend_buffer);
         } else {
+            drm_done(s);
             free(s->pix); s->pix = NULL; s->w = s->h = 0;
         }
         s->pend_buffer = NULL;
@@ -788,6 +875,66 @@ static void touch_input(char kind, int X, int Y) {
     wl_display_flush_clients(display);
 }
 
+/* ---- through Winston (--winston) ---- */
+
+/* Every GPU buffer Winston still has goes back to the client (our surface
+ * went), each exactly once: the ones surfaces show are read back first (a
+ * second release of a buffer the client has taken again made Mesa's Wayland
+ * EGL drop it and Wine stall for good: real Wine on the bench, 2026-11-07). */
+static void drm_buffers_unhold(void) {
+    struct surface *s;
+    wl_list_for_each(s, &surfaces, link)
+        if (s->drm) drm_read_back(s);   /* releases it unless Winston has it */
+    struct drm_buffer *b;
+    wl_list_for_each(b, &drm_buffers, link)
+        if (b->held) { b->held = 0; wl_buffer_send_release(b->res); }
+    dirty = 1;
+}
+
+static void wo_lost(void) {
+    if (!wo) return;
+    if (wo_source) { wl_event_source_remove(wo_source); wo_source = NULL; }
+    drm_buffers_unhold();
+    struct drm_buffer *b;
+    wl_list_for_each(b, &drm_buffers, link)
+        if (b->wb) { wo_buf_free(b->wb); b->wb = NULL; }
+    wo_ring_free(ring); ring = NULL;
+    wo_close(wo); wo = NULL;
+    wshown = 0;
+    puts("{\"ev\":\"winston-lost\"}");   /* the frame file goes on */
+    fflush(stdout);
+}
+
+static int on_wo(int fd, uint32_t mask, void *data) {
+    (void)fd; (void)data;
+    if ((mask & (WL_EVENT_HANGUP | WL_EVENT_ERROR)) || wo_dispatch(wo) < 0) wo_lost();
+    return 0;
+}
+
+static void wo_say(void *ud, const char *m) {
+    (void)ud;
+    printf("{\"ev\":\"winston\",\"msg\":"); jstr(m); puts("}");
+    fflush(stdout);
+}
+
+/* "winston X,Y,W,H": shown through Winston there; "hide": not. */
+static void winston_cmd(const char *line) {
+    int x, y, w, h;
+    if (!strcmp(line, "hide")) {
+        if (wshown && wo) wo_hide(wo);
+        wshown = 0;
+        drm_buffers_unhold();
+        wo_ring_free(ring); ring = NULL;
+        return;
+    }
+    if (sscanf(line, "winston %d,%d,%d,%d", &x, &y, &w, &h) != 4 || w < 16 || h < 16 || w > 4096 || h > 4096) return;
+    if (!wo) { puts("{\"ev\":\"error\",\"error\":\"not connected to Winston\"}"); fflush(stdout); return; }
+    wo_place(wo, x, y, w, h);
+    if (wo_show(wo, 1) < 0) { wo_lost(); return; }
+    wshown = 1;
+    dirty = 1;   /* the current picture at the next tick */
+}
+
 static char in_buf[512];
 static size_t in_len;
 
@@ -807,7 +954,9 @@ static int on_stdin(int fd, uint32_t mask, void *data) {
         *nl = 0;
         char kind;
         int x, y;
-        if (sscanf(line, " %c %d %d", &kind, &x, &y) == 3 && (kind == 'd' || kind == 'm' || kind == 'u'))
+        if (!strncmp(line, "winston ", 8) || !strcmp(line, "hide"))
+            winston_cmd(line);
+        else if (sscanf(line, " %c %d %d", &kind, &x, &y) == 3 && (kind == 'd' || kind == 'm' || kind == 'u'))
             touch_input(kind, x, y);
         line = nl + 1;
     }
@@ -876,27 +1025,85 @@ static void write_snap(void) {
 
 static int whole_window;   /* --whole-window: the frame and title bar too */
 
+/* It has a picture: its pixels, or (through Winston) a GPU buffer not read back. */
+static int has(const struct surface *s) { return s->pix || s->drm; }
+
+/* Through Winston, when the picture is one surface whose content is a GPU
+ * buffer: that buffer straight to Winston, where the composed picture would
+ * have it (wo_present_view: the same place, the same touch mapping), no
+ * read-back, no copy. Its viewport (Wine scales the area with one at an
+ * emulated display mode: a game at 800x600 on a 960x540 screen) is Winston's
+ * to apply: the source rectangle, and the size it is shown at, scaled on
+ * Winston's GPU instead of read back and scaled here on the CPU. 1 when it went. */
+static int forward(struct surface *x, int px, int py) {
+    struct drm_buffer *d = x->drm;
+    int w, h;
+    shown_size(x, &w, &h);
+    if (!d || w <= 1 || h <= 1 || d->refused || px < 0 || py < 0 || px + w > out_w || py + h > out_h) return 0;
+    int sx = 0, sy = 0, sw = d->w, sh = d->h;
+    if (x->vw > 0 && x->vh > 0) {   /* wl_fixed source: to whole pixels */
+        sx = (int)(x->vx + 0.5); sy = (int)(x->vy + 0.5); sw = (int)(x->vw + 0.5); sh = (int)(x->vh + 0.5);
+        if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) return 0;
+    }
+    if (!d->wb) {
+        /* no modifier said (wl_drm): the driver takes the buffer's tiling from the kernel */
+        d->wb = wo_buf_dmabuf(wo, d->fd, d->w, d->h, d->format, (uint32_t)d->offset, (uint32_t)d->stride, 0x00ffffffffffffffull);
+        if (!d->wb) {
+            d->refused = 1;
+            puts("{\"ev\":\"error\",\"error\":\"Winston refused a GPU buffer: read back instead\"}");
+            fflush(stdout);
+            return 0;
+        }
+        wo_buf_on_release(d->wb, drm_buffer_released, d);
+    }
+    if (wo_present_view(wo, d->wb, sx, sy, sw, sh, w, h, out_w, out_h, px, py) < 0) return 0;
+    d->held = 1;
+    n_fwd++;
+    if (sx || sy || sw != w || sh != h) n_fwd_scaled++;
+    n_winston++;
+    return 1;
+}
+
 static void compose(void) {
     long t0 = now_ms();
     struct surface *top = NULL, *s;
     wl_list_for_each(s, &surfaces, link)
-        if (s->role == ROLE_TOPLEVEL && s->xdg_toplevel && s->pix && (!top || s->order > top->order)) top = s;
-    memset(canvas, 0, (size_t)out_w * out_h * 4);
+        if (s->role == ROLE_TOPLEVEL && s->xdg_toplevel && has(s) && (!top || s->order > top->order)) top = s;
     /* Wine puts a GL / Direct3D game's client area in a subsurface; the
      * toplevel under it is the window's frame, title bar included, drawn in
      * software. With one, only the largest such subsurface is shown, centred
      * (no title bar); else (a plain window) the toplevel with everything. */
     struct surface *client = NULL;
-    if (top && !whole_window) {
+    int subs = 0;
+    if (top) {
         long best = 0;
         wl_list_for_each(s, &surfaces, link) {
-            if (s->role != ROLE_SUB || s->parent != top || !s->pix) continue;
+            if (s->role != ROLE_SUB || s->parent != top || !has(s)) continue;
+            subs++;
+            if (whole_window) continue;
             int w, h;
             shown_size(s, &w, &h);
             if (w > 1 && h > 1 && (long)w * h > best) { best = (long)w * h; client = s; }
         }
     }
     shown_top = top;
+    /* the one surface shown alone, at its place in the picture */
+    struct surface *alone = client ? client : (top && !subs ? top : NULL);
+    if (alone && wshown && wo && alone->drm) {
+        int w, h;
+        shown_size(alone, &w, &h);
+        int x = (out_w - w) / 2, y = (out_h - h) / 2;
+        if (forward(alone, x, y)) {
+            org_x = x - (client ? client->sx : 0); org_y = y - (client ? client->sy : 0);
+            n_pictures++;
+            n_ms_total += (unsigned long)(now_ms() - t0);
+            return;
+        }
+    }
+    /* composed: every GPU buffer kept as it is read back now */
+    wl_list_for_each(s, &surfaces, link)
+        if (s->drm) drm_read_back(s);
+    memset(canvas, 0, (size_t)out_w * out_h * 4);
     if (client) {
         int cw, ch;
         shown_size(client, &cw, &ch);
@@ -913,7 +1120,17 @@ static void compose(void) {
             if (s->role == ROLE_SUB && s->parent == top && s->pix) blit(s, x + s->sx, y + s->sy);
         org_x = x; org_y = y;
     }
-    if (fo.map) {
+    if (wshown && wo) {
+        /* full colour, straight to Winston: our next free buffer */
+        if (!ring) ring = wo_ring_new(wo, out_w, out_h, 3);
+        struct wo_buf *b = NULL;
+        uint32_t *dst = ring ? wo_ring_next(ring, &b) : NULL;
+        if (dst) {
+            /* XRGB8888: Winston ignores the canvas's 0 alpha byte (bench) */
+            memcpy(dst, canvas, (size_t)out_w * out_h * 4);
+            if (wo_present(wo, b, out_w, out_h) == 0) n_winston++;
+        }
+    } else if (fo.map) {
         xrgb_to_i420(canvas, out_w, out_w, out_h, frame_out_next(&fo));
         frame_out_publish(&fo);
     }
@@ -941,11 +1158,27 @@ static int tick(void *data) {
     }
     wl_display_flush_clients(display);
     long now = now_ms();
+    /* WL_SINK_DEBUG=1 (the tool's STEAM_SINK_DEBUG): the buffers' and
+     * surfaces' state each second on stderr (how Wine's stall at a hide was found) */
+    if (now - last_stats >= 1000 && getenv("WL_SINK_DEBUG")) {
+        int held = 0, nb = 0, sd = 0, ns = 0, fr = 0, pf = 0;
+        struct drm_buffer *db;
+        wl_list_for_each(db, &drm_buffers, link) { nb++; held += db->held; }
+        struct surface *ss;
+        wl_list_for_each(ss, &surfaces, link) {
+            ns++; sd += ss->drm != NULL;
+            struct wl_resource *cb;
+            wl_resource_for_each(cb, &ss->frames) fr++;
+            wl_resource_for_each(cb, &ss->pend_frames) pf++;
+        }
+        fprintf(stderr, "DBG commits %lu pics %lu bufs %d held %d surfaces %d with-drm %d frames %d pending-frames %d wshown %d\n",
+                n_commits, n_pictures, nb, held, ns, sd, fr, pf, wshown);
+    }
     if (now - last_stats >= 1000) {
         unsigned long pics = n_pictures - stat_pictures;
         if (pics) {
-            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"ms\":%.1f}\n",
-                   pics, n_commits, n_shm, n_drm, (double)n_ms_total / (double)pics);
+            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"winston\":%lu,\"fwd\":%lu,\"scaled\":%lu,\"ms\":%.1f}\n",
+                   pics, n_commits, n_shm, n_drm, n_winston, n_fwd, n_fwd_scaled, (double)n_ms_total / (double)pics);
             fflush(stdout);
         }
         stat_pictures = n_pictures; n_ms_total = 0; last_stats = now;
@@ -972,14 +1205,14 @@ static int create_frame(const char *path, int w, int h) {
 }
 
 int main(int argc, char **argv) {
-    const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128";
+    const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128", *winston = NULL;
     int create_w = 0, create_h = 0, no_drm = 0, input = 0;
     long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
         { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "input", 0, 0, 'i' }, { "whole-window", 0, 0, 'w' },
-        { 0, 0, 0, 0 } };
+        { "winston", 1, 0, 'W' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 's': sock = optarg; break;
@@ -993,8 +1226,9 @@ int main(int argc, char **argv) {
         case 'g': drop_gid = strtol(optarg, NULL, 10); break;
         case 'i': input = 1; break;
         case 'w': whole_window = 1; break;
+        case 'W': winston = optarg; break;
         default:
-            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window]\n");
+            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window] [--winston SOCKET]\n");
             return 2;
         }
     }
@@ -1014,9 +1248,19 @@ int main(int argc, char **argv) {
     } else if (create_w > 0 && create_h > 0) {
         out_w = create_w; out_h = create_h;
     }
-    /* the frame file is mapped: from here on the tool's uid, the GPU's group */
+    /* Winston's socket wants root or mgu_wayland: connected before the drop */
+    if (winston) {
+        char err[256];
+        /* the backdrop: a game's client area passed on as it is sits in black, as in the composed picture */
+        struct wo_opts wopts = { .socket = winston, .x = 108, .y = 82, .w = 1790, .h = 638, .log = wo_say, .backdrop = 1 };
+        wo = wo_open(&wopts, err, sizeof err);
+        if (!wo) { printf("{\"ev\":\"error\",\"error\":"); jstr(err); puts("}"); fflush(stdout); }
+    }
+    /* the frame file is mapped: from here on the tool's uid, the GPU's group
+     * (and Winston's socket group: each show of our layer connects again) */
     if ((drop_uid >= 0) != (drop_gid >= 0)) { fprintf(stderr, "wl-sink: --uid and --gid go together\n"); return 2; }
-    if (drop_gid >= 0 && (setgroups(0, NULL) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
+    gid_t keep = wo ? (gid_t)wo_socket_gid(wo) : (gid_t)-1;
+    if (drop_gid >= 0 && (setgroups(keep != (gid_t)-1 ? 1 : 0, &keep) < 0 || setgid((gid_t)drop_gid) < 0 || setuid((uid_t)drop_uid) < 0
                           || getuid() != (uid_t)drop_uid || geteuid() != (uid_t)drop_uid)) {
         printf("{\"ev\":\"error\",\"error\":\"cannot drop to uid %ld gid %ld\"}\n", drop_uid, drop_gid);
         return 1;
@@ -1024,6 +1268,7 @@ int main(int argc, char **argv) {
     canvas = calloc((size_t)out_w * out_h, 4);
     if (!canvas) return 1;
     wl_list_init(&surfaces);
+    wl_list_init(&drm_buffers);
     wl_list_init(&pointers);
     wl_list_init(&keyboards);
 
@@ -1048,18 +1293,20 @@ int main(int argc, char **argv) {
     wl_event_loop_add_signal(loop, SIGINT, on_signal, NULL);
     signal(SIGPIPE, SIG_IGN);
     static struct wl_event_source *in_src;
-    if (input) in_src = wl_event_loop_add_fd(loop, 0, WL_EVENT_READABLE, on_stdin, &in_src);
+    if (input || wo) in_src = wl_event_loop_add_fd(loop, 0, WL_EVENT_READABLE, on_stdin, &in_src);
+    if (wo) wo_source = wl_event_loop_add_fd(loop, wo_fd(wo), WL_EVENT_READABLE, on_wo, NULL);
 
     printf("{\"ev\":\"ready\",\"socket\":"); jstr(sock);
     printf(",\"size\":[%d,%d],\"drm\":%s,\"device\":", out_w, out_h, gl.ok ? "true" : "false");
     jstr(gl.ok ? gl.device : NULL);
-    puts("}");
+    printf(",\"winston\":%s}\n", wo ? "true" : "false");
     fflush(stdout);
     last_stats = now_ms();
     wl_event_source_timer_update(tick_timer, 1000 / fps);
     wl_display_run(display);
     wl_display_destroy_clients(display);
     wl_display_destroy(display);
+    if (wo) { wo_ring_free(ring); wo_close(wo); }
     frame_out_close(&fo);
     return 0;
 }

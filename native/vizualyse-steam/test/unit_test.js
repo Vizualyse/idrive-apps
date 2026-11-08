@@ -65,19 +65,29 @@ const extra = { LD_PRELOAD: '/g/stub/libintel_noop_drm_shim.so', INTEL_STUB_GPU_
  * WINEDLLOVERRIDES (to see a failure the tool's own overrides caused) */
 if (process.env.T_LOAD) extra.T_LOAD = process.env.T_LOAD;
 if (process.env.T_DLLOV) extra.WINEDLLOVERRIDES = process.env.T_DLLOV;
+/* the tools' bus: native/vizualyse-bus's broker when run_unit_test.sh found it built (MOSQUITTO) */
+const BUS_SOCKET = '/run/vizualyse-bus-test/mqtt.sock';
+let broker = null, browserBus = null;
 const senv = Object.assign({}, process.env, {
+    VZ_BUS_SOCKET: BUS_SOCKET,
     STEAM_NO_FIREWALL: '1', STEAM_LEASE: '/tmp/lease.json', STEAM_CTL_SOCKET: '/tmp/ctl/ctl.sock',
     STEAM_RUNTIME_ARCHIVE: T + '/build/runtime.tgz', STEAM_PROTON_ARCHIVE: T + '/build/proton.tgz',
-    STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_LAUNCH: T + '/build/launch.json',
+    STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_VULKAN_ARCHIVE: T + '/build/vulkan.tgz', STEAM_LAUNCH: T + '/build/launch.json',
     STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/' + (process.env.T_GAME || 't_d3d964.exe'),
     /* mgu-render's client: a stand-in (show works); the display's touches: a
      * replayed capture (touchFile) for steam-touch */
     STEAM_RENDER_CLIENT: T + '/test/fake_render_client.js', STEAM_TEST_RENDER_LOG: '/tmp/render.log',
-    STEAM_TOUCH_FILE: '/dev/shm/touch.txt', STEAM_LINK_IP: '127.0.0.1',
+    STEAM_TOUCH_FILE: '/dev/shm/touch.txt', STEAM_LINK_IP: '127.0.0.1', STEAM_SINK_DEBUG: process.env.WINSTON_CHECK ? '1' : '',
     /* the test stick's device: the tmpfs's name, or the vfat image's loop device */
     STEAM_USB_TEST_DEV: (fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')
         .filter((l) => l.split(' ')[1] === '/media/TESTSTICK')[0] || 'teststick').split(' ')[0],
 });
+/* Vulkan (env.VK, the bundled vulkan.tgz): checked on the stub only, with
+ * kernel414 (the unit's kernel's answers, tools/vk-trial's build mounted at
+ * /vkt by run_unit_test.sh) behind vk_crumbs.so, which the tool preloads
+ * first itself for a Vulkan game */
+const VK = fs.existsSync('/vkt/bench/kernel414.so') && GPU === 'stub';
+if (VK) extra.LD_PRELOAD = '/vkt/bench/kernel414.so:' + extra.LD_PRELOAD;
 if (GPU === 'swrast') {
     extra.GBM_ALWAYS_SOFTWARE = '1';
     senv.STEAM_DRI_PATH = '/g/swrast';
@@ -128,6 +138,15 @@ function uidProcesses(uid) {
 
 async function main() {
     console.log('vizualyse-steam in the unit\'s root filesystem, GPU ' + GPU);
+    if (process.env.MOSQUITTO) {
+        try { fs.mkdirSync(path.dirname(BUS_SOCKET), 0o700); } catch (e) { /* there */ }
+        fs.writeFileSync('/tmp/mosquitto.conf', fs.readFileSync(process.env.MOSQUITTO_CONF, 'utf8').replace(/^listener 0 .*$/m, 'listener 0 ' + BUS_SOCKET));
+        broker = spawn(process.env.MOSQUITTO, ['-c', '/tmp/mosquitto.conf'], { stdio: 'ignore' });
+        for (let i = 0; i < 50 && !fs.existsSync(BUS_SOCKET); i++) await sleep(100);
+        const { Bus } = require(T + '/src/mqtt_bus.js');
+        /* a stand-in for the Browser in game mode */
+        browserBus = new Bus('vizualyse-chromium', { socket: BUS_SOCKET });
+    }
     startServer();
     for (let i = 0; i < 100 && !TOKEN; i++) {
         try { TOKEN = fs.readFileSync(ROOT + '/state/token', 'utf8').trim(); } catch (e) { await sleep(100); }
@@ -222,6 +241,24 @@ async function main() {
         }
     }
 
+    /* Vulkan is the default for a 64-bit game (the bundled ANV and DXVK);
+     * these checks are of WineD3D on OpenGL, so it goes off for them */
+    {
+        const s2 = await status();
+        const g0 = s2.library.filter((x) => x.appId === APP)[0];
+        ok('Vulkan is the default for the 64-bit test game', s2.vulkanAvailable === true && g0 && g0.arch === 'x64' && g0.vulkanDefault === true && g0.vulkan === true,
+            g0 && JSON.stringify({ available: s2.vulkanAvailable, arch: g0.arch, vulkan: g0.vulkan, vulkanDefault: g0.vulkanDefault }));
+        r = await api('/api/game', { appId: APP, vulkan: false });
+        ok('Vulkan: off for the game (WineD3D)', r.code === 200, r.body && r.body.error);
+    }
+
+    /* the Browser in game mode asks steam off before the game starts: a game
+     * started after it still runs (the newer start wins) */
+    if (browserBus) {
+        browserBus.ask({ steam: 'off' }, 'the Browser is in game mode');
+        s = await until('the browser\'s ask', (x) => x.bus && x.bus.connected && x.bus.others.some((o) => o.from === 'vizualyse-chromium'), 15000);
+    }
+
     /* playing it */
     r = await api('/api/play', { appId: APP });
     ok('play starts', r.code === 200, r.body && r.body.error);
@@ -234,6 +271,15 @@ async function main() {
         const b = s.game.buffers || {};
         if (GPU === 'stub') ok('its frames come as GPU (PRIME) buffers', s.game.gpuBuffers && b.drm > 0, JSON.stringify(b) + ', ' + s.game.fps + ' pictures/s');
         else ok('its frames come as shared memory on llvmpipe', b.shm > 0 || b.drm > 0, JSON.stringify(b) + ', ' + s.game.fps + ' pictures/s');
+        /* t_d3d9 asks for no vsync (D3DPRESENT_INTERVAL_IMMEDIATE), Proton's
+         * Wine for swap interval 0: vblank_mode 3 holds each swap to wl-sink's
+         * frame callbacks, at the tool's 30 a second. The i965 driver has that
+         * option; llvmpipe hasn't (unthrottled there: shown, not checked) */
+        {
+            const rate = await commitRate();
+            if (GPU === 'stub') ok('WineD3D draws at the tool\'s frame rate, not as fast as it can (vblank_mode 3)', rate > 5 && rate <= 36, rate.toFixed(1) + ' frames/s');
+            else console.log('  --   llvmpipe: ' + rate.toFixed(1) + ' frames/s (no vblank_mode option in swrast)');
+        }
         /* the frame file: the newest slot */
         const f = fs.readFileSync('/dev/shm/mgu-video-vizualyse_steam');
         const w = f.readUInt32LE(8), h = f.readUInt32LE(12), slot = f.readUInt32LE(20);
@@ -241,13 +287,17 @@ async function main() {
         let max = 0;
         for (let i = 0; i < y.length; i += 97) max = Math.max(max, y[i]);
         if (GPU === 'swrast') ok('the frame file has the game\'s picture', max > 40, w + 'x' + h + ', brightest Y ' + max);
-        else ok('the frame file is there at the picture\'s size', w === 1280 && h === 720, w + 'x' + h);
+        else ok('the frame file is there at the picture\'s size (960x540, the default)', w === 960 && h === 540, w + 'x' + h);
+        /* the bus (none here: the ask waits for it, native/vizualyse-bus/test has the rest) */
+        ok('while a game runs, the other tools are asked for their cluster and HUD video and the browser off', s.bus && s.bus.mine &&
+            s.bus.mine['cluster-video'] === 'off' && s.bus.mine['hud-video'] === 'off' && s.bus.mine.browser === 'off', JSON.stringify(s.bus));
+        if (browserBus) ok('an ask for steam off made before the game started does not stop it', s.game.state === 'running' && !s.busNote, s.game.state);
         /* a tap where the picture's middle is on the screen (mgu-render fits
-         * 1280x720 into the app area 1790x638+108+82, aspect kept): t_d3d9's
+         * the picture into the app area 1790x638+108+82, aspect kept): t_d3d9's
          * window (640x360 with a title bar) shows only its client area, centred,
          * so the click lands in the middle of the client area */
-        const sc = Math.min(1790 / 1280, 638 / 720);
-        touchFile(Math.round(108 + (1790 - 1280 * sc) / 2 + 640 * sc), Math.round(82 + (638 - 720 * sc) / 2 + 360 * sc));
+        const sc = Math.min(1790 / w, 638 / h);
+        touchFile(Math.round(108 + (1790 - w * sc) / 2 + w / 2 * sc), Math.round(82 + (638 - h * sc) / 2 + h / 2 * sc));
         r = await api('/api/show', {});
         ok('show (a stand-in for mgu-render)', r.code === 200, r.body && r.body.error);
         let clicks = '';
@@ -261,6 +311,7 @@ async function main() {
             cl && ck && Math.abs(Number(ck[1]) - cl[1] / 2) <= 2 && Math.abs(Number(ck[2]) - cl[2] / 2) <= 2,
             (ck ? 'click ' + ck[1] + ',' + ck[2] : 'no click') + (cl ? ', client ' + cl[1] + 'x' + cl[2] : ''));
         await api('/api/hide', {});
+        if (process.env.WINSTON_CHECK) await winston();
         let mkdirRunning = null;
         try { mkdirRunning = JSON.parse(fs.readFileSync(ROOT + '/state/game-running', 'utf8')); } catch (e) { /* none */ }
         ok('a running game is marked', mkdirRunning && mkdirRunning.appId === APP);
@@ -270,13 +321,27 @@ async function main() {
         ok('Direct3D reports the adapter set in the prefix (HD Graphics 510, 0x1902)', adapter && adapter[2] === '1902',
             adapter ? adapter[1] + ', 0x' + adapter[2] : 'no adapter line: ' + tl.slice(0, 120));
     }
-    r = await api('/api/stop', {});
+    if (browserBus) {
+        /* game mode turned on again (a new ask) while the game runs: it stops */
+        browserBus.ask(null);
+        await sleep(500);
+        browserBus.ask({ steam: 'off' }, 'the Browser is in game mode');
+    } else {
+        r = await api('/api/stop', {});
+    }
     s = await until('the game ending', (x) => x.game && x.game.state === 'ended', 60000);
+    if (browserBus) {
+        ok('an ask for steam off made while the game runs stops it, and says who asked', /^stopped: vizualyse-chromium asked \(the Browser is in game mode\)$/.test(s.busNote || ''), s.busNote);
+        browserBus.ask(null);
+    }
     await sleep(2500);
     const left = uidProcesses(UID);
     ok('stop ends every process of the uid', left.length === 0, left.join(' '));
     ok('the frame file goes', !fs.existsSync('/dev/shm/mgu-video-vizualyse_steam'));
     ok('the running mark goes', !fs.existsSync(ROOT + '/state/game-running'));
+    s = await status();
+    ok('the game ended: nothing asked of the other tools', s.bus && s.bus.mine === null, JSON.stringify(s.bus));
+    if (process.env.WINSTON_CHECK && GPU === 'stub') await scaledMode();
 
     /* mscoree is on for games: a prefix update would offer Wine Mono's
      * installer in a window nobody can press */
@@ -284,6 +349,7 @@ async function main() {
 
     await controller();
     await usbStick();
+    await vulkan();
 
     server.kill('SIGTERM');
     await new Promise((resolve) => { server.on('exit', resolve); setTimeout(resolve, 15000); });
@@ -304,6 +370,163 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* Vulkan, per game: the test game (t_d3d9, 64-bit) on DXVK 1.9.4 and ANV
+ * from the bundled vulkan.tgz, its ICD only while it runs, its DRM calls in
+ * state/vulkan-crumbs.log; then a restart of the unit during it (the marker
+ * left, the tool started again) turns its Vulkan off. */
+async function vulkan() {
+    if (!VK) { console.log('  (Vulkan: kernel414 (tools/vk-trial\'s build) not mounted, or not the stub: skipped)'); return; }
+    const ICD = '/dev/shm/vizualyse-steam/vk_icd.json', CRUMBS = ROOT + '/state/vulkan-crumbs.log';
+    let s = await status();
+    ok('Vulkan is offered (vulkan.tgz unpacked)', s.vulkanAvailable === true);
+    let r = await api('/api/game', { appId: APP, vulkan: true });
+    ok('Vulkan: on for the game', r.code === 200, r.body && r.body.error);
+    ok('no ICD while no game runs', !fs.existsSync(ICD));
+    try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+    r = await api('/api/play', { appId: APP });
+    ok('play on Vulkan starts', r.code === 200, r.body && r.body.error);
+    ok('ANV\'s ICD in the run folder while it runs', fs.existsSync(ICD));
+    let mark = {};
+    try { mark = JSON.parse(fs.readFileSync(ROOT + '/state/game-running', 'utf8')); } catch (e) { /* none */ }
+    ok('the running marker says Vulkan', mark.vulkan === true);
+    s = await until('the game drawing on Vulkan', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    ok('the game draws on Vulkan', s.game.state === 'running', s.game.note);
+    await sleep(3000);
+    let tl = '';
+    try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+    /* DXVK's on ANV, reporting the adapter WineD3D does (env.dxvkConf), not the HD 505 */
+    ok('its Direct3D 9 is DXVK\'s, reporting HD Graphics 510 (8086:1902) as WineD3D does',
+        /t_d3d9: adapter "Intel\(R\) HD Graphics 510" driver "igdumd64\.dll" vendor 0x8086 device 0x1902/.test(tl),
+        tl.split(/\r?\n/).filter((l) => /adapter|FAIL/.test(l)).join(' | ').slice(0, 200));
+    let conf = '';
+    try { conf = fs.readFileSync('/dev/shm/vizualyse-steam/dxvk.conf', 'utf8'); } catch (e) { /* none */ }
+    ok('DXVK\'s options in the run folder while it runs, at the tool\'s frame rate', /^d3d9\.maxFrameRate = 30$/m.test(conf) && /^dxvk\.numCompilerThreads = 2$/m.test(conf),
+        conf.split('\n').length + ' lines');
+    s = await status();
+    const b = (s.game && s.game.buffers) || {};
+    ok('its frames reach wl-sink as GPU buffers', b.drm > 0 || b.fwd > 0, JSON.stringify(b));
+    const rate = await commitRate();
+    /* at most: on the stub DXVK runs below 30 anyway (17-18 a second, with or
+     * without the cap: the crumbs log's synchronous writes, 2026-11-08) */
+    ok('DXVK draws at most at the tool\'s frame rate (d3d9.maxFrameRate)', rate > 5 && rate <= 36, rate.toFixed(1) + ' frames/s');
+    let crumbs = '';
+    try { crumbs = fs.readFileSync(CRUMBS, 'utf8'); } catch (e) { /* none */ }
+    ok('its DRM calls in state/vulkan-crumbs.log', /> GEM_EXECBUFFER2/.test(crumbs), crumbs.split('\n').length + ' lines');
+    await api('/api/stop', {});
+    await until('the Vulkan game ending', (x) => x.game && x.game.state === 'ended', 60000);
+    ok('the ICD gone after it', !fs.existsSync(ICD));
+    ok('DXVK\'s options gone after it', !fs.existsSync('/dev/shm/vizualyse-steam/dxvk.conf'));
+    /* the unit restarts during a Vulkan game: the marker stays, the tool starts again */
+    server.kill('SIGTERM');
+    await new Promise((resolve) => { server.on('exit', resolve); setTimeout(resolve, 15000); });
+    fs.writeFileSync(ROOT + '/state/game-running', JSON.stringify({ appId: APP, name: 'TestGame', at: new Date().toISOString(), vulkan: true }));
+    startServer();
+    s = await until('the tool again', (x) => x.bundle === 'ready' || x.bundle === 'failed', 120000);
+    const g = s.library.filter((x) => x.appId === APP)[0];
+    ok('after a restart during it, Vulkan is off for the game', g && g.vulkan === false && /Vulkan is off/.test(s.restartNote || ''), s.restartNote);
+}
+
+/* The frames the game hands wl-sink a second (its commits), over 3 s. */
+async function commitRate() {
+    const c0 = ((await status()).game.buffers || {}).commits || 0, t0 = Date.now();
+    await sleep(3000);
+    const c1 = ((await status()).game.buffers || {}).commits || 0;
+    return (c1 - c0) * 1000 / (Date.now() - t0);
+}
+
+/* A game at a display mode the screen doesn't have (t_d3d9 full screen at
+ * 640x480 on wl-sink's 960x540): Wine emulates the mode and scales the
+ * picture with a viewport, and wl-sink still passes its GPU buffers to
+ * Winston as they are, Winston scaling them (wo_present_view). The stub. */
+async function scaledMode() {
+    fs.writeFileSync('/tmp/t_fullscreen', '640x480\n');
+    try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+    let r = await api('/api/play', { appId: APP });
+    ok('full screen at 640x480: play starts', r.code === 200, r.body && r.body.error);
+    let s = await until('the full-screen game drawing', (x) => x.game && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    if (s.game.state === 'running') {
+        await api('/api/winston', { on: true });
+        await api('/api/show', {});
+        await sleep(3000);
+        const b0 = (await status()).game.buffers;
+        await sleep(3000);
+        s = await status();
+        const b = s.game.buffers;
+        let tl = '';
+        try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        ok('full screen at an emulated 640x480: Wine\'s buffers still go to Winston as they are, Winston scaling them',
+            /full screen 640x480/.test(tl) && b.scaled - b0.scaled > 20 && b.drm === b0.drm,
+            JSON.stringify(b) + ', ' + (tl.split(/\r?\n/).filter((l) => /full screen|FAIL/.test(l)).join(' | ') || 'no full-screen line'));
+        await api('/api/hide', {});
+        await api('/api/winston', { on: false });
+    } else ok('full screen at 640x480: the game draws', false, s.game.note);
+    fs.unlinkSync('/tmp/t_fullscreen');
+    await api('/api/stop', {});
+    await until('the full-screen game ending', (x) => x.game && x.game.state === 'ended', 60000);
+}
+
+/* Winston output (run_winston_test.sh: the unit's own Winston runs in this
+ * container, tools/winston-bench): the running game's picture straight on
+ * the centre screen through wl-sink's own connection, read back from what
+ * Winston composed (kms_shim's grab), then hidden, then off. */
+async function winston() {
+    const grab = () => {
+        const f = (process.env.KMS_SHIM_GRAB || '/out/grab') + '.ppm';
+        try { fs.unlinkSync(f); } catch (e) { /* none */ }
+        try { require('child_process').execFileSync('/bench/wo_bench', ['grab'], { stdio: 'ignore', timeout: 10000 }); } catch (e) { return null; }
+        const b = fs.readFileSync(f);
+        let off = 0, fields = [];
+        while (fields.length < 4) { const e = b.indexOf(0x0a, off); fields = fields.concat(b.slice(off, e).toString().split(/\s+/).filter(Boolean)); off = e + 1; }
+        const W = Number(fields[1]);
+        return (x, y) => { const i = off + (y * W + x) * 3; return b[i] + b[i + 1] + b[i + 2]; };
+    };
+    /* the brightest of a grid of points in the app area, and left of it */
+    const scan = (px) => {
+        let inside = 0, outside = 0;
+        for (let y = 90; y < 715; y += 13) for (let x = 0; x < 1920; x += 17) {
+            const v = px(x, y);
+            if (x >= 112 && x < 1894 && y >= 86) inside = Math.max(inside, v); else if (x < 100) outside = Math.max(outside, v);
+        }
+        return { inside, outside };
+    };
+    let s = await status();
+    ok('wl-sink connected to Winston', s.winston && s.winston.connected === true, JSON.stringify(s.winston));
+    let r = await api('/api/winston', { on: true });
+    ok('Winston output on', r.code === 200 && s.running, r.body && r.body.error);
+    r = await api('/api/show', {});
+    await sleep(3000);
+    s = await status();
+    ok('shown through Winston', r.code === 200 && s.shown && s.winston.via === 'winston', JSON.stringify(s.winston));
+    if (GPU === 'stub') {
+        /* the unit's i965 (no pixels): Wine's GPU buffers go to Winston as they are */
+        const b0 = s.game.buffers || {};
+        await sleep(2000);
+        s = await status();
+        const b = s.game.buffers || {};
+        ok('Wine\'s GPU buffers go to Winston as they are (no read-back)', b.fwd > 20 && b.drm === b0.drm,
+            JSON.stringify(b) + ', ' + s.game.fps + ' pictures/s');
+        await api('/api/hide', {});
+        await sleep(2500);   /* the stats line is a second's */
+        const h0 = (await status()).game.buffers;
+        await sleep(3000);
+        const h1 = (await status()).game.buffers;
+        ok('hidden: the game goes on, read back into the frame file again', h1.drm - h0.drm >= 30 && h1.fwd === h0.fwd,
+            (h1.drm - h0.drm) + ' read back in 3 s, ' + JSON.stringify(h1));
+    } else {
+        let px = grab();
+        let v = px ? scan(px) : null;
+        ok('the game\'s picture is on Winston\'s centre screen, in the app area', !!v && v.inside > 120 && v.outside === 0, JSON.stringify(v));
+        await api('/api/hide', {});
+        await sleep(1000);
+        px = grab();
+        v = px ? scan(px) : null;
+        ok('hidden: gone from the screen', !!v && v.inside === 0, JSON.stringify(v));
+    }
+    r = await api('/api/winston', { on: false });
+    s = await status();
+    ok('Winston output off', r.code === 200 && s.winston.on === false);
 }
 
 /* A controller: a virtual XInput USB pad (test/usbip_pad.c through the

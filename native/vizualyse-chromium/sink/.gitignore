@@ -5,4 +5,6 @@
 /frame_out.h
 /touch.c
 /touch.h
+/winston_out.c
+/winston_out.h
 # end platform

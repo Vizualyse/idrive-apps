@@ -164,11 +164,18 @@ wayland-scanner server-header /m/src/protocol/wayland-drm.xml $G2/wayland-drm-se
 wayland-scanner private-code /m/src/protocol/wayland-drm.xml $G2/wayland-drm-protocol.c
 wayland-scanner server-header $VP $G2/viewporter-server-protocol.h
 wayland-scanner private-code $VP $G2/viewporter-protocol.c
+# wl-sink is also a client of Winston (src/winston_out.c, platform native/winston_out)
+for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
+    wayland-scanner client-header /m/src/protocol/$x.xml $G2/$x-client-protocol.h
+    wayland-scanner private-code /m/src/protocol/$x.xml $G2/$x-protocol.c
+done
 gcc -O2 -Wall -Wextra -Werror -o /tmp/rgb_test /m/src/rgb_test.c /m/src/rgb.c && /tmp/rgb_test
 gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -I/m/src -I$G2 \
     -Wl,--dynamic-linker=$LOADER -Wl,-rpath,$R/lib -Wl,--build-id=sha1 -o "$R/wl-sink" \
-    /m/src/wl_sink.c /m/src/rgb.c /m/src/frame_out.c $G2/xdg-shell-protocol.c $G2/wayland-drm-protocol.c $G2/viewporter-protocol.c \
-    $(pkg-config --cflags --libs wayland-server) -ldl
+    /m/src/wl_sink.c /m/src/rgb.c /m/src/frame_out.c /m/src/winston_out.c $G2/xdg-shell-protocol.c \
+    $G2/wayland-drm-protocol.c $G2/viewporter-protocol.c $G2/ivi-application-protocol.c $G2/ivi-controller-protocol.c \
+    $G2/linux-dmabuf-unstable-v1-protocol.c \
+    $(pkg-config --cflags --libs wayland-server wayland-client) -ldl
 strip --strip-unneeded "$R/wl-sink"
 # the display's touches while a game is shown, read passively (src/touch_main.c,
 # vizualyse-chromium's helper): server.js turns them into wl-sink's pointer

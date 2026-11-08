@@ -2,6 +2,7 @@
 # this component's component.json or release.json; written by `node platform/platform.js sync`.
 # Edit the originals in platform/, never these.
 /cluster_render_client.js
+/mqtt_bus.js
 /pcm_play.py
 /qrcode.js
 # end platform

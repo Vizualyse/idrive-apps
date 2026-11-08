@@ -18,7 +18,8 @@ OUT=$(cd "$HERE/build/win" && (pwd -W 2>/dev/null || pwd))
 docker run --rm -v "$SRC:/src:ro" -v "$OUT:/out" idrive-steam-mingw:trixie sh -euc '
     for c in /src/*.c; do
         t=$(basename "$c" .c)
-        libs=$(sed -n "s#^ \* libs: ##p" "$c")
+        # tr: a Windows checkout (core.autocrlf) ends the line in a CR
+        libs=$(sed -n "s#^ \* libs: ##p" "$c" | tr -d "\r")
         for arch in x86_64:64 i686:32; do
             out=/out/$t${arch#*:}.exe
             [ "$out" -nt "$c" ] && [ "$out" -nt /src/tlog.h ] && continue

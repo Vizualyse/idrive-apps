@@ -232,6 +232,151 @@ refuse scripts; `git` works) and a web search.
   unit's own i965 is from (same era as the kernel, no context-isolation
   dependence), built for the unit's glibc, under the safety net above.
   Mesa 22.3 hung, and why is not known; an older ANV may hang the same way.
+- **Mesa 19.0.6's ANV off the car (2026-11-07, [tools/vk-trial](../tools/vk-trial/README.md)):**
+  built for glibc 2.27, it runs in the unit's rootfs on gpu-bench's stub
+  HD 505 through every stage: `Intel(R) HD Graphics 505 (Broxton)`, Vulkan
+  1.0.96 to our 1.0 instance, driver 19.0.6, `8086:5a84`; a device; a compute
+  dispatch submitted (the stub runs nothing). Every ioctl answered, the
+  display node never asked for. Told no context isolation (as the unit's
+  kernel), it goes on. What it asks the kernel that the unit's own i965
+  (which runs on the car every day) doesn't: syncobjs (create / wait /
+  destroy, already while enumerating), `GEM_SET_CACHING`, `GEM_GET_TILING`,
+  params 9, 19, 43 and 49; it submits without `I915_EXEC_BATCH_FIRST`. Both
+  softpin every buffer at 48-bit addresses (the stub says the GTT is 2^48;
+  the car's answer is unknown: `enable_ppgtt`). **`vkCreateDevice` already
+  runs two batches on the GPU and waits for them with no timeout**, so the
+  first GPU work is the `device` stage, not the first draw.
+- **vk-trial's dry run on the car (2026-11-07, no driver: a placeholder,
+  shell-script children):** every gate safety held. Unarmed and second runs
+  did nothing; the arming was gone before the child started; the child ran
+  as uid 12990 / group 44 with core limit 1; in its own namespace `card0`
+  was `/dev/null` (absolute, relative, by-path) while pid 1 and the gate saw
+  the real node and no mount, during and after; a 5 s timeout killed it and
+  the real `sysrq w` dump (56 lines with stacks) landed in `kmsg.log`; a
+  killed gate left a child that blocked arming, then closed as `died`. Only
+  miss: a killed gate's ICD stayed in `/run` (fixed: closing the try removes
+  it). The unit's facts for this: `/run` tmpfs; **`/` mounted `shared:1`**
+  (a namespace must be made private or a bind leaks system-wide); SSH is
+  systemd's `sshd.socket` on `[::]:22` (`Accept=yes`, `sshd -i` per
+  login, nothing of the GPU on the way in); `core_pattern` pipes to
+  `dlt-cdh`; `hung_task_timeout_secs` 10; i915 `enable_ppgtt=3` (full 48-bit,
+  as the bench stub says), `enable_gvt=N`. **A healthy unit already has
+  blocked tasks** in `sysrq w` (`main`, pid 426, D state): the baseline when
+  reading a dump after a try.
+- **Mesa 19.0.6's ANV on the car, stage `instance` (2026-11-07, vk-trial):
+  ok.** The Khronos loader 1.1.70 and ANV load in the unit's userland
+  (glibc 2.27, libdrm 2.4.96) and make an instance: 12 instance extensions,
+  none enabled; no `/dev/dri` opened (crumbs), nothing in `dmesg`, 1 s.
+- **Stage `enumerate` on the car (2026-11-07): ok.** ANV opened only the
+  render node: `Intel(R) HD Graphics 505 (Broxton)`, **Vulkan 1.1.96**,
+  `8086:5a84`, heap 0 3185 MB; nothing in `dmesg`. The kernel's answers:
+  GTT 2^48, 3 subslices, 18 EUs, context isolation EINVAL, params 9, 19,
+  37, 43, 44, 45, 49 all 1, **`MMAP_VERSION` 1** (the shim says 4), and **a
+  wait on a fresh syncobj `ETIME`** (the shim said 0). That last answer
+  turns on ANV's syncobj fences, hence 1.1 (the bench had said 1.0). The
+  bench's `kernel414` now answers both as the car does; ANV's path there
+  changed only at `compute`: its dispatch goes out with
+  `I915_EXEC_FENCE_ARRAY` (flags `0x81801`) and is waited for with
+  `SYNCOBJ_WAIT`, which the unit's i965 never does. `device` stays two
+  batches (`0x1801`) waited for with `GEM_WAIT` without a timeout.
+- **Stage `device` on the car (2026-11-07): ok, ANV's first GPU work.** A
+  context (priority 0), seven buffers (`GEM_CREATE`, `GEM_MMAP`,
+  `GEM_SET_CACHING`), the two device-init batches executed: each
+  `GEM_WAIT` came back after ~5 µs of the GPU's time (the kernel counts the
+  timeout down), then everything closed and the context destroyed.
+  Nothing in `dmesg`, no hang; the HMI and Winston kept running, same boot.
+  So ANV 19.0.6 runs work on this IOTG 4.14 kernel without context
+  isolation; whatever hung Mesa 22.3's ANV (0.1.1) isn't in this path.
+- **Stage `compute` on the car (2026-11-07): ok, Vulkan compute works.**
+  The shader compiled (ANV's own compiler, ~6 ms), the dispatch went out
+  with a fence array (`0x81801`, 7 buffers softpinned) and `SYNCOBJ_WAIT`
+  returned it done within ~3 ms: **1024 of 1024 numbers right**
+  (`i * 3 + 7`). Nothing in `dmesg`, the HMI unchanged, same boot. Mesa
+  19.0.6's ANV is a working Vulkan 1.1 driver on the unit, under vk-trial
+  (by hand, one start per arming); not yet anything that draws or presents.
+- **Stage `draw` on the car (2026-11-07): ok, Vulkan graphics works
+  offscreen.** A render pass cleared a 256x256 tiled RGBA image, a graphics
+  pipeline (vertex + fragment shader, ~10 ms to compile) drew one triangle
+  coloured by position, and the image was copied into a buffer: **65536 of
+  65536 pixels right** (32640 in the triangle, 32640 cleared, the 256 on
+  its edge either). One 5.9 KB batch of 3D state, 8 buffers, the fence
+  array again; done within ~3 ms. No new kind of ioctl; nothing in `dmesg`,
+  same boot. The probe's own expectations were first checked on lavapipe
+  (Debian bookworm, `test/lavapipe_test.sh`), which got the same 65536.
+- **Presenting through Wayland, off the car (2026-11-07, vk-trial's
+  `present` stage):** ANV rebuilt with `-Dplatforms=drm,wayland` needs only
+  `libwayland-client.so.0` more, and all 18 `wl_` symbols it imports are in
+  the unit's own (older) build. Its surface offers `B8G8R8A8_SRGB` and
+  `_UNORM`, at least 4 images; a FIFO swapchain makes 5 X-tiled images
+  (`GEM_SET_TILING`) shared as PRIME fds. Into our wl-sink on the stub: 60
+  frames presented, wl-sink made 60 pictures from 60 `wl_drm` buffers
+  imported through the unit's i965 (`PRIME_FD_TO_HANDLE`, `GEM_GET_TILING`),
+  none by shared memory. Each present adds a tiny batch (`0x81001`, one
+  buffer below 4 GB) signalling a syncobj. On lavapipe the picture wl-sink
+  composed was right in every pixel. wl-sink as on main needs libwayland ≥
+  1.20 (`wl_output` 4, newer xdg-shell): the unit's is older, so vk-trial
+  ships a libwayland-server 1.22 built for glibc 2.27 for it alone.
+  Winston offers `zwp_linux_dmabuf_v1` and `wl_drm` (seen on the car), so
+  the same buffers could go to it directly (the Winston session's
+  `winston_out`, branch `winston-render`).
+- **Stage `present` on the car (2026-11-07): ok, ANV's frames through
+  Wayland.** 60 FIFO frames into our wl-sink (pid beside the probe's, both
+  uid 12990, `card0` hidden), every one a `wl_drm` PRIME buffer imported
+  and read back through the unit's i965 (`drm":true` on the render node):
+  **wl-sink's picture 65536 of 65536 pixels right**, no shared memory, 6 s
+  for the whole probe, nothing in `dmesg`, same boot, the HMI unchanged,
+  nothing left (no wl-sink, no `/tmp/vkprobe-*`, `/run/vk-trial` empty).
+  Still nothing on the screen: wl-sink keeps its frames to itself. (That
+  run's "109 GPU buffers" was the probe adding up wl-sink's running total;
+  fixed after: `drm`/`shm` are totals, `pictures` per line.)
+- **DXVK under Proton on ANV 19.0.6, off the car (2026-11-07,
+  `tools/vk-trial/dxvk`):** DXVK **1.9.4** is the newest that fits. 2.x and
+  GE-Proton 11's own 3.1.1 need Vulkan 1.3; DXVK 1.10.3 found the device
+  but refused every feature level ("Requested feature level not
+  supported"): from 9_1 up it wants `VK_EXT_host_query_reset`
+  (`hostQueryReset`), which ANV has from Mesa 19.1, and Mesa 19.0.6's
+  Vulkan headers (version 97) predate it, so no small backport. 1.9.4 needs
+  transform feedback from 10_0, which ANV 19.0 has. Through GE-Proton 11's
+  Wine (`winevulkan`, the Wayland driver) on the stub: D3D11 at **feature
+  level 11_1** and D3D9 (VS / PS 3.0, max texture 16384) on `Intel(R) HD
+  Graphics 505 (Broxton)`, 60 frames each into wl-sink as `wl_drm` GPU
+  buffers; also with the Steam tool's real bundles in the unit's rootfs
+  through vk-trial's gate (uid 12990, a private prefix copy, ~260 MB). The
+  Steam runtime has no Vulkan loader (its bundle.sh refuses GPU drivers and
+  ICDs): vk-trial's loader 1.1.70 works under Wine. DXVK's D3D9 reports the
+  driver as `igdumd64.dll`.
+- **DXVK under Proton on the car (2026-11-07, vk-trial `command` try):
+  works, real pixels.** GE-Proton 11's Wine from the Steam tool's bundles,
+  DXVK 1.9.4 in a private prefix, ANV 19.0.6: D3D11 at feature level 11_1,
+  60 frames, the back buffer read back exactly (255 64 0); D3D9, 60 frames,
+  its pixel check right; 120 frames into wl-sink as GPU buffers; 386 GPU
+  submissions, 23 s, nothing in the kernel log, no hang, same boot.
+  Adapter memory as DXVK reports it: 4209 MB.
+- **The same on the screen through Winston (2026-11-08, `--winston`, `run.js
+  run winston`):** the trial's child with group `mgu_wayland` too; wl-sink
+  connected to Winston (dmabuf v1, 13 formats), our surface `0x565a0100` on
+  layer `0x565a0000` in the app area (108,82 1790x638), "on the screen":
+  137 pictures, **120 of them ANV's GPU buffers passed to Winston as they
+  are** (no read-back, no copy); pixels read back right in both programs,
+  25 s, no hang, same boot, nothing left. Not yet: a real game, 32-bit
+  (WoW64 needs placed / host memory mapping in winevulkan), a long run.
+- **The unit's kernel isn't mainline 4.14** (its uapi header,
+  `intel/linux-intel-lts` `4.14/base`): it has context param 6
+  (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where
+  later kernels put `QUERY`: a newer userspace asking `DRM_IOCTL_I915_QUERY`
+  reaches a GVT handler with the wrong struct (the DRM core dispatches by
+  number). Mesa 19.0.6's ANV never asks it; its i965 does, but only for
+  performance queries (`brw_performance_query.c`). Mesa 22.3's ANV
+  (0.1.1's) asks it at every device open (`intel_device_info.c`: topology,
+  memory regions). The IOTG table allows it on render nodes
+  (`DRM_RENDER_ALLOW`); `i915_gem_gvtbuffer_ioctl` then reads the 16-byte
+  query as a zero-extended gvtbuffer: `id` 1, `start` 0, so it decodes a GVT
+  framebuffer (`gvt_decode_fb_format(dev_priv->gvt, 1, ...)`) and most likely
+  fails on `pipe_id` (the low half of a user pointer, out of range) with
+  EINVAL, after which Mesa falls back to GETPARAM. So probably harmless, but
+  a different handler than Mesa expects and one worth ruling out for 0.1.1's
+  hang; not proven either way. vk-trial's bench layer flags any program that
+  asks.
 - **A bench with the same GPU** is the way to see a hang off the car: an
   Apollo Lake mini PC (Celeron N3350 / Pentium N4200, HD 500 / 505) on
   Intel's public 4.14 kernel (`intel/linux-intel-lts`, `4.14/base`,

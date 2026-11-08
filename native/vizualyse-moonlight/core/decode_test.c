@@ -50,6 +50,16 @@ int main(int argc, char **argv) {
     fprintf(stderr, "decoder: %s\n", decoder_name(d));
     size_t frame = (size_t)w * h * 3 / 2;
     unsigned char *pic = malloc(frame);
+    /* DECODE_NV12=stride: the pictures as NV12 at that stride (Winston's GPU
+     * buffers, winston_video.c), turned back into I420 for out.yuv: the same
+     * bytes as without it */
+    int nv12 = getenv("DECODE_NV12") ? atoi(getenv("DECODE_NV12")) : 0;
+    unsigned char *nv = NULL;
+    if (nv12) {
+        if (nv12 < w) { fprintf(stderr, "DECODE_NV12 below the width\n"); return 2; }
+        nv = malloc((size_t)nv12 * h * 3 / 2);
+        decoder_nv12(d, nv12, (size_t)nv12 * h);
+    }
     int aus = 0, pics = 0, fails = 0;
     double ms = 0;
     size_t at = next_aud(buf, (size_t)n, 0);
@@ -57,9 +67,17 @@ int main(int argc, char **argv) {
         size_t end = next_aud(buf, (size_t)n, at + 4);
         int want = (aus % every) == 0;
         double t0 = now_ms();
-        int r = decoder_decode(d, buf + at, end - at, want ? pic : NULL, err, sizeof(err));
+        int r = decoder_decode(d, buf + at, end - at, want ? (nv ? nv : pic) : NULL, err, sizeof(err));
         ms += now_ms() - t0;
         aus++;
+        if (r > 0 && nv) {
+            for (int y = 0; y < h; y++) memcpy(pic + (size_t)y * w, nv + (size_t)y * nv12, (size_t)w);
+            unsigned char *u = pic + (size_t)w * h, *v = u + (size_t)w * h / 4;
+            for (int y = 0; y < h / 2; y++) {
+                const unsigned char *uv = nv + (size_t)nv12 * h + (size_t)y * nv12;
+                for (int x = 0; x < w / 2; x++) { u[y * (w / 2) + x] = uv[2 * x]; v[y * (w / 2) + x] = uv[2 * x + 1]; }
+            }
+        }
         if (r < 0) { fails++; fprintf(stderr, "access unit %d: %s\n", aus - 1, err); }
         else if (r > 0) { fwrite(pic, 1, frame, out); pics++; }
         at = end;

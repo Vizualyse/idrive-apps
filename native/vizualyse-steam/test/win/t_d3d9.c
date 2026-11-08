@@ -49,9 +49,16 @@ int main(void) {
            (caps.PixelShaderVersion >> 8) & 0xff, caps.PixelShaderVersion & 0xff,
            caps.MaxTextureWidth, caps.MaxTextureHeight);
 
+    /* Z:\tmp\t_fullscreen holding "WxH": full screen at that display mode
+     * instead of a window (a mode the screen doesn't have: Wine emulates it
+     * and scales the picture with a viewport) */
+    int fsw = 0, fsh = 0;
+    FILE *ff = fopen("Z:\\tmp\\t_fullscreen", "r");
+    if (ff) { if (fscanf(ff, "%dx%d", &fsw, &fsh) != 2) fsw = fsh = 0; fclose(ff); }
     D3DPRESENT_PARAMETERS pp = { 0 };
-    pp.Windowed = TRUE; pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.BackBufferFormat = D3DFMT_X8R8G8B8;
-    pp.BackBufferWidth = 640; pp.BackBufferHeight = 360; pp.hDeviceWindow = hwnd;
+    pp.Windowed = fsw ? FALSE : TRUE; pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.BackBufferFormat = D3DFMT_X8R8G8B8;
+    pp.BackBufferWidth = fsw ? fsw : 640; pp.BackBufferHeight = fsw ? fsh : 360; pp.hDeviceWindow = hwnd;
+    if (fsw) tlog("t_d3d9: full screen %dx%d\n", fsw, fsh);
     pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
     IDirect3DDevice9 *dev = NULL;
     HRESULT hr = IDirect3D9_CreateDevice(d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
@@ -81,7 +88,7 @@ int main(void) {
     /* Read the back buffer: the clear colour at a corner, the triangle's middle. */
     IDirect3DSurface9 *bb = NULL, *sys = NULL;
     IDirect3DDevice9_GetBackBuffer(dev, 0, 0, D3DBACKBUFFER_TYPE_MONO, &bb);
-    IDirect3DDevice9_CreateOffscreenPlainSurface(dev, 640, 360, D3DFMT_X8R8G8B8, D3DPOOL_SYSTEMMEM, &sys, NULL);
+    IDirect3DDevice9_CreateOffscreenPlainSurface(dev, pp.BackBufferWidth, pp.BackBufferHeight, D3DFMT_X8R8G8B8, D3DPOOL_SYSTEMMEM, &sys, NULL);
     IDirect3DDevice9_Clear(dev, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(51, 102, 153), 1.0f, 0);
     IDirect3DDevice9_BeginScene(dev);
     IDirect3DDevice9_DrawPrimitiveUP(dev, D3DPT_TRIANGLELIST, 1, tri, sizeof tri[0]);

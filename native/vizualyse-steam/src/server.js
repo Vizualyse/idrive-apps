@@ -42,6 +42,7 @@ const usb = require('./usb.js');
 const { Screen } = require('./screen.js');
 const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
+const { Bus } = require('./mqtt_bus.js');
 
 const HERE = __dirname;
 const PORT = Number(process.env.STEAM_PORT) || 8494;           /* the phone page, on the uplink's Wi-Fi */
@@ -59,14 +60,22 @@ const VIEW = (function () {
     return { w: Number(m[1]) & ~1, h: Number(m[2]) & ~1, x: Number(m[3]), y: Number(m[4]) };
 })();
 /* The size the game draws at (Wine's screen: the game goes full screen at it);
- * mgu-render fits it to the app area, aspect kept. 16:9 leaves bars at the
- * sides; the screen's shape fills it (a game may not offer that shape). */
+ * Winston (or mgu-render) fits it to the app area, aspect kept, at no cost to
+ * the game. 16:9 is shown at 1134x638 with bars at the sides, so more pixels
+ * than that are drawn and thrown away; fewer are scaled up for free and save
+ * the GPU's time and its share of the memory bandwidth (the HMI's too). The
+ * screen's shape fills the area (a game may not offer that shape). */
 const RESOLUTIONS = [
-    { id: '1280x720', w: 1280, h: 720, name: '1280x720 (16:9)' },
+    { id: '960x540', w: 960, h: 540, name: '960x540 (16:9, the default)' },
+    { id: '1136x640', w: 1136, h: 640, name: '1136x640 (16:9, the size it is shown at)' },
+    { id: '1280x720', w: 1280, h: 720, name: '1280x720 (16:9, more than is shown)' },
+    /* not 854: an I420 chroma row of 427 bytes, unaligned in mgu-render's frame file */
+    { id: '848x480', w: 848, h: 480, name: '848x480 (16:9, lighter)' },
+    { id: '640x360', w: 640, h: 360, name: '640x360 (16:9, lightest)' },
     { id: '1344x480', w: 1344, h: 480, name: '1344x480 (the screen\'s shape)' },
-    { id: '960x540', w: 960, h: 540, name: '960x540 (16:9, lighter)' },
     { id: '1792x640', w: 1792, h: 640, name: '1792x640 (the screen, full size)' },
 ];
+const RES_DEFAULT = '960x540';
 const FPS_CHOICES = [30, 60];
 const CGROUP_ROOT = process.env.STEAM_CGROUP_ROOT || '/sys/fs/cgroup/memory';
 /* The game's memory cap: more lets bigger games run, but leaves less to the
@@ -143,9 +152,16 @@ function link() { const ip = uplinkIp(); return ip ? 'http://' + ip + ':' + PORT
 /* ---- settings, library ---------------------------------------------------- */
 
 const SETTINGS_FILE = path.join(env.STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, username: '', where: 'internal', resolution: '1280x720', fps: 30,
-    memMb: MEM_DEFAULT, sound: true, volume: 100 }, readJson(SETTINGS_FILE) || {});
-if (!RESOLUTIONS.some((r) => r.id === settings.resolution)) settings.resolution = '1280x720';
+const settings = Object.assign({ enabled: true, username: '', where: 'internal', resolution: RES_DEFAULT, fps: 30,
+    memMb: MEM_DEFAULT, sound: true, volume: 100, cellId: 0 }, readJson(SETTINGS_FILE) || {});
+/* where downloads come from: 0 Steam's choice by the car's location, or a
+ * Steam cell (DepotDownloader -cellid): when that region's servers fail */
+const REGIONS = [{ id: 0, name: 'Automatic' }, { id: 15, name: 'Amsterdam' }, { id: 5, name: 'Frankfurt' },
+    { id: 14, name: 'Paris' }, { id: 4, name: 'London' }];
+if (!RESOLUTIONS.some((r) => r.id === settings.resolution)) settings.resolution = RES_DEFAULT;
+/* 1280x720 was the default up to 0.1.9 and was saved with every other
+ * setting, chosen or not: once, it becomes the new default */
+if (settings.resDefault !== 2) { if (settings.resolution === '1280x720') settings.resolution = RES_DEFAULT; settings.resDefault = 2; }
 if (FPS_CHOICES.indexOf(settings.fps) < 0) settings.fps = 30;
 if (MEM_CHOICES.indexOf(settings.memMb) < 0) settings.memMb = MEM_DEFAULT;
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
@@ -210,6 +226,7 @@ function ensureBundles(done) {
         ['runtime.tgz', env.RUNTIME, {}],
         ['proton.tgz', env.PROTON, {}],
         ['prefix.tgz', env.PREFIX, { keep: true }],
+        ['vulkan.tgz', env.VULKAN, {}],
     ];
     const next = (i) => {
         if (i === steps.length) return done(null);
@@ -272,14 +289,39 @@ function moving() { return vehicle.kmh !== null && vehicle.kmh > MAX_KMH && Date
 const screen = new Screen(log);
 let wantShown = false;
 
+/* Winston output: the game's pictures straight onto the centre screen as a
+ * client of Winston, the unit's compositor (wl-sink's own connection,
+ * platform native/winston_out), in full colour, instead of the I420 frame
+ * file through mgu-render. The default (seen on the car 2026-11-08); turned
+ * off, compatibility mode (mgu-render), kept in settings.winston; the next
+ * show uses it; back on mgu-render by itself when wl-sink has no connection
+ * to Winston or loses it. */
+let winstonOut = settings.winston !== false;
+let winstonNote = null;
+
+function via() { return winstonOut && game && game.state !== 'ended' && game.winston ? 'winston' : 'mgu-render'; }
+
+function setWinston(on) {
+    on = !!on;
+    if (on === winstonOut) return null;
+    winstonOut = on;
+    winstonNote = null;
+    settings.winston = on;
+    saveSettings();
+    log('winston: ' + (on ? 'on: pictures straight onto the screen through Winston (from the next show)' : 'off: compatibility mode, through mgu-render'));
+    if (screen.shown()) { hide('the output changed'); show(); }
+    if (control) control.broadcast();
+    return null;
+}
+
 function show() {
     if (moving()) return 'not while driving';
     if (!game || game.state === 'ended') return 'no game is running';
     wantShown = true;
     if (screen.shown()) return null;
-    const e = screen.show(VIEW);
+    const e = screen.show(VIEW, via(), game);
     if (e) { wantShown = false; return e; }
-    log('screen: shown');
+    log('screen: shown (' + screen.via + ')');
     startTouch();
     return null;
 }
@@ -350,6 +392,14 @@ function toFrame(sx, sy) {
     return { x: x, y: y, on: x >= 0 && y >= 0 && x < f.w && y < f.h, w: f.w, h: f.h };
 }
 
+/* A tap's finger wobbles a few pixels between down and up: with the button
+ * held each wobble is a drag, and a game that drags on any motion (Slay the
+ * Spire 2's map, 2026-11-08) scrolled instead of clicking. So moves count only
+ * once the finger has gone TAP_SLOP screen pixels from where it went down;
+ * a touch that never did is a click where it went down. */
+const TAP_SLOP = 14;
+let touchDown = null;      /* { sx, sy (screen), x, y (frame), dragging } */
+
 function onTouch(e) {
     if (!game || game.state === 'ended' || !screen.shown()) return;
     const p = toFrame(e.x, e.y);
@@ -359,12 +409,22 @@ function onTouch(e) {
     if (e.p === 1) {            /* down */
         if (!p.on) return;
         touching = true;
+        touchDown = { sx: e.x, sy: e.y, x: p.x, y: p.y, dragging: false };
         game.input('d', p.x, p.y);
     } else if (e.p === 2) {     /* move */
-        if (touching) game.input('m', cx, cy);
+        if (!touching) return;
+        if (touchDown && !touchDown.dragging) {
+            if (Math.abs(e.x - touchDown.sx) < TAP_SLOP && Math.abs(e.y - touchDown.sy) < TAP_SLOP) return;
+            touchDown.dragging = true;
+        }
+        game.input('m', cx, cy);
     } else if (e.p === 3) {     /* up */
-        if (touching) game.input('u', cx, cy);
+        if (touching) {
+            if (touchDown && !touchDown.dragging) { game.input('u', touchDown.x, touchDown.y); lastTouch = { x: touchDown.x, y: touchDown.y }; }
+            else game.input('u', cx, cy);
+        }
         touching = false;
+        touchDown = null;
     }
 }
 
@@ -410,7 +470,7 @@ function install(appId, validate) {
         userDir(path.join(env.HOME, 'tmp'));
     } catch (e) { return 'the games folder: ' + e.message; }
     writeDns();
-    const d = new steam.Download({ appId: appId, username: settings.username, dir: dir, uid: UID, gid: UID, validate: !!validate, log: log });
+    const d = new steam.Download({ appId: appId, username: settings.username, dir: dir, uid: UID, gid: UID, validate: !!validate, cellId: settings.cellId || 0, log: log });
     download = d;
     d.on('change', () => { if (control) control.broadcast(); });
     d.on('end', (st) => {
@@ -439,7 +499,9 @@ function added(appId, dir) {
     const eng = exe ? steam.engine(dir, exe) : null;
     library[appId] = { name: name, dir: dir, exe: exe, args: old.args || steam.defaultArgs(eng), engine: eng,
         sizeMb: Math.round(steam.du(dir) / 1048576), installedAt: old.installedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
-        noSteam: !!old.noSteam, steamApi: steamApiFiles(dir).length };
+        noSteam: !!old.noSteam, steamApi: steamApiFiles(dir).length, arch: exe ? steam.arch(dir, exe) : null };
+    /* Vulkan: a choice made by hand stays; none, the default (vulkanOn) */
+    if (old.vulkan === true || old.vulkan === false) library[appId].vulkan = old.vulkan;
     saveLibrary();
     log('library: ' + name + ' (' + appId + '): ' + (exe || 'no program found') + (eng ? ', ' + eng : '') + ', ' + library[appId].sizeMb + ' MB');
     /* an update or a check put Steam's own steam_api back: the emulator again */
@@ -562,11 +624,20 @@ function setGameOptions(appId, b) {
         if (!exes.some((x) => x.rel === b.exe)) return 'no such program in the game\'s folder';
         g.exe = b.exe;
         g.engine = steam.engine(g.dir, g.exe);
+        g.arch = steam.arch(g.dir, g.exe);
     }
     if (b.args !== undefined) {
         const a = String(b.args).trim();
         if (a.length > 300) return 'too long';
         g.args = a ? a.split(/\s+/) : [];
+    }
+    if (b.vulkan !== undefined) {
+        if (b.vulkan) {
+            const m = env.vulkanMissing();
+            if (m.length) return 'no Vulkan driver here (' + m[0] + ' is missing)';
+        }
+        if (!!b.vulkan !== vulkanOn(g)) log('vulkan: ' + g.name + ' ' + (b.vulkan ? 'on (from its next start)' : 'off (OpenGL, WineD3D)'));
+        g.vulkan = !!b.vulkan;
     }
     saveLibrary();
     if (b.noSteam !== undefined && !!b.noSteam !== !!g.noSteam) return noSteam(appId, !!b.noSteam);
@@ -581,9 +652,104 @@ let restartNote = null;
     const t = readJson(GAME_RUNNING);
     if (!t) return;
     restartNote = 'the unit restarted while ' + (t.name || 'a game') + ' ran (' + (t.at || '?') + ')';
+    /* a restart during a game on Vulkan: that game's Vulkan goes off (a GPU
+     * hang may have caused it; turning it on again is by hand) */
+    if (t.vulkan && library[t.appId] && vulkanOn(library[t.appId])) {
+        library[t.appId].vulkan = false;
+        saveLibrary();
+        restartNote += ' on Vulkan: Vulkan is off for it now (its last DRM calls: state/vulkan-crumbs.log)';
+    }
     log('game: ' + restartNote);
     try { fs.unlinkSync(GAME_RUNNING); } catch (e) { /* gone */ }
 })();
+
+/* ---- Vulkan (per game) -------------------------------------------------------
+ * DXVK 1.9.4 for Direct3D 9-11, a Godot 4 game's own Vulkan renderer, on
+ * Mesa 19.0.6's ANV (vulkan.tgz, env.VK). The default for 64-bit games (seen
+ * on the car 2026-11-08: Direct3D 9 / 11 test programs, Slay the Spire 2 on
+ * Forward+); 32-bit games stay on OpenGL (WineD3D) until 32-bit Vulkan
+ * through WoW64 has been seen working. A choice made on the phone page stays
+ * (g.vulkan); a restart of the unit during a game on Vulkan turns it off for
+ * that game. While one runs: ANV's ICD in RUN_DIR (tmpfs: gone at any
+ * restart), removed at its end; DXVK in the prefix (native only with Vulkan
+ * on: other games keep WineD3D, env.wineEnv); the game's DRM calls in
+ * VK.crumbsLog. */
+let vulkanCrumbs = null;
+
+/* ---- the other tools (platform tool/mqtt_bus, native/vizualyse-bus) ----------
+ * While a game runs (shown or not), the other tools are asked to switch off
+ * their video on the cluster and the HUD: Cast's decoding of a stream or of
+ * CarPlay's second screen takes a core of the four the game needs, and
+ * cluster-render's upload shares the memory bandwidth with the GPU. Cleared
+ * at the game's end, and by the bus if this tool goes. The browser is asked
+ * off too (Chromium stops: its memory and its cores).
+ *
+ * The other way: the Browser's game mode asks steam off. A game stops when
+ * such an ask is made after the game started; one made before does not stop
+ * it (the newer start wins, and the browser yields to this tool's ask). */
+const bus = new Bus('vizualyse-steam', { log: log });
+const BUS_ASK = { 'cluster-video': 'off', 'hud-video': 'off', browser: 'off' };
+let gameStartedAt = 0;
+let askedOffNote = null;
+bus.on('asks', () => {
+    if (!game || game.state === 'ended') return;
+    const a = bus.asked('steam', 'off').filter((x) => x.at && Date.parse(x.at) > gameStartedAt)[0];
+    if (!a) return;
+    askedOffNote = 'stopped: ' + a.from + ' asked' + (a.why ? ' (' + a.why + ')' : '');
+    log('bus: ' + askedOffNote);
+    stopGame(askedOffNote);
+});
+
+/* a game's bitness, read once from its program */
+function gameArch(g) {
+    if (g.arch === undefined && g.exe) { g.arch = steam.arch(g.dir, g.exe); saveLibrary(); }
+    return g.arch || null;
+}
+function vulkanDefault(g) { return gameArch(g) === 'x64' && env.vulkanMissing().length === 0; }
+function vulkanOn(g) { return g.vulkan === true || g.vulkan === false ? g.vulkan : vulkanDefault(g); }
+
+function vulkanPrepare(fps) {
+    const m = env.vulkanMissing();
+    if (m.length) throw new Error('no Vulkan driver here: ' + m[0] + ' is missing');
+    try { fs.mkdirSync(env.RUN_DIR, 0o755); } catch (e) { /* there */ }
+    fs.writeFileSync(env.VK.icd, JSON.stringify({ file_format_version: '1.0.0', ICD: { library_path: env.VK.driver, api_version: '1.1.102' } }) + '\n');
+    fs.chmodSync(env.VK.icd, 0o644);
+    /* DXVK's options (env.dxvkConf: the frame rate, the adapter, ...) */
+    fs.writeFileSync(env.VK.conf, env.dxvkConf(fps));
+    fs.chmodSync(env.VK.conf, 0o644);
+    /* DXVK into the prefix, where it differs (Proton does the same for its own) */
+    const win = path.join(env.PREFIX, 'pfx', 'drive_c', 'windows');
+    [['x64', 'system32'], ['x32', 'syswow64']].forEach((a) => {
+        if (!fs.existsSync(path.join(win, a[1]))) return;
+        env.VK.dlls.forEach((d) => {
+            const src = path.join(env.VK.dxvk, a[0], d + '.dll'), dst = path.join(win, a[1], d + '.dll');
+            const same = (() => { try { return fs.readFileSync(src).equals(fs.readFileSync(dst)); } catch (e) { return false; } })();
+            if (same) return;
+            try { if (fs.lstatSync(dst).isSymbolicLink()) fs.unlinkSync(dst); } catch (e) { /* none */ }
+            fs.writeFileSync(dst, fs.readFileSync(src));
+            fs.chownSync(dst, UID, UID);   /* a regular file we just wrote: no link to follow */
+        });
+    });
+    vulkanCrumbs = fs.openSync(env.VK.crumbsLog, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_DSYNC, 0o600);
+}
+
+function vulkanEnd() {
+    try { fs.unlinkSync(env.VK.icd); } catch (e) { /* gone */ }
+    try { fs.unlinkSync(env.VK.conf); } catch (e) { /* gone */ }
+    if (vulkanCrumbs !== null) { try { fs.closeSync(vulkanCrumbs); } catch (e) { /* closed */ } vulkanCrumbs = null; }
+}
+
+/* A Godot 4 game's default options pick its OpenGL renderer: with Vulkan,
+ * its Vulkan driver instead, with the game's own rendering method (Slay the
+ * Spire 2: Forward+, on the car 2026-11-08). Adding --rendering-method mobile
+ * made its Godot (MegaDot 4.5.1) take Direct3D 12, which Wine's vkd3d can't do
+ * on ANV 19. Options edited by hand stay. */
+function vulkanArgs(g) {
+    const a = (g.args || []).slice();
+    const i = a.indexOf('--rendering-driver');
+    if (g.engine === 'godot' && i >= 0 && a[i + 1] === 'opengl3') a[i + 1] = 'vulkan';
+    return a;
+}
 
 function play(appId) {
     appId = Number(appId);
@@ -605,22 +771,40 @@ function play(appId) {
     if (missing.length) return 'this unit has no ' + missing.join(', ');
     const res = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
     try { userDir(env.HOME); writeDns(); } catch (e) { return e.message; }
+    const vulkan = vulkanOn(g);
+    if (vulkan) { try { vulkanPrepare(settings.fps); } catch (e) { vulkanEnd(); return 'Vulkan: ' + e.message; } }
     cgroupDir = cgroup();
     mem.ooms = null; mem.note = null; mem.oomAt = null; mem.peakMb = null;
     restartNote = null;
-    try { writeJson(GAME_RUNNING, { appId: appId, name: g.name, at: new Date().toISOString() }); } catch (e) { log('game: ' + e.message); }
-    const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: g.args, launch: launch,
+    /* written (fsynced) before Wine opens the GPU: found at the next start, the unit restarted during it */
+    try { writeJson(GAME_RUNNING, { appId: appId, name: g.name, at: new Date().toISOString(), vulkan: vulkan }); } catch (e) { log('game: ' + e.message); }
+    const args = vulkan ? vulkanArgs(g) : g.args;
+    const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch,
         frame: { w: res.w, h: res.h }, fps: settings.fps, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
-        sound: settings.sound, volume: () => settings.volume, log: log });
+        sound: settings.sound, volume: () => settings.volume, log: log,
+        vulkan: vulkan, crumbsFd: vulkan ? vulkanCrumbs : undefined });
+    log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (DXVK 1.9.4 / ANV 19.0.6)' + (args !== g.args ? ', ' + args.join(' ') : '')
+        : ' on OpenGL (WineD3D)') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
     game = x;
+    x.on('winston-lost', () => {
+        winstonNote = 'the connection to Winston was lost: back on mgu-render';
+        log('winston: ' + winstonNote);
+        if (game === x && screen.shown() && screen.via === 'winston') { hide('Winston went'); show(); }
+        if (control) control.broadcast();
+    });
     x.on('state', (st) => {
         if (st === 'ended') {
+            if (game === x) bus.ask(null);
+            if (vulkan) vulkanEnd();
             try { fs.unlinkSync(GAME_RUNNING); } catch (e) { /* gone */ }
             if (game === x) hide('the game ended');
         }
         if (control) control.broadcast();
     });
+    gameStartedAt = Date.now();
+    askedOffNote = null;
     x.start();
+    bus.ask(BUS_ASK, g.name + ' is running');
     log('game: ' + g.name + ' (' + appId + ') at ' + res.w + 'x' + res.h + ', ' + settings.fps + ' fps, ' + settings.memMb + ' MB cap');
     return null;
 }
@@ -661,6 +845,11 @@ function setSetting(b) {
         if (cgroupDir) { try { fs.writeFileSync(path.join(cgroupDir, 'memory.limit_in_bytes'), String(settings.memMb * 1048576)); } catch (e) { /* from the next game */ } }
     }
     if (b.sound !== undefined) settings.sound = !!b.sound;
+    if (b.cellId !== undefined) {
+        if (!REGIONS.some((r) => r.id === Number(b.cellId))) return 'region: ' + REGIONS.map((r) => r.id + ' ' + r.name).join(', ');
+        settings.cellId = Number(b.cellId);
+        log('settings: downloads from ' + REGIONS.filter((r) => r.id === settings.cellId)[0].name + ' (from the next download)');
+    }
     if (b.volume !== undefined) { const v = Number(b.volume); if (!(v >= 0 && v <= 150)) return 'volume 0-150'; settings.volume = Math.round(v); }
     if (b.resolution !== undefined) { const e = setResolution(String(b.resolution)); if (e) return e; }
     saveSettings();
@@ -683,7 +872,7 @@ function status() {
     const g = game && game.state !== 'ended' ? game : null;
     return {
         enabled: settings.enabled, link: link(), uplink: up.state || 'unknown', bundle: bundle.state,
-        error: bundle.error || null, prefixNote: prefixNote, restartNote: restartNote,
+        error: bundle.error || null, prefixNote: prefixNote, restartNote: restartNote, vulkanAvailable: env.vulkanMissing().length === 0,
         account: { username: settings.username || null, remembered: settings.username ? steam.remembered() : false },
         download: download ? Object.assign(download.status(), { name: (library[download.o.appId] && library[download.o.appId].name) || names[download.o.appId] || null }) : null,
         library: Object.keys(library).map((id) => {
@@ -691,16 +880,19 @@ function status() {
             return { appId: Number(id), name: x.name, exe: x.exe, args: (x.args || []).join(' '), engine: x.engine, sizeMb: x.sizeMb,
                 usb: gameStick(x), present: present(x),
                 /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
-                noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi };
+                noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
+                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), arch: gameArch(x) };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
-            buffers: { drm: game.stats.drm, shm: game.stats.shm }, note: game.note,
+            buffers: { drm: game.stats.drm, shm: game.stats.shm, fwd: game.stats.fwd || 0, scaled: game.stats.scaled || 0, commits: game.stats.commits || 0 }, note: game.note,
             /* the controllers in use: [{ player, name }] (steam-pads) */
             pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),
-        settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume },
-        choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, disk: diskAvailable(),
+        winston: { on: winstonOut, connected: !!(g && g.winston), via: screen.via, note: winstonNote },
+        bus: bus.state(), busNote: askedOffNote,
+        settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume, cellId: settings.cellId || 0 },
+        choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, regions: REGIONS, disk: diskAvailable(),
             usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
         space: space, memory: { capMb: settings.memMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
     };
@@ -738,6 +930,7 @@ const ROUTES = {
     '/api/remove': (b) => removeGame(b.appId),
     '/api/game': (b) => setGameOptions(b.appId, b),
     '/api/settings': (b) => setSetting(b),
+    '/api/winston': (b) => setWinston(b.on),
 };
 
 const web = http.createServer((req, res) => {
@@ -796,6 +989,7 @@ function command(c) {
     if (c.cmd === 'play') return play(c.appId);
     if (c.cmd === 'stop') return stopGame('stopped on the iDrive page');
     if (c.cmd === 'resolution') return setResolution('next');
+    if (c.cmd === 'winston') return setWinston(c.on);
     return 'unknown command';
 }
 
@@ -810,6 +1004,7 @@ function shutdown(sig) {
     if (download) download.stop();
     removeFirewall();
     if (control) control.close();
+    bus.close();
     web.close();
     const done = () => process.exit(0);
     if (game && game.state !== 'ended') { game.on('end', () => setTimeout(done, 200)); game.stop('the tool stopped'); }

@@ -46,8 +46,9 @@ for l in libEGL.so.1 libGLESv2.so.2 libwayland-client.so.0 \
 # mode ask for them; without these the unit's 2.27 ones load and fail.)
 
 # chromium-wl (sink/wl.c): the browser's display, a Wayland compositor that
-# puts Chromium's pictures into mgu-render's frame file; on the bundle's
-# loader and libraries (libwayland-server, libyuv: the closure below).
+# puts Chromium's pictures into mgu-render's frame file, or straight onto
+# Winston (sink/winston_out.c, a Wayland client of it); on the bundle's
+# loader and libraries (libwayland-server and -client, libyuv: the closure below).
 G=/tmp/wl-gen
 mkdir -p $G
 XDG=/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml
@@ -55,10 +56,16 @@ wayland-scanner server-header $XDG $G/xdg-shell-server-protocol.h
 wayland-scanner private-code $XDG $G/xdg-shell-protocol.c
 wayland-scanner server-header /m/sink/protocol/wayland-drm.xml $G/wayland-drm-server-protocol.h
 wayland-scanner private-code /m/sink/protocol/wayland-drm.xml $G/wayland-drm-protocol.c
+for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
+    wayland-scanner client-header /m/sink/protocol/$x.xml $G/$x-client-protocol.h
+    wayland-scanner private-code /m/sink/protocol/$x.xml $G/$x-protocol.c
+done
 # (its loader is set below, with chromium's: ldd must run it first)
 gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -I/m/sink -I$G -Wl,-rpath,$B/lib -Wl,--build-id=sha1 \
-    -o "$R/chromium-wl" /m/sink/wl.c /m/sink/frame_out.c $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c \
-    $(pkg-config --cflags --libs wayland-server) -lyuv -ldl
+    -o "$R/chromium-wl" /m/sink/wl.c /m/sink/frame_out.c /m/sink/winston_out.c $G/xdg-shell-protocol.c \
+    $G/wayland-drm-protocol.c $G/ivi-application-protocol.c $G/ivi-controller-protocol.c \
+    $G/linux-dmabuf-unstable-v1-protocol.c \
+    $(pkg-config --cflags --libs wayland-server wayland-client) -lyuv -ldl
 strip --strip-unneeded "$R/chromium-wl"
 
 # Every library the ELF files load, resolved in this image, under its soname.

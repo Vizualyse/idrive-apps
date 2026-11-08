@@ -35,12 +35,18 @@ int decoder_decode(struct decoder *d, const uint8_t *au, size_t len, uint8_t *pi
 /* "msdk (GPU, API 1.24, GPU copy, ...)", "av (software, libavcodec 60.31.102, ...)" */
 const char *decoder_name(const struct decoder *d);
 void decoder_close(struct decoder *d);
+/* From now on pic is NV12 instead of I420: out_h rows of Y, stride bytes
+ * apart, then at pic + uv_offset out_h / 2 rows of U,V interleaved, stride
+ * bytes apart (a GPU buffer Winston shows: winston_video.h). 0 back to I420. */
+void decoder_nv12(struct decoder *d, int stride, size_t uv_offset);
 
 /* The backends, for decode.c: each one's state starts with this. */
 struct decoder {
     int (*decode)(struct decoder *d, const uint8_t *au, size_t len, uint8_t *pic, char *err, size_t n);
     void (*close)(struct decoder *d);
     char name[128];
+    int nv12_stride;      /* 0: I420 (decoder_nv12) */
+    size_t nv12_uv;
 };
 struct decoder *msdk_open(int hw, int out_w, int out_h, char *err, size_t n);
 struct decoder *av_open(int out_w, int out_h, char *err, size_t n);

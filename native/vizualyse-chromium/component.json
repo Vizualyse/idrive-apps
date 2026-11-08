@@ -1,13 +1,14 @@
 {
   "id": "vizualyse-chromium",
   "kind": "tool",
-  "version": "0.2.8",
+  "version": "0.2.11",
   "license": "GPL-3.0-or-later",
   "title": "Browser",
   "description": "EXPERIMENTAL. A web browser (Chromium 156) running on the car, with WebGL 2, WebGPU (on the CPU; WebGL on the car's own GPU driver in an experimental GPU mode) and WebAssembly JSPI, shown on the central screen while parked and driven by touch. Type addresses on the phone page: scan the QR code on the iDrive Browser page. About 181 MB to download, 420 MB on the unit.",
   "requires": {
     "mgu-deploy": "0.7.0",
-    "mgu-render": "0.6.11"
+    "mgu-render": "0.6.11",
+    "vizualyse-bus": "0.1.0"
   },
   "uninstallable": true,
   "mguHmi": [
@@ -27,9 +28,11 @@
     "build.sh"
   ],
   "platform": {
+    "tool/mqtt_bus": { "version": "1.0.0", "files": { "src/mqtt_bus.js": "mqtt_bus.js" } },
     "native/frame_out": { "version": "1.0.0", "files": { "sink/frame_out.c": "frame_out.c", "sink/frame_out.h": "frame_out.h" } },
     "native/touch": { "version": "1.0.0", "files": { "sink/touch.c": "touch.c", "sink/touch.h": "touch.h" } },
-    "native/wayland_drm": { "version": "1.0.0", "files": { "sink/protocol/wayland-drm.xml": "wayland-drm.xml" } }
+    "native/wayland_drm": { "version": "1.0.0", "files": { "sink/protocol/wayland-drm.xml": "wayland-drm.xml" } },
+    "native/winston_out": { "version": "1.0.0", "files": { "sink/winston_out.c": "winston_out.c", "sink/winston_out.h": "winston_out.h", "sink/protocol/ivi-application.xml": "ivi-application.xml", "sink/protocol/ivi-controller.xml": "ivi-controller.xml", "sink/protocol/linux-dmabuf-unstable-v1.xml": "linux-dmabuf-unstable-v1.xml" } }
   },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },
@@ -40,7 +43,7 @@
     { "path": "firewall.js", "from": "src/firewall.js", "mode": "0644" },
     { "path": "control.js", "from": "src/control.js", "mode": "0644" },
     { "path": "proxy.js", "from": "src/proxy.js", "mode": "0644" },
-    { "path": "recmgr.js", "from": "src/recmgr.js", "mode": "0644" },
+    { "path": "mqtt_bus.js", "from": "src/mqtt_bus.js", "mode": "0644" },
     { "path": "page.html", "from": "src/page.html", "mode": "0644" },
     { "path": "chromium.tgz", "from": "build/chromium.tgz", "mode": "0644" },
     { "path": "bundle-VERSION.txt", "from": "build/bundle-VERSION.txt", "mode": "0644" },

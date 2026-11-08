@@ -16,6 +16,12 @@
  * The frame file is nobody's: chromium-wl runs as nobody (mgu-render takes
  * a file of the app's uid, root or nobody).
  *
+ * Or through Winston (via 'winston', the experimental output): chromium-wl
+ * puts the pictures straight onto the centre screen itself, as a client of
+ * the unit's compositor (platform native/winston_out), in the same place; no
+ * frame file and no mgu-render. Winston hides them while the reversing
+ * camera shows, as mgu-render does.
+ *
  * chromium-touch reads the display's touches while shown (passively,
  * nothing claimed: knowledge/central-screen.md) and says them as events;
  * server.js turns those inside the area into the page's touches.
@@ -55,7 +61,8 @@ function frameFile(file, w, h) {
  * touch: { iface, src } or { file } or null; frame: { w, h } of the pictures
  * when smaller than the view (the resolution setting: mgu-render's VIDEO op
  * fits them to the view, aspect kept, linear filtering); display: what fills
- * the frame file ({ show(file), hide() }: the browser). Events: 'touch'
+ * the frame file ({ show(file), showWinston(view), hide() }: the browser);
+ * via: 'winston' or 'mgu-render' (the default). Events: 'touch'
  * {p, x, y} (screen pixels), 'touch-error', 'ready' (chromium-touch's). */
 class Screen extends EventEmitter {
     constructor(log, touchPath) {
@@ -66,13 +73,24 @@ class Screen extends EventEmitter {
         this.touch = null;
         this.view = null;
         this.display = null;
+        this.via = null;
     }
 
     shown() { return !!this.view; }
 
-    show(view, touch, frame, display) {
+    show(view, touch, frame, display, via) {
         this.hide();
         this.view = view;
+        if (via === 'winston') {
+            this.via = 'winston';
+            this.display = display;
+            display.showWinston(view);
+            if (touch) this._touch(touch);
+            this.log('screen: through Winston, browser ' + view.w + 'x' + view.h + '+' + view.x + '+' + view.y +
+                (frame && frame !== view ? ', pictures ' + frame.w + 'x' + frame.h : ''));
+            return;
+        }
+        this.via = 'mgu-render';
         const f = frame || view;
         frameFile(FILE, f.w, f.h);
         this.display = display;
@@ -149,6 +167,7 @@ class Screen extends EventEmitter {
             setTimeout(() => { try { t.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000);
         }
         this.view = null;
+        this.via = null;
         try { fs.unlinkSync(FILE); } catch (e) { /* none */ }
     }
 }

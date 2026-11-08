@@ -53,9 +53,17 @@ run() {
         CAPS="--cap-add SYS_ADMIN"
         STICK="mount -t tmpfs -o ro,nosuid,nodev,noexec,mode=0777,size=256m teststick /media/TESTSTICK"
     fi
-    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS $PADOPT \
+    # Vulkan (the bundled vulkan.tgz): tools/vk-trial's build at /vkt for
+    # kernel414, the unit's kernel's answers on the stub (build.sh makes it)
+    VKT=
+    [ -f "$HERE/../../tools/vk-trial/build/bench/kernel414.so" ] && VKT="-v $(cd "$HERE/../../tools/vk-trial/build" && (pwd -W 2>/dev/null || pwd)):/vkt:ro"
+    # the tools' bus: native/vizualyse-bus's broker, when built (the Browser's asks)
+    BUSOPT=
+    [ -f "$HERE/../vizualyse-bus/build/mosquitto" ] && BUSOPT="-v $(cd "$HERE/../vizualyse-bus" && (pwd -W 2>/dev/null || pwd)):/bus:ro -e MOSQUITTO=/var/opt/mosquitto -e MOSQUITTO_CONF=/bus/src/mosquitto.conf"
+    # shellcheck disable=SC2086 # VKT and BUSOPT are word lists
+    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS $PADOPT $VKT $BUSOPT \
         -v "$WIN_HERE:/t:ro" -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$1" -e USB_FS="${USB_FS:-tmpfs}" ${T_GAME:+-e T_GAME="$T_GAME"} ${T_NOSTEAM:+-e T_NOSTEAM=1} ${T_LOAD:+-e T_LOAD="$T_LOAD"} ${T_DLLOV:+-e T_DLLOV="$T_DLLOV"} ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG="$GREP_LOG"} $IMG \
-        /bin/sh -c "mkdir -p /var/opt /tmp /media/TESTSTICK && chmod 1777 /tmp && $STICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; /usr/bin/node /t/test/unit_test.js /t"
+        /bin/sh -c "mkdir -p /var/opt /tmp /run /media/TESTSTICK && chmod 1777 /tmp && { [ ! -f /bus/build/mosquitto ] || { cp /bus/build/mosquitto /var/opt/mosquitto && chmod 0755 /var/opt/mosquitto; }; } && $STICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; /usr/bin/node /t/test/unit_test.js /t"
 }
 case "${1:-all}" in
     stub|swrast) run "$1" ;;

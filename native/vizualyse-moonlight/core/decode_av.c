@@ -25,10 +25,12 @@ struct av_dec {
     AVPacket *pkt;
     AVFrame *frame;
     int out_w, out_h;
+    uint8_t *tmp;          /* NV12 wanted: the scaled I420 first, interleaved after */
 };
 
 static void av_close(struct decoder *b) {
     struct av_dec *d = (struct av_dec *)b;
+    free(d->tmp);
     if (d->frame) av_frame_free(&d->frame);
     if (d->pkt) av_packet_free(&d->pkt);
     if (d->ctx) avcodec_free_context(&d->ctx);
@@ -47,10 +49,24 @@ static int av_decode(struct decoder *b, const uint8_t *au, size_t len, uint8_t *
     while (avcodec_receive_frame(d->ctx, d->frame) == 0) {
         AVFrame *f = d->frame;
         if (pic && (f->format == AV_PIX_FMT_YUV420P || f->format == AV_PIX_FMT_YUVJ420P)) {
-            const int W = d->out_w, H = d->out_h;
-            scale_plane(f->data[0], f->linesize[0], f->width, f->height, pic, W, H);
-            scale_plane(f->data[1], f->linesize[1], f->width / 2, f->height / 2, pic + W * H, W / 2, H / 2);
-            scale_plane(f->data[2], f->linesize[2], f->width / 2, f->height / 2, pic + W * H + W * H / 4, W / 2, H / 2);
+            const int W = d->out_w, H = d->out_h, S = d->base.nv12_stride;
+            uint8_t *dst = pic;
+            if (S) {   /* NV12 wanted: I420 in tmp, then into pic */
+                if (!d->tmp && !(d->tmp = malloc((size_t)W * H * 3 / 2))) { snprintf(err, n, "no memory"); av_frame_unref(f); return -1; }
+                dst = d->tmp;
+            }
+            scale_plane(f->data[0], f->linesize[0], f->width, f->height, dst, W, H);
+            scale_plane(f->data[1], f->linesize[1], f->width / 2, f->height / 2, dst + W * H, W / 2, H / 2);
+            scale_plane(f->data[2], f->linesize[2], f->width / 2, f->height / 2, dst + W * H + W * H / 4, W / 2, H / 2);
+            if (S) {
+                for (int r = 0; r < H; r++) memcpy(pic + (size_t)r * S, dst + (size_t)r * W, (size_t)W);
+                const uint8_t *u = dst + W * H, *v = u + W * H / 4;
+                uint8_t *uv = pic + d->base.nv12_uv;
+                for (int r = 0; r < H / 2; r++) {
+                    uint8_t *o = uv + (size_t)r * S;
+                    for (int x = 0; x < W / 2; x++) { o[2 * x] = u[r * (W / 2) + x]; o[2 * x + 1] = v[r * (W / 2) + x]; }
+                }
+            }
             got = 1;
         } else if (pic && !got) {
             snprintf(err, n, "libavcodec gave pixel format %d, not 4:2:0", f->format);

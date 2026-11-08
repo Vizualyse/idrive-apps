@@ -4,9 +4,11 @@ node_modules/
 # builds: native/*/build/, the app's packages, release.js output
 native/*/build/
 tools/gpu-bench/build/
+tools/vk-trial/build/
 *.tgz
 release/out/
 release/published/
 
 # reverse engineering: results hold BMW/Cinemo-derived data
 re/out/
+tools/vk-trial/car-logs/

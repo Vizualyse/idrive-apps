@@ -25,10 +25,10 @@ IP=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$NET\").IPAddress}}
 # Sunshine is ready when it answers serverinfo
 docker run --rm --network $NET ml-unit:18.04-node8 sh -c "for i in \$(seq 1 40); do curl -s -m 2 http://$IP:47989/serverinfo >/dev/null && exit 0; sleep 1; done; exit 1"
 PADOPT=""
-if [ "${NO_UINPUT:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" -w /m idrive-moonlight-build:18.04-gcc8-ff612 gcc-8 -O2 -Wall -Werror -o build/test-uinput-pad test/uinput_pad.c; then
+if [ "${NO_UINPUT:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" -w /m idrive-moonlight-build:18.04-gcc8-ff612-wl gcc-8 -O2 -Wall -Werror -o build/test-uinput-pad test/uinput_pad.c; then
     PADOPT="-e MOONLIGHT_TEST_PAD=/m/build/test-uinput-pad"
 fi
-if [ "${NO_USBIP:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" -w /m idrive-moonlight-build:18.04-gcc8-ff612 gcc-8 -O2 -Wall -Wextra -Werror -o build/test-usbip-pad test/usbip_pad.c; then
+if [ "${NO_USBIP:-}" != 1 ] && docker run --rm -v "$WIN_HERE:/m" -w /m idrive-moonlight-build:18.04-gcc8-ff612-wl gcc-8 -O2 -Wall -Wextra -Werror -o build/test-usbip-pad test/usbip_pad.c; then
     # vhci_hcd is a module in Docker Desktop's (WSL 2) kernel: load it in the host's namespaces
     docker run --rm --privileged --pid=host alpine nsenter -t 1 -m -- modprobe vhci-hcd >/dev/null 2>&1 || true
     if docker run --rm --privileged alpine test -w /sys/devices/platform/vhci_hcd.0/attach; then

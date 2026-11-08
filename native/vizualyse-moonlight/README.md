@@ -38,6 +38,19 @@ command `01 03 06` on `0x05` was accepted. moonlight-core does the same
 while streaming: any `ff/5d/01` interface no driver holds is claimed, its
 LED set to the player, its reports read with one interrupt URB at a time.
 
+**Winston output (0.2.3, experimental)**: "Winston output" on the phone
+page (by hand, off again whenever the tool starts) puts the centre console's
+picture straight on the screen through Winston, the unit's compositor,
+instead of the I420 frame file through mgu-render: moonlight-core decodes
+into three NV12 GPU buffers (the GPU decoder's own format, copied as it is;
+the software decoder's interleaved) and hands them to Winston, whose GPU
+converts and scales them (`core/winston_video.c`, platform
+`native/winston_out`). Black bars and the stop hint as before. The frame file
+is still made: back on mgu-render by itself if Winston isn't there or goes.
+Tested off the car against the unit's own Winston with a real Sunshine
+(`test/run_winston_server_test.sh`, `test/run_winston_test.sh`), not yet on
+the car. The cluster and the HUD are unchanged.
+
 ## How it works
 
 | Part | Runs as | Does |

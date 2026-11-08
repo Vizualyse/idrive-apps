@@ -1,15 +1,16 @@
 {
   "id": "vizualyse-cast",
   "kind": "tool",
-  "version": "0.3.9",
+  "version": "0.3.11",
   "license": "GPL-3.0-or-later",
   "title": "Cast to cluster",
   "description": "Plays a stream URL from your phone on the instrument cluster, the HUD or the media console, with its sound through the speakers: scan the QR code, paste a URL, pick where it goes. With hook111 armed, also CarPlay's own second screen (its cluster map) on the cluster or the HUD",
   "requires": {
     "mgu-deploy": "0.7.0",
-    "cluster-render": "0.3.3",
+    "cluster-render": "0.4.2",
     "mgu-python": "1.0.0",
-    "mgu-uplink": "0.7.0"
+    "mgu-uplink": "0.7.0",
+    "vizualyse-bus": "0.1.0"
   },
   "uninstallable": true,
   "mguHmi": [
@@ -31,9 +32,15 @@
   "platform": {
     "common/qrcode": { "version": "1.0.0", "files": { "src/qrcode.js": "qrcode.js" } },
     "tool/cluster_render_client": { "version": "1.0.0", "files": { "src/cluster_render_client.js": "cluster_render_client.js" } },
+    "tool/mqtt_bus": { "version": "1.0.0", "files": { "src/mqtt_bus.js": "mqtt_bus.js" } },
     "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [
+    {
+      "path": "mqtt_bus.js",
+      "from": "src/mqtt_bus.js",
+      "mode": "0644"
+    },
     {
       "path": "server.js",
       "from": "src/server.js",

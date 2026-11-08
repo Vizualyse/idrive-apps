@@ -114,11 +114,17 @@ class ConsoleVideo {
     }
 
     /* A stream of w x h at fps: the frame file, made now; the renderer
-     * shows it once it is connected. */
-    start(w, h, fps) {
-        this.stop();
+     * shows it once it is connected. keepFile: the file is there already and
+     * moonlight-core has it (it went back to it from Winston): kept as it is. */
+    start(w, h, fps, keepFile) {
+        if (keepFile) {
+            if (this.keepAlive) { clearInterval(this.keepAlive); this.keepAlive = null; }
+            if (this.gpu) { try { this.gpu.close(); } catch (e) { /* gone */ } this.gpu = null; }
+        } else {
+            this.stop();
+        }
         this.w = w; this.h = h;
-        frameFile(FILE, w, h);
+        if (!keepFile) frameFile(FILE, w, h);
         this.hint = loadHint(this.log);
         this.hintUntil = Date.now() + HINT_SECONDS * 1000;
 

@@ -10,8 +10,7 @@
  * central screen), {"cmd":"home"}, {"cmd":"reload"}, {"cmd":"back"},
  * {"cmd":"gpu","on":true|false} (the GPU mode, experimental),
  * {"cmd":"scale","scale":1|0.75|0.5|1/3|0.25} (the resolution),
- * {"cmd":"game","on":true|false} (game mode, experimental),
- * {"cmd":"room","on":true|false} (pause Moonlight and Cast while browsing) and
+ * {"cmd":"game","on":true|false} (game mode, experimental) and
  * {"cmd":"speed","kmh":...} (the car's speed, about once a second, for "only
  * while parked"). Connected while the app runs (the speed goes on while the
  * browser covers the page), retried once a second; the tool keeps running
@@ -112,15 +111,8 @@ class BrowserControl extends EventEmitter {
      * off, for trusted games; never kept over a restart of the tool */
     game(on) { return this._send({ cmd: 'game', on: !!on }); }
     gameMode() { return !!(this.status && this.status.gameMode); }
-    /* make room: the tool pauses the Moonlight and Cast tools while the browser is on */
-    room(on) { return this._send({ cmd: 'room', on: !!on }); }
-    roomOn() { return !!(this.status && this.status.room && this.status.room.on); }
-    roomText() {
-        const r = this.status && this.status.room;
-        if (!r || !r.on) return 'Make room: off';
-        const names = (r.paused || []).map((u) => u.replace(/^vizualyse-/, '')).map((n) => n[0].toUpperCase() + n.slice(1));
-        return 'Make room: on' + (names.length ? ' (' + names.join(', ') + ' paused)' : '');
-    }
+    /* off while another tool (a Steam game) asks it off on the tools' bus */
+    paused() { return !!(this.status && this.status.paused); }
     /* not buttons: they leave a button's error on the status line alone */
     hide() {
         if (!this.sock || !this.status || !this.status.shown) return false;
@@ -166,6 +158,7 @@ class BrowserControl extends EventEmitter {
         if (failed) return 'Error: ' + failed;
         if (s.bundle === 'unpacking') return 'Installing the browser (about a minute, once)...';
         if (s.bundle === 'failed' || s.error) return 'Error: ' + (s.error || 'the browser could not be installed');
+        if (s.paused) return 'Paused - ' + s.paused + '; it starts again after (or turn Game mode on)';
         if (s.browser === 'starting' || s.browser === 'crashed') return 'Starting the browser' + (s.gpuMode ? ' on the GPU' : '') + '...';
         if (s.browser !== 'running') return 'The browser is not running';
         const m = s.memory;

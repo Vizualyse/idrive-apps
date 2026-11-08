@@ -13,8 +13,15 @@ connection died: no GL frame ever reached the compositor on the stub
 Export: a memfd of the BO's size stands for the buffer (no pixels: the stub
 draws nothing), remembered by inode with a reference on the BO. Import of an
 fd this process exported gives the same BO; any other (another process's
-export, as the compositor gets it) a new zeroed BO of the fd's size. Written as
-a Python edit rather than a diff so the anchors are checked, not fuzzed.
+export, as the compositor gets it) a new zeroed BO of the fd's size; but, as
+the kernel, a second fd of a buffer whose import is still open on the same
+DRM fd gets that same handle: the planes of an NV12 dmabuf come as separate
+fds of one buffer, i965 finds its BOs by handle and refuses a multi-plane
+image whose planes aren't one BO (Winston's NV12 import failed on the stub
+with EGL_BAD_ALLOC until this, 2026-11-07). Sharing BOs any further (by inode
+across closes) made i965's read-back of a client's buffer crash on the stub
+(wl-sink, 2026-11-07), so it goes no further. Written as a Python edit rather
+than a diff so the anchors are checked, not fuzzed.
 """
 import sys
 
@@ -63,6 +70,21 @@ drm_shim_ioctl_prime_handle_to_fd(int fd, unsigned long request, void *arg)
    return 0;
 }
 
+/* Another process's buffers imported here and still open: an fd of one of
+ * them on the same DRM fd gets the same handle (the kernel's rule; the planes
+ * of an NV12 dmabuf come as separate fds of one buffer). */
+static struct { ino_t ino; struct shim_fd *shim_fd; struct shim_bo *bo; int handle; } shim_imported[SHIM_PRIME_MAX];
+
+static int
+shim_handle_open(struct shim_fd *shim_fd, int handle, struct shim_bo *bo)
+{
+   mtx_lock(&shim_fd->handle_lock);
+   struct hash_entry *e = _mesa_hash_table_search(shim_fd->handles, (void *)(uintptr_t)handle);
+   int open = e && e->data == bo;
+   mtx_unlock(&shim_fd->handle_lock);
+   return open;
+}
+
 static int
 drm_shim_ioctl_prime_fd_to_handle(int fd, unsigned long request, void *arg)
 {
@@ -79,20 +101,41 @@ drm_shim_ioctl_prime_fd_to_handle(int fd, unsigned long request, void *arg)
          break;
       }
    }
-   mtx_unlock(&shim_prime_lock);
    if (bo) {
+      mtx_unlock(&shim_prime_lock);
       args->handle = drm_shim_bo_get_handle(shim_fd, bo);
       return 0;
    }
+   int slot = -1;
+   for (int i = 0; i < SHIM_PRIME_MAX; i++) {
+      if (shim_imported[i].bo && shim_imported[i].ino == st.st_ino && shim_imported[i].shim_fd == shim_fd) {
+         if (shim_handle_open(shim_fd, shim_imported[i].handle, shim_imported[i].bo)) {
+            args->handle = shim_imported[i].handle;
+            mtx_unlock(&shim_prime_lock);
+            return 0;
+         }
+         slot = i;   /* closed since: a new BO in its place */
+         break;
+      }
+      if (slot < 0 && !shim_imported[i].bo)
+         slot = i;
+   }
+   /* a new zeroed BO of the fd's size */
    size_t size = st.st_size > 0 ? (size_t)st.st_size : 4096;
    bo = calloc(1, SHIM_PRIME_BO_ALLOC);
-   if (!bo)
-      return -ENOMEM;
-   if (drm_shim_bo_init(bo, size) < 0) {
+   if (!bo || drm_shim_bo_init(bo, size) < 0) {
       free(bo);
+      mtx_unlock(&shim_prime_lock);
       return -ENOMEM;
    }
    args->handle = drm_shim_bo_get_handle(shim_fd, bo);
+   if (slot < 0)
+      slot = (int)(st.st_ino % SHIM_PRIME_MAX);   /* full: forget an old one */
+   shim_imported[slot].ino = st.st_ino;
+   shim_imported[slot].shim_fd = shim_fd;
+   shim_imported[slot].bo = bo;
+   shim_imported[slot].handle = args->handle;
+   mtx_unlock(&shim_prime_lock);
    return 0;
 }
 
@@ -102,7 +145,6 @@ ENTRIES = (
     "   [_IOC_NR(DRM_IOCTL_PRIME_HANDLE_TO_FD)] = drm_shim_ioctl_prime_handle_to_fd,\n"
     "   [_IOC_NR(DRM_IOCTL_PRIME_FD_TO_HANDLE)] = drm_shim_ioctl_prime_fd_to_handle,\n"
 )
-
 
 def main(path):
     src = open(path).read()

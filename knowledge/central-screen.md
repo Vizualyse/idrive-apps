@@ -87,3 +87,78 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
 - The app area elsewhere: title strip y 0-76, back arrow x 0-84, button bar
   y 596-720 (mgu-store `src/am_elements.js:15-21`); idrive7-apps measured an
   image component at 124,82 1600x520.
+
+## Winston directly (platform `native/winston_out`, 2026-11-07)
+
+Our compositors (chromium-wl, wl-sink) can show their pictures as a Wayland
+client of Winston itself, as mgu-render's layer mode does, instead of
+through mgu-render's frame file. Measured on the **real Winston binary off
+the car** (`tools/winston-bench`: the unit's `winston`, plugins, config and
+scene provider in its rootfs container, null outputs), not yet on the car:
+
+- Winston is BMW's **XSWayland 1.2.0.4** (`xswayland-winston`), plugins
+  `dlt`, `drm-output`, `notify`, `genivi`; config
+  `/etc/winston/compositor.conf` -> `mgu-high/compositor_appl.conf`
+  (`initial-visibility = hide`: a new ivi surface shows only once a
+  controller makes it visible; `screenshot-group = mgu_wayland`). The scene
+  provider (`libivi-scene-settings_hu.so`) makes 26 layers and gives the
+  centre screen 21 of them in order.
+- Globals: `wl_compositor`, `wl_subcompositor`, `wl_shm` (ARGB8888 and
+  XRGB8888 only), `wl_output`, `wl_seat`, `wp_viewporter` (and the old
+  `wl_scaler`), `ivi_application`, `ivi_controller` (wayland-ivi-extension
+  1.11), **`zwp_linux_dmabuf_v1` v1** with 13 formats (among them XR24 AR24
+  XB24 AB24 RG16 NV12 YUYV YU12), private `xs_*`; `wl_drm` through
+  `EGL_WL_bind_wayland_display` where its EGL has it (on the car; not on the
+  bench's stand-in GPU).
+- **Shared memory is taken as it is** (`loading shm buffer (WxH, stride)`), in
+  full colour; XRGB8888's alpha byte is ignored. **dmabufs too**: drm-output
+  makes a DRM framebuffer of each (for its planes) and its GL renderer
+  imports them (`wrapping dmabuf: ... XR24`) on the unit's own i965 with no
+  modifier given (`DRM_FORMAT_MOD_INVALID`: the tiling comes from the
+  kernel, as for wl_drm). So Chromium's GPU-mode buffers (wl_drm PRIME) can
+  go to Winston untouched: no read-back, no I420. So can Wine's GL / Direct3D
+  client area (wl-sink), placed with `wo_present_at` where the composed
+  picture would have it (the same touch mapping), on a black backdrop
+  surface (`surface_id + 1`) where the composed picture is black.
+- **NV12 dmabufs too** (a video decoder's pictures: one buffer, Y then
+  interleaved UV, two planes): Winston's renderer imports and draws them on
+  the unit's i965 (`wrapping dmabuf: ... NV12`, `wo_bench app nv12`), so a
+  decoder's output can go to the screen with the YUV conversion on the GPU.
+  i965 wants both planes' fds to be one GEM buffer; the bench's stand-in GPU
+  first gave each fd its own and the import failed (`EGL_BAD_ALLOC`), fixed in
+  the shim (the kernel does it right). Winston then logs `dmabuf N plane 1:
+  failed to close gem handle` (both planes share one handle and its scanout
+  path closes it twice): harmless. Not yet seen on the car.
+- **Moonlight through Winston** (moonlight-core `--winston`, bench with a
+  real Sunshine): three linear GBM `R8` buffers of h * 3/2 rows, each shown as
+  a two-plane NV12 dmabuf (UV at stride * h); the decoder writes into the
+  mapped buffer (`gbm_bo_map` per picture, the unmap hands it to the GPU),
+  Winston converts and scales. At 60 a second Winston always gave a buffer
+  back in time (no frame without a free one in 4 s). The process links the
+  unit's `libwayland-client.so.0` (1.15); its MSDK decoding is unchanged.
+- **Release a client's buffer once.** A compositor in front of Winston that
+  holds a client's GPU buffer until Winston lets it go must send that
+  buffer's `wl_buffer.release` exactly once: a second one, after Wine (Mesa's
+  Wayland EGL) had taken the buffer again, made Mesa drop it and Wine stall
+  for good, every surface (wl-sink's first pass-through, at a hide, real Wine
+  on the bench).
+- Placement as mgu-render does it (`src/main.c`, `relist.c`): an ivi surface,
+  a controller surface and layer, source / destination rectangles (Winston
+  scales; we fit the picture, aspect kept, centred), no input region (touch
+  stays with the HMI), the layer onto the centre screen (lowest screen id)
+  **through a new connection** each time (Winston applies `add_layer` to the
+  list as that connection last saw it; confirmed: the HMI's
+  `set_render_order` takes ours off, a fresh connection puts it back with
+  the others kept). Winston's socket is `root:mgu_wayland`: a process that
+  connects as root and then drops must **keep the socket's group** or the
+  next show can't connect (`relist: ... Permission denied`, our layer never
+  listed; found by the Browser's end-to-end bench test).
+- Frame callbacks come at 60 Hz while our surface shows and **not at all
+  while it is hidden** (camera, off): pace clients with a timer of our own.
+- A camera surface (0x197) whose client goes stays "visible" without a
+  picture: Winston sends `content` 2 (removed), not `destroyed`. Treat 2 as
+  gone, or the layer would stay hidden for good.
+- Our client's surface and layer go with its connection: a process that
+  dies takes its picture off the screen.
+- Ids: surface `0x565a0100`, layer `0x565a0000` ("VZ"; mgu-render's are
+  `0x4d52....`, the community's `0x4d47....`).

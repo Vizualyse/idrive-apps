@@ -1,0 +1,9 @@
+#version 450
+// SPDX-License-Identifier: GPL-3.0-or-later
+// vkprobe's compute stage: out[i] = in[i] * 3 + 7, checked on the CPU.
+layout(local_size_x = 64) in;
+layout(std430, binding = 0) buffer Data { uint v[]; } data;
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    data.v[i] = data.v[i] * 3u + 7u;
+}

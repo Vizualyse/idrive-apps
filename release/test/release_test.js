@@ -144,7 +144,7 @@ test('the build tree holds a submodule at its recorded commit; one its checkout 
     assert.throws(() => exportHead(main), /git archive 1{40} in third_party\/lib failed/);
 });
 
-test('the Cast chain: app -> vizualyse-cast -> the deploy tool, cluster-render, mgu-python and mgu-uplink', () => {
+test('the Cast chain: app -> vizualyse-cast -> the deploy tool, cluster-render, mgu-python, mgu-uplink and the tools\' bus', () => {
     const all = components();
     const byId = (id) => all.find((c) => c.id === id);
     const app = byId('vizualyse_cast');
@@ -154,8 +154,10 @@ test('the Cast chain: app -> vizualyse-cast -> the deploy tool, cluster-render, 
     assert.deepStrictEqual(Object.keys(app.requires), ['vizualyse-cast']);
     assert.ok(catalog.compareVersions(tool.version, app.requires['vizualyse-cast']) >= 0,
         'the tool meets the app\'s requirement');
-    assert.deepStrictEqual(Object.keys(tool.requires), ['mgu-deploy', 'cluster-render', 'mgu-python', 'mgu-uplink'],
+    assert.deepStrictEqual(Object.keys(tool.requires), ['mgu-deploy', 'cluster-render', 'mgu-python', 'mgu-uplink', 'vizualyse-bus'],
         'the deploy tool installs first');
+    const bus = byId('vizualyse-bus');
+    assert.ok(bus && catalog.compareVersions(bus.version, tool.requires['vizualyse-bus']) >= 0, 'the bus is releasable and meets the requirement');
     assert.deepStrictEqual(tool.mguHmi, ['ID7']);
     const c = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'native', 'vizualyse-cast', 'component.json'), 'utf8'));
     // the proxy's uid gets the uplink; root never does

@@ -75,6 +75,11 @@ class Download extends EventEmitter {
         const args = dd.slice(1).concat(['-app', String(o.appId), '-os', 'windows', '-osarch', '64', '-dir', o.dir,
             '-username', o.username, '-remember-password']);
         if (o.validate) args.push('-validate');
+        /* the content servers' region (Steam's cell id): Steam picks one by
+         * the car's location; its London cluster served other servers'
+         * certificates (every manifest "SSL connection could not be
+         * established", 2026-11-08), Amsterdam worked */
+        if (o.cellId) args.push('-cellid', String(o.cellId));
         try {
             env.userDirs(o.uid, o.gid);
         } catch (err) {
@@ -294,4 +299,25 @@ function remembered() {
     return found;
 }
 
-module.exports = { Download, findExes, engine, defaultArgs, du, storeName, remembered, KNOWN };
+/* The program's bitness from its PE header: 'x64', 'x86', or null when it
+ * can't be read. Vulkan is the default for 64-bit games only (32-bit Vulkan
+ * through Wine's WoW64 is not yet seen working on the car). */
+function arch(dir, exeRel) {
+    let fd;
+    try {
+        fd = fs.openSync(path.join(dir, exeRel), 'r');
+        const h = Buffer.alloc(4096);
+        const n = fs.readSync(fd, h, 0, h.length, 0);
+        if (n < 64 || h.readUInt16LE(0) !== 0x5a4d) return null;               /* MZ */
+        const pe = h.readUInt32LE(0x3c);
+        if (pe + 6 > n || h.readUInt32LE(pe) !== 0x00004550) return null;     /* PE\0\0 */
+        const m = h.readUInt16LE(pe + 4);
+        return m === 0x8664 ? 'x64' : m === 0x14c ? 'x86' : null;
+    } catch (e) {
+        return null;
+    } finally {
+        if (fd !== undefined) try { fs.closeSync(fd); } catch (e) { /* closed */ }
+    }
+}
+
+module.exports = { Download, findExes, engine, arch, defaultArgs, du, storeName, remembered, KNOWN };

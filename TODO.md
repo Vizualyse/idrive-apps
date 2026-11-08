@@ -9,16 +9,90 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
-- [ ] **Render through Winston:** our pictures straight onto the centre
-  screen as a native client of Winston's Wayland (`/run/wayland/wayland-0`,
-  an `ivi_application` surface, [knowledge/head-unit.md](knowledge/head-unit.md))
-  instead of the I420 frame file through mgu-render: no CPU readback and
-  colour conversion, full colour.
-- [ ] **Investigate Vulkan again**, with the safety net (by hand, the
-  gpu-trial marker, an off-car harness first; see Browser's "Retry Vulkan
-  (ANV)" below and [knowledge/browser.md](knowledge/browser.md), "Vulkan on
-  this kernel"). It would give Proton DXVK / VKD3D in place of WineD3D and
-  full WebGPU.
+- [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
+  tested off the car against the unit's own Winston, `tools/winston-bench`,
+  [knowledge/central-screen.md](knowledge/central-screen.md) "Winston
+  directly"). Release both, then on the phone page "Winston output" on, Show
+  (by hand, never kept; **ask before running anything on the unit**). Read
+  the journal: `display: ready ... Winston connected (dmabuf v1)`,
+  `display: winston: on the screen`, no `relist: ... Permission denied`, and
+  `screen: shown (winston)`. **Browser 0.2.9 seen on the car (2026-11-07,
+  vel.gg Kino der Toten, GPU mode + game mode + Winston output):** all four
+  journal lines as above (`surface 0x565a0100 on layer 0x565a0000 at
+  108,82 1790x638`), the game played on the screen. CPU over ~14 s in game
+  (from `/proc`, one SSH read): **chromium-wl ~0 % and Winston 0.2 %**
+  (chromium-wl was 32 % through mgu-render, CPU mode, 0.2.5), but the unit
+  still **97 % busy** of 4 cores: renderer 158 % (compositor thread 38 %,
+  the game's main worker 30 %, five more workers 9-13 % each), **browser
+  process 80 % (main thread 66 %: new, find out why: Wayland buffer
+  hand-offs or the DevTools pipe?)**, GPU process 65 % (main thread 59 %,
+  82 % on 0.2.6 without game mode), HMI 12 %. **At 1/2 (892x316) 99 %
+  busy**: compositor 29 %, browser main 50 %, GPU main 53 %, but the game's
+  main worker up to 44 %: the CPU is the limit, not pixels. No pictures per
+  second yet (the fps meter below). Seen once: at the restart for game mode
+  the first chromium-wl failed `unable to lock lockfile
+  /run/vizualyse-chromium/wayland-0.lock` (the old one not gone yet), the
+  next start was fine. Still to check: the picture in full colour; the
+  HMI's bar and back arrow still usable; a pop-up or the back arrow hides
+  it; the reversing camera hides it (Winston's camera surfaces) and it
+  comes back; an HMI scene change while shown (`layer taken off the
+  screen, put back`); `"fwd"` in chromium-wl's stats; CPU mode through
+  Winston.
+  Moonlight (centre console): `core: {"ev":"output","via":"winston",...}` in
+  the journal; the picture with black bars and the stop hint for 10 s; the
+  decoder event still `msdk (GPU, …)` with moonlight-core as uid 12998; the
+  `decodeMs` and moonlight-core's CPU against mgu-render's path; hold-to-stop.
+- [ ] **Winston output, next:** now the default in Browser 0.2.10, Steam
+  0.1.9 and Moonlight 0.2.5 (mgu-render as the phone page's "Compatibility
+  mode"). On the car with Steam:
+  `"fwd"` in wl-sink's stats (Wine's GL area passed on as it is) and a game
+  hidden and shown again a few times without stalling. Moonlight: MSDK
+  decoding into VA surfaces exported as dmabufs, so the last copy goes too
+  (the unit's libva is 1.x: `vaAcquireBufferHandle`, not
+  `vaExportSurfaceHandle`).
+- [ ] **Winston only, once 0.2.10 / 0.1.9 / 0.2.5 have been used a while:** remove the
+  other centre-screen paths and keep Winston output alone. Browser:
+  chromium-wl's I420 frame file and GPU read-back (`sink/wl.c`, libyuv);
+  Steam: wl-sink's read-back and frame file; Moonlight and Cast:
+  `console_out.js`'s mgu-render layer and the I420 copy; the platform's
+  `native/frame_out`; the "Winston output" switches (always on) and the
+  fall back to mgu-render when Winston's connection goes (decide what
+  replaces it: retry, or hide). Keep cluster-render (Winston can't reach
+  the cluster or the HUD). Then drop mgu-render from each tool's
+  `requires` and the knowledge files' "through mgu-render" lines.
+- [ ] **Vulkan in Steam 0.1.9 on the car:** ANV 19.0.6, the loader and
+  DXVK 1.9.4 now ship in Steam (`vulkan.tgz`, `tools/vulkan.sh`); Vulkan is
+  the default for 64-bit games (the exe's PE header), off for 32-bit ones,
+  switchable per game, off again after any unclean end (the running marker
+  left at a restart). Seen on the car before the release (2026-11-08, hand-
+  patched 0.1.8): STS2 (Godot 4, `--rendering-driver vulkan`, Forward+)
+  plays, fights smooth. Check with 0.1.9: STS2 with no launch options
+  (Godot's opengl3 swapped for vulkan by the tool), no hang over a long
+  session, `state/vulkan-crumbs.log` written. 32-bit stays on WineD3D: see
+  Steam's "32-bit games on Vulkan" below. VKD3D (D3D12) needs much more
+  than ANV 19. After a hang: `state/vulkan-crumbs.log` (the ioctl that never
+  returned); for new drivers, `tools/vk-trial` first (gated, one start).
+- [ ] **Game performance, on the car (Steam 0.1.10, Cast 0.3.11, Browser
+  0.2.11 / app 0.2.6, vizualyse-bus 0.1.0; built and tested off the car
+  2026-11-08):** then with a real game (**ask before running anything on the unit**; read the journal
+  after, don't poll during):
+  - the default Picture 960x540 (a unit that had 1280x720 saved moves to it
+    once), the 848x480 / 640x360 choices on the phone page;
+  - frames held to 30: wl-sink's `commits` per second in the journal's
+    stats, WineD3D (`vblank_mode=3`) and DXVK (`dxvk.conf`); a GL game's
+    look and input lag with the swap interval forced to 1;
+  - DXVK games report HD Graphics 510 / 1024 MB (`dxvk.conf`): a game that
+    picks its preset from it (and none that refuses the adapter);
+  - `scaled` in wl-sink's stats for a game at a mode the screen lacks; STS2
+    (Godot) `fwd` now, or still read back ([knowledge/games.md](knowledge/games.md));
+  - the bus: `systemctl status vizualyse-bus`; Cast's CarPlay second screen
+    on the cluster pauses while a game runs and comes back after it;
+    `bus:` lines in both tools' journals. Steam and the Browser: a game
+    pauses the browser (and it comes back after); game mode turned on
+    during a game stops the game; Make room gone from the app and page.
+  Then measure what's left: one D3D9 and one D3D11 game at 960x540 and
+  848x480, frame times from the stats, CPU per thread (from `/proc`, once,
+  after).
 - [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
   volume does nothing until a CarPlay phone connects (our sound goes into
   CarPlay's SmartXbar input; see Moonlight's item below and
@@ -60,9 +134,15 @@ installs and the updater installs apps (ours too) through the uplink
   process behind a strike guard, [knowledge/store.md](knowledge/store.md))
   instead of our own arming, if it fits `carplay`; upstream patches
   carplay 22.28.3 instead ([knowledge/carplay.md](knowledge/carplay.md)).
-- [ ] **Cast on cluster-render 0.4.0** (upstream; we require 0.3.3): the
-  `repeat` op, packed blocks, the HUD fixes
-  ([knowledge/cluster-and-hud.md](knowledge/cluster-and-hud.md)).
+- [ ] **cluster-render 0.4.2 on the car:** Cast 0.3.10 and Moonlight 0.2.4
+  now require it (was 0.3.3; its protocol only added fields since, so our
+  client is unchanged). Release both, then the CarPlay map's pictures per
+  second against 0.3.3's ~14.5 of 20 (936x480, parked), and the HUD's
+  (0.4's own cap is ~10/s, Cast asks 15). **No take-over test** until the
+  BC-press hazard is understood
+  ([knowledge/cluster-and-hud.md](knowledge/cluster-and-hud.md)). Next:
+  send `repeat` for an unchanged frame (when the service's `hello` has
+  `repeat` 1), and crop the map's dimmed bands (y 0-72, 440-480).
 
 - [ ] **On the car:** whether the phone draws the HUD size it is offered
   (1056x384), and how the cluster view looks at that shape.
@@ -171,15 +251,16 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   (2026-11-06): 2547 of 2560 MB used, ~0.4 GB left on the unit, the HMI
   200 MB in swap, ~3 pictures/s, the CPU 92 % busy. With 0.2.4: Chromium's
   process count and PSS (the trimmed switches), `memory:` lines (asked to
-  free memory near the cap), Make room (`room:` lines: Moonlight paused,
-  Cast too if recmgr loaded it; both back after), then 3 GB, watching the
+  free memory near the cap), then 3 GB, watching the
   HMI's swap (`VmSwap` of HmiMain3D) and `MemAvailable`.
 - [ ] **The Store's updater daemon** (`mgu-updater` node, 237 MB on the car)
   is the biggest non-BMW memory user: ask upstream for a lighter idle mode
   rather than stopping it (it isn't ours).
 - [ ] **A frames-per-second meter** in the status: how often the page draws
   (requestAnimationFrame) next to pictures reaching the screen, to tell a
-  slow game from the picture path.
+  slow game from the picture path. Needed now: the Winston run (above) has
+  CPU figures but no pictures per second; log a count once a second from
+  chromium-wl's Winston path too, so a session is read after it, not polled.
 - [ ] **0.2.3 on the car: the resolution** (phone page or the app's
   Resolution button: full, 3/4 = 1340x476, 1/2 = 892x316, scaled up by
   mgu-render). How it looks, whether touches still land, and the gain on a
@@ -219,14 +300,15 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   for each Chromium security update; start from Debian's chromium source
   package and its patches, built in our Docker image as the bundle is now.
   Measure first what a patched GPU process would save (a CDP trace).
-- [ ] **Retry Vulkan (ANV) for WebGPU**, with the safety net (by hand,
-  the gpu-trial marker, never kept; an off-car harness first). Dawn on
-  Vulkan would give full WebGPU (not compatibility mode) and skip the GL
-  translation. Mesa 22.3's ANV hung the kernel (0.1.1), ≥ 23.2 refuses the
-  4.14 kernel; the candidate is **ANV from Mesa 19.0.6**, the unit's own
-  i965's release, built for the unit's glibc (knowledge/browser.md, "Vulkan
-  on this kernel"). Chromium on Wayland refuses Vulkan for compositing only:
-  Dawn (and ANGLE) can still use it.
+- [ ] **Retry Vulkan (ANV) for WebGPU**, once
+  [tools/vk-trial](tools/vk-trial/README.md) has seen Mesa 19.0.6's ANV
+  get through `compute` on the car (High priority): then Chromium as a
+  vk-trial `command` stage, never kept. Dawn on Vulkan would give full
+  WebGPU (not compatibility mode) and skip the GL translation. Mesa 22.3's
+  ANV hung the kernel (0.1.1), ≥ 23.2 refuses the 4.14 kernel. Chromium on
+  Wayland refuses Vulkan for compositing only: Dawn (and ANGLE) can still
+  use it. Chromium's bundled loader would need ANV for glibc 2.27 (ours)
+  or its own build.
 - [ ] **vel.gg on the CPU, measured on the car with 0.2.5** (2026-11-07, on
   its menu, 30 s): chromium-wl's ms per picture 30 → 3 (the app), but the
   four cores 327 % of 400 busy, load 12.7: renderer 101 % (one core, the
@@ -333,6 +415,28 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
 - [ ] **32-bit D3D9 on `stub` exits 1 at teardown** after a full run
   (`wined3d_device_cleanup Context array not freed!`; 64-bit and `swrast`
   are fine).
+- [ ] **32-bit games on Vulkan:** recheck with Teslagrad (249590, Unity,
+  32-bit D3D9) some time after 0.1.9. Off the car `tools/vk-trial/dxvk`'s
+  `t_d3d932.exe` exits 1 after finding DXVK's adapter (WoW64 winevulkan's
+  memory mapping on ANV 19?) and `t_d3d964.exe` hung 150 s once in the same
+  run (64-bit passed every run before): find out first, on the bench.
+  Gunpoint and FTL are OpenGL (no D3D test).
+- [ ] **Steam's CDN in London serves the wrong certificates** (lhr1
+  servers, 2026-11-08; DNS the same over the phone and 8.8.8.8; Amsterdam
+  and Frankfurt fine). The phone page's "Download from" region (`-cellid`)
+  helps for content, not manifests. Seen working: `-depot` with the game's
+  own depot (Gunpoint, 507 MB), skipping Steamworks Common Redistributables
+  (app 228980). Make that the default (the game's depots only), and retry
+  a stuck download with another region. Teslagrad's download (depot
+  249591) stalled; a DepotDownloader may still be running on the car (pid
+  28447): check `pidof dotnet` before the next download.
+- [ ] **wl-sink's "fwd" doesn't engage for Godot's Vulkan surface** (STS2:
+  0 fwd, read back at ~109 ms a picture); DXVK's test passes 120 fwd. Find
+  why (buffer format or modifier?) on the bench.
+- [ ] **STS2 memory:** the cgroup at 2862 of 3072 MB, 2.7 GB of swap, the
+  HMI with 270 MB swapped out during a run. Try 960x540 and Godot's Mobile
+  renderer (`--rendering-method mobile` chose D3D12: needs the Vulkan driver
+  forced with it).
 - [ ] **Later:** Wine Mono for .NET Framework games (left out: 285 MB);
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).

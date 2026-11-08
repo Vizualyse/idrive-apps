@@ -43,11 +43,42 @@ rebuilt `ntdll.so`, below).
   smallest compositor Wine takes; Mesa's Wayland EGL hands it each frame as a
   **PRIME buffer** (`wl_drm`), which it imports on the GPU and writes into
   mgu-render's frame file (I420), shown in the app area (1790x638 at
-  +108+82), aspect kept. The game draws at the **Picture** size (1280x720 by
-  default; 1344x480 is the screen's shape). Wine puts a Direct3D / OpenGL
+  +108+82), aspect kept. The game draws at the **Picture** size (960x540 by
+  default since 0.1.10, 1280x720 before; a 16:9 picture is shown at 1134x638,
+  so more than that is drawn for nothing; 1344x480 is the screen's shape).
+  Wine puts a Direct3D / OpenGL
   game's client area in a subsurface over its window frame (title bar
   included, drawn in software): wl-sink shows only that client area, so
   there is no title bar (a plain window shows whole; `--whole-window`).
+- **Winston output (0.1.8, experimental)**: "Winston output" on the phone
+  page (by hand, off again whenever the tool starts) shows the picture
+  straight on the centre screen instead: wl-sink is also a client of
+  Winston, the unit's compositor (platform `native/winston_out`, connected
+  at start while still root; it keeps Winston's socket group after its
+  drop), and hands it the composed picture in full colour, no I420. Same
+  place, fitted by Winston; hidden by Winston while the reversing camera
+  shows; back on mgu-render by itself if the connection goes. Wine's GPU
+  buffers go to Winston as they are (no read-back, no copy), since 0.1.10
+  also when Wine scales them with a viewport (a game at a display mode the
+  screen doesn't have: Winston scales, `wo_present_view`). Tested off the
+  car against the unit's own Winston (`tools/winston-bench`).
+- **Nothing drawn that isn't shown (0.1.10):** the game draws at most at the
+  tool's frame rate (30 by default). WineD3D / OpenGL: Proton's Wine asks for
+  swap interval 0, and `vblank_mode=3` makes Mesa 19's EGL take at least 1,
+  so each swap waits for wl-sink's frame callback (bench: 29 frames a second
+  from a test program that asks for no vsync). DXVK: `dxvk.conf` in the run
+  folder while a Vulkan game runs (`env.dxvkConf`): `maxFrameRate` the tool's,
+  one frame queued, two shader compilers, no anisotropic filtering, and the
+  adapter WineD3D reports (HD Graphics 510, 8086:1902, 1024 MB) so games pick
+  their settings the same on both.
+- **The other tools step back while a game runs (0.1.10):** Steam asks on the
+  tools' bus (`native/vizualyse-bus`, `mqtt_bus.js`) for the cluster's and the
+  HUD's video off; Cast pauses a stream or CarPlay's second screen there and
+  starts it again after the game. It asks `browser` off too: the Browser
+  tool stops Chromium until the game ends. The other way, the Browser's game
+  mode asks `steam` off: a running game stops when that ask is made after
+  the game started (the status's `busNote` and the phone page say who
+  asked); one made before doesn't stop it, the newer start wins.
 - **Controllers**: wired XInput (Xbox 360-style) USB pads, up to four, as
   vizualyse-moonlight reads them: the car's kernel has no evdev, HID or
   xpad, so `steam-pads` (`src/pads_main.c`, root, while a game runs) finds

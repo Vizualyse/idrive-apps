@@ -111,6 +111,20 @@ filesystem (`../idrive-rootfs`):
   that way, ~29 % for 62 now (0.5 ms per conversion). On Wayland Chromium
   composites in software in the CPU mode (its Wayland backend refuses
   Vulkan); WebGL and WebGPU still run on SwiftShader.
+- **Winston output (0.2.9, experimental)**: "Winston output" on the phone
+  page (by hand, off again whenever the tool starts) shows the page straight
+  on the centre screen instead, with no frame file and no mgu-render:
+  chromium-wl is also a client of Winston, the unit's compositor (platform
+  `native/winston_out`; connected at start while still root, keeping
+  Winston's socket group after its drop to nobody). In the GPU mode
+  Chromium's buffers go to Winston as they are (dmabufs, back to Chromium at
+  Winston's release): no read-back and no I420, Winston's own GL draws them.
+  Shared memory pictures are copied once into our own buffers, full colour.
+  The same place (Winston fits a smaller resolution to it), hidden by Winston
+  while the reversing camera shows, back on mgu-render by itself if the
+  connection goes. Tested off the car against the unit's own Winston
+  (`tools/winston-bench`; `test/run_winston_test.sh` runs the tool, Chromium
+  and chromium-wl against it, pixels checked), not yet on the car.
 - **The app area, not the whole screen**: 1790x638 at +108+82 leaves the
   HMI's title bar and left strip (with its back arrow) uncovered, so the
   driver can always leave; the app hides the browser when its page loses
@@ -163,14 +177,19 @@ filesystem (`../idrive-rootfs`):
     usage minus `total_inactive_file`) the tool asks Chromium to free what it
     can (DevTools `Memory.simulatePressureNotification`, critical: caches,
     decoded images, tiles, a GC), at most every 15 s.
-  - **Make room** (the phone page, the app): the tool stops the Moonlight
-    and Cast tools' services while the browser is on and starts them again
-    when it goes off, the setting goes off or the tool stops (`room:` in the
-    journal; `state/paused.json` with the boot). Only a unit recmgr loaded
-    at this boot is stopped (`src/recmgr.js`, after mgu-deploy's
-    `recmgrLoaded`: both list sections now and in the list as it stood at
-    boot); stopping any other restarts the head unit. BMW's own services
-    and the Store's are never touched.
+- **The other tools (0.2.11)**, on the tools' bus
+  ([native/vizualyse-bus](../vizualyse-bus/README.md), `mqtt_bus.js`):
+  - **In game mode** the tool asks `steam`, `cluster-video` and `hud-video`
+    off: a Steam game stops, and Cast pauses a play on the cluster map or
+    the HUD until game mode goes off (or the browser does).
+  - **While a Steam game runs** (Steam asks `browser` off) Chromium stops
+    (status `paused`, who asks and why; Show is refused) and starts again
+    once nobody asks. In game mode only an ask made after game mode went on
+    stops it: the newer start wins. Turning game mode on while paused starts
+    the browser and stops the game.
+  - 0.2.4 to 0.2.10's **Make room** (stopping the Moonlight and Cast
+    services with systemctl) is gone. A service an older version left
+    stopped in this boot (`state/paused.json`) is started once.
 - **Never a reboot**: the service is on recmgr's whitelist and `chromium`,
   `chrome_crashpad_handler`, `chromium-wl` and `chromium-touch` on crashhandler's
   (component.json `recmgr`, `crashNames`); Chromium's own crashes restart

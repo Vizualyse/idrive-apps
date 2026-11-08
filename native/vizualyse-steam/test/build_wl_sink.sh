@@ -25,8 +25,13 @@ docker run --rm -v "$SRC:/src:ro" -v "$OUT:/out" idrive-steam-bench:trixie sh -e
     VP=/usr/share/wayland-protocols/stable/viewporter/viewporter.xml
     wayland-scanner server-header $VP $G/viewporter-server-protocol.h
     wayland-scanner private-code $VP $G/viewporter-protocol.c
+    for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
+        wayland-scanner client-header /src/protocol/$x.xml $G/$x-client-protocol.h
+        wayland-scanner private-code /src/protocol/$x.xml $G/$x-protocol.c
+    done
     gcc -O2 -Wall -Wextra -Werror -o /tmp/rgb_test /src/rgb_test.c /src/rgb.c && /tmp/rgb_test
     gcc -O2 -std=gnu11 -Wall -Wextra -Werror -I/src -I$G -o /out/wl-sink \
-        /src/wl_sink.c /src/rgb.c /src/frame_out.c $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c $G/viewporter-protocol.c \
-        $(pkg-config --cflags --libs wayland-server) -ldl
+        /src/wl_sink.c /src/rgb.c /src/frame_out.c /src/winston_out.c $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c \
+        $G/viewporter-protocol.c $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c \
+        $(pkg-config --cflags --libs wayland-server wayland-client) -ldl
     echo "wl-sink: built"'

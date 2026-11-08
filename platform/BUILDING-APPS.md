@@ -168,7 +168,7 @@ explanations, not file content):
     "mgu-deploy": "0.7.0",                  //   always: the deploy tool that runs hooks
     "mgu-python": "1.0.0",                  //   for pcm_play.py
     "mgu-render": "0.6.11"                  //   for the central screen
-  },                                        //   (+ "cluster-render": "0.3.3", "mgu-uplink": "0.7.0")
+  },                                        //   (+ "cluster-render": "0.4.2", "mgu-uplink": "0.7.0")
   "uninstallable": true,                    // the Store offers Remove
   "mguHmi": ["ID7"],
   "internet": true,                         // the uplink routes the uids below
@@ -580,6 +580,28 @@ Steam 2.5 GB), so the kernel kills your process, never the HMI's; read
 `memory.oom_control` and say so in the status (Browser's and Steam's
 `cgroup()`, `watchMemory()`). Run children at nice 0 or above; CarPlay's
 audio threads must never starve.
+
+**The bus.** When your tool needs the car's CPU, GPU or the cluster more
+than another tool's background work does, ask for it on the tools' shared
+bus instead of reaching into that tool: pin `tool/mqtt_bus`, add
+`"vizualyse-bus": "0.1.0"` to `requires`, and
+
+```js
+const { Bus } = require('./mqtt_bus.js');
+const bus = new Bus('vizualyse-foo', { log });
+bus.ask({ 'cluster-video': 'off' }, 'a game is running');   // while you need it
+bus.ask(null);                                              // done
+bus.on('asks', () => { if (bus.asked('hud-video', 'off').length) pauseMyHud(); else resumeMyHud(); });
+// in shutdown: bus.close();
+```
+
+An ask lasts until you clear it or your tool goes (the broker clears a dead
+tool's asks), and a tool started later still sees it. Honour the names you
+can: pause, don't drop what the user started, and start it again when no
+tool asks. Without the bus installed nothing is asked and nothing breaks.
+For asks that switch a whole tool off (`steam`, `browser`), let the newer
+start win: ignore asks whose `at` is before the user started you.
+The names and the design: [native/vizualyse-bus](../native/vizualyse-bus/README.md).
 
 ### 5.11 Native code
 

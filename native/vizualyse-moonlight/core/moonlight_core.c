@@ -25,6 +25,14 @@
  * pictures a second (the cluster and the HUD want 15). --bt709 /
  * --full-range: the colours asked of the PC, written into the file's header.
  *
+ * --winston SOCKET [--winston-place X,Y,W,H] [--hint F.rgba]: the pictures
+ * straight onto the centre screen through Winston instead (winston_video.h:
+ * NV12 GPU buffers, Winston's GPU converts and scales them, black around
+ * them in the place, 0,0,1920,720 by default; the stop hint over them for
+ * 10 s), @{"ev":"output","via":"winston"|"frame-file"} says which. The frame
+ * file is still required: the way back when Winston isn't there or goes
+ * (@{"ev":"winston-lost"}: server.js shows the frame file through mgu-render).
+ *
  * --touch-*: hold-to-stop on the centre screen (touch.h): a copy of the
  * display's touch PDUs, read passively on that interface (the HMI still gets
  * every one); a finger held still 2 s sends @{"ev":"exit-hold"}. --touch-file:
@@ -93,6 +101,7 @@
 #include <Limelight.h>
 #include "decode.h"
 #include "frame_out.h"
+#include "winston_video.h"
 #include "pads.h"
 #include "touch.h"
 
@@ -585,6 +594,7 @@ static void *touch_thread(void *arg) {
 
 static struct decoder *dec = NULL;
 static struct frame_out fout;
+static struct wv *wv = NULL;             /* through Winston (--winston), else the frame file */
 static const char *dec_which = "auto";
 static int out_fps = 0;                  /* pictures a second at most; 0: every frame */
 static unsigned char *au_buf = NULL;     /* the access unit, its buffers joined */
@@ -629,16 +639,30 @@ static int dr_submit(PDECODE_UNIT du) {
     char err[512];
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    int r = decoder_decode(dec, au_buf, len, want ? frame_out_next(&fout) : NULL, err, sizeof(err));
+    uint8_t *pic = NULL;
+    if (want && wv) {
+        if (wv_lost(wv)) {
+            /* Winston went: the frame file again (mgu-render, server.js) */
+            event("{\"ev\":\"winston-lost\"}");
+            wv_close(wv);
+            wv = NULL;
+            decoder_nv12(dec, 0, 0);
+        } else {
+            pic = wv_begin(wv, dec);   /* NULL: all three still on the screen; this frame is decoded only */
+        }
+    }
+    if (want && !wv) pic = frame_out_next(&fout);
+    int r = decoder_decode(dec, au_buf, len, pic, err, sizeof(err));
+    if (wv && pic) wv_end(wv, r > 0);
     clock_gettime(CLOCK_MONOTONIC, &t1);
     dec_us += (unsigned long)((t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000);
-    if (r > 0) {
-        frame_out_publish(&fout);
+    if (r > 0 && pic) {
+        if (!wv) frame_out_publish(&fout);
         last_pic_ms = now;
         if (!pictures++) event("{\"ev\":\"first-picture\",\"frame\":%lu}", frames);
         dec_had_picture = 1;
-    } else if (r == 0 && !want) {
-        skipped++;
+    } else if (r >= 0 && (!want || !pic)) {
+        skipped++;   /* behind, or (Winston) every buffer still on the screen */
     }
     if (r >= 0) { dec_fail_run = 0; return DR_OK; }
     dec_failed++;
@@ -786,8 +810,11 @@ static int stream(int argc, char **argv) {
     long run_uid = -1, run_gid = -1;
     const char *touch_iface = NULL;
     const char *frame_file = NULL;
+    const char *winston = NULL, *hint = NULL;
+    int wplace[4] = { 0, 0, 1920, 720 };
 
     static struct option opts[] = {
+        { "winston", 1, 0, 'w' }, { "winston-place", 1, 0, 'P' }, { "hint", 1, 0, 'h' },
         { "address", 1, 0, 'a' }, { "appversion", 1, 0, 'v' }, { "gfeversion", 1, 0, 'g' }, { "rtsp", 1, 0, 'r' },
         { "codecs", 1, 0, 'c' }, { "width", 1, 0, 'W' }, { "height", 1, 0, 'H' }, { "fps", 1, 0, 'f' },
         { "bitrate", 1, 0, 'b' }, { "packet-size", 1, 0, 'p' }, { "remote", 1, 0, 'R' }, { "rikey", 1, 0, 'k' },
@@ -824,6 +851,9 @@ static int stream(int argc, char **argv) {
         case 'O': out_fps = atoi(optarg); break;
         case '7': sc.colorSpace = COLORSPACE_REC_709; break;
         case 'X': sc.colorRange = COLOR_RANGE_FULL; break;
+        case 'w': winston = optarg; break;
+        case 'P': if (sscanf(optarg, "%d,%d,%d,%d", &wplace[0], &wplace[1], &wplace[2], &wplace[3]) != 4) return 2; break;
+        case 'h': hint = optarg; break;
         default: return 2;
         }
     }
@@ -857,6 +887,13 @@ static int stream(int argc, char **argv) {
     jstr(e, sizeof(e), dec ? decoder_name(dec) : err);
     if (!dec) { event("{\"ev\":\"failed\",\"code\":-1,\"why\":\"no decoder: %s\"}", e); return 1; }
     event("{\"ev\":\"decoder\",\"name\":\"%s\",\"out\":\"%dx%d\",\"outFps\":%d}", e, fout.w, fout.h, out_fps);
+    /* through Winston when asked and there: the frame file stays the way back */
+    if (winston) {
+        wv = wv_open(winston, fout.w, fout.h, wplace[0], wplace[1], wplace[2], wplace[3], hint, err, sizeof(err));
+        jstr(e, sizeof(e), wv ? wv_name(wv) : err);
+        if (wv) event("{\"ev\":\"output\",\"via\":\"winston\",\"what\":\"%s\"}", e);
+        else event("{\"ev\":\"output\",\"via\":\"frame-file\",\"why\":\"%s\"}", e);
+    }
 
     DECODER_RENDERER_CALLBACKS dr;
     LiInitializeVideoCallbacks(&dr);
@@ -899,7 +936,9 @@ static int stream(int argc, char **argv) {
      * thread above keeps root */
     if (run_uid >= 0) {
         long g = run_gid >= 0 ? run_gid : run_uid;
-        if (syscall(SYS_setgroups, 0, NULL) != 0 || syscall(SYS_setresgid, g, g, g) != 0 || syscall(SYS_setresuid, run_uid, run_uid, run_uid) != 0) {
+        /* Winston's socket group stays: each show of our layer connects again */
+        gid_t keep = wv ? (gid_t)wv_socket_gid(wv) : (gid_t)-1;
+        if (syscall(SYS_setgroups, keep != (gid_t)-1 ? 1 : 0, &keep) != 0 || syscall(SYS_setresgid, g, g, g) != 0 || syscall(SYS_setresuid, run_uid, run_uid, run_uid) != 0) {
             event("{\"ev\":\"failed\",\"code\":-1,\"why\":\"setresuid %ld: %s\"}", run_uid, strerror(errno));
             stopping = 1;
             if (use_pads) pthread_join(tpads, NULL);
@@ -938,6 +977,7 @@ static int stream(int argc, char **argv) {
     if (use_touch) pthread_join(ttouch, NULL);
     if (touch_sock >= 0) close(touch_sock);
     decoder_close(dec);
+    wv_close(wv);
     frame_out_close(&fout);
     event("{\"ev\":\"stopped\",\"frames\":%lu,\"pictures\":%lu,\"code\":%d}", frames, pictures, term_code);
     return terminated && term_code != ML_ERROR_GRACEFUL_TERMINATION ? 3 : 0;

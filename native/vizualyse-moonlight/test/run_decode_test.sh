@@ -47,6 +47,11 @@ docker run --rm -v "$WIN_HERE:/m" -w /m ml-unit:18.04-node8 sh -c '
         for s in 640x360 480x270; do
             build/decode_test $d $T/in.h264 $T/$d-$s.yuv ${s%x*} ${s#*x} >/dev/null
         done
+        # NV12 at a padded stride (the GPU buffers Winston shows): the same pictures
+        DECODE_NV12=1344 build/decode_test $d $T/in.h264 $T/$d-nv12.yuv 1280 720 >/dev/null
+        if cmp -s $T/$d.yuv $T/$d-nv12.yuv; then echo "ok   $d: NV12 out (stride 1344) gives the same pictures"; else echo "FAIL $d: NV12 out differs"; fail=1; fi
+        DECODE_NV12=704 build/decode_test $d $T/in.h264 $T/$d-nv12s.yuv 640 360 >/dev/null
+        if cmp -s $T/$d-640x360.yuv $T/$d-nv12s.yuv; then echo "ok   $d: NV12 out scaled to 640x360 the same"; else echo "FAIL $d: NV12 scaled differs"; fail=1; fi
     done
     r=$(MOONLIGHT_RENDER_NODE=/nonexistent build/decode_test msdk $T/in.h264 /dev/null 1280 720 2>&1 || true)
     case $r in *"/nonexistent: No such file"*) echo "ok   msdk: the GPU library and libva load, every symbol found";;

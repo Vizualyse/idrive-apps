@@ -3,6 +3,7 @@
 # Edit the originals in platform/, never these.
 /frame_out.c
 /frame_out.h
+/mqtt_bus.js
 /pad_flags.h
 /pads.c
 /pads.h
@@ -11,4 +12,6 @@
 /touch.h
 /usb_pads.c
 /usb_pads.h
+/winston_out.c
+/winston_out.h
 # end platform

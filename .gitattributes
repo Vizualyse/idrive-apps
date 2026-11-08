@@ -7,3 +7,5 @@ native/hook111/** text eol=lf
 *.patch text eol=lf
 native/vizualyse-steam/tools/*.py text eol=lf
 native/vizualyse-steam/image/*.Dockerfile text eol=lf
+# the bus's source edit, run by awk in a Linux container
+native/vizualyse-bus/patches/* text eol=lf

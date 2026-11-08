@@ -15,7 +15,7 @@ What's next: [`../TODO.md`](../TODO.md). The CarPlay second screen in depth:
 | [internet.md](internet.md) | mgu-uplink: the phone's hotspot, listed uids, DNS, CAs |
 | [carplay.md](carplay.md) | CarPlay on this firmware, the second screen (hook111), upstream's patched 22.28.3 |
 | [cluster-and-hud.md](cluster-and-hud.md) | cluster-render: targets, video layers, the upload budget, overlays, take-over risks, the HUD |
-| [central-screen.md](central-screen.md) | mgu-render: the frame file, draw ops, text over video, touch, winston-grabber, Google Maps' layout |
+| [central-screen.md](central-screen.md) | mgu-render: the frame file, draw ops, text over video, touch, winston-grabber, Google Maps' layout; **Winston directly** (our own ivi surface: shm and dmabufs as they are) |
 | [video-decoding.md](video-decoding.md) | ffmpeg on the unit, the cluster atlas, **hardware decoding (Intel Media SDK / VA-API)** |
 | [sound.md](sound.md) | SmartXbar inputs, live playback without lag, sources and the volume |
 | [input.md](input.md) | Touch PDUs, the iDrive controller (FrontCCU), gamepads |
@@ -25,7 +25,7 @@ What's next: [`../TODO.md`](../TODO.md). The CarPlay second screen in depth:
 | [browser.md](browser.md) | Chromium on the unit: what the image lacks (Vulkan), **GPU drivers only with a safety net**, Vulkan on the 4.14 kernel (Mesa history), bringing a newer userland, WebGPU / JSPI in headless Chromium |
 | [games.md](games.md) | Windows games through Proton / Wine: WineD3D on Mesa 19, GL frames as PRIME buffers, the adapter's name, Proton without Python, the prefix, DepotDownloader |
 | [game-compatibility.md](game-compatibility.md) | Which Steam games run: Supported / Unsupported / Untested, the unit as a desktop, the rule of thumb, the Black Ops 1 era |
-| [bench.md](bench.md) | Working off the car: PCs, containers, emulators |
+| [bench.md](bench.md) | Working off the car: PCs, containers, emulators, **the unit's own Winston** |
 | [reference-repos.md](reference-repos.md) | The other iDrive repositories we read, their licenses and what each is good for |
 
 Add a fact to the file it belongs to (or a new file listed here), with the

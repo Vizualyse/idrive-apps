@@ -5,7 +5,8 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
 2026-11-06. **Nothing here has run on the car yet.** Index: [index.md](index.md).
 
 - **The path:** GE-Proton 11 with `PROTON_USE_WINED3D=1` (Direct3D on
-  OpenGL: no Vulkan on the 4.14 kernel, [browser.md](browser.md)) and its
+  OpenGL; from Steam 0.1.9 64-bit games on DXVK and ANV instead, "Vulkan"
+  below) and its
   Wayland driver (the unit's EGL has no X11), into our own compositor
   (wl-sink) and mgu-render's frame file ([central-screen.md](central-screen.md)).
   32-bit programs through new WoW64 (`PROTON_USE_WOW64=1`): no 32-bit glibc or
@@ -46,6 +47,14 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   stamp) and the computer name (the container's host name): zero / fix those
   and it is reproducible. Wine wants the prefix to be
   owned by the user running it.
+- **A prefix links out of itself: never `chown -R` it without `-h`.**
+  `dosdevices/z:` is `/`, `com1`..`com4` are `/dev/ttyS0..3`, and ~1300
+  files of `drive_c` are symlinks into Proton's own `files/lib/wine` and
+  `share`. BusyBox's `chown -R` without `-h` changes the targets: on the car
+  (2026-11-07, vk-trial's DXVK setup) it gave Proton's files and the serial
+  ports to the trial's uid and tried `/` (read-only, refused); put back by
+  hand (Proton's tree `0:0`, `ttyS*` `root:dialout` per the unit's udev
+  rule). The Steam tool's `unpack.chownR` skips links (lstat), as it must.
 - **wineserver's socket is in `/tmp/.wine-<uid>`**, a fixed place: `/tmp` must
   be 1777 (the unit's is a tmpfs).
 - **Our programs on the unit:** every ELF program of Proton and .NET pointed
@@ -133,6 +142,64 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   a token in `~/.local/share/IsolatedStorage`.
 - **Godot 4 games** (a `.pck` beside the exe) default to Vulkan / D3D12:
   `--rendering-driver opengl3` uses their OpenGL renderer (no WineD3D in the
-  way). Steam's client doesn't run here, so `SteamAPI_Init` fails (Proton's
+  way), `--rendering-driver vulkan` their Vulkan one on ANV (STS2 on the car,
+  2026-11-08: Forward+, playable). Adding `--rendering-method mobile` made
+  STS2 choose D3D12 (no adapter): swap only the driver. Steam's client doesn't run here, so `SteamAPI_Init` fails (Proton's
   `lsteamclient` finds no `steamclient.so`): a game that quits on that won't
   start; most carry on without achievements and cloud saves.
+
+## Vulkan (from Steam 0.1.9)
+
+- **ANV 19.0.6 + the Khronos loader + DXVK 1.9.4 ship in Steam's
+  `vulkan.tgz`;** a 64-bit game (the exe's PE machine field) gets Vulkan by
+  default: DXVK's `d3d11, d3d10core, d3d9, dxgi` native in the prefix, the
+  ICD file only in `/dev/shm/vizualyse-steam` while the game runs, every DRM
+  ioctl logged (O_DSYNC) to `state/vulkan-crumbs.log` by `vk_crumbs.so`. A
+  restart during a Vulkan game turns Vulkan off for it. Proven first with
+  `tools/vk-trial` (gated, one start; [bench.md](bench.md)).
+- **DXVK versions:** 1.10.x needs `VK_EXT_host_query_reset`, 2.x and
+  GE-Proton's own (3.x) need Vulkan 1.3: 1.9.4 is the newest for ANV 19.
+- **32-bit DXVK isn't working yet:** off the car `t_d3d932.exe` finds DXVK's
+  adapter and exits 1 (WoW64 winevulkan on ANV 19?); 32-bit games stay on
+  WineD3D (TODO: recheck with Teslagrad).
+- **wl-sink forwards DXVK's buffers to Winston as they are (120 fwd), but
+  not Godot's** (STS2: 0 fwd, each picture read back, ~109 ms): not yet
+  understood. Up to 0.1.9 wl-sink read back any surface with a viewport or
+  shown at another size than its buffer; if Godot's area is scaled that way,
+  0.1.10 forwards it (below). Check `scaled` in wl-sink's stats on the car.
+- **On the stub, DXVK runs at ~17 frames a second** whatever its options
+  (`maxFrameRate` 30 or none, `maxFrameLatency` 1 or the default: 17.8,
+  17.0, 7.0 in one run each, 2026-11-08), probably the crumbs log's
+  synchronous writes: the bench can't show DXVK being held to 30.
+
+## Frames nobody sees (Steam 0.1.10, bench 2026-11-08)
+
+- **WineD3D draws as fast as it can without a cap:** Proton's Wine sets swap
+  interval 0 (`egldrv_make_current HACK: Using swap interval 0`), so
+  eglSwapBuffers never waits and wl-sink, which shows 30 a second, drops the
+  rest. **`vblank_mode=3`** (i965's driconf option, read from the
+  environment by Mesa 19's EGL: "always sync") clamps the interval to at least
+  1, so each swap waits for the surface's frame callback, which wl-sink
+  answers at its `--fps`: t_d3d9 (D3DPRESENT_INTERVAL_IMMEDIATE) went to 29.0
+  frames a second on the stub. llvmpipe (swrast) has no such option and stays
+  unthrottled.
+- **Wine emulates a display mode the screen lacks with a viewport:** t_d3d9
+  full screen at 640x480 on wl-sink's 960x540 output: Wine's client area is a
+  640x480 buffer with `wp_viewport` scaling it to the output. Winston can
+  scale it (the ivi surface's source and destination rectangles), so wl-sink
+  0.1.10 forwards it as it is (167 of 167 pictures, `scaled`, no read-back).
+- **DXVK's adapter as games see it** is whatever `dxvk.conf` says:
+  `dxgi.customDeviceId`, `customVendorId`, `customDeviceDesc`,
+  `maxDeviceMemory` (and the `d3d9.` ones; `d3d9.maxAvailableMemory` only
+  reports while `d3d9.memoryTrackTest` is off). Without it, ANV's "HD 505
+  (Broxton)" with 4209 MB, which few games' tables know. `DXVK_CONFIG_FILE`
+  is opened through Windows' file calls: give it a `Z:\` path.
+
+## Steam's CDN (2026-11-08)
+
+- **London's servers (lhr1) present the wrong TLS certificates** from the
+  car's connection (DNS the same through the phone and 8.8.8.8); Amsterdam
+  and Frankfurt are fine. DepotDownloader's `-cellid` steers content
+  servers, not the manifest requests. `-depot <the game's own depot>` works
+  around it (skipping Steamworks Common Redistributables, app 228980):
+  Gunpoint came down that way (507 MB).

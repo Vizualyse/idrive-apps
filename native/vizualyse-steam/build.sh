@@ -32,6 +32,8 @@ if ! docker image inspect $IMG >/dev/null 2>&1; then
 fi
 [ "${1:-}" = image ] && exit 0
 mkdir -p "$HERE/build"
+# Vulkan for the games (ANV, its loader, DXVK): build/vulkan.tgz (tools/vulkan.sh)
+sh "$HERE/tools/vulkan.sh" >&2
 # Proton's ntdll.so rebuilt from GE's own Wine tree with
 # patches/wine-no-ia32.patch (32-bit programs on the unit's kernel, which has
 # no IA32 emulation): tools/build_ntdll.sh in image/wine.Dockerfile, the

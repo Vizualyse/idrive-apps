@@ -17,7 +17,7 @@ export MSYS_NO_PATHCONV=1   # Git Bash: leave container paths alone
 HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 node "$WIN_HERE/../../platform/platform.js" sync "$WIN_HERE" >&2   # the pinned platform version's copies (component.json "platform")
-IMG=idrive-moonlight-build:18.04-gcc8-ff612
+IMG=idrive-moonlight-build:18.04-gcc8-ff612-wl
 docker image inspect $IMG >/dev/null 2>&1 || docker build --platform linux/amd64 -q -t $IMG "$WIN_HERE/image" >/dev/null
 mkdir -p "$HERE/build"
 docker run --rm --platform linux/amd64 -v "$WIN_HERE:/m" -w /m $IMG sh -c '
@@ -29,6 +29,17 @@ docker run --rm --platform linux/amd64 -v "$WIN_HERE:/m" -w /m $IMG sh -c '
     SRCS="$(ls $MCC/src/*.c) $MCC/enet/callbacks.c $MCC/enet/compress.c $MCC/enet/host.c $MCC/enet/list.c $MCC/enet/packet.c $MCC/enet/peer.c $MCC/enet/protocol.c $MCC/enet/unix.c $MCC/nanors/rs.c $MCC/nanors/deps/obl/oblas_common.c"
     FF="/opt/ffmpeg/lib/libavcodec.a /opt/ffmpeg/lib/libavutil.a"
     DEC="core/frame_out.c core/decode.c core/decode_av.c core/decode_msdk.c"
+    # Winston (core/winston_video.c on the platform'"'"'s winston_out): its protocols
+    G=/tmp/wl-gen; mkdir -p $G
+    for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
+        wayland-scanner client-header core/protocol/$x.xml $G/$x-client-protocol.h
+        wayland-scanner private-code core/protocol/$x.xml $G/$x-protocol.c
+    done
+    WV="core/winston_video.c core/winston_out.c $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c"
+    gcc-8 $CF -Icore -I$G -I/opt/ffmpeg/include -D_GNU_SOURCE= -Wextra -Werror -fsyntax-only core/winston_video.c core/winston_out.c
+    # the Winston way off the car (test/run_winston_test.sh)
+    gcc-8 $CF -Icore -I$G -I/opt/ffmpeg/include -D_GNU_SOURCE= -Wextra -Wno-unused-parameter -Werror -no-pie -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 \
+        -o build/winston_video_test core/winston_video_test.c $DEC $WV $FF -lwayland-client -lpthread -lm -ldl
     gcc-8 $CF $INC $DEFS -Wextra -Wno-unused-parameter -Wno-maybe-uninitialized -Werror -o /tmp/pads_test core/pads_test.c core/pads.c
     /tmp/pads_test
     gcc-8 $CF $INC $DEFS -Wextra -Werror -o /tmp/touch_test core/touch_test.c core/touch.c
@@ -36,8 +47,8 @@ docker run --rm --platform linux/amd64 -v "$WIN_HERE:/m" -w /m $IMG sh -c '
     gcc-8 $CF -Icore -I/opt/ffmpeg/include -D_GNU_SOURCE= -Wextra -Wno-unused-parameter -Werror -no-pie -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 -o build/decode_test core/decode_test.c $DEC $FF -lpthread -lm -ldl
     # nanors'"'"' SIMD file needs intrinsics newer than gcc 8 (core/compat_gcc8.h)
     gcc-8 $CF $INC $DEFS -include core/compat_gcc8.h -c -o /tmp/oblas_lite.o $MCC/nanors/deps/obl/oblas_lite.c
-    gcc-8 $CF $INC $DEFS -no-pie -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 -Wl,--build-id=sha1 -Wl,-z,relro,-z,now -Wl,--as-needed -o build/moonlight-core \
-        core/moonlight_core.c core/pads.c core/touch.c $DEC $SRCS /tmp/oblas_lite.o $FF -Wl,-Bstatic -lopus -Wl,-Bdynamic -lcrypto -lpthread -lm -ldl
+    gcc-8 $CF $INC -I$G $DEFS -no-pie -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 -Wl,--build-id=sha1 -Wl,-z,relro,-z,now -Wl,--as-needed -o build/moonlight-core \
+        core/moonlight_core.c core/pads.c core/touch.c $DEC $WV $SRCS /tmp/oblas_lite.o $FF -Wl,-Bstatic -lopus -Wl,-Bdynamic -lcrypto -lwayland-client -lpthread -lm -ldl
     strip --strip-unneeded build/moonlight-core
     v=$(objdump -T build/moonlight-core | grep -o "GLIBC_[0-9.]*" | sort -t. -k1,1 -k2,2n -k3,3n -u | tail -1)
     case $v in GLIBC_2.[0-9]|GLIBC_2.1[0-9]|GLIBC_2.2[0-7]|GLIBC_2.[0-9].*|GLIBC_2.1[0-9].*|GLIBC_2.2[0-7].*) ;;
@@ -46,7 +57,8 @@ docker run --rm --platform linux/amd64 -v "$WIN_HERE:/m" -w /m $IMG sh -c '
     interp=$(readelf -l build/moonlight-core | sed -n "s/.*program interpreter: \(.*\)\]/\1/p")
     [ "$interp" = /lib/ld-linux-x86-64.so.2 ] || { echo "moonlight-core asks for the loader \"$interp\", not the unit'"'"'s /lib/ld-linux-x86-64.so.2" >&2; exit 1; }
     needed=$(objdump -p build/moonlight-core | awk "/NEEDED/ {print \$2}" | sort | tr "\n" " ")
-    for l in $needed; do case $l in libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2|libcrypto.so.1.1) ;; *) echo "moonlight-core needs $l" >&2; exit 1 ;; esac; done
+    # libwayland-client.so.0: the unit'"'"'s 1.15 in /usr/lib (Winston'"'"'s clients link it)
+    for l in $needed; do case $l in libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2|libcrypto.so.1.1|libwayland-client.so.0) ;; *) echo "moonlight-core needs $l" >&2; exit 1 ;; esac; done
     echo "moonlight-core: glibc up to $v; loader $interp; needs $needed"
     cp /opt/ffmpeg/COPYING.LGPLv2.1 build/ffmpeg-LGPL-2.1.txt
     python3 tools/make_hint.py /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf build/hint.rgba'

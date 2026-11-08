@@ -125,6 +125,7 @@ class Browser extends EventEmitter {
         this.pending = new Map();
         this.session = null;
         this.wl = null;   /* chromium-wl */
+        this.winston = false;   /* chromium-wl is connected to Winston */
         this.inbuf = '';
         this.url = '';
         this.title = '';
@@ -153,6 +154,8 @@ class Browser extends EventEmitter {
         const a = ['--dir', env.WL_DIR, '--socket', env.WL_SOCKET, '--size', pic.w + 'x' + pic.h, '--fps', String(o.fps || FPS)];
         if (o.uid !== undefined) a.push('--uid', String(NOBODY), '--gid', String(o.gid));
         if (o.gpu) a.push('--drm', '--device', env.RENDER_NODE, '--unit-lib', env.UNIT_LIB);
+        /* connected now, used only when shown that way (showWinston) */
+        if (fs.existsSync(env.WINSTON_SOCKET)) a.push('--winston', env.WINSTON_SOCKET);
         const w = spawn(WL, a, { env: env.wlEnv(!!o.gpu), stdio: ['pipe', 'pipe', 'pipe'] });
         this.wl = w;
         return new Promise((resolve, reject) => {
@@ -166,7 +169,8 @@ class Browser extends EventEmitter {
                     rest = rest.slice(i + 1);
                     let e;
                     try { e = JSON.parse(l); } catch (x) { this.emit('log', 'chromium-wl: ' + l); continue; }
-                    if (e.ev === 'ready' && !ready) { ready = true; resolve(e); }
+                    if (e.ev === 'ready' && !ready) { ready = true; this.winston = !!e.winston; resolve(e); }
+                    if (e.ev === 'winston-lost') this.winston = false;
                     this.emit('display', e);
                 }
             });
@@ -337,6 +341,9 @@ class Browser extends EventEmitter {
     /* Pictures into the frame file (made by screen.js, nobody's) from now on;
      * its size is the window's. */
     show(file) { this._wl('show ' + file); }
+    /* Pictures straight onto the centre screen through Winston, fitted into
+     * view { x, y, w, h } (chromium-wl's own connection: this.winston). */
+    showWinston(view) { this._wl('winston ' + [view.x, view.y, view.w, view.h].join(',')); }
     hide() { this._wl('hide'); }
 
     /* At most fps pictures a second while shown (chromium-wl answers

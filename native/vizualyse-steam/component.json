@@ -1,14 +1,15 @@
 {
   "id": "vizualyse-steam",
   "kind": "tool",
-  "version": "0.1.7",
+  "version": "0.1.10",
   "license": "GPL-3.0-or-later",
   "title": "Steam",
-  "description": "EXPERIMENTAL. Windows games from your Steam library running on the car through Proton (Wine), on the car's own graphics driver, shown on the central screen while parked, with sound. Sign in to Steam and install games on the phone page (scan the QR code on the iDrive Steam page); play them from the iDrive or the phone. Touch is the mouse (a tap clicks); wired Xbox 360-style (XInput) USB controllers, up to four; no keyboard yet. Games that need the Steam client get an optional Run without Steam (gbe_fork). About 430 MB to download, 1.3 GB on the unit, plus the games.",
+  "description": "EXPERIMENTAL. Windows games from your Steam library running on the car through Proton (Wine), on the car's own graphics drivers (64-bit Direct3D 9-11 games on Vulkan through DXVK by default, the rest on OpenGL), shown on the central screen while parked, with sound. Sign in to Steam and install games on the phone page (scan the QR code on the iDrive Steam page); play them from the iDrive or the phone. Touch is the mouse (a tap clicks); wired Xbox 360-style (XInput) USB controllers, up to four; no keyboard yet. Games that need the Steam client get an optional Run without Steam (gbe_fork). About 440 MB to download, 1.35 GB on the unit, plus the games.",
   "requires": {
     "mgu-deploy": "0.7.0",
     "mgu-python": "1.0.0",
-    "mgu-render": "0.6.11"
+    "mgu-render": "0.6.11",
+    "vizualyse-bus": "0.1.0"
   },
   "uninstallable": true,
   "mguHmi": [
@@ -34,10 +35,13 @@
     "native/usb_pads": { "version": "1.0.0", "files": { "src/usb_pads.c": "usb_pads.c", "src/usb_pads.h": "usb_pads.h" } },
     "native/usbip_pad": { "version": "1.0.0", "files": { "test/usbip_pad.c": "usbip_pad.c" } },
     "native/wayland_drm": { "version": "1.0.0", "files": { "src/protocol/wayland-drm.xml": "wayland-drm.xml" } },
+    "native/winston_out": { "version": "1.1.0", "files": { "src/winston_out.c": "winston_out.c", "src/winston_out.h": "winston_out.h", "src/protocol/ivi-application.xml": "ivi-application.xml", "src/protocol/ivi-controller.xml": "ivi-controller.xml", "src/protocol/linux-dmabuf-unstable-v1.xml": "linux-dmabuf-unstable-v1.xml" } },
+    "tool/mqtt_bus": { "version": "1.0.0", "files": { "src/mqtt_bus.js": "mqtt_bus.js" } },
     "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
   },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },
+    { "path": "mqtt_bus.js", "from": "src/mqtt_bus.js", "mode": "0644" },
     { "path": "env.js", "from": "src/env.js", "mode": "0644" },
     { "path": "unpack.js", "from": "src/unpack.js", "mode": "0644" },
     { "path": "usb.js", "from": "src/usb.js", "mode": "0644" },
@@ -52,6 +56,7 @@
     { "path": "runtime.tgz", "from": "build/runtime.tgz", "mode": "0644" },
     { "path": "proton.tgz", "from": "build/proton.tgz", "mode": "0644" },
     { "path": "prefix.tgz", "from": "build/prefix.tgz", "mode": "0644" },
+    { "path": "vulkan.tgz", "from": "build/vulkan.tgz", "mode": "0644" },
     { "path": "bundle-VERSION.txt", "from": "build/bundle-VERSION.txt", "mode": "0644" },
     { "path": "THIRD-PARTY.md", "from": "THIRD-PARTY.md", "mode": "0644" },
     { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }
