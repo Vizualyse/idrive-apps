@@ -4,9 +4,10 @@
 // vk-trial: the gate for one try of a Vulkan driver on the head unit, made so
 // that a restart always ends it (README.md).
 //
-//   vk-trial arm STAGE [--timeout S] [--again]   STAGE: instance | enumerate |
+//   vk-trial arm STAGE [--timeout S] [--again] [--winston]   STAGE: instance | enumerate |
 //                                                device | compute | draw | present
-//   vk-trial arm command [--timeout S] [--again] -- PROGRAM [ARG...]
+//   vk-trial arm command [--timeout S] [--again] [--winston] -- PROGRAM [ARG...]
+//   (--winston: the child also gets group mgu_wayland, for Winston's socket)
 //   vk-trial run          the one start the arming allows
 //   vk-trial disarm
 //   vk-trial status
@@ -180,6 +181,22 @@ static int field(const char *text, const char *key, char *out, size_t cap) {
     return -1;
 }
 
+/* --winston: the child may also reach Winston's Wayland socket
+ * (/run/wayland is root:mgu_wayland 0770). The gid read from /etc/group by
+ * hand: getgrnam would make the static gate load NSS libraries. */
+#define WAYLAND_GROUP "mgu_wayland"
+static int wayland_gid(void) {
+    char g[16384];
+    if (read_file("/etc/group", g, sizeof g) < 0) return -1;
+    size_t n = strlen(WAYLAND_GROUP);
+    for (char *p = g; p && *p; p = strchr(p, '\n') ? strchr(p, '\n') + 1 : NULL) {
+        if (strncmp(p, WAYLAND_GROUP ":", n + 1)) continue;
+        char *q = strchr(p + n + 1, ':');     /* past the password field */
+        return q ? atoi(q + 1) : -1;
+    }
+    return -1;
+}
+
 static int stage_index(const char *s) {
     for (int i = 0; STAGES[i]; i++) if (!strcmp(s, STAGES[i])) return i;
     return -1;
@@ -288,10 +305,11 @@ static int cmd_arm(int argc, char **argv) {
     if (argc < 3) die(2, "arm what? one of instance, enumerate, device, compute, draw, present, command");
     int st = stage_index(argv[2]);
     if (st < 0) die(2, "unknown stage '%s'", argv[2]);
-    int timeout = 30, again = 0, i = 3;
+    int timeout = 30, again = 0, winston = 0, i = 3;
     for (; i < argc; i++) {
         if (!strcmp(argv[i], "--timeout") && i + 1 < argc) timeout = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--again")) again = 1;
+        else if (!strcmp(argv[i], "--winston")) winston = 1;
         else if (!strcmp(argv[i], "--")) { i++; break; }
         else die(2, "unknown option '%s'", argv[i]);
     }
@@ -328,7 +346,8 @@ static int cmd_arm(int argc, char **argv) {
 
     char b[40], text[4096];
     boot_id(b);
-    int n = snprintf(text, sizeof text, "stage=%s\ntimeout=%d\nboot=%s\nat=%ld\n", STAGES[st], timeout, b, (long)time(NULL));
+    if (winston && wayland_gid() < 0) die(4, "--winston: no group %s in /etc/group. Not armed", WAYLAND_GROUP);
+    int n = snprintf(text, sizeof text, "stage=%s\ntimeout=%d\nboot=%s\nat=%ld\nwinston=%d\n", STAGES[st], timeout, b, (long)time(NULL), winston);
     for (int k = 0; is_cmd && i + k < argc; k++) {
         if (strchr(argv[i + k], '\n')) die(2, "no newlines in arguments");
         n += snprintf(text + n, sizeof text - n, "arg%d=%s\n", k, argv[i + k]);
@@ -541,6 +560,10 @@ static int cmd_run(void) {
     int st = stage_index(stage);
     int timeout = atoi(tos);
     if (st < 0 || timeout < 5 || timeout > 600) die(3, "the arming is malformed: disarmed, nothing done");
+    char ws[4] = "0";
+    field(arm, "winston", ws, sizeof ws);
+    int wgid = ws[0] == '1' ? wayland_gid() : -1;
+    if (ws[0] == '1' && wgid < 0) die(3, "--winston: no group %s: disarmed, nothing done", WAYLAND_GROUP);
     if (geteuid() != 0) die(3, "run as root: disarmed, nothing done");
 
     /* A way back in that doesn't need the screen, before anything loads. */
@@ -653,8 +676,8 @@ static int cmd_run(void) {
         if (setrlimit(RLIMIT_CORE, &core) < 0) child_fail(115, "RLIMIT_CORE");
         char c = 'r';
         if (write(ready[1], &c, 1) != 1 || read(go[0], &c, 1) != 1 || c != 'g') _exit(114);
-        gid_t g = VIDEO_GID;
-        if (setgroups(1, &g) < 0 || setgid(VIDEO_GID) < 0 || setuid(CHILD_UID) < 0) _exit(121);
+        gid_t g[2] = { VIDEO_GID, (gid_t)wgid };
+        if (setgroups(wgid >= 0 ? 2 : 1, g) < 0 || setgid(VIDEO_GID) < 0 || setuid(CHILD_UID) < 0) _exit(121);
         if (setuid(0) == 0) _exit(122);   /* must not get root back */
         execve(args[0], args, env);
         _exit(127);
@@ -682,8 +705,8 @@ static int cmd_run(void) {
         }
         if (leaked) kill(child, SIGKILL);
         else if (write(go[1], "g", 1) != 1) say("vk-trial: could not start the child: %s", strerror(errno));
-        if (!leaked) say("vk-trial: started %s (pid %d, uid %d, group video, display nodes hidden: %d)",
-                         args[0], (int)child, CHILD_UID, nhost);
+        if (!leaked) say("vk-trial: started %s (pid %d, uid %d, group video%s, display nodes hidden: %d)",
+                         args[0], (int)child, CHILD_UID, wgid >= 0 ? " and " WAYLAND_GROUP " (Winston)" : "", nhost);
     } else say("vk-trial: the child failed before starting (out.log says why)");
     close(ready[0]);
     close(go[1]);

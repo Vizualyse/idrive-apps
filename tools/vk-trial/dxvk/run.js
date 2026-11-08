@@ -17,7 +17,9 @@
 //                       through Wine with Direct3D on DXVK; checks their
 //                       lines, wl-sink's GPU buffers, the picture.
 //
-//   vk-trial arm command --timeout 240 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run
+//   vk-trial arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run
+//   vk-trial arm command --timeout 300 --winston -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run winston
+//     (on the centre screen through Winston, in the app area)
 //
 // Sound is off (winealsa.drv=d): the car's audio path is not touched. The
 // Vulkan loader is vk-trial's lib/libvulkan.so.1 (the Steam runtime has none
@@ -37,6 +39,11 @@ const HOME = HERE + '/home';
 const DXVK = HERE + '/dxvk';
 const UID = 12990;
 const DLLS = ['d3d11', 'd3d10core', 'd3d9', 'dxgi'];
+/* `run winston`: the picture on the centre screen through Winston, in the app
+ * area as the Steam tool shows a game (wl-sink's own place for it) */
+const WINSTON = process.argv[2] === 'run' && process.argv[3] === 'winston';
+const WINSTON_SOCKET = '/run/wayland/wayland-0';
+const VIEW = '108,82,1790,638';
 const PROGRAMS = ['t_d3d1164.exe', 't_d3d964.exe'];
 
 function say(s) { process.stdout.write('dxvk: ' + s + '\n'); }
@@ -112,14 +119,29 @@ function run() {
     fs.mkdirSync(xdg, 0o700);
     say('logs in ' + tmp + (stub ? ' (the bench\'s stub GPU: pixels not checked)' : ''));
 
-    /* wl-sink, offscreen: the frame file and the last picture here */
+    /* wl-sink: the frame file and the last picture here; with `run winston`
+     * also connected to Winston (the gate armed with --winston gives the
+     * group of its socket) and the picture shown in the app area, where the
+     * Steam tool shows a game, during the programs */
     const sinkLog = fs.openSync(tmp + '/wl-sink.log', 'a');
     const sinkEnv = Object.assign({}, process.env, { XDG_RUNTIME_DIR: xdg, LD_LIBRARY_PATH: STEAM + '/gpu-libs:/usr/lib' });
-    crumb('starting wl-sink');
-    const sink = cp.spawn(VKT + '/bin/wl-sink', ['--socket', 'wayland-1', '--frame', tmp + '/frame', '--create', '640x360', '--snap', tmp + '/snap.ppm'],
-        { env: sinkEnv, stdio: ['pipe', sinkLog, sinkLog] });
-    if (!waitFor(() => fs.existsSync(xdg + '/wayland-1') && readLines(tmp + '/wl-sink.log')[0], 10000)) { say('FAIL wl-sink did not start: ' + readLines(tmp + '/wl-sink.log').join(' | ')); sink.kill(); return 1; }
-    say('wl-sink: ' + readLines(tmp + '/wl-sink.log')[0]);
+    const sinkArgs = ['--socket', 'wayland-1', '--frame', tmp + '/frame', '--create', '640x360', '--snap', tmp + '/snap.ppm'];
+    if (WINSTON) sinkArgs.push('--winston', WINSTON_SOCKET);
+    crumb('starting wl-sink' + (WINSTON ? ' (Winston)' : ''));
+    const sink = cp.spawn(VKT + '/bin/wl-sink', sinkArgs, { env: sinkEnv, stdio: ['pipe', sinkLog, sinkLog] });
+    /* its "ready" line (with Winston, "connected ..." comes before it) */
+    const ready = () => readLines(tmp + '/wl-sink.log').filter((l) => l.indexOf('"ev":"ready"') >= 0)[0] || '';
+    if (!waitFor(() => fs.existsSync(xdg + '/wayland-1') && ready(), 10000)) { say('FAIL wl-sink did not start: ' + readLines(tmp + '/wl-sink.log').join(' | ')); sink.kill(); return 1; }
+    readLines(tmp + '/wl-sink.log').filter((l) => l).forEach((l) => say('wl-sink: ' + l));
+    if (WINSTON) {
+        if (ready().indexOf('"winston":true') < 0) {
+            say('FAIL wl-sink is not connected to Winston (armed with --winston? ' + readLines(tmp + '/wl-sink.log').slice(0, 3).join(' | ') + ')');
+            sink.kill(); return 1;
+        }
+        crumb('showing through Winston at ' + VIEW);
+        sink.stdin.write('winston ' + VIEW + '\n');
+        say('shown through Winston at ' + VIEW + ' (the app area)');
+    }
 
     /* Wine as the tool starts it (env.js wineEnv), with our prefix, ANV, DXVK */
     const protonLibs = (launch.env.LD_LIBRARY_PATH || '').split(':').filter((p) => p && p.indexOf(STEAM + '/proton') === 0);
@@ -167,15 +189,24 @@ function run() {
     readLines(tmp + '/t_d3d1164_d3d11.log').concat(readLines(tmp + '/t_d3d1164_dxgi.log'))
         .filter((l) => /DXVK: v|Feature level|err:/.test(l)).slice(0, 8).forEach((l) => say('  dxvk: ' + l));
 
-    /* wl-sink: its counts (drm/shm are totals), then the picture */
+    /* wl-sink: off the screen first, then its counts (all totals) */
     cp.spawnSync('sleep', ['2']);
+    if (WINSTON) { crumb('hiding'); try { sink.stdin.write('hide\n'); } catch (err) { /* gone */ } cp.spawnSync('sleep', ['1']); }
     sink.kill('SIGTERM');
     waitFor(() => sink.exitCode !== null || sink.signalCode !== null, 3000);
     const stats = readLines(tmp + '/wl-sink.log').filter((l) => l.indexOf('"ev":"stats"') >= 0);
     const last = stats[stats.length - 1] || '';
     const num = (k) => { const m = new RegExp('"' + k + '":(\\d+)').exec(last); return m ? +m[1] : 0; };
-    say('wl-sink: ' + num('drm') + ' GPU (wl_drm) and ' + num('shm') + ' shared-memory buffers');
-    if (!num('drm')) { say('FAIL no GPU buffer reached wl-sink'); failed++; }
+    /* GPU buffers: read back ("drm"), or through Winston passed on as they
+     * are ("fwd", never read back) */
+    say('wl-sink: ' + (num('drm') + num('fwd')) + ' GPU (wl_drm) buffers (' + num('drm') + ' read back, ' + num('fwd') +
+        ' passed on to Winston) and ' + num('shm') + ' shared-memory buffers');
+    if (!num('drm') && !num('fwd')) { say('FAIL no GPU buffer reached wl-sink'); failed++; }
+    if (WINSTON) {
+        readLines(tmp + '/wl-sink.log').filter((l) => /"ev":"(winston|winston-lost|error)"/.test(l)).slice(-8).forEach((l) => say('  ' + l));
+        say('Winston: ' + num('winston') + ' pictures, ' + num('fwd') + ' of them GPU buffers passed on as they are');
+        if (!num('winston')) { say('FAIL no picture reached Winston'); failed++; }
+    }
     say(failed ? 'FAILED (' + failed + ')' : 'ok');
     return failed ? 1 : 0;
 }
