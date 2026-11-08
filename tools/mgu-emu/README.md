@@ -41,7 +41,11 @@ centre screen (1920x720) is the VM's window; the mouse is its touchscreen.
   `/var/opt/public` and `personal` (plain folders here).
 - Logs: the HMI's application log is in the journal (DLT local print, the
   hmi drop-in); the in-RAM journal rotates within minutes, `journal.log` on
-  the host keeps everything.
+  the host keeps everything. journald writes it to a virtio console
+  (`hvc0`), not a serial port: through the UART (one exit per byte under
+  WHPX) it managed ~25 KB/s, the HMI alone logs ~16 KB/s at start, blocked
+  on its full log socket and missed its 30 s watchdog, and every restart
+  logged the same again: a black screen, the HMI restarting every ~75 s.
 
 ## Stand-in services (carsim)
 
@@ -279,7 +283,7 @@ powershell -File tools\mgu-emu\run.ps1 -Display 'gtk,zoom-to-fit=on,show-cursor=
 - Shell: `telnet 127.0.0.1 4552` (the unit's own serial getty, root).
 - SSH: `ssh -p 2222 -i tools/mgu-emu/build/emu_key root@127.0.0.1`.
 - Logs on the host: `emu/console.log` (kernel), `emu/journal.log` (the whole
-  journal, forwarded to the second serial port: readable after a crash).
+  journal, forwarded to a virtio console: readable after a crash).
 - A reboot or power-off inside the VM ends QEMU (`-no-reboot`) instead of
   looping.
 - The controller: the arrow keys, Enter and Backspace in the window ("The
@@ -337,5 +341,6 @@ powershell -File tools\mgu-emu\run.ps1 -Display 'gtk,zoom-to-fit=on,show-cursor=
   Wi-Fi/BT, the i915 module). There is no IOC, no other ECU, no SOME/IP
   peer: carsim stands in for what the HMI and MainApp wait for; anything
   else from the car's network is absent.
-- The hardware watchdog is off and the journal goes to the serial port
-  ([system.conf.d](overlay/etc/systemd/system.conf.d/emu.conf)).
+- The hardware watchdog is off ([system.conf.d](overlay/etc/systemd/system.conf.d/emu.conf))
+  and the journal goes to the host through a virtio console
+  ([journald.conf.d](overlay/etc/systemd/journald.conf.d/emu.conf), "Logs").

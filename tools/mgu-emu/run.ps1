@@ -69,8 +69,13 @@ $qargs = @(
     # (a subnet of its own: two user networks both lease 10.0.2.15, and SSH breaks)
     '-netdev', 'user,id=n1,net=10.0.3.0/24', '-device', 'virtio-net-pci,netdev=n1,mac=52:54:00:e0:00:02',
     '-serial', "file:$console",
-    '-serial', "file:$journal",
+    # ttyS1 kept (unused) so the shell stays on ttyS2: the journal goes through a
+    # virtio console (hvc0) instead. Through the UART (one exit per byte under
+    # WHPX) journald managed ~25 KB/s; the HMI blocked on its full log socket
+    # and missed its 30 s watchdog, again at every restart (a black screen).
+    '-serial', 'null',
     '-serial', 'telnet:127.0.0.1:4552,server,nowait',
+    '-device', 'virtio-serial-pci', '-chardev', "file,id=jlog,path=$journal", '-device', 'virtconsole,chardev=jlog',
     '-no-reboot'
 )
 Write-Host "booting; logs in $emu (console.log, journal.log); shell: telnet 127.0.0.1 4552"
