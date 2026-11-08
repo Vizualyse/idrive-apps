@@ -163,10 +163,13 @@ workflow (Actions > Release, the component ids).
        `STEAM_MESA_VER=22.3.7 STEAM_DXVK_VER=2.6.2 sh tools/vulkan.sh`
        (game.js gives wl-sink `--dmabuf` by `lib/mesa`), one game on it, its
        perf lines against 19.0.6 + 1.9.4.
-     - Bench, still to do: 23.1.9 (its image build was stopped by the
-       host's memory: rerun `MESA_VER=23.1.9 sh tools/vk-trial/test/anv_test.sh`
-       alone); why DXVK 2.3.1 loses its device after 10 frames (2.6.2 is
-       fine); 23.2+ only with `8a1a49aae40` reverted (sketch in
+     - Bench, still to do (low: 22.3.7 already gives Vulkan 1.3 and DXVK
+       2.6.2): 23.1.9 doesn't build with Ubuntu 18.04's GCC 7 (its C++:
+       "non-trivial designated initializers not supported",
+       `brw_simd_selection.cpp`; run alone 2026-11-08): `g++-8` (18.04's
+       universe) with `-static-libstdc++` in `anv_new.sh` (the unit's
+       libstdc++ is older); why DXVK 2.3.1 loses its device after 10 frames
+       (2.6.2 is fine); 23.2+ only with `8a1a49aae40` reverted (sketch in
        browser.md).
   4. **Detail Lite / Potato on the car (Steam 0.1.11, built and tested
      off the car 2026-11-08):** per game on the phone page (Options):
