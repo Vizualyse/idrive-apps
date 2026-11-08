@@ -75,9 +75,10 @@ workflow (Actions > Release, the component ids).
   **DXVK 1.9.4 under Proton works on the car (2026-11-07,
   `tools/vk-trial/dxvk`, one gated `command` try):** D3D11 at 11_1 and D3D9,
   real pixels read back right, 120 frames into wl-sink as GPU buffers, no
-  hang. Next: the same with wl-sink's Winston output (on the screen), then
-  a per-game DXVK switch in the Steam tool (by hand, off after any unclean
-  end) for a real game; 32-bit games (WoW64 winevulkan's memory mapping on
+  hang; **and on the screen through Winston (2026-11-08, `--winston`): 120
+  of ANV's buffers passed to Winston as they are.** Next: a per-game DXVK
+  switch in the Steam tool (by hand, off after any unclean end) for a real
+  game; 32-bit games (WoW64 winevulkan's memory mapping on
   ANV 19). VKD3D (D3D12) needs much more than ANV 19. After a hang:
   `vk-trial status`, the try's
   `crumbs.log` (the ioctl that never returned) and `kmsg.log`. It would give

@@ -351,9 +351,15 @@ refuse scripts; `git` works) and a web search.
   60 frames, the back buffer read back exactly (255 64 0); D3D9, 60 frames,
   its pixel check right; 120 frames into wl-sink as GPU buffers; 386 GPU
   submissions, 23 s, nothing in the kernel log, no hang, same boot.
-  Adapter memory as DXVK reports it: 4209 MB. Not yet: a real game, the
-  screen (Winston), 32-bit (WoW64 needs placed / host memory mapping in
-  winevulkan), a long run.
+  Adapter memory as DXVK reports it: 4209 MB.
+- **The same on the screen through Winston (2026-11-08, `--winston`, `run.js
+  run winston`):** the trial's child with group `mgu_wayland` too; wl-sink
+  connected to Winston (dmabuf v1, 13 formats), our surface `0x565a0100` on
+  layer `0x565a0000` in the app area (108,82 1790x638), "on the screen":
+  137 pictures, **120 of them ANV's GPU buffers passed to Winston as they
+  are** (no read-back, no copy); pixels read back right in both programs,
+  25 s, no hang, same boot, nothing left. Not yet: a real game, 32-bit
+  (WoW64 needs placed / host memory mapping in winevulkan), a long run.
 - **The unit's kernel isn't mainline 4.14** (its uapi header,
   `intel/linux-intel-lts` `4.14/base`): it has context param 6
   (`PRIORITY`) like 4.15, and **i915 ioctl 0x39 is `GEM_GVTBUFFER`** where
