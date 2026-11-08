@@ -93,6 +93,18 @@ if (GPU === 'swrast') {
     senv.STEAM_DRI_PATH = '/g/swrast';
     senv.STEAM_EXTRA_LIBS = '/g/swrast';
 }
+/* IRIS=1 (run_unit_test.sh, the stub): tools/iris-bench's Mesa 19.3.5 iris
+ * and its own EGL set at /iris, behind its kernel414.so (the unit's 4.14
+ * answers: no context isolation), for Wine and wl-sink alike */
+const IRIS = !!process.env.IRIS_BENCH && GPU === 'stub';
+if (IRIS) {
+    extra.LD_PRELOAD = '/iris/bench/kernel414.so:/g/stub/libintel_noop_drm_shim.so';
+    extra.MESA_LOADER_DRIVER_OVERRIDE = 'iris';
+    senv.STEAM_DRI_PATH = '/iris/lib/dri';
+    senv.STEAM_EXTRA_LIBS = '/iris/lib';
+    /* IRIS=sink-unit: wl-sink on the unit's i965 (importing iris's buffers), as on the car */
+    if (process.env.IRIS_BENCH === 'sink-unit') senv.STEAM_SINK_UNIT_MESA = '1';
+}
 senv.STEAM_EXTRA_ENV = JSON.stringify(extra);
 
 let server = null, serverLog = '';

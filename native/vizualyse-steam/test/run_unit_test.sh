@@ -60,8 +60,15 @@ run() {
     # the tools' bus: native/vizualyse-bus's broker, when built (the Browser's asks)
     BUSOPT=
     [ -f "$HERE/../vizualyse-bus/build/mosquitto" ] && BUSOPT="-v $(cd "$HERE/../vizualyse-bus" && (pwd -W 2>/dev/null || pwd)):/bus:ro -e MOSQUITTO=/var/opt/mosquitto -e MOSQUITTO_CONF=/bus/src/mosquitto.conf"
-    # shellcheck disable=SC2086 # VKT and BUSOPT are word lists
-    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS $PADOPT $VKT $BUSOPT \
+    # IRIS=1: tools/iris-bench's Mesa 19.3.5 iris in place of the unit's i965 (the stub only);
+    # IRIS=sink-unit: Wine on iris, wl-sink on the unit's i965 (as on the car)
+    IRISOPT=
+    if [ -n "${IRIS:-}" ]; then
+        sh "$HERE/../../tools/iris-bench/build.sh" >&2
+        IRISOPT="-v $(cd "$HERE/../../tools/iris-bench/build" && (pwd -W 2>/dev/null || pwd)):/iris:ro -e IRIS_BENCH=$IRIS"
+    fi
+    # shellcheck disable=SC2086 # VKT, BUSOPT and IRISOPT are word lists
+    docker run --rm --name $NAME --platform linux/amd64 --network none --shm-size=1g $CAPS $PADOPT $VKT $BUSOPT $IRISOPT \
         -v "$WIN_HERE:/t:ro" -v "$WIN_GPU_BENCH:/g:ro" -e GPU="$1" -e USB_FS="${USB_FS:-tmpfs}" ${T_GAME:+-e T_GAME="$T_GAME"} ${T_NOSTEAM:+-e T_NOSTEAM=1} ${T_LOAD:+-e T_LOAD="$T_LOAD"} ${T_DLLOV:+-e T_DLLOV="$T_DLLOV"} ${VERBOSE:+-e VERBOSE=1} ${GREP_LOG:+-e GREP_LOG="$GREP_LOG"} ${STEAM_WINEDEBUG:+-e STEAM_WINEDEBUG="$STEAM_WINEDEBUG"} $IMG \
         /bin/sh -c "mkdir -p /var/opt /tmp /run /media/TESTSTICK && chmod 1777 /tmp && { [ ! -f /bus/build/mosquitto ] || { cp /bus/build/mosquitto /var/opt/mosquitto && chmod 0755 /var/opt/mosquitto; }; } && $STICK && ulimit -c 0 && ulimit -n 524288 2>/dev/null; /usr/bin/node /t/test/unit_test.js /t"
 }
