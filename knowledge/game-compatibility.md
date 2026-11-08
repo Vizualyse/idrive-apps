@@ -52,14 +52,22 @@ Should work when all of these hold:
 - single-player, offline, no Steam DRM wrapper (SteamStub), no anti-cheat.
 
 Hard limits (Unsupported): D3D12 only (no VKD3D on ANV 19); Vulkan 1.2+
-only (ANV 19.0.6 is Vulkan 1.1); .NET Framework / XNA (no Wine Mono); SteamStub, anti-cheat,
+only (ANV 19.1.8 is Vulkan 1.1); .NET Framework / XNA (no Wine Mono, yet); SteamStub, anti-cheat,
 online-only; Games for Windows Live; needs more than the RAM cap.
+
+Learned on the car (2026-11-08): **older engines need a screen of at least
+640x480** (Unity 4 found "no video modes" at 896x320): use Picture 960x540
+for them until the tool does it. **ANGLE games** (a `libEGL.dll` /
+`libGLESv2.dll` beside the exe: Don't Starve) translate twice on WineD3D:
+DXVK (32-bit from 0.1.14) is their way.
 
 ## Supported
 
 | Game | Engine / renderer | Notes |
 |---|---|---|
-| Slay the Spire 2 | Godot 4, .NET 9; Vulkan (Forward+) from Steam 0.1.9, `opengl3` with Vulkan off | 64-bit; needs **Run without Steam** (gbe_fork). Hover tooltips need a pad. On Vulkan on the car (2026-11-08, hand-patched 0.1.8): runs well, fights smooth; a tap no longer scrolls the map (14 px dead zone); memory near the cap (2862 of 3072 MB). `--rendering-method mobile` makes it pick D3D12. |
+| Slay the Spire 2 | Godot 4 (MegaDot 4.5.1), .NET 9; Vulkan (Forward+) from Steam 0.1.9, `opengl3` with Vulkan off | 64-bit; needs **Run without Steam** (gbe_fork). Hover tooltips need a pad. On Vulkan on the car (2026-11-08, 0.1.11-0.1.12): about 18 fps at 896x320 (13-15 at 960x540), GPU about 100 %; animations slow, the rest smooth; **hangs at the enemy's turn every time on 0.1.12** (two Godot worker threads spin; its log ends at the monster's move): try Vulkan off (Compatibility renderer) and ANV 19.1.8 (0.1.14). Its full screen window is 898x320 at -1,0 (FSR and the direct path need 0.1.13's trim). Taps scrolled its map until 0.1.12's 32 px dead zone. `--rendering-method mobile` makes it pick D3D12. |
+| Vampire Survivors | Unity, DXVK (64-bit D3D11) | Runs (2026-11-08, 0.1.11): about 18-19 fps on its loading screen, 13-14 in play with FSR at 896x320; FSR and its live switching work (about 10 ms GPU a picture); Detail Lite and Potato start. Once stuck on its loading screen (waiting, not loading): Run without Steam if it happens again. |
+| Don't Starve | Klei, **ANGLE** (GLES 2 on D3D9/11), 32-bit | Starts (2026-11-08, 0.1.12, WineD3D, 960x540) but about **2.5 fps**: GLES through ANGLE to D3D, then WineD3D back to GL; taps shorter than a frame missed; its window 964x518 at -2,11. Vulkan on 0.1.12 (ANV 19.0.6) fails ("Error initializing OpenGl ... OpenGL ES 2.0": no 32-bit DXVK there). **The test for 0.1.14's ANV 19.1.8** (32-bit DXVK passed vk-trial on the car). Wants 1280x720 or 800x600 modes (warns, carries on at 960x540). |
 | FTL: Faster Than Light | Custom, OpenGL, 32-bit | Runs with 0.1.3's rebuilt `ntdll.so` (2026-11-07): 15 pictures/s, 2.0 GB of the 2.5 GB cap. Only half playable: needs Space (pause) and right click, no pad support. |
 
 ## Untested (Should work)
@@ -93,7 +101,7 @@ online-only; Games for Windows Live; needs more than the RAM cap.
 | Half-Life / Blue Shift / Opposing Force | GoldSrc, OpenGL, 32-bit | Tiny specs; pad support since the 25th-anniversary update. Run without Steam. |
 | Counter-Strike: Condition Zero | GoldSrc, OpenGL, 32-bit | Offline bots. Run without Steam. |
 | RetroArch | Native, OpenGL | Pad support; 8/16-bit cores (NES, SNES, Mega Drive, GBA) are light. |
-| Teslagrad / Dreaming Sarah / Vagante / Chime Sharp / Master Spy / Defy Gravity / Chronology / The Fall | Small 2D | Pad support. |
+| Dreaming Sarah / Vagante / Chime Sharp / Master Spy / Chronology / The Fall | Small 2D | Pad support. |
 | Gunpoint (32-bit OpenGL, Cg) / Long Live the Queen / The Inner World / Train Valley / FreeCell Quest / Chainsaw Warrior / Deep Dungeons of Doom | Small 2D | Left click only: touch is enough. |
 | Leaf Blower Revolution / Idle Skilling | Idle | Click only; suit a parked car. |
 
@@ -101,8 +109,8 @@ online-only; Games for Windows Live; needs more than the RAM cap.
 
 | Game | Engine / renderer | Why only "might" |
 |---|---|---|
+| Teslagrad | Unity 4.6, 32-bit, D3D9 | Tried 2026-11-08 (0.1.12): needs a screen at least 640x480 (at 896x320 Unity finds "no video modes"; 960x540 works, D3D9 on WineD3D starts); needs Steam (`SteamInitializeFailed` without it), and gbe_fork lacks its 2013 SDK's `STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001` (asked through `GetISteamController`): "Missing interface". Waits on the tool's gbe fix. |
 | Hollow Knight | Unity, `-force-glcore` | Minimum GPU (9800 GTX+) above the unit's; 2D, so 960x540 should hold. Pad needed. |
-| Vampire Survivors | Unity, `-force-glcore` | Late runs with thousands of sprites will drop frames on the Atom. |
 | Dead Cells | HashLink, D3D11 or OpenGL | Use its OpenGL mode; pad needed. |
 | Loop Hero | GameMaker Studio 2, D3D11 | D3D11 through WineD3D, but light 2D. |
 | Monster Train | Unity, `-force-glcore` | Busy effects; click-driven. |
@@ -186,7 +194,9 @@ load:
 
 | Game | Why |
 |---|---|
-| Terraria | XNA, .NET Framework (no Wine Mono) |
+| Terraria | XNA, .NET Framework (no Wine Mono): "Wine Mono is not installed", exit 255 on the car (2026-11-08). Wine Mono 11.3.0 with FNA is in GE-Proton (planned back in) |
+| Castle Crashers | SteamStub DRM (`.bind` section in castle.exe): exits 53 at once, with or without gbe_fork (2026-11-08) |
+| Defy Gravity | XNA, .NET Framework (no Wine Mono) |
 | Celeste | FNA on .NET Framework (Windows build) |
 | Rogue Legacy | XNA, .NET Framework |
 | Hades | D3D11 / Vulkan only, GPU-heavy; no OpenGL path |

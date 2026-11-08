@@ -63,7 +63,7 @@ const WINSTON_SOCKET = process.env.STEAM_WINSTON || '/run/wayland/wayland-0';
 const UNIT_GL = ['libEGL.so.1', 'libgbm.so.1', 'libglapi.so.0', 'libGLESv2.so.2'];
 
 /* Vulkan for the games (per game; the default for 64-bit ones): Mesa
- * 19.0.6's ANV, its loader, vk_crumbs.so and DXVK 1.9.4 from vulkan.tgz
+ * 19.1.8's ANV (19.0.6 up to 0.1.13), its loader, vk_crumbs.so and DXVK 1.9.4 from vulkan.tgz
  * (tools/vulkan.sh, unpacked into VULKAN; runtime.tgz still carries no GPU
  * driver: bundle.sh checks). STEAM_VK_TRIAL: tools/vk-trial's install
  * instead (its layout). Its ICD exists only in RUN_DIR (tmpfs) while such a
@@ -145,6 +145,11 @@ function vulkanMissing() {
 /* the ANV's Mesa major version: 19 for the shipped one (no lib/mesa before the candidates) */
 function vulkanMesaMajor() {
     try { return parseInt(fs.readFileSync(VK.mesa, 'utf8'), 10) || 19; } catch (e) { return 19; }
+}
+/* "DXVK 1.9.4 / ANV 19.1.8": what the unpacked vulkan.tgz holds, for the journal */
+function vulkanLabel() {
+    const read = (f, d) => { try { return fs.readFileSync(f, 'utf8').trim() || d; } catch (e) { return d; } };
+    return 'DXVK ' + read(VK.dxvk + '/VERSION', '?') + ' / ANV ' + read(VK.mesa, '19.0.6');
 }
 
 /* GPU_LIBS, made again each time (root's, readable by all): links to the
@@ -294,7 +299,7 @@ function userDirs(uid, gid) {
 
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
-    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, vulkanMesaMajor, dxvkConf,
+    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, vulkanMesaMajor, vulkanLabel, dxvkConf,
     DETAILS, DETAIL_DXVK, DETAIL_WINED3D,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

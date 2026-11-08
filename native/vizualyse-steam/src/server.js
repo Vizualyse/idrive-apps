@@ -701,10 +701,11 @@ let restartNote = null;
 
 /* ---- Vulkan (per game) -------------------------------------------------------
  * DXVK 1.9.4 for Direct3D 9-11, a Godot 4 game's own Vulkan renderer, on
- * Mesa 19.0.6's ANV (vulkan.tgz, env.VK). The default for 64-bit games (seen
- * on the car 2026-11-08: Direct3D 9 / 11 test programs, Slay the Spire 2 on
- * Forward+); 32-bit games stay on OpenGL (WineD3D) until 32-bit Vulkan
- * through WoW64 has been seen working. A choice made on the phone page stays
+ * Mesa 19.1.8's ANV (vulkan.tgz, env.VK; 19.0.6 up to 0.1.13). The default
+ * for 64-bit games (seen on the car 2026-11-08: Direct3D 9 / 11 test
+ * programs, Slay the Spire 2 on Forward+); 32-bit games stay on OpenGL
+ * (WineD3D) by default, Vulkan a choice: 19.1.8 runs 32-bit DXVK through
+ * WoW64 (vk-trial on the car, 2026-11-08), no real 32-bit game has yet. A choice made on the phone page stays
  * (g.vulkan); a restart of the unit during a game on Vulkan turns it off for
  * that game. While one runs: ANV's ICD in RUN_DIR (tmpfs: gone at any
  * restart), removed at its end; DXVK in the prefix (native only with Vulkan
@@ -824,7 +825,7 @@ function play(appId) {
         frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, log: log,
         vulkan: vulkan, crumbsFd: vulkan ? vulkanCrumbs : undefined });
-    log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (DXVK 1.9.4 / ANV 19.0.6)' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
+    log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (' + env.vulkanLabel() + ')' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
         : ' on OpenGL (WineD3D)') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
     game = x;
     x.on('winston-lost', () => {

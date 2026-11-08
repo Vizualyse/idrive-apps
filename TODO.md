@@ -9,43 +9,37 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
-- [ ] **The car list for game performance (built and tested off the car
-  2026-11-08, on main; Steam 0.1.11 and the app 0.1.3 released
-  2026-11-08 with FSR, perf lines and Detail, 0.1.12 with FSR's reasons,
-  the tap deadzone and the swap file; 32-bit DXVK, newer ANV and
-  iris are by-hand trials, not shipped).** Each step asked first; the
-  journal read after, not polled during. Done on the car 2026-11-08: step
-  1 (Slay the Spire 2 started, showed, hid; perf lines); FSR and its live
-  switching (off / FSR / no sharpening, from off too) on Vampire Survivors
-  (DXVK, Unity): about 10 ms GPU a frame (7.7 without sharpening), no fps
-  change at a GPU already 100 % busy; Detail Lite and Potato start and run
-  there (about 13 fps in play with FSR; the user is happy with it, no
-  more Detail runs). The unit's journal kept only 10-15 minutes of the
-  tool's lines: read right after a run. In order:
-  2. FSR on Slay the Spire 2 with 0.1.12: on 0.1.11 it never drew there
-     (Godot, Vulkan, full screen), and wl-sink took 12-27 ms a picture in
-     every mode (Vampire Survivors: 0.2-0.5): put together in software,
-     where FSR isn't tried; a guess: Godot's window bigger than the
-     picture. 0.1.12's perf lines say why (`FSR not used: ...`); fix
-     that path. Plain 896x320 already beat 960x540 there (about 18 fps,
-     1% low 12, against 13-15 and 2-4).
-  2b. 0.1.12's tap deadzone (32 px, 64 in a tap's first 250 ms): the
-     Slay the Spire 2 map no longer scrolls on a tap; drags still drag.
-  2c. 0.1.12's swap file: `swap: ... ready` about two minutes after the
-     tool starts (4 GB on the disk; the hand-made one at the same path is
-     taken as it is), `swap: ... on` at a game's start and `off` after it
-     in the journal; `cat /proc/swaps` during a game (one read).
-  4. The app's page on the real HMI: the new Upscaling button draws,
-     cycles and says "not in this Steam tool" with an older tool (only a
-     fake HMI has seen it; mgu-emu can't install a local app build).
-  5. 32-bit: "32-bit games on Vulkan" (`MMU_NOTIFIER` in the kernel's
-     config, read-only; then vk-trial with ANV 19.1.8 and the 32-bit
-     programs, gated), then Teslagrad (its own item).
-  6. Vulkan 1.3: step 3's patched ANV 22.3.7 + DXVK 2.6.2 through the gate
-     (the off-car `car_test.sh` run first). If it runs where unpatched 22.3
-     hung in 0.1.1, `I915_QUERY` was very likely that hang: record it.
-  7. iris: step 5's gated try (patched 19.3.5, its own EGL set; `dmesg`
-     and the HMI drawing right, during and after).
+- [ ] **The car list for game performance (Steam 0.1.14, 2026-11-08).**
+  Each step asked first; the journal read right after a run (the unit keeps
+  only 10-15 minutes of the tool's lines), not polled during. The day's
+  findings: knowledge/game-compatibility.md and knowledge/games.md.
+  Done on the car 2026-11-08: a game starts, shows, hides, perf lines (0.1.11);
+  FSR and its live switching on Vampire Survivors (about 10 ms GPU a
+  picture); Detail Lite / Potato start there (no more Detail runs wanted);
+  the app's Upscaling button; 0.1.12's tap deadzone and swap file seen;
+  **32-bit DXVK on ANV 19.1.8 through vk-trial** (t_d3d932 / t_d3d1132 and
+  the 64-bit pair, pixels checked, no GPU hang): 0.1.14 ships 19.1.8.
+  Next, with 0.1.14 installed:
+  1. Don't Starve with Vulkan on (32-bit DXVK through ANGLE), Picture
+     960x540: runs? fps against WineD3D's 2.5? taps land?
+  2. Slay the Spire 2 and Vampire Survivors on 19.1.8: no worse than 19.0.6.
+  3. Slay the Spire 2: "FSR n/s" in the perf lines and wl-sink under 1 ms
+     a picture (0.1.13's trim of its 898x320 window); the enemy-turn hang
+     on 19.1.8, and with Vulkan off (Compatibility renderer).
+  4. Vulkan 1.3: patched ANV 22.3.7 + DXVK 2.6.2 through the gate (the
+     off-car `car_test.sh` first). If it runs where unpatched 22.3 hung in
+     0.1.1, `I915_QUERY` was very likely that hang: record it.
+  5. iris: the gated try (patched 19.3.5, its own EGL set; `dmesg` and the
+     HMI drawing right, during and after).
+- [ ] **Steam 0.1.15 (off the car first):** Wine Mono back (GE-Proton's
+  11.3.0 with FNA, 276 MB unpacked, about 220 without its `.dbg` files:
+  Terraria and the XNA games); Wine's screen at least 640x480 for older
+  engines (Teslagrad's Unity 4 refused 896x320); taps held at least ~150 ms,
+  longer at a low frame rate (Don't Starve at 2.5 fps missed them); gbe_fork
+  for 2013-era SDKs (Teslagrad: `STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001`
+  through `GetISteamController`); SteamStub (`.bind`) spotted at install and
+  said on the phone page (Castle Crashers); perf lines kept in the tool's
+  own file.
 
 - [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
   tested off the car against the unit's own Winston, `tools/winston-bench`,

@@ -4,7 +4,7 @@
 #
 # build/vulkan.tgz: Vulkan for the tool's games, unpacked by server.js into
 # /var/opt/vizualyse-steam/vulkan (env.VK):
-#   lib/libvulkan_intel.so  Mesa 19.0.6's ANV for the unit's HD 505, built for
+#   lib/libvulkan_intel.so  Mesa 19.1.8's ANV for the unit's HD 505, built for
 #                           glibc 2.27 by tools/vk-trial (seen on the car:
 #                           knowledge/browser.md, "Vulkan on this kernel")
 #   lib/libvulkan.so.1      the Khronos loader 1.1.70 (the runtime has none)
@@ -21,11 +21,13 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 VKT=$(cd "$HERE/../../tools/vk-trial" && pwd)
 WIN_VKT=$(cd "$VKT" && (pwd -W 2>/dev/null || pwd))
-# Steam ships 19.0.6 and DXVK 1.9.4 until a candidate has had its vk-trial on
-# the car (TODO). STEAM_MESA_VER / STEAM_DXVK_VER build a candidate's
-# vulkan.tgz for such a try, by hand (19.1.8 + 1.10.3; 22.3.7 + 2.x: Vulkan
-# 1.3, and wl-sink --dmabuf, which the tool gives when lib/mesa says 20+).
-MESA_VER=${STEAM_MESA_VER:-19.0.6}
+# Steam ships 19.1.8 and DXVK 1.9.4 from 0.1.14: 19.1.8 passed its vk-trial
+# on the car (2026-11-08: 32- and 64-bit Direct3D 9 and 11 through DXVK,
+# pixels checked; 19.0.6 can't map a 32-bit game's GPU memory). STEAM_MESA_VER
+# / STEAM_DXVK_VER build a candidate's vulkan.tgz for a try, by hand
+# (19.0.6; 22.3.7 + 2.x: Vulkan 1.3, and wl-sink --dmabuf, which the tool
+# gives when lib/mesa says 20+).
+MESA_VER=${STEAM_MESA_VER:-19.1.8}
 DXVK_VER=${STEAM_DXVK_VER:-1.9.4}
 case $DXVK_VER in   # as tools/vk-trial/dxvk/bench.sh
     1.9.4) DXVK_SHA=854f564c3b58a4cdf7b16eb9a4b6bc6ddc0f83d68c4f979a529fc23f7a770502 ;;
