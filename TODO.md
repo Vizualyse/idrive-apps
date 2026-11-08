@@ -72,6 +72,27 @@ workflow (Actions > Release, the component ids).
   Steam's "32-bit games on Vulkan" below. VKD3D (D3D12) needs much more
   than ANV 19. After a hang: `state/vulkan-crumbs.log` (the ioctl that never
   returned); for new drivers, `tools/vk-trial` first (gated, one start).
+- [ ] **Game performance, on the car (Steam 0.1.10, Cast 0.3.11, Browser
+  0.2.11 / app 0.2.6, vizualyse-bus 0.1.0; built and tested off the car
+  2026-11-08):** then with a real game (**ask before running anything on the unit**; read the journal
+  after, don't poll during):
+  - the default Picture 960x540 (a unit that had 1280x720 saved moves to it
+    once), the 848x480 / 640x360 choices on the phone page;
+  - frames held to 30: wl-sink's `commits` per second in the journal's
+    stats, WineD3D (`vblank_mode=3`) and DXVK (`dxvk.conf`); a GL game's
+    look and input lag with the swap interval forced to 1;
+  - DXVK games report HD Graphics 510 / 1024 MB (`dxvk.conf`): a game that
+    picks its preset from it (and none that refuses the adapter);
+  - `scaled` in wl-sink's stats for a game at a mode the screen lacks; STS2
+    (Godot) `fwd` now, or still read back ([knowledge/games.md](knowledge/games.md));
+  - the bus: `systemctl status vizualyse-bus`; Cast's CarPlay second screen
+    on the cluster pauses while a game runs and comes back after it;
+    `bus:` lines in both tools' journals. Steam and the Browser: a game
+    pauses the browser (and it comes back after); game mode turned on
+    during a game stops the game; Make room gone from the app and page.
+  Then measure what's left: one D3D9 and one D3D11 game at 960x540 and
+  848x480, frame times from the stats, CPU per thread (from `/proc`, once,
+  after).
 - [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
   volume does nothing until a CarPlay phone connects (our sound goes into
   CarPlay's SmartXbar input; see Moonlight's item below and
@@ -201,8 +222,7 @@ without a safety net** (by hand only, a marker to fall back after a hang:
   (2026-11-06): 2547 of 2560 MB used, ~0.4 GB left on the unit, the HMI
   200 MB in swap, ~3 pictures/s, the CPU 92 % busy. With 0.2.4: Chromium's
   process count and PSS (the trimmed switches), `memory:` lines (asked to
-  free memory near the cap), Make room (`room:` lines: Moonlight paused,
-  Cast too if recmgr loaded it; both back after), then 3 GB, watching the
+  free memory near the cap), then 3 GB, watching the
   HMI's swap (`VmSwap` of HmiMain3D) and `MemAvailable`.
 - [ ] **The Store's updater daemon** (`mgu-updater` node, 237 MB on the car)
   is the biggest non-BMW memory user: ask upstream for a lighter idle mode

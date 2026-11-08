@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.6
+
+- **Make room** is gone: the tool no longer stops the Moonlight and Cast
+  services. **Game mode** asks the other tools instead, on the tools' bus:
+  a Steam game stops, and Cast pauses on the cluster and the HUD.
+- While a Steam game runs the browser is paused; the status line says so.
+  Game mode can still be turned on then, and the game stops instead.
+- Requires vizualyse-chromium 0.2.11.
+
 ## 0.2.5
 
 - No change to the page: its shared files (the QR code, the car's speed) now

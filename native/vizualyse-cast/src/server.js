@@ -32,6 +32,7 @@ const { ClusterRender } = require('./cluster_render_client.js');
 const consoleOut = require('./console_out.js');
 const { startControl } = require('./control.js');
 const carplay = require('./carplay_screen.js');
+const { Bus } = require('./mqtt_bus.js');
 
 const HERE = __dirname;
 const STATE_DIR = process.env.CAST_STATE || '/var/opt/vizualyse-cast/state';
@@ -213,8 +214,48 @@ let restartDelay = 500;  /* doubles after each run without a frame, back to 1 s 
 
 function o0(p) { return OUTPUTS[p.opts.output] || {}; }
 
-function stopPlayer(why) {
+/* ---- the other tools' asks (platform tool/mqtt_bus, native/vizualyse-bus) ---
+ * While another tool asks for the cluster's or the HUD's video off (Steam
+ * while a game runs: the CPU this decoding takes, and cluster-render's
+ * upload), a play there is paused (ffmpeg stopped, the layer dropped) and
+ * started again once no tool asks. A play started meanwhile waits the same
+ * way. A stop, or another play, forgets the paused one. */
+const bus = new Bus('vizualyse-cast', { log: log });
+const ASK_FOR = { map: 'cluster-video', hud: 'hud-video' };
+let paused = null;      /* { opts, by: [{ from, why }] }: a play waiting for the asks to go */
+
+function askedOff(output) { return ASK_FOR[output] ? bus.asked(ASK_FOR[output], 'off') : []; }
+function who(by) { return by.map((b) => b.from.replace(/^vizualyse-/, '') + (b.why ? ' (' + b.why + ')' : '')).join(', '); }
+
+function pause(opts, by) {
+    paused = { opts: opts, by: by };
+    last = { state: 'paused', url: opts.shown, output: opts.output, note: 'paused while ' + who(by) + ' asks for it' };
+    log('play: paused on ' + opts.output + ': ' + who(by) + ' asks for ' + ASK_FOR[opts.output] + ' off');
+    updateQr();
+}
+
+function applyAsks() {
+    if (stopping) return;
+    if (player && !paused) {
+        const by = askedOff(player.opts.output);
+        if (by.length) { const opts = player.opts; stopPlayer('paused', true); pause(opts, by); }
+    } else if (paused) {
+        const by = askedOff(paused.opts.output);
+        if (by.length) { paused.by = by; last.note = 'paused while ' + who(by) + ' asks for it'; return; }
+        const opts = paused.opts;
+        paused = null;
+        if (settings.enabled && lastPlay === opts) { log('play: no tool asks any more: started again'); play(opts); }
+    }
+}
+bus.on('asks', applyAsks);
+
+/* keepPaused: a pause stops it, to start again; any other stop forgets a paused play */
+function stopPlayer(why, keepPaused) {
     clearTimeout(restartTimer); restartTimer = null;
+    if (!keepPaused && paused) {
+        last = { state: 'idle', note: why, url: paused.opts.shown, output: paused.opts.output, frames: 0 };
+        paused = null;
+    }
     const p = player;
     if (!p) return;
     player = null;
@@ -232,6 +273,8 @@ function stopPlayer(why) {
 function play(opts) {
     stopPlayer('replaced');
     lastPlay = opts;
+    const asked = askedOff(opts.output);
+    if (asked.length) { pause(opts, asked); return; }
     const cp = opts.source === 'carplay';
     let o = OUTPUTS[opts.output];
     if (cp) {
@@ -358,7 +401,7 @@ function status() {
         : last;
     const c = carplay.state();
     return Object.assign({ enabled: settings.enabled, uplink: up.state || 'unknown', render: cr.ready ? 'connected' : 'not connected', qr: qrWanted,
-        link: link(), canReplay: !!lastPlay,
+        link: link(), canReplay: !!lastPlay, bus: bus.state(),
         source: player ? player.opts.source || 'url' : (lastPlay && lastPlay.source) || 'url',
         carplay: { armed: c.armed, ready: c.ready, why: c.why, mode: c.mode, streaming: c.streaming, frames: c.frames,
             display: c.display, wanted: c.wanted, size: c.size, switch: carplaySwitch(), cards: carplayCards(c), centre: carplayCentre(c), hudAlt: settings.carplayHudAlt },
@@ -589,6 +632,7 @@ function shutdown(sig) {
     stopping = true;
     log('stopping (' + sig + ')');
     stopPlayer('shutting down');
+    bus.close();
     consoleVideo.stop();
     try { log('firewall: removed ' + firewall.remove() + ' rule(s)'); } catch (e) { log('firewall: ' + e.message); }
     if (proxy) proxy.kill('SIGTERM');

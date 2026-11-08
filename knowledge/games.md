@@ -164,7 +164,36 @@ root filesystem and Mesa 19, tools/gpu-bench's stand-ins for the GPU),
   WineD3D (TODO: recheck with Teslagrad).
 - **wl-sink forwards DXVK's buffers to Winston as they are (120 fwd), but
   not Godot's** (STS2: 0 fwd, each picture read back, ~109 ms): not yet
-  understood.
+  understood. Up to 0.1.9 wl-sink read back any surface with a viewport or
+  shown at another size than its buffer; if Godot's area is scaled that way,
+  0.1.10 forwards it (below). Check `scaled` in wl-sink's stats on the car.
+- **On the stub, DXVK runs at ~17 frames a second** whatever its options
+  (`maxFrameRate` 30 or none, `maxFrameLatency` 1 or the default: 17.8,
+  17.0, 7.0 in one run each, 2026-11-08), probably the crumbs log's
+  synchronous writes: the bench can't show DXVK being held to 30.
+
+## Frames nobody sees (Steam 0.1.10, bench 2026-11-08)
+
+- **WineD3D draws as fast as it can without a cap:** Proton's Wine sets swap
+  interval 0 (`egldrv_make_current HACK: Using swap interval 0`), so
+  eglSwapBuffers never waits and wl-sink, which shows 30 a second, drops the
+  rest. **`vblank_mode=3`** (i965's driconf option, read from the
+  environment by Mesa 19's EGL: "always sync") clamps the interval to at least
+  1, so each swap waits for the surface's frame callback, which wl-sink
+  answers at its `--fps`: t_d3d9 (D3DPRESENT_INTERVAL_IMMEDIATE) went to 29.0
+  frames a second on the stub. llvmpipe (swrast) has no such option and stays
+  unthrottled.
+- **Wine emulates a display mode the screen lacks with a viewport:** t_d3d9
+  full screen at 640x480 on wl-sink's 960x540 output: Wine's client area is a
+  640x480 buffer with `wp_viewport` scaling it to the output. Winston can
+  scale it (the ivi surface's source and destination rectangles), so wl-sink
+  0.1.10 forwards it as it is (167 of 167 pictures, `scaled`, no read-back).
+- **DXVK's adapter as games see it** is whatever `dxvk.conf` says:
+  `dxgi.customDeviceId`, `customVendorId`, `customDeviceDesc`,
+  `maxDeviceMemory` (and the `d3d9.` ones; `d3d9.maxAvailableMemory` only
+  reports while `d3d9.memoryTrackTest` is off). Without it, ANV's "HD 505
+  (Broxton)" with 4209 MB, which few games' tables know. `DXVK_CONFIG_FILE`
+  is opened through Windows' file calls: give it a `Z:\` path.
 
 ## Steam's CDN (2026-11-08)
 

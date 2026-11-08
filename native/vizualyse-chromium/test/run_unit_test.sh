@@ -17,10 +17,14 @@ IMG=idrive-rootfs:I_21w12.2-1-4
 ROOTFS=${ROOTFS:-$HERE/../../../idrive-rootfs/20.40.2/rootfs.tar}
 docker image inspect $IMG >/dev/null 2>&1 || docker import "$ROOTFS" $IMG >/dev/null
 [ -f "$HERE/build/chromium.tgz" ] || sh "$HERE/build.sh"
+# the tools' bus (native/vizualyse-bus's broker, when built): the server test's bus checks
+BUS=$(cd "$HERE/../vizualyse-bus" && (pwd -W 2>/dev/null || pwd))
+BUSOPT=
+[ -f "$HERE/../vizualyse-bus/build/mosquitto" ] && BUSOPT="-v $BUS:/bus:ro -e MOSQUITTO=/var/opt/mosquitto -e MOSQUITTO_CONF=/bus/src/mosquitto.conf"
 run() {
-    docker run --rm --platform linux/amd64 --network none --shm-size=512m -v "$WIN_HERE:/t:ro" \
+    docker run --rm --platform linux/amd64 --network none --shm-size=512m -v "$WIN_HERE:/t:ro" $BUSOPT \
         ${OUT_DIR:+-v "$OUT_DIR:/out" -e GPU_PAGE=1} ${VERBOSE:+-e VERBOSE=1} $IMG \
-        /bin/sh -c "mkdir -p /var/opt && ulimit -c 0 && /usr/bin/node /t/test/$1 /t"
+        /bin/sh -c "mkdir -p /var/opt /run && { [ ! -f /bus/build/mosquitto ] || { cp /bus/build/mosquitto /var/opt/mosquitto && chmod 0755 /var/opt/mosquitto; }; } && ulimit -c 0 && /usr/bin/node /t/test/$1 /t"
 }
 case "${1:-all}" in
     bundle) run unit_test.js ;;

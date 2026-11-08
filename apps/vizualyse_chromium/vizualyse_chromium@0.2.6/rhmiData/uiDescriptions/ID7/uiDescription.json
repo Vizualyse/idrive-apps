@@ -260,28 +260,6 @@
             }
           ]
         },
-        "37": {
-          "type": "button",
-          "name": "browserRoom",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 3,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Make room: off",
-                "type": "Text"
-              }
-            }
-          ]
-        },
         "38": {
           "type": "button",
           "name": "browserGame",

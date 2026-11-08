@@ -41,7 +41,7 @@ const { Browser } = require('./browser.js');
 const { Screen } = require('./screen.js');
 const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
-const recmgr = require('./recmgr.js');
+const { Bus } = require('./mqtt_bus.js');
 
 const HERE = __dirname;
 const ARCHIVE = process.env.CHROMIUM_ARCHIVE || path.join(HERE, 'chromium.tgz');
@@ -290,6 +290,7 @@ function via() { return winstonOut && browser && browser.winston ? 'winston' : '
  * and never kept (a restart of the tool is without it), and Chromium
  * restarts for it. */
 let gameMode = false;
+let gameSince = 0;   /* when game mode went on: the bus's asks before it don't stop the browser */
 
 function setGame(on) {
     on = !!on;
@@ -297,17 +298,20 @@ function setGame(on) {
     if (on && !settings.enabled) return 'the browser is off';
     if (on && bundle.state !== 'ready') return 'the browser is not installed yet';
     gameMode = on;
+    if (on) { gameSince = Date.now(); busPaused = null; }
+    busAsk();
     log('game: ' + (on ? 'on: Chromium restarts with WebGPU\'s checks off (trusted pages only); off again at the next start of the tool' : 'off'));
     restarts = [];
     lastError = null;
     stopBrowser();
     setTimeout(startBrowser, 1500);
+    if (!on) applyAsks();
     if (control) control.broadcast();
     return null;
 }
 
 function startBrowser() {
-    if (browser || bundle.state !== 'ready' || !settings.enabled || stopping) return;
+    if (browser || bundle.state !== 'ready' || !settings.enabled || stopping || busPaused) return;
     startProxy();
     const useGpu = gpuMode;
     if (useGpu) {
@@ -434,6 +438,7 @@ screen.on('ready', (e) => log('touch: ready, ' + (e.touch ? 'reading' : 'none') 
 function show() {
     wantShown = true;
     if (moving()) { wantShown = false; return 'not while driving'; }
+    if (busPaused) { wantShown = false; return 'the browser is paused: ' + busPaused; }
     if (!browser || browserState !== 'running') return null;   /* shown once it runs */
     if (screen.shown()) return null;
     const touch = TOUCH_FILE ? { file: TOUCH_FILE } : TOUCH_IFACE ? { iface: TOUCH_IFACE, src: TOUCH_SRC } : null;
@@ -508,72 +513,62 @@ function relieve() {
     browser.send('Memory.simulatePressureNotification', { level: 'critical' }).catch((e) => log('memory: ' + e.message));
 }
 
-/* ---- making room: our other tools paused while the browser runs ---------------- */
+/* ---- the other tools (platform tool/mqtt_bus, native/vizualyse-bus) ----------
+ * In game mode the browser asks the other tools to switch off what competes
+ * with a game for the four cores, the memory and the GPU: their video on the
+ * cluster and the HUD (Cast) and a Steam game (steam off). Cleared when game
+ * mode goes off or the browser is turned off, and by the bus if this tool
+ * goes. (Since 0.2.11; it replaces "make room", which stopped the Moonlight
+ * and Cast services while the browser was on.)
+ *
+ * The other way: Steam asks browser off while a game runs. Chromium then
+ * stops (game mode off) and starts again once nobody asks. In game mode only
+ * an ask made after game mode went on stops it: the newer start wins, and
+ * Steam yields to this tool's ask. Turning game mode on while paused starts
+ * the browser again. */
+const bus = new Bus('vizualyse-chromium', { log: log });
+const BUS_ASK = { 'cluster-video': 'off', 'hud-video': 'off', steam: 'off' };
+let busPaused = null;   /* who asks the browser off, while it is off for them */
 
-/* With "make room" on, the Browser tool stops the Moonlight and Cast tools'
- * services while the browser is on (some 90 MB on the car with their swap,
- * 2026-11-06) and starts them again when it goes off, the setting goes off
- * or the tool stops. Only a unit recmgr loaded at this boot is stopped
- * (recmgr.js): stopping any other restarts the head unit. */
-const ROOM_UNITS = (process.env.CHROMIUM_ROOM_UNITS || 'vizualyse-moonlight,vizualyse-cast').split(',').filter(Boolean);
-const SYSTEMCTL = process.env.CHROMIUM_SYSTEMCTL || 'systemctl';
-const PAUSED_FILE = path.join(env.STATE_DIR, 'paused.json');
-const BOOT = (function () { try { return fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(); } catch (e) { return ''; } })();
-/* what this tool stopped in this boot (after a restart of the unit they run again) */
-const room = { paused: (function () {
-    const p = readJson(PAUSED_FILE) || {};
-    return p.boot === BOOT ? (p.units || []).filter((u) => ROOM_UNITS.indexOf(u) >= 0) : [];
-})(), note: null, busy: Promise.resolve() };
+function busAsk() { bus.ask(gameMode && settings.enabled ? BUS_ASK : null, 'the Browser is in game mode'); }
 
-function systemctl(args) {
-    return new Promise((resolve) => {
-        try {
-            execFile(SYSTEMCTL, args, { timeout: 30000 }, (err, out) => resolve({ ok: !err, out: String(out || '').trim(), err: err }));
-        } catch (e) { resolve({ ok: false, out: '', err: e }); }
+function applyAsks() {
+    const live = bus.asked('browser', 'off');
+    const a = live.filter((x) => !gameMode || (x.at && Date.parse(x.at) > gameSince))[0];
+    if (a && !busPaused) {
+        busPaused = a.from + ' asks' + (a.why ? ' (' + a.why + ')' : '');
+        log('bus: the browser stops while ' + busPaused);
+        if (gameMode) { gameMode = false; log('game: off (' + a.from + ' asked)'); busAsk(); }
+        stopBrowser();
+    } else if (!live.length && busPaused) {
+        log('bus: nobody asks the browser off now: it starts again');
+        busPaused = null;
+        restarts = [];
+        lastError = null;
+        setTimeout(startBrowser, 1500);   /* as after any stop: chromium-wl lets go of its socket first */
+    }
+    if (control) control.broadcast();
+}
+bus.on('asks', applyAsks);
+
+/* Up to 0.2.10 "make room" stopped Moonlight and Cast while the browser was
+ * on, and noted them in paused.json with the boot. Any still stopped in this
+ * boot (the old version did not get to start them again) are started once. */
+function startLeftPaused() {
+    const f = path.join(env.STATE_DIR, 'paused.json');
+    const p = readJson(f);
+    if (!p) return;
+    try { fs.unlinkSync(f); } catch (e) { /* gone */ }
+    let boot = '';
+    try { boot = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(); } catch (e) { /* no boot id */ }
+    if (p.boot !== boot) return;
+    (p.units || []).filter((u) => /^vizualyse-(moonlight|cast)$/.test(u)).forEach((u) => {
+        execFile(process.env.CHROMIUM_SYSTEMCTL || 'systemctl', ['start', u + '.service'], { timeout: 30000 },
+            (err) => log('room: ' + u + (err ? ' did not start: ' + err.message : ' started again (paused by an older version)')));
     });
 }
-function savePaused() { try { writeJson(PAUSED_FILE, { boot: BOOT, units: room.paused }); } catch (e) { log('room: ' + e.message); } }
-
-/* one change at a time, in order */
-function roomQueue(fn) { room.busy = room.busy.then(fn, fn).then(() => { if (control) control.broadcast(); }); return room.busy; }
-
-function makeRoom() {
-    return roomQueue(() => ROOM_UNITS.reduce((p, u) => p.then(() => {
-        if (room.paused.indexOf(u) >= 0) return null;
-        return systemctl(['is-active', u + '.service']).then((a) => {
-            if (a.out !== 'active') return null;
-            if (!recmgr.loaded(u)) {
-                room.note = u + ' left running: recmgr did not load it at this boot (stopping it would restart the head unit)';
-                log('room: ' + room.note);
-                return null;
-            }
-            return systemctl(['stop', u + '.service']).then((r) => {
-                if (!r.ok) { log('room: stopping ' + u + ': ' + (r.err && r.err.message)); return; }
-                room.paused.push(u);
-                savePaused();
-                log('room: ' + u + ' paused while the browser runs');
-            });
-        });
-    }), Promise.resolve()));
-}
-
-function giveBack() {
-    return roomQueue(() => room.paused.slice().reduce((p, u) => p.then(() => systemctl(['start', u + '.service']).then((r) => {
-        log('room: ' + u + (r.ok ? ' started again' : ' did not start: ' + (r.err && r.err.message)));
-        room.paused = room.paused.filter((x) => x !== u);
-        savePaused();
-    })), Promise.resolve()).then(() => { room.note = null; }));
-}
-
-function setRoom(on) {
-    on = !!on;
-    if (on === !!settings.room) return null;
-    settings.room = on;
-    saveSettings();
-    log('room: ' + (on ? 'on: Moonlight and Cast pause while the browser is on' : 'off'));
-    if (on && settings.enabled) makeRoom(); else if (!on) giveBack();
-    return null;
-}
+startLeftPaused();
+delete settings.room;
 
 /* The resolution, live: the page's scale factor and the window's size, then
  * (when shown) the frame file again at the new size. */
@@ -620,7 +615,7 @@ function status() {
         view: VIEW.w + 'x' + VIEW.h, error: lastError || bundle.error || null,
         scale: settings.scale, resolutions: SCALES.map((s) => { const p = picSize(s); return { scale: s, w: p.w, h: p.h }; }),
         memory: { capMb: settings.memMb, choices: MEM_CHOICES, usedMb: mem.usedMb, peakMb: mem.peakMb, workMb: mem.workMb, purges: mem.purges, oomAt: mem.oomAt, note: mem.note },
-        room: { on: !!settings.room, units: ROOM_UNITS, paused: room.paused, note: room.note },
+        bus: bus.state(), paused: busPaused,
     };
 }
 
@@ -659,7 +654,6 @@ const ROUTES = {
     '/api/gpu': (b) => { const e = setGpu(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/winston': (b) => { const e = setWinston(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/game': (b) => { const e = setGame(!!b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
-    '/api/room': (b) => { const e = setRoom(b.on); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/scale': (b) => { const e = setScale(b.scale); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/memory': (b) => { const e = setMemory(b.mb); return e ? Promise.reject(new Error(e)) : Promise.resolve(); },
     '/api/restart': () => { restarts = []; lastError = null; stopBrowser(); setTimeout(startBrowser, 1500); return Promise.resolve(); },
@@ -698,7 +692,7 @@ function setEnabled(on) {
     if (settings.enabled === on) return;
     settings.enabled = on;
     saveSettings();
-    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); if (settings.room) makeRoom(); } else { gpuMode = false; gameMode = false; stopBrowser(); removeFirewall(); giveBack(); }
+    if (on) { addFirewall(); restarts = []; lastError = null; startBrowser(); } else { gpuMode = false; gameMode = false; busAsk(); stopBrowser(); removeFirewall(); }
     log('browser: ' + (on ? 'on' : 'off'));
 }
 
@@ -715,7 +709,6 @@ function command(c) {
     if (c.cmd === 'winston') return setWinston(!!c.on);
     if (c.cmd === 'memory') return setMemory(c.mb);
     if (c.cmd === 'scale') return setScale(c.scale);
-    if (c.cmd === 'room') return setRoom(c.on);
     if (!browser || browserState !== 'running') return 'the browser is not running';
     if (c.cmd === 'home') { browser.navigate(settings.home).catch((e) => log('home: ' + e.message)); return null; }
     if (c.cmd === 'reload') { browser.reload().catch((e) => log('reload: ' + e.message)); return null; }
@@ -736,10 +729,9 @@ function shutdown(sig) {
     if (proxy) proxy.kill('SIGTERM');
     web.close();
     local.close();
-    /* the paused tools run again whenever this one stops */
     const done = () => process.exit(0);
-    giveBack().then(() => setTimeout(done, 500), done);
-    setTimeout(done, 40000);
+    bus.close();
+    setTimeout(done, 500);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
@@ -761,6 +753,4 @@ unpack.ensure(ARCHIVE, log, (err, r) => {
     try { log('bundle: ' + fs.readFileSync(path.join(env.BUNDLE, 'VERSION'), 'utf8').split('\n').slice(1, 4).join(', ')); } catch (e) { /* old */ }
     if (!r.unpacked) log('bundle: up to date');
     startBrowser();
-    if (settings.room && settings.enabled) makeRoom();
-    else if (room.paused.length) giveBack();
 });

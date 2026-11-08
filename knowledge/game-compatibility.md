@@ -34,7 +34,8 @@ LPDDR4. Roughly:
 **Picture size:** the app area is 1790x638, so a 16:9 game is shown at
 1134x638. Count on **~1136x640 or 960x540 at 30 fps**; more pixels are
 scaled away and still cost the frame path (wl-sink: 34 ms a picture at
-1280x720 with FTL, 2026-11-07).
+1280x720 with FTL, 2026-11-07). Steam 0.1.10 draws at 960x540 by default
+(848x480 and 640x360 for heavy games), capped at the tool's frame rate.
 
 ## Rule of thumb
 

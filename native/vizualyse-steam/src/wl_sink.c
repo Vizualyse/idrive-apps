@@ -40,9 +40,10 @@
  * pictures straight onto the centre screen through Winston, fitted into
  * that place, full colour: platform native/winston_out) and "hide" (back to
  * the frame file only). Through Winston no I420 is made, and when the
- * picture is one surface shown at its own size (a game's GL / Direct3D client
- * area) whose content is a GPU buffer, that buffer goes to Winston as it is,
- * placed where the composed picture would have it (no read-back, no copy),
+ * picture is one surface (a game's GL / Direct3D client area) whose content
+ * is a GPU buffer, that buffer goes to Winston as it is, placed where the
+ * composed picture would have it, its viewport (Wine's scaling at an emulated
+ * display mode) applied by Winston (no read-back, no copy, no scaling here),
  * and back to Wine at Winston's release. Otherwise the picture is composed
  * as ever and handed over in our own buffers.
  *
@@ -88,6 +89,7 @@ static struct wl_event_source *wo_source;
 static int wshown;
 static struct wo_ring *ring;
 static unsigned long n_winston, n_fwd;   /* pictures through Winston; of them, GPU buffers passed on as they are */
+static unsigned long n_fwd_scaled;       /* of those, scaled or cut by Winston (the surface's viewport) */
 static const char *snap_path;
 static int dirty;
 static unsigned long n_pictures, n_commits, n_shm, n_drm, n_ms_total;
@@ -1026,15 +1028,23 @@ static int whole_window;   /* --whole-window: the frame and title bar too */
 /* It has a picture: its pixels, or (through Winston) a GPU buffer not read back. */
 static int has(const struct surface *s) { return s->pix || s->drm; }
 
-/* Through Winston, when the picture is one surface shown at its own size
- * whose content is a GPU buffer: that buffer straight to Winston, where the
- * composed picture would have it (wo_present_at: the same place, the same
- * touch mapping), no read-back, no copy. 1 when it went. */
+/* Through Winston, when the picture is one surface whose content is a GPU
+ * buffer: that buffer straight to Winston, where the composed picture would
+ * have it (wo_present_view: the same place, the same touch mapping), no
+ * read-back, no copy. Its viewport (Wine scales the area with one at an
+ * emulated display mode: a game at 800x600 on a 960x540 screen) is Winston's
+ * to apply: the source rectangle, and the size it is shown at, scaled on
+ * Winston's GPU instead of read back and scaled here on the CPU. 1 when it went. */
 static int forward(struct surface *x, int px, int py) {
     struct drm_buffer *d = x->drm;
     int w, h;
     shown_size(x, &w, &h);
-    if (!d || w != d->w || h != d->h || x->vw > 0 || d->refused || px < 0 || py < 0 || px + w > out_w || py + h > out_h) return 0;
+    if (!d || w <= 1 || h <= 1 || d->refused || px < 0 || py < 0 || px + w > out_w || py + h > out_h) return 0;
+    int sx = 0, sy = 0, sw = d->w, sh = d->h;
+    if (x->vw > 0 && x->vh > 0) {   /* wl_fixed source: to whole pixels */
+        sx = (int)(x->vx + 0.5); sy = (int)(x->vy + 0.5); sw = (int)(x->vw + 0.5); sh = (int)(x->vh + 0.5);
+        if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) return 0;
+    }
     if (!d->wb) {
         /* no modifier said (wl_drm): the driver takes the buffer's tiling from the kernel */
         d->wb = wo_buf_dmabuf(wo, d->fd, d->w, d->h, d->format, (uint32_t)d->offset, (uint32_t)d->stride, 0x00ffffffffffffffull);
@@ -1046,9 +1056,10 @@ static int forward(struct surface *x, int px, int py) {
         }
         wo_buf_on_release(d->wb, drm_buffer_released, d);
     }
-    if (wo_present_at(wo, d->wb, w, h, out_w, out_h, px, py) < 0) return 0;
+    if (wo_present_view(wo, d->wb, sx, sy, sw, sh, w, h, out_w, out_h, px, py) < 0) return 0;
     d->held = 1;
     n_fwd++;
+    if (sx || sy || sw != w || sh != h) n_fwd_scaled++;
     n_winston++;
     return 1;
 }
@@ -1166,8 +1177,8 @@ static int tick(void *data) {
     if (now - last_stats >= 1000) {
         unsigned long pics = n_pictures - stat_pictures;
         if (pics) {
-            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"winston\":%lu,\"fwd\":%lu,\"ms\":%.1f}\n",
-                   pics, n_commits, n_shm, n_drm, n_winston, n_fwd, (double)n_ms_total / (double)pics);
+            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"winston\":%lu,\"fwd\":%lu,\"scaled\":%lu,\"ms\":%.1f}\n",
+                   pics, n_commits, n_shm, n_drm, n_winston, n_fwd, n_fwd_scaled, (double)n_ms_total / (double)pics);
             fflush(stdout);
         }
         stat_pictures = n_pictures; n_ms_total = 0; last_stats = now;

@@ -109,7 +109,7 @@ async function main() {
         CHROMIUM_TEST_RENDER_LOG: RLOG,
         CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1', CHROMIUM_CGROUP_ROOT: '/dev/shm/cg',
         CHROMIUM_TOUCH_IFACE: '', CHROMIUM_TOUCH_FILE: '/dev/shm/no-touch', CHROMIUM_LINK_IP: '127.0.0.1',
-        CHROMIUM_SYSTEMCTL: '/bin/true', CHROMIUM_RECMGR_INI: '/dev/shm/recmgr.ini', CHROMIUM_RECMGR_AT_BOOT: '/dev/shm/recmgr-at-boot.json',
+        CHROMIUM_SYSTEMCTL: '/bin/true',
         CHROMIUM_WINSTON: '/run/wayland/wayland-0',
     });
     delete srvEnv.LD_PRELOAD;   /* the bench's DRM shim: not for the browser */

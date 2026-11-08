@@ -92,6 +92,15 @@ gone: on the car the squeeze looked squashed and moved nothing.
 The central-screen mirror (BMW's `winston-grabber` and the Google Maps
 layouts) was removed in 0.3.0.
 
+**Other tools' asks (0.3.11):** on the tools' bus
+([native/vizualyse-bus](../vizualyse-bus/README.md)), while another tool asks
+for `cluster-video` off, a play on the cluster map pauses (ffmpeg stopped, the
+layer dropped; state `paused`, the status's `note` says who asks and why),
+and `hud-video` the same for the HUD; it starts again once no tool asks. A
+play started meanwhile waits paused; a stop forgets it. Steam asks for both
+while a game runs. A URL stream starts again from where the stream is then (a
+live one) or from its start. The Browser asks the same while in game mode.
+
 ## How it works
 
 | Part | Runs as | Does |

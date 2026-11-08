@@ -115,6 +115,7 @@ function render(s) {
   if (s.bundle === 'unpacking') notes.push('Installing the tool on the car (a few minutes, once)...');
   if (s.error) notes.push('Error: ' + s.error);
   if (s.restartNote) notes.push('Note: ' + s.restartNote + '.');
+  if (s.busNote) notes.push('The last game ' + s.busNote + '.');
   if (s.memory && s.memory.note) notes.push(s.memory.note);
   if (s.moving) notes.push('The car is moving: games are hidden until it stops.');
   $('note').textContent = notes.join(' ');

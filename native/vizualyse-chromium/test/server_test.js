@@ -16,6 +16,11 @@
  * - the GPU mode: off at start (a leftover gpu-trial is reported), "gpu" on
  *   restarts Chromium through the EGL shim, and with no GPU here it goes
  *   back to the CPU by itself;
+ * - the bus (with MOSQUITTO, the broker of native/vizualyse-bus): game mode
+ *   asks steam and the cluster / HUD video off; Steam asking browser off
+ *   pauses it (game mode off), and it runs again once nobody asks; an ask
+ *   made before game mode went on does not stop it. A tool an older version
+ *   left stopped ("make room", paused.json) is started once;
  * - "disable" stops Chromium.
  *
  *   node server_test.js <tool folder>
@@ -35,6 +40,7 @@ const RLOG = '/dev/shm/render.log';
 const TOUCH = '/dev/shm/touch.txt';
 const CTL = '/dev/shm/vizualyse-chromium/ctl.sock';
 const SYSTEMCTL = '/var/opt/fake-systemctl';   /* /dev/shm is noexec in the container */
+const BUS_SOCKET = '/run/vizualyse-bus-test/mqtt.sock';
 let fails = 0;
 const check = (ok, what) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) fails++; };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -114,20 +120,20 @@ async function main() {
         CHROMIUM_TEST_RENDER_LOG: RLOG,
         CHROMIUM_NO_FIREWALL: '1', CHROMIUM_NO_PROXY: '1', CHROMIUM_CGROUP_ROOT: '/dev/shm/cg',
         CHROMIUM_TOUCH_IFACE: '', CHROMIUM_TOUCH_FILE: TOUCH, CHROMIUM_LINK_IP: '127.0.0.1',
-        CHROMIUM_SYSTEMCTL: SYSTEMCTL, CHROMIUM_RECMGR_INI: '/dev/shm/recmgr.ini', CHROMIUM_RECMGR_AT_BOOT: '/dev/shm/recmgr-at-boot.json',
+        CHROMIUM_SYSTEMCTL: SYSTEMCTL, VZ_BUS_SOCKET: BUS_SOCKET,
     });
-    /* a stand-in systemctl (Moonlight and Cast running) and recmgr list:
-     * Moonlight in both sections, Cast in [Whitelist] only, so stopping
-     * Cast would restart the head unit and must not happen */
-    fs.writeFileSync(SYSTEMCTL, ['#!/bin/sh', 'echo "$*" >> /dev/shm/systemctl.log', 'f=/dev/shm/units/$2',
-        'case "$1" in', 'is-active) if [ -f "$f" ]; then echo active; exit 0; fi; echo inactive; exit 3;;',
-        'stop) rm -f "$f";;', 'start) : > "$f";;', 'esac', ''].join('\n'), { mode: 0o755 });
-    try { fs.mkdirSync('/dev/shm/units', 0o755); } catch (e) { /* there */ }
-    ['vizualyse-moonlight.service', 'vizualyse-cast.service'].forEach((u) => fs.writeFileSync('/dev/shm/units/' + u, ''));
+    /* a stand-in systemctl, and Moonlight left stopped in this boot by an
+     * older version's "make room" (written below, with the state folder) */
+    fs.writeFileSync(SYSTEMCTL, ['#!/bin/sh', 'echo "$*" >> /dev/shm/systemctl.log', ''].join('\n'), { mode: 0o755 });
     fs.writeFileSync('/dev/shm/systemctl.log', '');
-    const ini = ['[Whitelist]', 'vizualyse-moonlight', 'vizualyse-cast', '[WhitelistExitSuccess]', 'vizualyse-moonlight', ''].join('\n');
-    fs.writeFileSync('/dev/shm/recmgr.ini', ini);
-    fs.writeFileSync('/dev/shm/recmgr-at-boot.json', JSON.stringify({ boot: fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(), text: ini }));
+    /* the broker (native/vizualyse-bus), on a socket of its own */
+    let broker = null;
+    if (process.env.MOSQUITTO) {
+        try { fs.mkdirSync(path.dirname(BUS_SOCKET), 0o700); } catch (e) { /* there */ }
+        fs.writeFileSync('/dev/shm/mosquitto.conf', fs.readFileSync(process.env.MOSQUITTO_CONF, 'utf8').replace(/^listener 0 .*$/m, 'listener 0 ' + BUS_SOCKET));
+        broker = spawn(process.env.MOSQUITTO, ['-c', '/dev/shm/mosquitto.conf'], { stdio: 'ignore' });
+        await until('the broker', () => fs.existsSync(BUS_SOCKET), 5000);
+    }
     /* a stand-in memory cgroup (v1 files) */
     const CG = '/dev/shm/cg/vizualyse-chromium';
     ['/dev/shm/cg', CG].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
@@ -139,6 +145,7 @@ async function main() {
     /* a GPU try that never ended: as after a restart of the unit */
     ['/var/opt', '/var/opt/vizualyse-chromium', STATE].forEach((d) => { try { fs.mkdirSync(d, 0o755); } catch (e) { /* there */ } });
     fs.writeFileSync(path.join(STATE, 'gpu-trial'), '{"at":"2026-11-06T11:00:00Z"}\n');
+    fs.writeFileSync(path.join(STATE, 'paused.json'), JSON.stringify({ boot: fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(), units: ['vizualyse-moonlight'] }));
     const lines = [];
     const srv = spawn('/usr/bin/node', [path.join(T, 'src/server.js')], { env: srvEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     const keep = (d) => String(d).split('\n').filter(Boolean).forEach((l) => { lines.push(l); if (process.env.VERBOSE) console.log('  | ' + l); });
@@ -186,19 +193,10 @@ async function main() {
     check(!lines.slice(n1).some((l) => /asked Chromium to free memory/.test(l)), 'reclaimable file pages do not count (1450 MB used, 650 not cache)');
     fs.writeFileSync(path.join(CG, 'memory.usage_in_bytes'), String(700 * 1048576));
 
-    /* make room: Moonlight paused (on recmgr's list at boot), Cast left (half listed), both back when off */
-    const ro = await req('POST', '/api/room', { on: true }, tok);
-    check(ro.code === 200, '/api/room on');
-    const r1 = await until('Moonlight paused', () => req('GET', '/api/status', undefined, tok).then((r) => (r.body.room.paused.join() === 'vizualyse-moonlight' && r.body.room.note ? r.body.room : null)), 8000);
-    const calls = () => fs.readFileSync('/dev/shm/systemctl.log', 'utf8');
-    check(/stop vizualyse-moonlight\.service/.test(calls()) && !/stop vizualyse-cast/.test(calls()), 'Moonlight is stopped; Cast, not loaded by recmgr in both lists, is not');
-    check(!!r1 && /vizualyse-cast left running: recmgr did not load it/.test(r1.note), 'and the app is told why (' + (r1 && r1.note) + ')');
-    const pj = JSON.parse(fs.readFileSync(path.join(STATE, 'paused.json'), 'utf8'));
-    check(pj.units.join() === 'vizualyse-moonlight' && !!pj.boot, 'what it paused is kept with the boot');
-    await req('POST', '/api/room', { on: false }, tok);
-    await until('Moonlight started again', () => /start vizualyse-moonlight\.service/.test(calls()) && fs.existsSync('/dev/shm/units/vizualyse-moonlight.service'), 8000);
-    const r2 = await req('GET', '/api/status', undefined, tok);
-    check(r2.body.room.paused.length === 0 && !r2.body.room.on, 'make room off: Moonlight runs again, nothing paused');
+    /* what an older version's "make room" left stopped is started once */
+    await until('Moonlight started again', () => /start vizualyse-moonlight\.service/.test(fs.readFileSync('/dev/shm/systemctl.log', 'utf8')), 8000);
+    check(/^start vizualyse-moonlight\.service$/m.test(fs.readFileSync('/dev/shm/systemctl.log', 'utf8')) && !fs.existsSync(path.join(STATE, 'paused.json')),
+        'Moonlight, left stopped by an older version\'s "make room" in this boot, is started; paused.json goes');
 
     const go = await req('POST', '/api/go', { url: 'http://127.0.0.1:8999/' }, tok);
     check(go.code === 200, '/api/go opens the page');
@@ -297,6 +295,58 @@ async function main() {
     await until('game mode off: Chromium runs without it', () => c.last() && c.last().gameMode === false && c.last().browser === 'running' && !dawn(), 60000);
     check(true, 'game mode off: Chromium runs with Dawn\'s checks again');
 
+    if (broker) {
+        const { Bus } = require(path.join(T, 'src', 'mqtt_bus.js'));
+        const steam = new Bus('vizualyse-steam', { socket: BUS_SOCKET });
+        const asks = () => steam.state().others.filter((o) => o.from === 'vizualyse-chromium')[0];
+        await until('the browser on the bus', () => c.last() && c.last().bus && c.last().bus.connected && steam.connected, 10000);
+        check(!asks(), 'out of game mode the browser asks nothing');
+        /* game mode asks Steam (and Cast's cluster / HUD video) off */
+        c.send({ cmd: 'game', on: true });
+        const a1 = await until('game mode asks', () => asks(), 5000);
+        check(!!a1 && a1.ask.steam === 'off' && a1.ask['cluster-video'] === 'off' && a1.ask['hud-video'] === 'off', 'game mode asks steam, cluster-video and hud-video off (' + JSON.stringify(a1 && a1.ask) + ')');
+        await until('running in game mode', () => c.last() && c.last().browser === 'running' && c.last().gameMode, 60000);
+        /* a game started later: the browser stops, game mode goes off */
+        steam.ask({ browser: 'off', 'cluster-video': 'off', 'hud-video': 'off' }, 'Game is running');
+        const p1 = await until('paused by Steam', () => (c.last() && c.last().paused ? c.last() : null), 10000);
+        check(!!p1 && /vizualyse-steam asks \(Game is running\)/.test(p1.paused) && p1.browser === 'off' && !p1.gameMode, 'a Steam game started after: the browser stops, game mode off (' + (p1 && p1.paused) + ')');
+        await until('its ask gone', () => !asks(), 5000);
+        check(!asks(), 'and it asks nothing now');
+        const n0 = c.errors.length;
+        c.send({ cmd: 'show' });
+        await until('show refused', () => c.errors.length > n0, 5000);
+        check(/paused/.test(c.errors[c.errors.length - 1] || ''), 'show is refused while paused (' + c.errors[c.errors.length - 1] + ')');
+        /* the game ends: the browser runs again */
+        steam.ask(null);
+        await until('running again', () => c.last() && !c.last().paused && c.last().browser === 'running', 60000);
+        check(c.last().browser === 'running', 'nobody asks: the browser runs again');
+        /* Steam asks first, then game mode goes on: the newer start wins */
+        steam.ask({ browser: 'off' }, 'Game is running');
+        await until('paused again', () => c.last() && c.last().paused, 10000);
+        c.send({ cmd: 'game', on: true });
+        await until('game mode wins', () => c.last() && c.last().gameMode && !c.last().paused && c.last().browser === 'running', 60000);
+        await wait(1000);
+        const a2 = asks();
+        check(!!a2 && a2.ask.steam === 'off' && c.last().browser === 'running' && !c.last().paused, 'game mode on while Steam asks: the browser runs and asks steam off; the older ask does not stop it');
+        steam.ask(null);
+        c.send({ cmd: 'game', on: false });
+        await until('game mode off', () => c.last() && !c.last().gameMode && c.last().browser === 'running', 60000);
+        await until('its ask cleared', () => !asks(), 5000);
+        check(!asks(), 'game mode off: the ask is cleared');
+        /* turned off in game mode: the ask goes too */
+        c.send({ cmd: 'game', on: true });
+        await until('game mode asks again', () => asks(), 5000);
+        await until('running in game mode', () => c.last() && c.last().browser === 'running', 60000);
+        c.send({ cmd: 'disable' });
+        await until('off: the ask cleared', () => !asks(), 10000);
+        check(!asks(), 'the browser turned off: nothing asked');
+        c.send({ cmd: 'enable' });
+        await until('on again', () => c.last() && c.last().browser === 'running', 60000);
+        steam.close();
+    } else {
+        console.log('skip the bus (MOSQUITTO unset: native/vizualyse-bus/build/mosquitto not built)');
+    }
+
     c.send({ cmd: 'disable' });
     await until('"disable" stops Chromium', () => c.last() && c.last().browser === 'off' && !c.last().enabled, 10000);
     c.send({ cmd: 'enable' });
@@ -305,6 +355,7 @@ async function main() {
 
     srv.kill('SIGTERM');
     await wait(3000);
+    if (broker) broker.kill();
     site.close();
     if (fails || process.env.VERBOSE) console.log(lines.slice(-50).join('\n'));
     console.log(fails ? fails + ' FAILED' : 'all ok');

@@ -165,11 +165,12 @@
     $('sub').textContent = 'Uplink ' + s.uplink + ' · renderer ' + s.render;
     $('dot').className = 'dot ' + s.state;
     var names = {}; (s.outputs || []).forEach(function (o) { names[o.id] = o.title; });
-    $('state').textContent = { playing: 'Playing', idle: 'Idle', ended: 'Ended', error: 'Error', waiting: 'Waiting' }[s.state] || s.state;
+    $('state').textContent = { playing: 'Playing', idle: 'Idle', ended: 'Ended', error: 'Error', waiting: 'Waiting', paused: 'Paused' }[s.state] || s.state;
     var m = [];
     if (s.url) m.push(s.url);
     if (s.output) m.push(names[s.output] + (s.state === 'playing' ? (s.audio ? ', sound ' + s.volume + '%' : ', no sound') : ''));
     if (s.state === 'playing') m.push(s.frames + ' frames · ' + s.seconds + ' s');
+    if (s.state === 'paused' && s.note) m.push(s.note);
     $('meta').textContent = m.join(' · ');
     $('err').textContent = s.error || '';
     $('qr').checked = !!s.qr;

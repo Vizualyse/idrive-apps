@@ -75,8 +75,37 @@ const VK = {
     driver: VK_BASE + '/lib/libvulkan_intel.so', lib: VK_BASE + '/lib', crumbs: VK_BASE + '/lib/vk_crumbs.so',
     dxvk: process.env.STEAM_VK_TRIAL ? VK_BASE + '/dxvk/dxvk' : VK_BASE + '/dxvk',
     icd: RUN_DIR + '/vk_icd.json', crumbsLog: STATE_DIR + '/vulkan-crumbs.log',
+    conf: RUN_DIR + '/dxvk.conf',
     dlls: ['d3d11', 'd3d10core', 'd3d9', 'dxgi'],
 };
+
+/* DXVK's options for every game on Vulkan (VK.conf while one runs; DXVK
+ * 1.9.4's names, all seen in its DLLs):
+ * - the frame rate the tool shows (fps): no frame drawn that would be thrown
+ *   away, its time left to the HMI and the passively cooled unit;
+ * - one frame queued ahead, not three: less memory, less input lag;
+ * - two shader compilers, not one per core: the game's threads and the HMI
+ *   keep two of the four Atom cores while pipelines compile;
+ * - no anisotropic filtering, whatever the game asks: texture bandwidth the
+ *   HD 505 shares with the HMI;
+ * - the adapter WineD3D reports (bundle.sh's prefix): HD Graphics 510
+ *   (8086:1902, the nearest Gen9 games know; the real 8086:5a84 is in few
+ *   tables) with 1024 MB, not ANV's 4209 MB of shared memory, so games that
+ *   pick their settings by the adapter pick low ones on either renderer.
+ *   d3d9.maxAvailableMemory only reports (d3d9.memoryTrackTest stays off). */
+const ADAPTER = { vendor: '8086', device: '1902', desc: 'Intel(R) HD Graphics 510', memMb: 1024 };
+function dxvkConf(fps) {
+    return [
+        'dxgi.maxFrameRate = ' + fps, 'd3d9.maxFrameRate = ' + fps,
+        'dxgi.maxFrameLatency = 1', 'd3d9.maxFrameLatency = 1',
+        'dxvk.numCompilerThreads = 2',
+        'd3d11.samplerAnisotropy = 0', 'd3d9.samplerAnisotropy = 0',
+        'dxgi.customVendorId = ' + ADAPTER.vendor, 'dxgi.customDeviceId = ' + ADAPTER.device,
+        'dxgi.customDeviceDesc = "' + ADAPTER.desc + '"', 'dxgi.maxDeviceMemory = ' + ADAPTER.memMb,
+        'd3d9.customVendorId = ' + ADAPTER.vendor, 'd3d9.customDeviceId = ' + ADAPTER.device,
+        'd3d9.customDeviceDesc = "' + ADAPTER.desc + '"', 'd3d9.maxAvailableMemory = ' + ADAPTER.memMb,
+    ].join('\n') + '\n';
+}
 function vulkanMissing() {
     return [VK.driver, VK.lib + '/libvulkan.so.1', VK.crumbs, VK.dxvk + '/x64/d3d11.dll', VK.dxvk + '/x32/d3d11.dll']
         .filter((f) => !fs.existsSync(f));
@@ -186,8 +215,17 @@ function wineEnv(launch, appId, display, vulkan) {
         e.DXVK_LOG_LEVEL = 'warn';
         e.DXVK_LOG_PATH = 'none';   /* warnings to stderr (the tool's log), no files in the game's folder */
         e.DXVK_STATE_CACHE_PATH = HOME + '/.cache';
+        /* read by DXVK through Windows' file calls: the prefix's Z: is / */
+        e.DXVK_CONFIG_FILE = 'Z:' + VK.conf.split('/').join('\\');
         e.VK_TRIAL_CRUMB_FD = '3';
     }
+    /* OpenGL (WineD3D, a native GL game): Proton's Wine asks Mesa for swap
+     * interval 0 ("HACK: Using swap interval 0"), so nothing holds it back and
+     * it draws frames wl-sink never shows. Mesa 19's EGL takes vblank_mode 3
+     * ("always sync": the i965 driver's option, as an environment variable) as
+     * at least 1 whatever is asked, so each swap waits for wl-sink's frame
+     * callback, answered at the tool's frame rate (wl-sink --fps). */
+    e.vblank_mode = '3';
     mesaEnv(e);
     /* vk_crumbs.so first, ahead of any preload the bench adds (STEAM_EXTRA_ENV, applied by mesaEnv) */
     if (vulkan) e.LD_PRELOAD = [VK.crumbs].concat((e.LD_PRELOAD || '').split(':').filter((p) => p && !/vk_crumbs\.so$/.test(p))).join(':');
@@ -213,6 +251,6 @@ function userDirs(uid, gid) {
 
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
-    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing,
+    RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, dxvkConf,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

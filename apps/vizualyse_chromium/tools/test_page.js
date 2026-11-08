@@ -221,7 +221,7 @@ async function main() {
     assert.strictEqual(comps['21'].name, 'browserQr');
     assert(/<component id="21" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR is a scalable graphic label');
     const buttons = Object.keys(comps).filter((id) => comps[id].type === 'button').map((id) => comps[id].name).sort();
-    assert.deepStrictEqual(buttons, ['browserBack', 'browserEnable', 'browserGame', 'browserGpuMode', 'browserHome', 'browserReload', 'browserResolution', 'browserRoom', 'browserShow']);
+    assert.deepStrictEqual(buttons, ['browserBack', 'browserEnable', 'browserGame', 'browserGpuMode', 'browserHome', 'browserReload', 'browserResolution', 'browserShow']);
     const ep = APP_JSON.application.entryPoints[0];
     assert(fs.existsSync(path.join(PKG, 'rhmiData', 'variantGroups', 'Common', 'images', ep.icon)), 'the tile icon ships');
     const strings = JSON.parse(fs.readFileSync(path.join(PKG, 'rhmiData', 'variantGroups', 'Common', 'texts', 'en_GB.json'), 'utf8'));
@@ -240,7 +240,7 @@ async function main() {
     const S = byName.browserStatus, P = byName.browserPage, G = byName.browserGpu;
     await until('no-tool status', () => /not running/.test(S.text || ''));
     assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
-    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserRoom', 'browserGame', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
+    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserGame', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
     assert.strictEqual(byName.browserEnable.text, 'Browser: not running');
     assert.strictEqual(byName.browserQr.visible, false);
     console.log('ok   without the tool: "' + S.text + '", buttons disabled, no QR');
@@ -253,7 +253,7 @@ async function main() {
     const qr1 = byName.browserQr.graphic.value;
     assert(handles.has(qr1) && fs.readFileSync(qr1).slice(1, 4).toString() === 'PNG', 'a PNG with a resource handle');
     assert.strictEqual(byName.browserEnable.text, 'Browser: on');
-    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserRoom', 'browserGame', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, true, n + ' enabled'));
+    ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserGame', 'browserHome', 'browserReload', 'browserBack'].forEach((n) => assert.strictEqual(byName[n].enabled, true, n + ' enabled'));
     assert.strictEqual(P.text, 'WebGL Report - https://webglreport.com/?v=2');
     assert.strictEqual(G.text, 'WebGPU: CPU (SwiftShader) | WebGL 2: CPU (SwiftShader) | JSPI: ok');
     assert(G.text.length <= 90, 'the GPU line is one row');
@@ -318,21 +318,16 @@ async function main() {
     tool.broadcast();
     console.log('ok   Resolution steps full, 3/4, 1/2 and round again (scale), its size on the button');
 
-    /* make room: on / off, what the tool paused on the button */
-    assert.strictEqual(byName.browserRoom.text, 'Make room: off');
-    await sleep(450);
-    byName.browserRoom.emit('action');
-    await until('room on sent', () => received.some((c) => c.cmd === 'room' && c.on === true));
-    st = Object.assign({}, st, { room: { on: true, units: ['vizualyse-moonlight', 'vizualyse-cast'], paused: ['vizualyse-moonlight', 'vizualyse-cast'], note: null } });
+    /* paused while a Steam game runs: the status line says so; game mode can still go on */
+    st = Object.assign({}, st, { browser: 'off', paused: 'vizualyse-steam asks (Game is running)' });
     tool.broadcast();
-    await until('paused shown', () => byName.browserRoom.text === 'Make room: on (Moonlight, Cast paused)');
-    await sleep(450);
-    byName.browserRoom.emit('action');
-    await until('room off sent', () => received.some((c) => c.cmd === 'room' && c.on === false));
-    st = Object.assign({}, st, { room: { on: false, units: [], paused: [], note: null } });
+    await until('paused shown', () => /^Paused - vizualyse-steam asks/.test(S.text || ''));
+    assert.strictEqual(byName.browserGame.enabled, true, 'game mode can be turned on while paused');
+    assert.strictEqual(byName.browserShow.enabled, false, 'nothing to show while paused');
+    st = Object.assign({}, st, { browser: 'running', paused: null });
     tool.broadcast();
-    await until('room off shown', () => byName.browserRoom.text === 'Make room: off');
-    console.log('ok   Make room sends room on / off and shows what is paused');
+    await until('running again', () => /^Ready/.test(S.text || ''));
+    console.log('ok   paused by another tool: "Paused - ..." on the status line, game mode still offered');
 
     /* game mode: on / off */
     assert.strictEqual(byName.browserGame.text, 'Game mode: off');
@@ -365,7 +360,7 @@ async function main() {
     await until('the screen state opened', () => opened.length === 1 && opened[0] === byName[SCREEN]);
     await until('show sent once it is visible', () => sent('show'));
     await until('shown', () => /^On the screen/.test(S.text || ''));
-    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserRoom', 'browserGame', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
+    await until('every button off while covered', () => ['browserShow', 'browserEnable', 'browserGpuMode', 'browserResolution', 'browserGame', 'browserHome', 'browserReload', 'browserBack'].every((n) => byName[n].enabled === false));
     await sleep(600);
     assert.strictEqual(count('hide'), 0, 'the main state going away for the screen state does not hide');
     console.log('ok   Show opens the empty screen state, then sends show; the main page\'s buttons are off while covered');
@@ -482,7 +477,7 @@ async function main() {
     assert.strictEqual(tool.clients(), 1, 'the socket stays open with the page hidden');
     assert(count('speed') > n, 'the speed goes on with the page hidden');
     byName[STATE].emit('visible', { visible: true });
-    assert(!received.some((c) => !/^(speed|show|hide|home|reload|back|enable|disable|gpu|scale|room|game)$/.test(c.cmd)), 'nothing else sent');
+    assert(!received.some((c) => !/^(speed|show|hide|home|reload|back|enable|disable|gpu|scale|game)$/.test(c.cmd)), 'nothing else sent');
     console.log('ok   hiding the page keeps the socket and the speed going');
 
     tool.close();
