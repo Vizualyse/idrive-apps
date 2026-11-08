@@ -41,13 +41,18 @@ ARG MESA_VER=19.0.6
 RUN case $MESA_VER in \
       19.0.6) sha=2db2f2fcaa4048b16e066fad76b8a93944f7d06d329972b0f5fd5ce692ce3d24 ;; \
       19.1.8) sha=f0fe8289b7d147943bf2fc2147833254881577e8f9ed3d94ddb39e430e711725 ;; \
+      19.3.5) sha=009895b055b971c82d7a0cd57227d414d323282605946e94e9b308a9cb49c6b6 ;; \
+      22.3.7) sha=894ce2f4a1c2e76177cdd2284620192d0da3066b243eec2fbb1d7cf37f13042c ;; \
+      23.1.9) sha=295ba27c28146ed09214e8ce79afa1659edf9d142decc3c91f804552d64f7510 ;; \
       *) echo "no sha256 for Mesa $MESA_VER"; exit 1 ;; \
     esac \
  && mkdir -p /src && cd /src \
- && curl -fsSLO --retry 8 --retry-delay 10 https://archive.mesa3d.org/older-versions/19.x/mesa-$MESA_VER.tar.xz \
+ && { curl -fsSLO --retry 8 --retry-delay 10 https://archive.mesa3d.org/older-versions/${MESA_VER%%.*}.x/mesa-$MESA_VER.tar.xz \
+      || curl -fsSLO --retry 8 --retry-delay 10 https://archive.mesa3d.org/mesa-$MESA_VER.tar.xz; } \
  && echo "$sha  mesa-$MESA_VER.tar.xz" | sha256sum -c - \
  && tar xJf mesa-$MESA_VER.tar.xz && rm mesa-$MESA_VER.tar.xz && mv mesa-$MESA_VER mesa \
- && mkdir -p /out/licenses && cp mesa/docs/license.html /out/licenses/mesa.html \
+ && mkdir -p /out/licenses \
+ && { cp mesa/docs/license.html /out/licenses/mesa.html 2>/dev/null || cp mesa/docs/license.rst /out/licenses/mesa.rst; } \
  && cp /usr/share/doc/libvulkan1/copyright /out/licenses/vulkan-loader.txt
 # ANV only. platforms=drm is the least Mesa 19 accepts; it brings
 # VK_KHR_display, which opens the primary node (card0, Winston's) only when
@@ -58,7 +63,14 @@ RUN case $MESA_VER in \
 # 19.1 wants meson >= 0.46 (18.04 has 0.45: the pip one, installed here for
 # it, as for Wayland below) and its generated xmlpool/options.h built first
 # (missing from the newer meson's dependency order: "No such file").
-RUN cd /src/mesa \
+# Mesa 22.x / 23.x (Vulkan 1.3, for DXVK 2.x): image/anv_new.sh, its own
+# way (libdrm built in, wayland 1.18's scanner, glslang at build time).
+COPY anv_new.sh mesa-no-i915-query.patch /tmp/
+RUN case $MESA_VER in 19.*) exit 0 ;; esac \
+ && sh /tmp/anv_new.sh \
+ && cp -L /usr/lib/x86_64-linux-gnu/libvulkan.so.1 /out/lib/
+RUN case $MESA_VER in 19.*) ;; *) exit 0 ;; esac \
+ && cd /src/mesa \
  && if [ "$MESA_VER" = 19.0.6 ]; then MESON=meson; else \
       apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-pip python3-setuptools >/dev/null \
       && pip3 -q install meson==0.61.5 && MESON=/usr/local/bin/meson; fi \

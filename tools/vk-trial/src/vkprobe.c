@@ -373,6 +373,22 @@ static int sink_start(const char *self) {
     snprintf(s ? s + 1 : bin, sizeof bin - (size_t)(s ? s + 1 - bin : 0), "wl-sink");
     snprintf(frame, sizeof frame, "%s/frame", sink.dir);
     setenv("XDG_RUNTIME_DIR", sink.dir, 1);
+    /* lib/mesa (build.sh): the ANV packed. Mesa 20+'s WSI wants
+     * linux-dmabuf (no wl_drm); 19's keeps the proven wl_drm path */
+    int dmabuf = 0;
+    {
+        char mf[512];
+        snprintf(mf, sizeof mf, "%s", bin);
+        char *b = strrchr(mf, '/');
+        if (b) { *b = 0; b = strrchr(mf, '/'); }
+        if (b) {
+            snprintf(b, sizeof mf - (size_t)(b - mf), "/lib/mesa");
+            FILE *f = fopen(mf, "r");
+            int major = 0;
+            if (f) { if (fscanf(f, "%d", &major) != 1) major = 0; fclose(f); }
+            dmabuf = major >= 20;
+        }
+    }
     int p[2];
     if (pipe(p) < 0) return -1;
     sink.pid = fork();
@@ -380,7 +396,8 @@ static int sink_start(const char *self) {
     if (sink.pid == 0) {
         dup2(p[1], 1);
         close(p[0]);
-        execl(bin, bin, "--socket", "vkprobe-0", "--frame", frame, "--create", "256x256", "--snap", sink.snap, (char *)0);
+        if (dmabuf) execl(bin, bin, "--socket", "vkprobe-0", "--frame", frame, "--create", "256x256", "--snap", sink.snap, "--dmabuf", (char *)0);
+        else execl(bin, bin, "--socket", "vkprobe-0", "--frame", frame, "--create", "256x256", "--snap", sink.snap, (char *)0);
         _exit(127);
     }
     close(p[1]);

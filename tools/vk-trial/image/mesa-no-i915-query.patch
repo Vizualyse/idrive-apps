@@ -1,0 +1,21 @@
+The unit's kernel (Intel's IOTG 4.14) has no DRM_IOCTL_I915_QUERY: its i915
+ioctl 0x39 is GEM_GVTBUFFER, another call with another struct, so Mesa's
+QUERY would reach it (tools/vk-trial/test/kernel414.c names it a HAZARD).
+Mesa 22.x / 23.x ask it for the topology, the engines and the memory
+regions, and fall back to GETPARAM and the defaults when it fails: fail it
+here, before the kernel, as a kernel without QUERY answers (EINVAL).
+Possibly what hung the car under Mesa 22.3's ANV (0.1.1): unproven.
+
+--- a/src/intel/common/intel_gem.h
++++ b/src/intel/common/intel_gem.h
+@@ -91,6 +91,10 @@ static inline int
+ intel_i915_query_flags(int fd, uint64_t query_id, uint32_t flags,
+                        void *buffer, int32_t *buffer_len)
+ {
++   /* vizualyse: no I915_QUERY on the unit's 4.14 (0x39 is GEM_GVTBUFFER there) */
++   if (1)
++      return -EINVAL;
++
+    struct drm_i915_query_item item = {
+       .query_id = query_id,
+       .length = *buffer_len,

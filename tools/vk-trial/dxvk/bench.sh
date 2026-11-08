@@ -30,6 +30,9 @@ DXVK_VER=${DXVK_VER:-1.9.4}
 case $DXVK_VER in   # sha256 of the release tarballs, as first downloaded (2026-11-07)
     1.9.4) DXVK_SHA=854f564c3b58a4cdf7b16eb9a4b6bc6ddc0f83d68c4f979a529fc23f7a770502 ;;
     1.10.3) DXVK_SHA=8d1a3c912761b450c879f98478ae64f6f6639e40ce6848170a0f6b8596fd53c6 ;;
+    2.3.1) DXVK_SHA=c51416d873ced17a6a52d1fb288f887148e9ab7841f25233b6aae24853956d2c ;;   # 2.x: Vulkan 1.3 (Mesa 22+)
+    2.6.2) DXVK_SHA=17761876556afd55736cb895d184f5a1c55d43350f1b1e3b129f8d28706d7992 ;;   # the newest without VK_KHR_maintenance5
+    2.7.1) DXVK_SHA=d85ce7c79f57ecd765aaa1b9e7007cb875e6fde9f6d331df799bce73d513ce87 ;;   # needs VK_KHR_maintenance5: not in ANV 22.3
     *) echo "dxvk bench: no hash for DXVK $DXVK_VER" >&2; exit 2 ;;
 esac
 DX=dxvk-$DXVK_VER
@@ -61,7 +64,7 @@ docker image inspect idrive-steam-mingw:trixie >/dev/null 2>&1 \
 docker run --rm -v "$(win "$HERE/win"):/src:ro" -v "$(win "$STEAM/test/win"):/tlog:ro" -v "$(win "$VKT/build/dxvk-win"):/out" \
     idrive-steam-mingw:trixie sh -ec '
     for c in /src/*.c /tlog/t_d3d9.c; do   # ours and the Steam bench'"'"'s Direct3D 9 check
-        t=$(basename "$c" .c); libs=$(sed -n "s#^ \* libs: ##p" "$c")
+        t=$(basename "$c" .c); libs=$(sed -n "s#^ \* libs: ##p" "$c" | tr -d "\r")   # a Windows checkout: CRLF
         x86_64-w64-mingw32-gcc -O2 -Wall -Werror -mwindows -I/tlog -o /out/${t}64.exe "$c" $libs
         # and 32-bit (Wine'"'"'s WoW64, DXVK'"'"'s x32 DLLs)
         i686-w64-mingw32-gcc -O2 -Wall -Werror -mwindows -I/tlog -o /out/${t}32.exe "$c" $libs

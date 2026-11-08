@@ -19,7 +19,13 @@ ROOTFS_IMG=idrive-rootfs:I_21w12.2-1-4
 sh "$HERE/build.sh" >&2
 # which ANV build.sh made (MESA_VER), and the Vulkan version it reports
 MESA=$(cat "$HERE/build/mesa")
-case $MESA in 19.0.6) VK_API=1.1.96 ;; 19.1.8) VK_API=1.1.102 ;; *) echo "anv_test: no Vulkan version known for Mesa $MESA" >&2; exit 2 ;; esac
+# (Mesa 22+ names the chip "APL 3", probes syncobjs without a timed-out wait,
+# and speaks linux-dmabuf to wl-sink: vkprobe gives it --dmabuf by lib/mesa)
+CHIP=Broxton; SYNCOBJ_ETIME=1
+case $MESA in 19.0.6) VK_API=1.1.96 ;; 19.1.8) VK_API=1.1.102 ;; 19.3.5) VK_API=1.1.102 ;;
+    22.3.7) VK_API=1.3.230; CHIP="APL 3"; SYNCOBJ_ETIME= ;; 23.1.9) VK_API=1.3.246; CHIP="APL 3"; SYNCOBJ_ETIME= ;;
+    *) echo "anv_test: no Vulkan version known for Mesa $MESA" >&2; exit 2 ;; esac
+VK_API=${VK_API_OVERRIDE:-$VK_API}
 OUT=${OUT:-$HERE/build/anv-test}
 mkdir -p "$OUT"
 WIN_OUT=$(cd "$OUT" && (pwd -W 2>/dev/null || pwd))
@@ -60,8 +66,8 @@ for s in instance enumerate device compute draw present; do
     hasnt "$OUT/$s.crumbs.log" "! refused" "the display node never asked for"
     case $s in
     instance) hasnt "$OUT/$s.crumbs.log" "open /dev/dri" "no device opened yet" ;;
-    enumerate) has "$OUT/$s.out.log" "device: Intel(R) HD Graphics 505 (Broxton), Vulkan $VK_API, driver $MESA, 8086:5a84" "ANV on the unit's chip, Vulkan 1.1 as on the car"
-               has "$OUT/$s.crumbs.log" "< SYNCOBJ_WAIT = -1 Timer expired" "a fresh syncobj's wait: ETIME, as the car answered"
+    enumerate) has "$OUT/$s.out.log" "device: Intel(R) HD Graphics 505 ($CHIP), Vulkan $VK_API, driver $MESA, 8086:5a84" "ANV on the unit's chip, Vulkan $VK_API"
+               [ -z "$SYNCOBJ_ETIME" ] || has "$OUT/$s.crumbs.log" "< SYNCOBJ_WAIT = -1 Timer expired" "a fresh syncobj's wait: ETIME, as the car answered"
                has "$OUT/$s.crumbs.log" "< GETPARAM = 0 param 30 -> 1" "MMAP_VERSION 1, as the car answered"
                has "$OUT/$s.out.log" "driver $MESA, 8086:5a84" "Mesa $MESA, the car's PCI id"
                has "$OUT/$s.crumbs.log" "< GETPARAM = -1 Invalid argument param 50" "asked for context isolation, told no (as 4.14)"

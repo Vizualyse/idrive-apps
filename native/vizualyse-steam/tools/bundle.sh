@@ -169,6 +169,7 @@ for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
     wayland-scanner client-header /m/src/protocol/$x.xml $G2/$x-client-protocol.h
     wayland-scanner private-code /m/src/protocol/$x.xml $G2/$x-protocol.c
 done
+wayland-scanner server-header /m/src/protocol/linux-dmabuf-unstable-v1.xml $G2/linux-dmabuf-unstable-v1-server-protocol.h   # wl-sink --dmabuf
 gcc -O2 -Wall -Wextra -Werror -o /tmp/rgb_test /m/src/rgb_test.c /m/src/rgb.c && /tmp/rgb_test
 gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -I/m/src -I$G2 \
     -Wl,--dynamic-linker=$LOADER -Wl,-rpath,$R/lib -Wl,--build-id=sha1 -o "$R/wl-sink" \

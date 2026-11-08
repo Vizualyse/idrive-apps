@@ -140,6 +140,18 @@ $G arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run 
 cat $(cat /var/opt/vk-trial/state/last)/out.log  # each program's lines, wl-sink's GPU buffers
 ```
 
+**Newer ANV (bench, 2026-11-08):** `MESA_VER` takes 19.0.6, 19.1.8, 19.3.5,
+22.3.7 and 23.1.9. 20+ is built by `image/anv_new.sh` (libdrm static inside,
+wayland 1.18's scanner, glslang at build time) with
+`image/mesa-no-i915-query.patch`: ioctl 0x39 is `I915_QUERY` to Mesa but
+`GEM_GVTBUFFER` on the unit's kernel (kernel414 names it a HAZARD; 19.3.5,
+unpatched, sends it too). Its WSI wants linux-dmabuf: `lib/mesa` in the
+package says which Mesa, and vkprobe / run.js start wl-sink with `--dmabuf`
+for 20+. `DXVK_VER` for the DXVK bench and package: 1.9.4, 1.10.3, 2.3.1,
+2.6.2 (the newest ANV 22.3 can run: 2.7 needs maintenance5), 2.7.1. On the
+stub, 22.3.7 passes every stage and runs DXVK 1.10.3 and 2.6.2, 64- and
+32-bit ([knowledge/games.md](../../knowledge/games.md), "Vulkan").
+
 The 32-bit try: `MESA_VER=19.1.8 sh tools/vk-trial/build.sh`, then
 `package.sh`, both packages onto the car as above (vk-trial.tgz now holds
 ANV 19.1.8). Off the car first:

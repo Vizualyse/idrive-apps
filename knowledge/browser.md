@@ -246,6 +246,27 @@ refuse scripts; `git` works) and a web search.
   the open question (20.0 added the check for a reason), so only through
   vk-trial's gate. iris would bring Gallium Nine (D3D9 natively) and
   probably a faster GL than i965.
+- **A lead for 0.1.1's hang (bench, 2026-11-08): Mesa 22.3's ANV sends
+  `I915_QUERY`, i915 ioctl 0x39, and on the unit's IOTG 4.14 that number
+  is `GEM_GVTBUFFER`** (another handler reading another struct). The DRM
+  core dispatches by number, so the car would have run the GVT call with
+  QUERY's bytes, from the first `vkEnumeratePhysicalDevices`, before any
+  other ANV ioctl that 19.0.6 doesn't send: a good candidate for "an
+  earlier ANV ioctl stuck holding `struct_mutex`". Unproven. 19.3+ sends
+  it too; 19.0.6 and 19.1.8 don't. tools/vk-trial builds 22.x / 23.x with
+  `image/mesa-no-i915-query.patch` (QUERY fails with EINVAL before the
+  kernel; ANV falls back to GETPARAM): on the stub 22.3.7 then passes
+  every stage and DXVK 1.10.3 / 2.6.2 run ([games.md](games.md),
+  "Vulkan"). So 22.3 is a candidate again, patched, through the gate.
+- **Past 23.1 (a sketch, not built):** reverting `8a1a49aae40` means the
+  context-isolation GETPARAM back, the "Vulkan requires context isolation"
+  refusal in `anv_physical_device_try_create` gone, buffer 0 of the push
+  constants relative again when isolation is missing (the gen9 path
+  18.2-23.1 had), and `CS_DEBUG_MODE2` written only with isolation; then
+  whatever later releases built on it (the xe split in 23.x / 24.x moved
+  this code). It would bring `VK_EXT_map_memory_placed` (23.3: WoW64 memory
+  without USERPTR) and `VK_KHR_maintenance5` (DXVK 2.7+); until 25.3's
+  Linux 6.0 requirement.
 - **The first candidate (now proven, below): ANV from Mesa 19.0.6**, the release the
   unit's own i965 is from (same era as the kernel, no context-isolation
   dependence), built for the unit's glibc, under the safety net above.

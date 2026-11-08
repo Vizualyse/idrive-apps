@@ -183,6 +183,41 @@ under Proton): a line says which. Index: [index.md](index.md).
 - **Mesa 19.1 builds with meson 0.61** (18.04's 0.45 is too old) once
   `src/util/xmlpool/options.h` is built first (else "No such file":
   vk-trial's `image/Dockerfile`, `MESA_VER`).
+- **Newer ANV on the bench (2026-11-08, tools/vk-trial `MESA_VER`, the stub
+  behind kernel414):**
+  - **19.3.5** builds and runs the stages (Vulkan 1.1.102, as 19.1.8), adds
+    only shader-level extensions DXVK 1.x doesn't use, and sends
+    **`I915_QUERY` (i915 ioctl 0x39), which on the unit's IOTG 4.14 is
+    `GEM_GVTBUFFER`** (another call, another struct). 19.1.8 doesn't: it
+    stays the 1.x candidate.
+  - **22.3.7 builds for glibc 2.27** (`image/anv_new.sh`, Ubuntu 18.04):
+    meson 0.61, glslang 12.3.1 at build time only, **libdrm 2.4.114 static
+    and hidden inside** (the unit's libdrm lacks `drmSyncobjTimelineWait`,
+    and a second `libdrm.so.2` would lose to the unit's, which i965 loads
+    first), **wayland 1.18's headers and scanner** (the unit's
+    libwayland-client is older than 1.17: no `wl_proxy_marshal_flags`);
+    every `wl_*` / `XML_*` import is in the unit's libraries, the rest
+    within its libstdc++ 6.0.24, zlib 1.2.11, glibc 2.27. On the stub it
+    **starts without context isolation**: "HD Graphics 505 (APL 3)",
+    **Vulkan 1.3.230**, every stage (compute, draw, present) passes. It
+    too sends `I915_QUERY` (topology, engines, memory regions), so it is
+    built with `image/mesa-no-i915-query.patch` (EINVAL before the kernel,
+    as a kernel without QUERY answers; it falls back to GETPARAM).
+  - **Its Vulkan WSI speaks only linux-dmabuf v3** (no wl_drm since Mesa
+    22): `VK_ERROR_SURFACE_LOST_KHR` on wl-sink until **`wl-sink --dmabuf`**
+    (one plane, ARGB / XRGB, only `DRM_FORMAT_MOD_INVALID`, the same buffers
+    as wl_drm's). Offered only when asked (vkprobe, run.js and the Steam
+    tool ask for Mesa 20+, by `lib/mesa`): Mesa 19's EGL, every WineD3D
+    game, might take it over wl_drm.
+  - **DXVK on 22.3.7** (Proton, D3D11 + D3D9, 64- and 32-bit): **1.10.3:
+    all four pass. 2.6.2: all four pass.** 2.3.1 makes the device (feature
+    level 11_1) but Present fails `DXGI_ERROR_DEVICE_RESET` after 10 (64-bit)
+    / 3 (32-bit) frames and D3D9 hangs: not understood, fixed by 2.6.
+    **2.7.x needs `VK_KHR_maintenance5`** (not in 22.3; "No adapters
+    found"): 2.6.2 is the newest for it.
+  - **23.1.9:** needs Python's `dataclasses` (3.7; the backport for 18.04's
+    3.6 is in `anv_new.sh`); its image build was stopped by the host running
+    out of memory: untested.
 - **The DXVK bench before 2026-11-08** ran 32-bit programs without
   `PROTON_USE_WOW64=1` (they never started: "Failed to create process": 731)
   and turned `t_d3d932` into `t_d3d93264`; fixed in `dxvk/bench.sh`,

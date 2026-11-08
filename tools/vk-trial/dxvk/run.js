@@ -136,6 +136,10 @@ function run() {
     const sinkEnv = Object.assign({}, process.env, { XDG_RUNTIME_DIR: xdg, LD_LIBRARY_PATH: STEAM + '/gpu-libs:/usr/lib' });
     const sinkArgs = ['--socket', 'wayland-1', '--frame', tmp + '/frame', '--create', '640x360', '--snap', tmp + '/snap.ppm'];
     if (WINSTON) sinkArgs.push('--winston', WINSTON_SOCKET);
+    /* lib/mesa (vk-trial's build): Mesa 20+'s Vulkan WSI speaks linux-dmabuf, not wl_drm */
+    let mesaMajor = 19;
+    try { mesaMajor = parseInt(fs.readFileSync(VKT + '/lib/mesa', 'utf8'), 10) || 19; } catch (e) { /* 19.x packages had none */ }
+    if (mesaMajor >= 20) sinkArgs.push('--dmabuf');
     crumb('starting wl-sink' + (WINSTON ? ' (Winston)' : ''));
     const sink = cp.spawn(VKT + '/bin/wl-sink', sinkArgs, { env: sinkEnv, stdio: ['pipe', sinkLog, sinkLog] });
     /* its "ready" line (with Winston, "connected ..." comes before it) */
