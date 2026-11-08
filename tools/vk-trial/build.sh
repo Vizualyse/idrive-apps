@@ -57,7 +57,7 @@ if docker image inspect idrive-rootfs:I_21w12.2-1-4 >/dev/null 2>&1; then
 else
     echo "vk-trial: no unit root filesystem image: the check against its libwayland is skipped" >&2
 fi
-docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN_SINK:/sink:ro" "$IMG" sh -ec '
+docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id -g)" -v "$WIN_HERE:/m" -v "$WIN_SINK:/sink:ro" "$IMG" sh -ec '
     W="-O2 -std=gnu11 -Wall -Wextra -Werror"
     mkdir -p /m/build/pkg/bin /m/build/pkg/lib /m/build/bench /tmp/gen
     # vkprobe: a client on the unit'"'"'s libwayland-client (18.04'"'"'s 1.16 headers, xdg-shell 1.13)
@@ -119,7 +119,9 @@ docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE:/m" -v "$WIN
     miss=$(need /m/build/pkg/bin/wl-sink | comm -23 - /tmp/ours)
     [ -z "$miss" ] || { echo "wl-sink needs what our libwayland 1.22 lacks: $miss"; exit 1; }
     cd /m/build/pkg && chmod 755 bin/* lib/wl && find lib -type f -exec chmod 644 {} + \
-        && tar --owner=0 --group=0 --mtime=@0 --sort=name -czf /m/build/vk-trial.tgz bin lib'
+        && tar --owner=0 --group=0 --mtime=@0 --sort=name -czf /m/build/vk-trial.tgz bin lib
+    # back to the caller, so the release tooling (and a plain rm) can remove them
+    chown -R "$HOST_IDS" /m/build/pkg /m/build/bench /m/build/vk-trial.tgz'
 echo "$key" > "$HERE/build/key"
 echo "$IMG" > "$HERE/build/image"
 echo "vk-trial: built ($key): build/vk-trial.tgz"
