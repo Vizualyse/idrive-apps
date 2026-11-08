@@ -1,6 +1,6 @@
 {
   "build": "node tools/build.js",
-  "requires": { "vizualyse-steam": "0.1.1" },
+  "requires": { "vizualyse-steam": "0.1.11" },
   "uninstallable": true,
   "mguHmi": ["ID7"],
   "platform": {

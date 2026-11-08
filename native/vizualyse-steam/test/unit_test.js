@@ -456,9 +456,11 @@ async function scaledMode() {
         const b = s.game.buffers;
         let tl = '';
         try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        const st = (f) => { try { const x = fs.statSync(f); return f + ' ' + x.uid + ' ' + (x.mode & 0o777).toString(8) + ' ' + x.size; } catch (e) { return f + ' missing'; } };
         ok('full screen at an emulated 640x480: Wine\'s buffers still go to Winston as they are, Winston scaling them',
             /full screen 640x480/.test(tl) && b.scaled - b0.scaled > 20 && b.drm === b0.drm,
-            JSON.stringify(b) + ', ' + (tl.split(/\r?\n/).filter((l) => /full screen|FAIL/.test(l)).join(' | ') || 'no full-screen line'));
+            JSON.stringify(b) + ', ' + (tl.split(/\r?\n/).filter((l) => /full screen|FAIL/.test(l)).join(' | ') ||
+                'no full-screen line; ' + st('/tmp/t_fullscreen') + '; ' + st(T_LOG) + '; its lines: ' + tl.split(/\r?\n/).slice(0, 6).join(' | ')));
         await api('/api/hide', {});
         await api('/api/winston', { on: false });
     } else ok('full screen at 640x480: the game draws', false, s.game.note);
@@ -507,6 +509,36 @@ async function winston() {
         const b = s.game.buffers || {};
         ok('Wine\'s GPU buffers go to Winston as they are (no read-back)', b.fwd > 20 && b.drm === b0.drm,
             JSON.stringify(b) + ', ' + s.game.fps + ' pictures/s');
+        /* Upscaling FSR, at once: each buffer drawn by FSR (the unit's i965
+         * compiles and runs the passes, no pixels) into ours at its size on
+         * the screen, shown by Winston; still no read-back. The test game's
+         * client area is 632x326 of the 960x540 picture, which is fitted to
+         * 1790x638 (x 638/540): 747x385. Then off: passed on as it is again. */
+        const k = Math.min(1790 / 960, 638 / 540), want = [Math.round(632 * k), Math.round(326 * k)].join(',');
+        if (!process.env.SKIP_FSR_CHECK) {
+        r = await api('/api/settings', { upscale: 'fsr' });
+        await sleep(3000);
+        const f0 = (await status()).game;
+        await sleep(2000);
+        s = await status();
+        const f1 = s.game;
+        ok('Upscaling FSR: pictures drawn by FSR at the size on the screen, shown by Winston, no read-back',
+            r.code === 200 && s.settings.upscale === 'fsr' && f1.fsr && f0.fsr && f1.fsr.pictures - f0.fsr.pictures > 20 &&
+            String(f1.fsr.size) === want && f1.buffers.drm === f0.buffers.drm && f1.buffers.fwd === f0.buffers.fwd,
+            JSON.stringify(f1.fsr) + ', ' + JSON.stringify(f1.buffers) + ', ' + f1.fps + ' pictures/s');
+        await api('/api/settings', { upscale: 'off' });
+        await sleep(2500);
+        const g0 = (await status()).game;
+        await sleep(2000);
+        const g1 = (await status()).game;
+        ok('Upscaling off: Wine\'s buffers to Winston as they are again', g1.buffers.fwd - g0.buffers.fwd > 20 && g1.fsr.pictures === g0.fsr.pictures,
+            JSON.stringify(g1.buffers) + ', ' + JSON.stringify(g1.fsr));
+        /* the journal's perf lines (src/perf.js): the change of mode, and FSR's window closed by it with fps and lows */
+        const pl = serverLog.split('\n').filter((l) => / perf: /.test(l));
+        ok('perf lines: each change of upscaling, and FSR\'s window with fps, 1% low and its GPU time',
+            pl.some((l) => /upscaling off -> fsr/.test(l)) && pl.some((l) => /perf: fsr at 960x540: [\d.]+ fps, 1% low [\d.]+, .*FSR [\d.]+\/s at [\d.]+ ms GPU/.test(l)),
+            pl.slice(-4).join(' | ') || 'no perf lines');
+        }
         await api('/api/hide', {});
         await sleep(2500);   /* the stats line is a second's */
         const h0 = (await status()).game.buffers;

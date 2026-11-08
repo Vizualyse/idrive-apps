@@ -21,6 +21,7 @@ const C = [
     [22, 'label', 'LT_Label_1Row', 'steamLink', 0, ''],
     [23, 'label', 'LT_Label_1Row', 'steamHint', 0, ''],
     [36, 'button', 'LT_Button_1Row', 'steamResolution', 3, 'Picture: 1280x720'],
+    [38, 'button', 'LT_Button_1Row', 'steamUpscale', 3, 'Upscaling: off'],
     [37, 'button', 'LT_Button_1Row', 'steamEnable', 3, 'Steam: on'],
 ];
 const dir = path.join(T, 'rhmiData', 'uiDescriptions', 'ID7');

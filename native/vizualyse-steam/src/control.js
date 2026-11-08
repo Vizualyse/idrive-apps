@@ -9,7 +9,9 @@
  * {"cmd":"disable"} (the tool's phone page and games on or off),
  * {"cmd":"show"} / {"cmd":"hide"} (the game on the centre screen),
  * {"cmd":"play","appId":N}, {"cmd":"stop"} (the running game),
- * {"cmd":"resolution"} (the next one), {"cmd":"speed","kmh":N} (the car's
+ * {"cmd":"resolution"} (the next one), {"cmd":"upscale"} (the next way of
+ * scaling the picture up: off, FSR, FSR without sharpening; at once),
+ * {"cmd":"speed","kmh":N} (the car's
  * speed, about once a second: answered with nothing; moving hides the game);
  * anything else, or a command that can't run, is answered with
  * {"ev":"error","error":...}. (As vizualyse-chromium's.)

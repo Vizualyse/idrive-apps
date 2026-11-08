@@ -8,7 +8,8 @@
  * the app sends {"cmd":"enable"} / {"cmd":"disable"} (Steam on or off),
  * {"cmd":"play","appId":N}, {"cmd":"stop"} (the running game),
  * {"cmd":"show"} / {"cmd":"hide"} (the game on the central screen),
- * {"cmd":"resolution"} (the next picture size) and {"cmd":"speed","kmh":...}
+ * {"cmd":"resolution"} (the next picture size), {"cmd":"upscale"} (the next
+ * way of scaling it up) and {"cmd":"speed","kmh":...}
  * (the car's speed, about once a second, for "only while parked").
  * Connected while the app runs, retried once a second; the tool keeps
  * running without it. As vizualyse_chromium's.
@@ -102,6 +103,7 @@ class SteamControl extends EventEmitter {
     play(appId) { return this._send({ cmd: 'play', appId: appId }); }
     stop() { return this._send({ cmd: 'stop' }); }
     resolution() { return this._send({ cmd: 'resolution' }); }
+    upscale() { return this._send({ cmd: 'upscale' }); }
     /* not buttons: they leave a button's error on the status line alone */
     hide() {
         if (!this.sock || !this.status || !this.status.shown) return false;
@@ -183,6 +185,13 @@ class SteamControl extends EventEmitter {
     resolutionText() {
         const s = this.status;
         return 'Picture: ' + ((s && s.settings && s.settings.resolution) || '1280x720') + (s && s.running ? ' (from the next game)' : '');
+    }
+
+    /* Upscaling: off / FSR / FSR without sharpening (tool 0.1.11; applies at once) */
+    upscaleText() {
+        const s = this.status, u = s && s.settings && s.settings.upscale;
+        if (!u) return 'Upscaling: not in this Steam tool (update it)';
+        return 'Upscaling: ' + ({ off: 'off', fsr: 'FSR', 'fsr-soft': 'FSR, no sharpening' }[u] || u);
     }
 }
 

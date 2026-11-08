@@ -26,6 +26,7 @@ const { spawn, execFileSync } = require('child_process');
 const EventEmitter = require('events');
 const env = require('./env.js');
 const screen = require('./screen.js');
+const { Perf } = require('./perf.js');
 
 const DISPLAY = 'wayland-vzs';
 const PYTHON = process.env.STEAM_PYTHON || '/var/opt/mgu-python/current/bin/python3';
@@ -111,6 +112,8 @@ class Game extends EventEmitter {
             '--uid', String(o.uid), '--gid', String(o.gid), '--input'];
         /* connected now, used only when shown that way (showWinston) */
         if (fs.existsSync(env.WINSTON_SOCKET)) args.push('--winston', env.WINSTON_SOCKET);
+        /* FSR for a picture Winston would scale up (wl-sink's --fsr: off, or RCAS's stops) */
+        if (o.fsr && o.fsr !== 'off') args.push('--fsr', String(o.fsr));
         const sink = spawn(process.env.STEAM_WL_SINK || env.RUNTIME + '/wl-sink', args, { env: env.sinkEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
         sink.stdin.on('error', () => { /* it exited */ });
         this.sink = sink;
@@ -131,7 +134,11 @@ class Game extends EventEmitter {
                     this._startWine();
                 } else if (e.ev === 'stats') {
                     this.stats = { pictures: this.stats.pictures + e.pictures, fps: e.pictures, drm: e.drm, shm: e.shm, fwd: e.fwd || 0,
-                        scaled: e.scaled || 0, commits: e.commits || 0, ms: e.ms };
+                        scaled: e.scaled || 0, commits: e.commits || 0, ms: e.ms,
+                        fsr: e.fsr || 0, fsrSkipped: e.fsrSkipped || 0, fsrGpuMs: e.fsrGpuMs, fsrSize: e.fsrSize };
+                    /* the journal's "perf:" lines (src/perf.js) */
+                    if (!this.perf) this.perf = new Perf({ log: (s) => this._log(s), label: o.name, frame: o.frame, mode: o.upscale || 'off', cgroup: o.cgroup });
+                    this.perf.sample(e);
                     if (this.state === 'starting' && (e.drm || e.shm)) this._set('running');
                     this.emit('stats', this.stats);
                 } else if (e.ev === 'toplevel') {
@@ -140,6 +147,8 @@ class Game extends EventEmitter {
                     this.emit('toplevel', e);
                 } else if (e.ev === 'winston') {
                     this._log('wl-sink: winston: ' + e.msg);
+                } else if (e.ev === 'fsr') {
+                    this._log('wl-sink: ' + e.msg);   /* FSR off by itself; the picture goes on through Winston */
                 } else if (e.ev === 'winston-lost') {
                     this.winston = false;
                     this._log('wl-sink: the connection to Winston was lost');
@@ -305,6 +314,13 @@ class Game extends EventEmitter {
      * not (the frame file goes on either way). */
     showWinston(view) { this._sink('winston ' + [view.x, view.y, view.w, view.h].join(',')); }
     hideWinston() { this._sink('hide'); }
+    /* FSR on (RCAS's stops) or 'off', at once; id: the setting's name, for the perf lines */
+    setFsr(arg, id) {
+        this.o.fsr = arg;
+        this.o.upscale = id || arg;
+        if (this.perf) this.perf.mode(this.o.upscale);
+        this._sink('fsr ' + arg);
+    }
     _sink(line) {
         if (!this.sink || !this.sink.stdin.writable) return;
         try { this.sink.stdin.write(line + '\n'); } catch (e) { /* gone */ }
@@ -374,6 +390,7 @@ class Game extends EventEmitter {
         if (this.state === 'ended') return;
         if (note) this.note = note;
         if (note) this._log('game: ' + note);
+        if (this.perf) this.perf.end();   /* the summary per upscaling mode */
         this.state = 'ended';
         this.emit('state', 'ended');
         this.emit('end', { note: this.note });

@@ -41,3 +41,8 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   offscreen), the firmware's software Media SDK `libmfxsw64` in Docker for
   decoder tests (upstream), idrive7-apps' head-unit stub (`kit/tools/hu-stub.js`),
   and mgu-store's read-only `probe.js` for what the image has.
+- **A new worktree's `build/`: copy only what has a key** (`ntdll.key`,
+  `vulkan.tgz`): native/vizualyse-steam's `test/build_win.sh` keeps test
+  programs that are there, whatever their age. Copied from another
+  checkout, Nov 7's `t_d3d9` (no full-screen mode) made the 640x480 test
+  fail on a branch for an hour (2026-11-08); `rm -rf build/win` rebuilds.

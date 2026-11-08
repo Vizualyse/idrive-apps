@@ -200,6 +200,69 @@ under Proton): a line says which. Index: [index.md](index.md).
   (Broxton)" with 4209 MB, which few games' tables know. `DXVK_CONFIG_FILE`
   is opened through Windows' file calls: give it a `Z:\` path.
 
+## FSR in wl-sink (Steam 0.1.11, bench 2026-11-08)
+
+- **The screen's shape decides what upscaling can gain:** the app area is
+  1790x638 (2.8:1), so a 16:9 picture is shown at only 1134x638. From
+  960x540 that is 1.18x: FSR (or any upscaler) has almost nothing to do.
+  The gain is in drawing far fewer pixels at the screen's shape: 896x320
+  is 2x to 1792x640 with 55 % of 960x540's pixels.
+- **The unit's i965 takes FSR 1 as GLES 3.0** (`src/fsr.c`, AMD's EASU and
+  RCAS ported with texelFetch taps; gpu-bench `stub`: compiles, links, runs
+  into a GBM buffer exported as a dmabuf and imported back as an EGLImage
+  with an FBO on it). The context is **OpenGL ES 3.2**, and it has
+  `GL_EXT_disjoint_timer_query`: the GPU time of the passes can be
+  measured on the car without a `glFinish`.
+- **On llvmpipe (`swrast`)** the pixels are right (not flipped; flat black,
+  grey and white stay flat; edges: bilinear 12.3, EASU 14.2, EASU + RCAS
+  21.9, mean absolute neighbour difference on a test pattern; the same
+  lines in the same places), but llvmpipe imports no dmabufs, so there the
+  output is a texture. Its ~200 ms a picture is the CPU's, nothing like the
+  car's GPU.
+- **A dmabuf texture needs a min filter without mipmaps** for texelFetch
+  (GLES's default `NEAREST_MIPMAP_LINEAR` leaves it incomplete: zeros):
+  `fsr_run` sets `NEAREST` on its source.
+- **Not known until the car:** the passes' GPU time on the HD 505 (a guess
+  of 3-8 ms at 1792x640; an iPhone 12 took 2.7 ms optimised), and whether
+  it beats Winston's bilinear at the same frame rate. Read the journal's
+  `perf:` lines after a run (below).
+- **Never import our own GBM buffer's dmabuf back into the same i965:**
+  `gbm_bo_create`, `gbm_bo_get_fd`, then `eglCreateImage(EGL_LINUX_DMA_BUF_EXT)`
+  of that fd made two buffers of one in Mesa 19's i965, and freeing both
+  corrupted the heap (glibc "double free or corruption" in `fsr_test`;
+  in wl-sink a silent hang at the first hide, the stats stopped). Make the
+  image from the GBM buffer itself (`EGL_NATIVE_PIXMAP_KHR`) and pass the
+  fd only to the other process (Winston). wl-sink imports a client's
+  dmabuf once too (FSR and the read-back share it).
+- **The stub's timer queries return garbage** (nothing runs): only the
+  car's FSR GPU times mean anything.
+
+## Measuring a game (Steam 0.1.11)
+
+- **The journal's `perf:` lines** (`src/perf.js`, from wl-sink's stats and
+  i915's sysfs; ~30 numbers a second and one clock read a frame, nothing
+  measurable): every 10 s, at each change of upscaling (`upscaling off ->
+  fsr`), and a summary per mode when the game ends. Each has fps, the 1 %
+  and 0.1 % lows (the fps of the slowest 1 % / 0.1 % of frames), the 99th
+  percentile and worst frame time (the game's frames: new buffers on the
+  surface shown, capped by the tool's 30 / 60), pictures/s, wl-sink's time
+  a picture, FSR's pictures/s and GPU time (mean, max, how many measured)
+  and skips, and the whole GPU's busy share (out of RC6:
+  `power/rc6_residency_ms`) and clock (`gt_act_freq_mhz`), the HMI's
+  drawing included; beside them the CPU (the unit's busy share from
+  `/proc/stat`; the game's own, its memory cgroup's processes' utime +
+  stime, in % of one core) and memory (the game cgroup's use, max, peak and
+  cap; the unit's MemAvailable and its minimum; swap in use), to line a bad
+  low up with what the GPU, the CPU or memory did then. Compare modes from
+  one run: switch mid-game, read after
+  (`journalctl -u vizualyse-steam | grep perf:`).
+- At the frame cap the fps match; the lows, the worst frame and the GPU's
+  busy share are what tell modes apart.
+- **Switching FSR on stalled a frame** (bench: worst 74 ms, 1 % low 13.5 in
+  that window): its shaders compiled at the first picture. wl-sink now
+  compiles them at its start when the GPU has GLES 3, so only the three
+  output buffers are made at the switch.
+
 ## Steam's CDN (2026-11-08)
 
 - **London's servers (lhr1) present the wrong TLS certificates** from the

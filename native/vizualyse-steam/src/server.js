@@ -74,9 +74,23 @@ const RESOLUTIONS = [
     { id: '640x360', w: 640, h: 360, name: '640x360 (16:9, lightest)' },
     { id: '1344x480', w: 1344, h: 480, name: '1344x480 (the screen\'s shape)' },
     { id: '1792x640', w: 1792, h: 640, name: '1792x640 (the screen, full size)' },
+    /* the screen's shape, small: what Upscaling FSR is for (2.8:1, shown at
+     * 1790x638: 1.6x, 2x, 2.67x) */
+    { id: '1120x400', w: 1120, h: 400, name: '1120x400 (the screen\'s shape, lighter)' },
+    { id: '896x320', w: 896, h: 320, name: '896x320 (the screen\'s shape, half: with FSR)' },
+    { id: '672x240', w: 672, h: 240, name: '672x240 (the screen\'s shape, lightest: with FSR)' },
 ];
 const RES_DEFAULT = '960x540';
 const FPS_CHOICES = [30, 60];
+/* How a game drawn smaller than it is shown is scaled up: Winston's bilinear
+ * (free), or FSR 1 in wl-sink (EASU + RCAS on the GPU, sharper edges; costs
+ * GPU time, softens the HUD less than bilinear but more than a game's own
+ * render scale). arg: wl-sink's --fsr. Changes apply at once. */
+const UPSCALES = [
+    { id: 'off', name: 'Off (Winston, bilinear)', arg: 'off' },
+    { id: 'fsr', name: 'FSR (sharper)', arg: '0.2' },
+    { id: 'fsr-soft', name: 'FSR without sharpening', arg: '-1' },
+];
 const CGROUP_ROOT = process.env.STEAM_CGROUP_ROOT || '/sys/fs/cgroup/memory';
 /* The game's memory cap: more lets bigger games run, but leaves less to the
  * HMI (the unit has ~5.6 GB in all; the browser's notes: knowledge/browser.md) */
@@ -153,7 +167,9 @@ function link() { const ip = uplinkIp(); return ip ? 'http://' + ip + ':' + PORT
 
 const SETTINGS_FILE = path.join(env.STATE_DIR, 'settings.json');
 const settings = Object.assign({ enabled: true, username: '', where: 'internal', resolution: RES_DEFAULT, fps: 30,
-    memMb: MEM_DEFAULT, sound: true, volume: 100, cellId: 0 }, readJson(SETTINGS_FILE) || {});
+    memMb: MEM_DEFAULT, sound: true, volume: 100, cellId: 0, upscale: 'off' }, readJson(SETTINGS_FILE) || {});
+if (!UPSCALES.some((u) => u.id === settings.upscale)) settings.upscale = 'off';
+function upscaleArg() { return UPSCALES.filter((u) => u.id === settings.upscale)[0].arg; }
 /* where downloads come from: 0 Steam's choice by the car's location, or a
  * Steam cell (DepotDownloader -cellid): when that region's servers fail */
 const REGIONS = [{ id: 0, name: 'Automatic' }, { id: 15, name: 'Amsterdam' }, { id: 5, name: 'Frankfurt' },
@@ -780,7 +796,7 @@ function play(appId) {
     try { writeJson(GAME_RUNNING, { appId: appId, name: g.name, at: new Date().toISOString(), vulkan: vulkan }); } catch (e) { log('game: ' + e.message); }
     const args = vulkan ? vulkanArgs(g) : g.args;
     const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch,
-        frame: { w: res.w, h: res.h }, fps: settings.fps, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
+        frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, log: log,
         vulkan: vulkan, crumbsFd: vulkan ? vulkanCrumbs : undefined });
     log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (DXVK 1.9.4 / ANV 19.0.6)' + (args !== g.args ? ', ' + args.join(' ') : '')
@@ -805,7 +821,7 @@ function play(appId) {
     askedOffNote = null;
     x.start();
     bus.ask(BUS_ASK, g.name + ' is running');
-    log('game: ' + g.name + ' (' + appId + ') at ' + res.w + 'x' + res.h + ', ' + settings.fps + ' fps, ' + settings.memMb + ' MB cap');
+    log('game: ' + g.name + ' (' + appId + ') at ' + res.w + 'x' + res.h + ', ' + settings.fps + ' fps, ' + settings.memMb + ' MB cap, upscaling ' + settings.upscale);
     return null;
 }
 
@@ -827,6 +843,20 @@ function setResolution(id) {
     settings.resolution = id;
     saveSettings();
     log('settings: resolution ' + id + ' (from the next game)');
+    return null;
+}
+
+/* 'next' cycles (the app's button); applies to a running game at once */
+function setUpscale(id) {
+    if (id === 'next') {
+        const i = UPSCALES.findIndex((u) => u.id === settings.upscale);
+        id = UPSCALES[(i + 1) % UPSCALES.length].id;
+    }
+    if (!UPSCALES.some((u) => u.id === id)) return 'upscaling: ' + UPSCALES.map((u) => u.id).join(', ');
+    settings.upscale = id;
+    saveSettings();
+    if (game && game.state !== 'ended') game.setFsr(upscaleArg(), settings.upscale);
+    log('settings: upscaling ' + id);
     return null;
 }
 
@@ -852,6 +882,7 @@ function setSetting(b) {
     }
     if (b.volume !== undefined) { const v = Number(b.volume); if (!(v >= 0 && v <= 150)) return 'volume 0-150'; settings.volume = Math.round(v); }
     if (b.resolution !== undefined) { const e = setResolution(String(b.resolution)); if (e) return e; }
+    if (b.upscale !== undefined) { const e = setUpscale(String(b.upscale)); if (e) return e; }
     saveSettings();
     return null;
 }
@@ -886,13 +917,16 @@ function status() {
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
             buffers: { drm: game.stats.drm, shm: game.stats.shm, fwd: game.stats.fwd || 0, scaled: game.stats.scaled || 0, commits: game.stats.commits || 0 }, note: game.note,
+            /* FSR in wl-sink: pictures drawn (in all), skipped, its GPU time (ms, the newest measured), its size */
+            fsr: game.stats.fsr ? { pictures: game.stats.fsr, skipped: game.stats.fsrSkipped || 0, gpuMs: game.stats.fsrGpuMs, size: game.stats.fsrSize } : null,
             /* the controllers in use: [{ player, name }] (steam-pads) */
             pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
         running: !!g, shown: screen.shown(), speed: vehicle.kmh, moving: moving(),
         winston: { on: winstonOut, connected: !!(g && g.winston), via: screen.via, note: winstonNote },
         bus: bus.state(), busNote: askedOffNote,
-        settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume, cellId: settings.cellId || 0 },
+        settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume, cellId: settings.cellId || 0, upscale: settings.upscale },
         choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, regions: REGIONS, disk: diskAvailable(),
+            upscales: UPSCALES.map((u) => ({ id: u.id, name: u.name })),
             usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
         space: space, memory: { capMb: settings.memMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
     };
@@ -989,6 +1023,7 @@ function command(c) {
     if (c.cmd === 'play') return play(c.appId);
     if (c.cmd === 'stop') return stopGame('stopped on the iDrive page');
     if (c.cmd === 'resolution') return setResolution('next');
+    if (c.cmd === 'upscale') return setUpscale('next');
     if (c.cmd === 'winston') return setWinston(c.on);
     return 'unknown command';
 }

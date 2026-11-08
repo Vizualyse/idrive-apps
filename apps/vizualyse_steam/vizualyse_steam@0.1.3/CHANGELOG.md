@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+- **Upscaling** button under Picture: off (Winston enlarges the picture),
+  FSR (AMD's FSR 1 on the car's GPU, sharper), FSR without sharpening;
+  applies to a running game at once. Needs the Steam tool 0.1.11; an older
+  one shows "Upscaling: not in this Steam tool (update it)".
+
 ## 0.1.2
 
 - No change to the page: its shared files (the QR code, the car's speed) now

@@ -35,7 +35,7 @@ WIN_SINK=$(cd "$SINK" && (pwd -W 2>/dev/null || pwd))
 # not committed: as the Steam tool's own build does first
 node "$(cd "$HERE/../../platform" && (pwd -W 2>/dev/null || pwd))/platform.js" sync \
     "$(cd "$HERE/../../native/vizualyse-steam" && (pwd -W 2>/dev/null || pwd))" >&2
-key=$( (cat "$HERE"/src/*.c "$HERE"/test/*.c "$HERE/build.sh" "$SINK"/wl_sink.c "$SINK"/rgb.c "$SINK"/frame_out.c "$SINK"/winston_out.c "$SINK"/*.h "$SINK"/protocol/*.xml;
+key=$( (cat "$HERE"/src/*.c "$HERE"/test/*.c "$HERE/build.sh" "$SINK"/wl_sink.c "$SINK"/fsr.c "$SINK"/rgb.c "$SINK"/frame_out.c "$SINK"/winston_out.c "$SINK"/*.h "$SINK"/protocol/*.xml;
         docker image inspect -f '{{.Id}}' "$IMG") | sha256sum | cut -c1-16)
 if [ -f "$HERE/build/vk-trial.tgz" ] && [ "$(cat "$HERE/build/key" 2>/dev/null)" = "$key" ]; then
     echo "vk-trial: up to date ($key)"
@@ -83,10 +83,10 @@ docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id
     for x in ivi-application ivi-controller linux-dmabuf-unstable-v1; do
         $S client-header /sink/protocol/$x.xml $G/$x-client-protocol.h; $S private-code /sink/protocol/$x.xml $G/$x-protocol.c
     done
-    gcc $W -I/sink -I$G -I/opt/wl/include -o /m/build/pkg/bin/wl-sink /sink/wl_sink.c /sink/rgb.c /sink/frame_out.c /sink/winston_out.c \
+    gcc $W -I/sink -I$G -I/opt/wl/include -o /m/build/pkg/bin/wl-sink /sink/wl_sink.c /sink/fsr.c /sink/rgb.c /sink/frame_out.c /sink/winston_out.c \
         $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c $G/viewporter-protocol.c \
         $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c \
-        -L/opt/wl/lib -lwayland-server -lwayland-client -ldl -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 \
+        -L/opt/wl/lib -lwayland-server -lwayland-client -ldl -lm -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 \
         -Wl,--disable-new-dtags,-rpath,\$ORIGIN/../lib/wl
     mkdir -p /m/build/pkg/lib/wl && cp /out/lib/wl/* /m/build/pkg/lib/wl/
     cp /tmp/gen/client/xdg-shell-client-protocol.h /tmp/gen/client/xdg-shell-protocol.c /m/build/bench/   # for test/lavapipe_test.sh

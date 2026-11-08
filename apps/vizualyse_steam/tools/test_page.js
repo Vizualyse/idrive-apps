@@ -193,7 +193,7 @@ const STS2 = { appId: 2868840, name: 'Slay the Spire 2', exe: 'SlayTheSpire2.exe
 const OTHER = { appId: 4242, name: 'Test Game', exe: 'TestGame.exe', args: '', engine: null, sizeMb: 10 };
 const BASE = { enabled: true, link: LINK1, uplink: 'online', bundle: 'ready', error: null, prefixNote: null, restartNote: null,
     account: { username: 'tester', remembered: true }, download: null, library: [STS2, OTHER], game: null, running: false, shown: false,
-    speed: null, moving: false, settings: { where: 'internal', resolution: '1280x720', fps: 30, memMb: 2560, sound: true, volume: 100 },
+    speed: null, moving: false, settings: { where: 'internal', resolution: '1280x720', fps: 30, memMb: 2560, sound: true, volume: 100, upscale: 'off' },
     memory: { capMb: 2560, usedMb: null, peakMb: null, note: null, oomAt: null } };
 let st = Object.assign({}, BASE);
 const received = [];
@@ -212,7 +212,7 @@ function serve() {
 }
 const sent = (cmd) => received.some((c) => c.cmd === cmd);
 const count = (cmd) => received.filter((c) => c.cmd === cmd).length;
-const BUTTONS = ['steamShow', 'steamStop', 'steamPlay1', 'steamPlay2', 'steamPlay3', 'steamPlay4', 'steamResolution', 'steamEnable'];
+const BUTTONS = ['steamShow', 'steamStop', 'steamPlay1', 'steamPlay2', 'steamPlay3', 'steamPlay4', 'steamResolution', 'steamUpscale', 'steamEnable'];
 
 async function main() {
     const comps = UI.containers['1'].components;
@@ -251,7 +251,7 @@ async function main() {
     const S = byName.steamStatus, G = byName.steamGame, D = byName.steamDownload;
     await until('no-tool status', () => /not running/.test(S.text || ''));
     assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
-    ['steamShow', 'steamStop', 'steamResolution', 'steamEnable'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
+    ['steamShow', 'steamStop', 'steamResolution', 'steamUpscale', 'steamEnable'].forEach((n) => assert.strictEqual(byName[n].enabled, false, n + ' disabled'));
     ['steamPlay1', 'steamPlay2', 'steamPlay3', 'steamPlay4'].forEach((n) => assert.strictEqual(byName[n].visible, false, n + ' hidden'));
     assert.strictEqual(byName.steamEnable.text, 'Steam: not running');
     assert.strictEqual(byName.steamQr.visible, false);
@@ -370,6 +370,21 @@ async function main() {
     await until('the new picture', () => byName.steamResolution.text === 'Picture: 1344x480');
     console.log('ok   Picture sends resolution and shows the size');
 
+    /* Upscaling: the next way (off, FSR, FSR without sharpening); an older tool has none */
+    assert.strictEqual(byName.steamUpscale.text, 'Upscaling: off');
+    await sleep(450);
+    byName.steamUpscale.emit('action');
+    await until('upscale sent', () => sent('upscale'));
+    st = Object.assign({}, st, { settings: Object.assign({}, st.settings, { upscale: 'fsr' }) });
+    tool.broadcast();
+    await until('FSR', () => byName.steamUpscale.text === 'Upscaling: FSR');
+    st = Object.assign({}, st, { settings: Object.assign({}, st.settings, { upscale: undefined }) });
+    tool.broadcast();
+    await until('an older tool', () => byName.steamUpscale.text === 'Upscaling: not in this Steam tool (update it)');
+    st = Object.assign({}, st, { settings: Object.assign({}, st.settings, { upscale: 'off' }) });
+    tool.broadcast();
+    console.log('ok   Upscaling sends upscale and shows the way; an older tool says so');
+
     /* out of memory, the restart note, moving, a command's error */
     st = Object.assign({}, st, { running: true, game: GAME('running'), memory: Object.assign({}, st.memory, { note: 'out of memory', oomAt: new Date().toISOString() }) });
     tool.broadcast();
@@ -422,7 +437,7 @@ async function main() {
     assert.strictEqual(tool.clients(), 1, 'the socket stays open with the page hidden');
     assert(count('speed') > n, 'the speed goes on with the page hidden');
     byName[STATE].emit('visible', { visible: true });
-    assert(!received.some((c) => !/^(speed|show|hide|play|stop|resolution|enable|disable)$/.test(c.cmd)), 'nothing else sent');
+    assert(!received.some((c) => !/^(speed|show|hide|play|stop|resolution|upscale|enable|disable)$/.test(c.cmd)), 'nothing else sent');
     tool.close();
     await until('tool gone', () => /not running/.test(S.text || ''));
     assert.strictEqual(byName.steamEnable.enabled, false);

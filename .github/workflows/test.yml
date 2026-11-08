@@ -53,6 +53,8 @@ jobs:
         run: node apps/vizualyse_chromium/tools/test_page.js
       - name: Steam page
         run: node apps/vizualyse_steam/tools/test_page.js
+      - name: Steam's perf lines (fps, lows, FSR's GPU time; the unit's Node 8)
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/perf_test.js
       - name: Release tooling
         run: node release/test/release_test.js
       - name: Node 8 syntax (the head unit's)

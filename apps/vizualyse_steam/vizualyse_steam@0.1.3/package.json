@@ -1,6 +1,6 @@
 {
   "name": "vizualyse_steam",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Steam: plays Windows games from your Steam library on the car (the vizualyse-steam tool), shows the phone link and QR code for signing in and installing, and shows or hides the game on the central screen",
   "private": false,
   "main": "javascript/runner.js",

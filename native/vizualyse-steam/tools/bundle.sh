@@ -172,10 +172,10 @@ done
 gcc -O2 -Wall -Wextra -Werror -o /tmp/rgb_test /m/src/rgb_test.c /m/src/rgb.c && /tmp/rgb_test
 gcc -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -I/m/src -I$G2 \
     -Wl,--dynamic-linker=$LOADER -Wl,-rpath,$R/lib -Wl,--build-id=sha1 -o "$R/wl-sink" \
-    /m/src/wl_sink.c /m/src/rgb.c /m/src/frame_out.c /m/src/winston_out.c $G2/xdg-shell-protocol.c \
+    /m/src/wl_sink.c /m/src/fsr.c /m/src/rgb.c /m/src/frame_out.c /m/src/winston_out.c $G2/xdg-shell-protocol.c \
     $G2/wayland-drm-protocol.c $G2/viewporter-protocol.c $G2/ivi-application-protocol.c $G2/ivi-controller-protocol.c \
     $G2/linux-dmabuf-unstable-v1-protocol.c \
-    $(pkg-config --cflags --libs wayland-server wayland-client) -ldl
+    $(pkg-config --cflags --libs wayland-server wayland-client) -ldl -lm
 strip --strip-unneeded "$R/wl-sink"
 # the display's touches while a game is shown, read passively (src/touch_main.c,
 # vizualyse-chromium's helper): server.js turns them into wl-sink's pointer

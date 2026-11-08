@@ -282,6 +282,28 @@
             }
           ]
         },
+        "38": {
+          "type": "button",
+          "name": "steamUpscale",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Upscaling: off",
+                "type": "Text"
+              }
+            }
+          ]
+        },
         "40": {
           "type": "label",
           "name": "steamGame",

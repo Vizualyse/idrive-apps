@@ -47,6 +47,12 @@
  * and back to Wine at Winston's release. Otherwise the picture is composed
  * as ever and handed over in our own buffers.
  *
+ * --fsr STOPS (with --winston; stdin "fsr STOPS" / "fsr off" at any time):
+ * such a buffer, when Winston would scale it up by 10 % or more, is drawn by
+ * FSR 1 (src/fsr.c: EASU, then RCAS at STOPS, 0 the sharpest, 0.2 AMD's
+ * default, -1 none) at its size on the screen into buffers of ours, shown
+ * 1:1. Off by default; turned off by itself if the GPU refuses it.
+ *
  * stdout: one JSON event a line: {"ev":"ready","socket":..,"drm":bool,..},
  * {"ev":"toplevel","title":..}, {"ev":"stats","pictures":n,"commits":n,
  * "shm":n,"drm":n,"ms":avg} once a second while anything happens,
@@ -69,6 +75,7 @@
 #include <grp.h>
 #include <wayland-server.h>
 #include "frame_out.h"
+#include "fsr.h"
 #include "rgb.h"
 #include "winston_out.h"
 #include "xdg-shell-server-protocol.h"
@@ -90,6 +97,19 @@ static int wshown;
 static struct wo_ring *ring;
 static unsigned long n_winston, n_fwd;   /* pictures through Winston; of them, GPU buffers passed on as they are */
 static unsigned long n_fwd_scaled;       /* of those, scaled or cut by Winston (the surface's viewport) */
+/* FSR (below compose's helpers) */
+static int place_w = 1790, place_h = 638;   /* where Winston shows us (wo_opts, "winston X,Y,W,H") */
+/* the game's frame times: the time between new buffers committed on the
+ * surface shown (one clock read a frame), sent with each stats line ("ft") */
+static const void *ft_surface;
+static long long ft_last_us;
+static float ft[512];
+static int ft_n;
+static int fsr_redo;                     /* the place or the setting changed: draw again */
+static unsigned long n_fsr, n_fsr_skipped;
+static void pool_free(void);
+static void fsr_cmd(const char *line);
+static void fsr_forget(const void *s);
 static const char *snap_path;
 static int dirty;
 static unsigned long n_pictures, n_commits, n_shm, n_drm, n_ms_total;
@@ -155,6 +175,12 @@ static struct {
     GLenum (*checkFramebufferStatus)(GLenum);
     void (*readPixels)(int, int, int, int, GLenum, GLenum, void *);
     void (*finish)(void);
+    int es3;                      /* a GLES 3 context: FSR can run */
+    void *gbm;                    /* the GBM device, for FSR's output buffers */
+    void *(*bo_create)(void *, uint32_t, uint32_t, uint32_t, uint32_t);
+    int (*bo_get_fd)(void *);
+    uint32_t (*bo_get_stride)(void *);
+    void (*bo_destroy)(void *);
 } gl;
 
 static int gl_init(const char *device) {
@@ -180,9 +206,18 @@ static int gl_init(const char *device) {
     const char *ext = queryString(gl.dpy, 0x3055 /* EGL_EXTENSIONS */);
     if (!ext || !strstr(ext, "EGL_EXT_image_dma_buf_import") || !strstr(ext, "EGL_KHR_surfaceless_context")) return -1;
     bindAPI(EGL_OPENGL_ES_API);
+    /* GLES 3 for FSR (the unit's i965: 3.2), else 2 (FSR off) */
+    const EGLint attr3[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
     const EGLint attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
-    gl.ctx = createContext(gl.dpy, NULL, NULL, attr);   /* EGL_KHR_no_config_context */
+    gl.ctx = createContext(gl.dpy, NULL, NULL, attr3);   /* EGL_KHR_no_config_context */
+    gl.es3 = gl.ctx != NULL;
+    if (!gl.ctx) gl.ctx = createContext(gl.dpy, NULL, NULL, attr);
     if (!gl.ctx || !makeCurrent(gl.dpy, NULL, NULL, gl.ctx)) return -1;
+    gl.gbm = gdev;
+    gl.bo_create = dlsym(gbm, "gbm_bo_create");
+    gl.bo_get_fd = dlsym(gbm, "gbm_bo_get_fd");
+    gl.bo_get_stride = dlsym(gbm, "gbm_bo_get_stride");
+    gl.bo_destroy = dlsym(gbm, "gbm_bo_destroy");
 #define P(f, n) if (!(gl.f = gl.getProcAddress(n))) return -1
     P(createImage, "eglCreateImageKHR"); P(destroyImage, "eglDestroyImageKHR");
     P(imageTargetTexture, "glEGLImageTargetTexture2DOES");
@@ -206,6 +241,8 @@ struct drm_buffer {
     struct wo_buf *wb;            /* the same buffer in Winston, once passed on */
     int refused;                  /* Winston refused it: read back instead */
     int held;                     /* Winston has it: the client gets it back at its release */
+    EGLImage img;                 /* FSR's source: the buffer as a texture, made once */
+    GLuint tex;
 };
 
 static struct wl_list drm_buffers;
@@ -214,6 +251,8 @@ static void drm_buffer_gone(struct drm_buffer *b);   /* surfaces forget it */
 static void drm_buffer_destroy_res(struct wl_resource *res) {
     struct drm_buffer *b = wl_resource_get_user_data(res);
     drm_buffer_gone(b);
+    if (b->tex) gl.deleteTextures(1, &b->tex);
+    if (b->img) gl.destroyImage(gl.dpy, b->img);
     if (b->fd >= 0) close(b->fd);
     if (b->wb) wo_buf_free(b->wb);   /* Winston keeps what it shows */
     wl_list_remove(&b->link);
@@ -232,22 +271,29 @@ static void drm_buffer_released(void *data, struct wo_buf *wb) {
 static void buffer_destroy(struct wl_client *c, struct wl_resource *res) { (void)c; wl_resource_destroy(res); }
 static const struct wl_buffer_interface drm_buffer_impl = { .destroy = buffer_destroy };
 
+/* The buffer as a texture: imported once, kept until the client destroys
+ * the buffer (FSR and the read-back share it: one import of a dmabuf). */
+static int drm_buffer_texture(struct drm_buffer *d) {
+    if (d->tex) return 0;
+    const EGLint attr[] = {
+        EGL_WIDTH, d->w, EGL_HEIGHT, d->h, EGL_LINUX_DRM_FOURCC_EXT, (EGLint)d->format,
+        EGL_DMA_BUF_PLANE0_FD_EXT, d->fd, EGL_DMA_BUF_PLANE0_OFFSET_EXT, d->offset,
+        EGL_DMA_BUF_PLANE0_PITCH_EXT, d->stride, EGL_NONE };
+    d->img = gl.createImage(gl.dpy, NULL, EGL_LINUX_DMA_BUF_EXT, NULL, attr);
+    if (!d->img) return -1;
+    gl.genTextures(1, &d->tex);
+    gl.bindTexture(GL_TEXTURE_2D, d->tex);
+    gl.imageTargetTexture(GL_TEXTURE_2D, d->img);
+    return 0;
+}
+
 /* Reads a wl_drm buffer into dst (w x h, XRGB) through an EGLImage: 0 or -1. */
 static int drm_buffer_read(struct drm_buffer *b, uint32_t *dst) {
-    if (!gl.ok) return -1;
-    const EGLint attr[] = {
-        EGL_WIDTH, b->w, EGL_HEIGHT, b->h, EGL_LINUX_DRM_FOURCC_EXT, (EGLint)b->format,
-        EGL_DMA_BUF_PLANE0_FD_EXT, b->fd, EGL_DMA_BUF_PLANE0_OFFSET_EXT, b->offset,
-        EGL_DMA_BUF_PLANE0_PITCH_EXT, b->stride, EGL_NONE };
-    EGLImage img = gl.createImage(gl.dpy, NULL, EGL_LINUX_DMA_BUF_EXT, NULL, attr);
-    if (!img) return -1;
-    GLuint tex, fb;
-    gl.genTextures(1, &tex);
-    gl.bindTexture(GL_TEXTURE_2D, tex);
-    gl.imageTargetTexture(GL_TEXTURE_2D, img);
+    if (!gl.ok || drm_buffer_texture(b) < 0) return -1;
+    GLuint fb;
     gl.genFramebuffers(1, &fb);
     gl.bindFramebuffer(GL_FRAMEBUFFER, fb);
-    gl.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+    gl.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, b->tex, 0);
     int r = -1;
     if (gl.checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
         gl.readPixels(0, 0, b->w, b->h, GL_RGBA, GL_UNSIGNED_BYTE, dst);
@@ -261,8 +307,6 @@ static int drm_buffer_read(struct drm_buffer *b, uint32_t *dst) {
     }
     gl.bindFramebuffer(GL_FRAMEBUFFER, 0);
     gl.deleteFramebuffers(1, &fb);
-    gl.deleteTextures(1, &tex);
-    gl.destroyImage(gl.dpy, img);
     return r;
 }
 
@@ -348,6 +392,7 @@ struct surface {
     /* shown through Winston: its GPU buffer, not read back yet (pix is
      * stale); compose() passes it on as it is, or reads it back */
     struct drm_buffer *drm;
+    unsigned long gen;            /* counts the GPU buffers kept: FSR draws each one once */
 };
 
 static struct wl_list surfaces;
@@ -375,6 +420,8 @@ static void surface_destroy_res(struct wl_resource *res) {
     drm_done(s);
     if (entered == s) entered = NULL;
     if (shown_top == s) shown_top = NULL;
+    fsr_forget(s);
+    if (ft_surface == s) { ft_surface = NULL; ft_last_us = 0; }
     wl_list_for_each(o, &surfaces, link)
         if (o->parent == s) o->parent = NULL;
     struct wl_resource *cb, *tmp;
@@ -456,6 +503,7 @@ static int take_buffer(struct surface *s, struct wl_resource *buffer) {
     if (s->drm && s->drm != drm) drm_done(s);   /* superseded */
     if (drm && wshown && wo && !drm->refused) {
         s->drm = drm;
+        s->gen++;
         s->w = w; s->h = h;   /* the size it is shown at; pix is filled only if it is read back */
         if (s->pix) { free(s->pix); s->pix = NULL; }
         return 1;
@@ -484,6 +532,13 @@ static void s_commit(struct wl_client *c, struct wl_resource *r) {
     (void)c;
     struct surface *s = wl_resource_get_user_data(r);
     n_commits++;
+    if (s->pend_attached && s->pend_buffer && s == ft_surface) {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        long long us = ts.tv_sec * 1000000LL + ts.tv_nsec / 1000;
+        if (ft_last_us && ft_n < (int)(sizeof ft / sizeof *ft)) ft[ft_n++] = (float)(us - ft_last_us) / 1000.0f;
+        ft_last_us = us;
+    }
     if (s->pend_attached) {
         if (s->pend_buffer) {
             if (!take_buffer(s, s->pend_buffer)) wl_buffer_send_release(s->pend_buffer);
@@ -899,6 +954,7 @@ static void wo_lost(void) {
     wl_list_for_each(b, &drm_buffers, link)
         if (b->wb) { wo_buf_free(b->wb); b->wb = NULL; }
     wo_ring_free(ring); ring = NULL;
+    pool_free();
     wo_close(wo); wo = NULL;
     wshown = 0;
     puts("{\"ev\":\"winston-lost\"}");   /* the frame file goes on */
@@ -925,11 +981,14 @@ static void winston_cmd(const char *line) {
         wshown = 0;
         drm_buffers_unhold();
         wo_ring_free(ring); ring = NULL;
+        pool_free();
         return;
     }
     if (sscanf(line, "winston %d,%d,%d,%d", &x, &y, &w, &h) != 4 || w < 16 || h < 16 || w > 4096 || h > 4096) return;
     if (!wo) { puts("{\"ev\":\"error\",\"error\":\"not connected to Winston\"}"); fflush(stdout); return; }
     wo_place(wo, x, y, w, h);
+    place_w = w; place_h = h;
+    fsr_redo = 1;
     if (wo_show(wo, 1) < 0) { wo_lost(); return; }
     wshown = 1;
     dirty = 1;   /* the current picture at the next tick */
@@ -956,6 +1015,8 @@ static int on_stdin(int fd, uint32_t mask, void *data) {
         int x, y;
         if (!strncmp(line, "winston ", 8) || !strcmp(line, "hide"))
             winston_cmd(line);
+        else if (!strncmp(line, "fsr ", 4))
+            fsr_cmd(line);
         else if (sscanf(line, " %c %d %d", &kind, &x, &y) == 3 && (kind == 'd' || kind == 'm' || kind == 'u'))
             touch_input(kind, x, y);
         line = nl + 1;
@@ -1064,6 +1125,134 @@ static int forward(struct surface *x, int px, int py) {
     return 1;
 }
 
+/* ---- FSR (--fsr, "fsr" on stdin): the game's buffer upscaled here ----
+ *
+ * Instead of passing the game's GPU buffer on for Winston to scale
+ * (bilinear), FSR 1 (src/fsr.c) draws it at the size it takes on the screen
+ * into one of three buffers of ours, which Winston then shows 1:1. The
+ * game's buffer is only read, so it goes back to Wine at its next commit as
+ * when it is read back (never held by Winston). Each buffer of the game's
+ * is drawn once; a picture is skipped while Winston still has all three. */
+
+static struct fsr *fsr;                /* made at the start (main), or at the first use */
+static int fsr_on, fsr_failed;
+static float fsr_sharp = 0.2f;         /* RCAS's, in stops (AMD's default); < 0: EASU alone */
+static const struct surface *fsr_last_s;
+static unsigned long fsr_last_gen;
+
+struct fsr_out { void *bo; int fd; EGLImage img; GLuint tex, fb; struct wo_buf *wb; };
+static struct fsr_out pool[3];
+static int pool_w, pool_h, pool_next;
+
+/* {"ev":"fsr","msg":...}: FSR turned itself off (not an error of the sink's) */
+static void fsr_say(const char *what) {
+    printf("{\"ev\":\"fsr\",\"msg\":"); jstr(what); puts("}");
+    fflush(stdout);
+}
+
+static void pool_free(void) {
+    for (int i = 0; i < 3; i++) {
+        struct fsr_out *o = &pool[i];
+        if (o->wb) wo_buf_free(o->wb);   /* Winston keeps what it shows */
+        if (o->fb) gl.deleteFramebuffers(1, &o->fb);
+        if (o->tex) gl.deleteTextures(1, &o->tex);
+        if (o->img) gl.destroyImage(gl.dpy, o->img);
+        if (o->fd >= 0 && o->bo) close(o->fd);
+        if (o->bo) gl.bo_destroy(o->bo);
+        memset(o, 0, sizeof *o);
+    }
+    pool_w = pool_h = 0;
+    fsr_redo = 1;
+}
+
+/* three w x h XRGB8888 GPU buffers, each an FBO here and a buffer in Winston */
+static int pool_make(int w, int h) {
+    pool_free();
+    for (int i = 0; i < 3; i++) {
+        struct fsr_out *o = &pool[i];
+        o->bo = gl.bo_create(gl.gbm, (uint32_t)w, (uint32_t)h, FMT_XRGB8888, 1u << 2 /* GBM_BO_USE_RENDERING */);
+        o->fd = o->bo ? gl.bo_get_fd(o->bo) : -1;
+        if (o->fd < 0) { pool_free(); return -1; }
+        uint32_t stride = gl.bo_get_stride(o->bo);
+        /* the GBM buffer itself as the image (EGL_NATIVE_PIXMAP_KHR on GBM);
+         * the fd is for Winston only. Importing that fd back into our own
+         * i965 made two buffers of one, and freeing them corrupted the heap
+         * (wl-sink hung at a hide; test/fsr_test.c, bench 2026-11-08) */
+        o->img = gl.createImage(gl.dpy, NULL, 0x30B0 /* EGL_NATIVE_PIXMAP_KHR */, o->bo, NULL);
+        if (!o->img) { pool_free(); return -1; }
+        gl.genTextures(1, &o->tex);
+        gl.bindTexture(GL_TEXTURE_2D, o->tex);
+        gl.imageTargetTexture(GL_TEXTURE_2D, o->img);
+        gl.genFramebuffers(1, &o->fb);
+        gl.bindFramebuffer(GL_FRAMEBUFFER, o->fb);
+        gl.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, o->tex, 0);
+        int ok = gl.checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        gl.bindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (!ok) { pool_free(); return -1; }
+        /* no modifier said: Winston's driver takes the tiling from the kernel, as for Wine's */
+        o->wb = wo_buf_dmabuf(wo, o->fd, w, h, FMT_XRGB8888, 0, stride, 0x00ffffffffffffffull);
+        if (!o->wb) { pool_free(); return -1; }
+    }
+    pool_w = w; pool_h = h;
+    return 0;
+}
+
+/* forward(), through FSR: 1 when the picture is shown (or already was). */
+static int fsr_forward(struct surface *x, int px, int py) {
+    struct drm_buffer *d = x->drm;
+    if (!fsr_on || fsr_failed || !gl.es3 || !gl.bo_create || !gl.gbm || !d) return 0;
+    int w, h;
+    shown_size(x, &w, &h);
+    if (w <= 1 || h <= 1 || px < 0 || py < 0 || px + w > out_w || py + h > out_h) return 0;
+    int sx = 0, sy = 0, sw = d->w, sh = d->h;
+    if (x->vw > 0 && x->vh > 0) {
+        sx = (int)(x->vx + 0.5); sy = (int)(x->vy + 0.5); sw = (int)(x->vw + 0.5); sh = (int)(x->vh + 0.5);
+        if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) return 0;
+    }
+    /* its size on the screen: the picture (out_w x out_h) fitted into the place */
+    double k = (double)place_w / out_w < (double)place_h / out_h ? (double)place_w / out_w : (double)place_h / out_h;
+    int fw = (int)(w * k + 0.5), fh = (int)(h * k + 0.5);
+    if (fw > 4096 || fh > 4096 || fw < 16 || fh < 16) return 0;
+    if (fw < sw * 11 / 10 && fh < sh * 11 / 10) return 0;   /* barely scaled: Winston's is enough */
+    if (x == fsr_last_s && x->gen == fsr_last_gen && !fsr_redo) return 1;   /* drawn, still shown */
+    if (!fsr) {
+        char err[1200];
+        fsr = fsr_new(gl.getProcAddress, err, sizeof err);
+        if (!fsr) { fsr_failed = 1; fsr_say(err); return 0; }
+    }
+    if ((fw != pool_w || fh != pool_h) && pool_make(fw, fh) < 0) {
+        fsr_failed = 1;
+        fsr_say("fsr: no output buffers (GBM, EGL or Winston refused them): off");
+        return 0;
+    }
+    struct fsr_out *o = NULL;
+    for (int i = 0; i < 3 && !o; i++) {
+        int j = (pool_next + i) % 3;
+        if (!wo_buf_busy(pool[j].wb)) { o = &pool[j]; pool_next = (j + 1) % 3; }
+    }
+    if (!o) { n_fsr_skipped++; return 1; }   /* Winston has all three: this picture is skipped */
+    if (drm_buffer_texture(d) < 0) return 0;
+    if (fsr_run(fsr, d->tex, d->w, d->h, sx, sy, sw, sh, o->fb, fw, fh, fsr_sharp) < 0) return 0;
+    if (wo_present_view(wo, o->wb, 0, 0, fw, fh, w, h, out_w, out_h, px, py) < 0) return 0;
+    fsr_last_s = x; fsr_last_gen = x->gen; fsr_redo = 0;
+    n_fsr++;
+    n_winston++;
+    return 1;
+}
+
+/* a surface went: never mistaken for a new one at the same address */
+static void fsr_forget(const void *s) { if (fsr_last_s == s) fsr_last_s = NULL; }
+
+/* "fsr off" or "fsr STOPS" (RCAS's sharpness, 0 the sharpest; "fsr -1": EASU alone) */
+static void fsr_cmd(const char *line) {
+    float s;
+    if (!strcmp(line, "fsr off")) fsr_on = 0;
+    else if (sscanf(line, "fsr %f", &s) == 1 && s <= 4) { fsr_on = 1; fsr_sharp = s; fsr_failed = 0; }
+    else return;
+    fsr_redo = 1;
+    dirty = 1;
+}
+
 static void compose(void) {
     long t0 = now_ms();
     struct surface *top = NULL, *s;
@@ -1089,11 +1278,14 @@ static void compose(void) {
     shown_top = top;
     /* the one surface shown alone, at its place in the picture */
     struct surface *alone = client ? client : (top && !subs ? top : NULL);
+    /* frame times are the game's picture's: the client area, else the window */
+    const void *fts = client ? (const void *)client : (const void *)top;
+    if (fts != ft_surface) { ft_surface = fts; ft_last_us = 0; }
     if (alone && wshown && wo && alone->drm) {
         int w, h;
         shown_size(alone, &w, &h);
         int x = (out_w - w) / 2, y = (out_h - h) / 2;
-        if (forward(alone, x, y)) {
+        if (fsr_forward(alone, x, y) || forward(alone, x, y)) {
             org_x = x - (client ? client->sx : 0); org_y = y - (client ? client->sy : 0);
             n_pictures++;
             n_ms_total += (unsigned long)(now_ms() - t0);
@@ -1177,8 +1369,27 @@ static int tick(void *data) {
     if (now - last_stats >= 1000) {
         unsigned long pics = n_pictures - stat_pictures;
         if (pics) {
-            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"winston\":%lu,\"fwd\":%lu,\"scaled\":%lu,\"ms\":%.1f}\n",
+            printf("{\"ev\":\"stats\",\"pictures\":%lu,\"commits\":%lu,\"shm\":%lu,\"drm\":%lu,\"winston\":%lu,\"fwd\":%lu,\"scaled\":%lu,\"ms\":%.1f",
                    pics, n_commits, n_shm, n_drm, n_winston, n_fwd, n_fwd_scaled, (double)n_ms_total / (double)pics);
+            /* FSR: on (1) or off; pictures drawn (in all, and this second),
+             * skipped (Winston had all three); its GPU time this second (the
+             * timer queries: mean and max ms, how many measured; -1 without
+             * timers); its output size */
+            printf(",\"fsrOn\":%d", fsr_on && !fsr_failed);
+            /* the game's frame times this second (ms) */
+            fputs(",\"ft\":[", stdout);
+            for (int i = 0; i < ft_n; i++) printf(i ? ",%.1f" : "%.1f", ft[i]);
+            putchar(']');
+            ft_n = 0;
+            if (fsr) {
+                static unsigned long fsr_last_n;
+                double mean = 0, max = 0;
+                int n = fsr_gpu_take(fsr, &mean, &max);
+                printf(",\"fsr\":%lu,\"fsrNow\":%lu,\"fsrSkipped\":%lu,\"fsrGpuMs\":%.2f,\"fsrGpuMaxMs\":%.2f,\"fsrGpuN\":%d,\"fsrSize\":[%d,%d]",
+                       n_fsr, n_fsr - fsr_last_n, n_fsr_skipped, fsr_timers(fsr) ? mean : -1.0, max, n, pool_w, pool_h);
+                fsr_last_n = n_fsr;
+            }
+            puts("}");
             fflush(stdout);
         }
         stat_pictures = n_pictures; n_ms_total = 0; last_stats = now;
@@ -1212,7 +1423,7 @@ int main(int argc, char **argv) {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
         { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "input", 0, 0, 'i' }, { "whole-window", 0, 0, 'w' },
-        { "winston", 1, 0, 'W' }, { 0, 0, 0, 0 } };
+        { "winston", 1, 0, 'W' }, { "fsr", 1, 0, 'F' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
         case 's': sock = optarg; break;
@@ -1227,8 +1438,14 @@ int main(int argc, char **argv) {
         case 'i': input = 1; break;
         case 'w': whole_window = 1; break;
         case 'W': winston = optarg; break;
+        case 'F': {
+            char cmd[32];
+            snprintf(cmd, sizeof cmd, "fsr %s", optarg);
+            fsr_cmd(cmd);
+            break;
+        }
         default:
-            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window] [--winston SOCKET]\n");
+            fprintf(stderr, "usage: wl-sink --socket NAME --frame FILE [--create WxH] [--fps N] [--snap F.ppm] [--device D] [--no-drm] [--uid U --gid G] [--input] [--whole-window] [--winston SOCKET [--fsr off|STOPS]]\n");
             return 2;
         }
     }
@@ -1286,6 +1503,12 @@ int main(int argc, char **argv) {
     wl_global_create(display, &wp_viewporter_interface, 1, NULL, viewporter_bind);
     if (!no_drm && gl_init(device) == 0)
         wl_global_create(display, &wl_drm_interface, 2, NULL, drm_bind);
+    /* FSR's shaders compiled now, before the game: compiled at the first
+     * picture they stalled it (a 74 ms frame on the bench, 2026-11-08) */
+    if (gl.ok && gl.es3 && wo) {
+        char err[1200];
+        if (!(fsr = fsr_new(gl.getProcAddress, err, sizeof err))) { fsr_failed = 1; fsr_say(err); }
+    }
 
     struct wl_event_loop *loop = wl_display_get_event_loop(display);
     tick_timer = wl_event_loop_add_timer(loop, tick, NULL);
@@ -1299,7 +1522,7 @@ int main(int argc, char **argv) {
     printf("{\"ev\":\"ready\",\"socket\":"); jstr(sock);
     printf(",\"size\":[%d,%d],\"drm\":%s,\"device\":", out_w, out_h, gl.ok ? "true" : "false");
     jstr(gl.ok ? gl.device : NULL);
-    printf(",\"winston\":%s}\n", wo ? "true" : "false");
+    printf(",\"winston\":%s,\"fsr\":%s}\n", wo ? "true" : "false", fsr_on && gl.es3 ? "true" : "false");
     fflush(stdout);
     last_stats = now_ms();
     wl_event_source_timer_update(tick_timer, 1000 / fps);

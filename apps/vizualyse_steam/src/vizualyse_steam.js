@@ -49,7 +49,7 @@ const N = {
     status: 'steamStatus', game: 'steamGame', show: 'steamShow', stop: 'steamStop',
     play1: 'steamPlay1', play2: 'steamPlay2', play3: 'steamPlay3', play4: 'steamPlay4',
     download: 'steamDownload', qr: 'steamQr', link: 'steamLink', hint: 'steamHint',
-    resolution: 'steamResolution', enable: 'steamEnable',
+    resolution: 'steamResolution', upscale: 'steamUpscale', enable: 'steamEnable',
 };
 const PLAY = [N.play1, N.play2, N.play3, N.play4];
 /* an HMI pop-up takes the focus while the page stays visible; leaving or
@@ -171,6 +171,7 @@ class SteamApp extends OnlineApp {
         this._bind(N.stop, () => { this._autoShow = null; return this._control.stop(); });
         PLAY.forEach((name, i) => this._bind(name, () => this._play(this._playIds[i])));
         this._bind(N.resolution, () => this._control.resolution());
+        this._bind(N.upscale, () => this._control.upscale());
         this._bind(N.enable, () => (this._control.enabled() ? this._control.disable() : this._control.enable()));
         rhmi.on('userEvent', (ev) => {
             const entry = ev && ev.eventType === 'ACTION' && this._actionById[Number(ev.sourceId)];
@@ -401,10 +402,12 @@ class SteamApp extends OnlineApp {
         this._write(N.hint, link ? 'Scan with the phone whose hotspot the car is on: sign in to Steam, install games' : '');
         this._write(N.enable, 'Steam: ' + (up ? (c.enabled() ? 'on' : 'off') : 'not running'));
         this._write(N.resolution, up ? c.resolutionText() : 'Picture');
+        this._write(N.upscale, up ? c.upscaleText() : 'Upscaling');
         this._setEnabled(N.show, run && c.gameState() === 'running' && !covered && !c.moving());
         this._setEnabled(N.stop, run && !covered);
         this._setEnabled(N.enable, up && !covered);
         this._setEnabled(N.resolution, on && !covered);
+        this._setEnabled(N.upscale, on && !covered);
         const games = ready ? c.library().slice(0, PLAY.length) : [];
         const playing = c.gameId();
         PLAY.forEach((name, i) => {

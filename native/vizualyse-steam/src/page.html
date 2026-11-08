@@ -78,12 +78,13 @@
   <h2>Settings</h2>
   <div class="row"><label for="res">Picture</label><select id="res"></select></div>
   <div class="row"><label for="fps">Frames per second</label><select id="fps"></select></div>
+  <div class="row"><label for="ups">Upscaling</label><select id="ups"></select></div>
   <div class="row"><label for="mem">Memory for the game</label><select id="mem"></select></div>
   <div class="row"><label for="where">Install games on</label><select id="where"></select></div>
   <div class="row"><label for="region">Download from</label><select id="region"></select></div>
   <p class="dim" id="whereNote"></p>
   <div class="row"><button id="sound">Sound: on</button><label for="vol">Volume</label><input id="vol" type="range" min="0" max="150" step="5"></div>
-  <p class="dim">Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens.</p>
+  <p class="dim">Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens. Upscaling applies at once: FSR sharpens a small picture (896x320, say) as it is enlarged to the screen, for some of the graphics chip's time.</p>
   <dl id="info" class="dim"></dl>
 </div>
 <p id="msg" class="err"></p>
@@ -123,7 +124,8 @@ function render(s) {
   const g = s.game;
   if (g && g.state !== 'ended') {
     $('playing').textContent = g.name + ': ' + (g.state === 'starting' ? 'starting (this can take a minute)...' :
-      'running, ' + g.fps + ' pictures/s' + (g.gpuBuffers ? '' : ' (no GPU buffers)') + (s.shown ? ', on the screen' : ', hidden')) +
+      'running, ' + g.fps + ' pictures/s' + (g.gpuBuffers ? '' : ' (no GPU buffers)') + (s.shown ? ', on the screen' : ', hidden') +
+      (g.fsr ? ', FSR to ' + (g.fsr.size || []).join('x') + (g.fsr.gpuMs >= 0 ? ' (' + g.fsr.gpuMs.toFixed(1) + ' ms a picture)' : '') : '')) +
       (s.memory.usedMb ? ' - ' + s.memory.usedMb + ' of ' + s.memory.capMb + ' MB' : '');
   } else {
     $('playing').textContent = g ? 'Nothing. ' + g.name + ' ended' + (g.note ? ': ' + g.note : '') + '.' : 'Nothing.';
@@ -188,6 +190,7 @@ function render(s) {
   const st = s.settings, ch = s.choices;
   opts($('res'), ch.resolutions.map((r) => ({ v: r.id, t: r.name })), st.resolution);
   opts($('fps'), ch.fps.map((f) => ({ v: f, t: f })), st.fps);
+  if (ch.upscales) opts($('ups'), ch.upscales.map((u) => ({ v: u.id, t: u.name })), st.upscale);
   opts($('mem'), ch.memMb.map((m) => ({ v: m, t: (m / 1024).toFixed(1).replace('.0', '') + ' GB' })), st.memMb);
   if (ch.regions) opts($('region'), ch.regions.map((r) => ({ v: r.id, t: r.name })), st.cellId || 0);
   opts($('where'), [{ v: 'internal', t: 'The car\'s memory' + (s.space.internalMb !== null ? ' (' + (s.space.internalMb / 1024).toFixed(1) + ' GB free)' : '') }]
@@ -214,6 +217,7 @@ $('cancel').onclick = () => api('/api/cancel', {}).catch(() => null);
 $('saveUser').onclick = () => api('/api/user', { username: $('user').value }).catch(() => null);
 $('res').onchange = () => api('/api/settings', { resolution: $('res').value }).then(() => $('res').blur(), () => null);
 $('fps').onchange = () => api('/api/settings', { fps: Number($('fps').value) }).then(() => $('fps').blur(), () => null);
+$('ups').onchange = () => api('/api/settings', { upscale: $('ups').value }).then(() => $('ups').blur(), () => null);
 $('mem').onchange = () => api('/api/settings', { memMb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
 $('region').onchange = () => api('/api/settings', { cellId: Number($('region').value) }).then(() => $('region').blur(), () => null);
 $('where').onchange = () => api('/api/settings', { where: $('where').value }).then(() => $('where').blur(), () => null);

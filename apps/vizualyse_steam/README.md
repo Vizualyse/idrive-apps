@@ -21,6 +21,7 @@ One `LT_State_Wide` page:
 | QR code | the phone page's link, an `LT_Label_1Graphic_Scalable` showing a PNG from `/dev/shm/vizualyse_steam_qr_<uid>/` |
 | link, hint | the same link as text, and what the phone page is for |
 | Picture: 1280x720 | `resolution`: the next size the game draws at (from the next game) |
+| Upscaling: off / FSR / FSR, no sharpening | `upscale`: how a picture smaller than the screen is enlarged: Winston's bilinear, or FSR 1 on the GPU (tool 0.1.11; at once) |
 | Steam: on / off | `enable` / `disable` (off stops a game and a download, closes the phone page) |
 
 Texts are plain ASCII (RHMI Text is not a reliable Unicode transport on this
@@ -54,11 +55,11 @@ The tool sends `{"ev":"status", ...}` (its phone page's status: `enabled`,
 `download`, `settings`, `memory`, ...) on connect, after each command and
 once a second, and `{"ev":"error","error":...}` for a failed command; the
 app sends `enable`, `disable`, `play` (`appId`), `stop`, `show`, `hide`,
-`resolution` and, every second, `speed`.
+`resolution`, `upscale` and, every second, `speed`.
 
 ## Building and testing
 
-- `node tools/make_page.js vizualyse_steam@0.1.2` writes `application.xml`
+- `node tools/make_page.js vizualyse_steam@0.1.3` writes `application.xml`
   and `uiDescription.json` from one list; `node tools/make_icon.js <png>`
   the tile icon (a game controller outline).
 - `node tools/test_page.js` runs the app against a fake SDK, HMI and tool

@@ -93,20 +93,28 @@ workflow (Actions > Release, the component ids).
   Measured since (the user's test, 2026-11-08): the CPU limit has mostly
   gone; games are now GPU / memory bound. Next: "Game performance, next".
 - [ ] **Game performance, next (GPU / memory bound; plan of 2026-11-08):**
-  1. **FSR 1 in wl-sink, a toggle in the Steam app** (first: it works for
-     every game, WineD3D, DXVK, OpenGL, Vulkan, and doesn't wait on the
-     driver work). EASU + RCAS as a GLES pass on the unit's i965 from the
-     game's buffer into a buffer the size it is shown at, passed to Winston
-     as `fwd` is now (no read-back). Comes with resolutions of the screen's
-     shape below 1344x480 (896x320 = 2x to 1792x640, 1195x427 = 1.5x):
-     16:9 is shown at only ~1134x638, so from 960x540 FSR barely scales;
-     the gain is in drawing far fewer pixels. Guesses to check: 3-8 ms a
-     frame at 1792x640 (an iPhone 12 took 2.7 ms optimised, and Mesa 19's
-     i965 probably has no native fp16); the HUD and text get soft (the
-     game's own render scale avoids that: step 5). Bench first (gpu-bench
-     `swrast` for real pixels: FSR against Winston's bilinear, same
-     sizes), then timed on the car (ask first). Keep it only if it beats
-     bilinear at the same frame rate.
+  1. **FSR on the car (Steam 0.1.11, app 0.1.3; built and tested off the
+     car 2026-11-08, [knowledge/games.md](knowledge/games.md) "FSR in
+     wl-sink"):** ask before running anything on the unit; read the
+     journal and the status after, don't poll during. One GPU-bound game,
+     Winston output on, at Picture 896x320 then 1120x400:
+     - Upscaling off, then FSR, then FSR without sharpening (the phone
+       page or the iDrive button, mid-game), a minute or two each in the
+       same scene; then stop the game and read `journalctl -u
+       vizualyse-steam | grep perf:` (the summary per mode: fps, 1 % and
+       0.1 % lows, p99 and worst frame time, FSR's GPU time and skips, the
+       GPU's busy share and clock, the CPU's and the game's CPU, the game's
+       memory, available memory and swap);
+     - FSR's GPU time (guess 3-8 ms), `fsrSize` 1792x640 (or 1790x638),
+       skips near 0: keep FSR only if the lows and the worst frame hold
+       against off and it looks better than Winston's bilinear at the same
+       Picture;
+     - the HUD / text legibility at 896x320 with each, a photo of the
+       screen for the record;
+     - nothing new in `dmesg` (i915) after it; no "fsr:" line in the
+       journal (FSR turning itself off).
+     If it costs too much: EASU alone (`fsr-soft`), or a cheaper EASU
+     (fewer taps, as mobile ports do).
   2. **32-bit games** (Steam's "32-bit games on Vulkan" and "32-bit games,
      a long session" below), before any of what follows.
   3. **Then DXVK 2.x by a newer ANV** ([knowledge/browser.md](knowledge/browser.md),

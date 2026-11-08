@@ -31,7 +31,7 @@ docker run --rm -v "$SRC:/src:ro" -v "$OUT:/out" idrive-steam-bench:trixie sh -e
     done
     gcc -O2 -Wall -Wextra -Werror -o /tmp/rgb_test /src/rgb_test.c /src/rgb.c && /tmp/rgb_test
     gcc -O2 -std=gnu11 -Wall -Wextra -Werror -I/src -I$G -o /out/wl-sink \
-        /src/wl_sink.c /src/rgb.c /src/frame_out.c /src/winston_out.c $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c \
+        /src/wl_sink.c /src/fsr.c /src/rgb.c /src/frame_out.c /src/winston_out.c $G/xdg-shell-protocol.c $G/wayland-drm-protocol.c \
         $G/viewporter-protocol.c $G/ivi-application-protocol.c $G/ivi-controller-protocol.c $G/linux-dmabuf-unstable-v1-protocol.c \
-        $(pkg-config --cflags --libs wayland-server wayland-client) -ldl
+        $(pkg-config --cflags --libs wayland-server wayland-client) -ldl -lm
     echo "wl-sink: built"'

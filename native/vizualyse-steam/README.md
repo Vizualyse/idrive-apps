@@ -71,6 +71,29 @@ rebuilt `ntdll.so`, below).
   one frame queued, two shader compilers, no anisotropic filtering, and the
   adapter WineD3D reports (HD Graphics 510, 8086:1902, 1024 MB) so games pick
   their settings the same on both.
+- **Upscaling (0.1.11, experimental):** a game drawn smaller than it is shown
+  is enlarged by Winston (bilinear, free) or, with **Upscaling: FSR** (phone
+  page, or the iDrive app's button; at once, off by default), by AMD's FSR 1
+  in wl-sink (`src/fsr.c`: EASU, then RCAS sharpening, two GLES 3 passes on
+  the unit's i965): the game's buffer, while it would be passed on as it is,
+  is drawn at its size on the screen into one of three GPU buffers of
+  wl-sink's, which Winston shows 1:1; the game's own buffer goes back to Wine
+  at once instead of waiting on Winston. Only when Winston would scale by 10 %
+  or more: from 960x540 (shown at 1134x638) it barely does, so it goes with the
+  screen-shaped Pictures 1120x400, **896x320** (2x) and 672x240. Its GPU time
+  per picture (timer queries) is in the status (`game.fsr.gpuMs`) and on the
+  phone page. It enlarges the HUD and text too; a game's own render scale
+  keeps those sharp. Off the car: `test/run_fsr_test.sh` (the shaders on the
+  unit's i965 compiler; pixels on llvmpipe, against bilinear).
+- **Performance in the journal (0.1.11):** `perf:` lines (`src/perf.js`)
+  every 10 s, at each change of upscaling and as a summary per mode when the
+  game ends: fps, the 1 % and 0.1 % lows, the 99th percentile and worst
+  frame time (wl-sink times the game's new buffers), pictures/s, wl-sink's
+  time, FSR's GPU time and skips, the GPU's busy share and clock from
+  i915's sysfs, the CPU (the unit's, and the game's in % of a core) and
+  memory (the game's cgroup against its cap, the unit's available memory,
+  swap). Switch modes mid-game, read them after:
+  `journalctl -u vizualyse-steam | grep perf:`.
 - **The other tools step back while a game runs (0.1.10):** Steam asks on the
   tools' bus (`native/vizualyse-bus`, `mqtt_bus.js`) for the cluster's and the
   HUD's video off; Cast pauses a stream or CarPlay's second screen there and
@@ -188,7 +211,7 @@ rebuilt `ntdll.so`, below).
 | Wine, the game | uid 12996, group video (44) | Proton's Wine in the prefix, on the unit's Mesa 19, in the memory cgroup |
 | DepotDownloader | uid 12996 | `dotnet DepotDownloader.dll`, HOME `/var/opt/vizualyse-steam/home` |
 | `screen.js` | root | the mgu-render client in layer mode, in the app area |
-| `control.js` | root | `/dev/shm/vizualyse-steam/ctl.sock` for the app only: status; enable, disable, play, stop, show, hide, resolution, speed |
+| `control.js` | root | `/dev/shm/vizualyse-steam/ctl.sock` for the app only: status; enable, disable, play, stop, show, hide, resolution, upscale, speed |
 | `firewall.js` | root | the phone page's TCP 8494 on `wlan0`, in memory |
 
 State in `/var/opt/vizualyse-steam/state` (root): the token, the settings,
