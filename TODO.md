@@ -9,6 +9,29 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
+- [ ] **The car list for game performance (built and tested off the car
+  2026-11-08, branch `steam-next`: FSR, perf lines, Detail, 32-bit DXVK,
+  newer ANV, iris).** Each step asked first; the journal read after, not
+  polled during. In order:
+  1. Merge `steam-next` into main, release Steam 0.1.11 and the app
+     0.1.3 (the Release workflow). On the car: a game still starts, shows
+     through Winston, hides; `perf:` lines in the journal.
+  2. FSR: "Game performance, next" step 1 (Picture 896x320, Upscaling off
+     / FSR / FSR no sharpening, the `perf: summary` lines, a photo).
+  3. Detail: step 4 (Normal / Lite / Potato on a DXVK game and a WineD3D
+     game; which refuse Potato).
+  4. The app's page on the real HMI: the new Upscaling button draws,
+     cycles and says "not in this Steam tool" with an older tool (only a
+     fake HMI has seen it; mgu-emu can't install a local app build).
+  5. 32-bit: "32-bit games on Vulkan" (`MMU_NOTIFIER` in the kernel's
+     config, read-only; then vk-trial with ANV 19.1.8 and the 32-bit
+     programs, gated), then Teslagrad (its own item).
+  6. Vulkan 1.3: step 3's patched ANV 22.3.7 + DXVK 2.6.2 through the gate
+     (the off-car `car_test.sh` run first). If it runs where unpatched 22.3
+     hung in 0.1.1, `I915_QUERY` was very likely that hang: record it.
+  7. iris: step 5's gated try (patched 19.3.5, its own EGL set; `dmesg`
+     and the HMI drawing right, during and after).
+
 - [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
   tested off the car against the unit's own Winston, `tools/winston-bench`,
   [knowledge/central-screen.md](knowledge/central-screen.md) "Winston
