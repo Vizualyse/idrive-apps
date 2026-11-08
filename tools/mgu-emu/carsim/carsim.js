@@ -35,6 +35,18 @@ var CAR = {
       rseHmiMenu: false
     }
   },
+  // the centre display (CID), on the car from the display controller: the HMI
+  // drops CID touch while it thinks the monitor is off (CDevCarMonitor ->
+  // CHmiDisplayService -> CHmiHomeTouchHandling)
+  Monitor: {
+    instance: 'Front',
+    fields: {
+      userMonitorControl: 'DISPLAY_ON',
+      statusMonitorReady: 'MONITOR_READY',
+      statusPicture: 'PICTURE_IS_VISIBLE',
+      positionMonitor: 'FOLD_OUT'
+    }
+  },
   VehicleCondition: {
     instance: '1',
     fields: {

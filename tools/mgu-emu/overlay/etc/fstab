@@ -1,7 +1,9 @@
 # mgu-emu: the unit's fstab with its eMMC partitions as directories on the
-# one virtual disk (/emu/*), bind-mounted where the unit mounts them, so the
+# root disk (/emu/*), bind-mounted where the unit mounts them, so the
 # generated mount units (mnt-dataro, var-opt, var-sys) and the targets that
-# require them still work.
+# require them still work. /var/opt is a disk of its own (vdb), with user and
+# group quotas as on the car: MainApp gives an app a uid only when repquota
+# answers for /var/opt, which quota-tools never do for a bind mount.
 /dev/root            /                        auto       rw,noatime                                     1  0
 proc                 /proc                    proc       defaults                                       0  0
 devpts               /dev/pts                 devpts     mode=0620,gid=5                                0  0
@@ -12,6 +14,6 @@ tmpfs                /var/cache/mapramdisk    tmpfs      noauto,size=40m,mode=07
 tmpfs                /var/cache/mediaramdisk  tmpfs      noauto,size=50m,mode=0775,strictatime,gid=4150 0  0
 tmpfs                /var/cache/projectedmodes tmpfs      noauto,size=2m,mode=0775,strictatime,gid=13007 0  0
 /emu/dataro          /mnt/dataro              none       bind,x-systemd.before=local-fs.target           0  0
-/emu/opt             /var/opt                 none       bind,x-systemd.before=local-fs.target           0  0
+/dev/vdb             /var/opt                 ext4       rw,noatime,usrquota,grpquota,x-systemd.before=local-fs.target 0  0
 /emu/sys             /var/sys                 none       bind,x-systemd.before=system-data-fs.target     0  0
 /run/hmi/iba.squashfs   /mnt/iba/ibaroot       squashfs        ro,noauto,nodev,nosuid,users,loop 0  0

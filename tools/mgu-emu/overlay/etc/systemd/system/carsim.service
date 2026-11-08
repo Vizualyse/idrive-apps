@@ -1,8 +1,15 @@
 # mgu-emu: stand-ins for the car-side SOME/IP services (carsim/carsim.js):
-# lifecycle, vehicle condition (PWF), key, vehicle (units / language), the
-# iDrive controller. Started before the HMI; root, like a Store root tool.
+# lifecycle, the centre display, vehicle condition (PWF), key, vehicle (units /
+# language), the iDrive controller. Started before the HMI; root, like a Store
+# root tool. No default dependencies, like vsomeipd and earlyhmi: with them
+# (After=basic.target) early.target -> earlyhmi -> carsim -> basic.target ->
+# sysinit.target is a cycle, and systemd may break it by dropping early.target,
+# which leaves carsim (and with it touch) out of the boot.
 [Unit]
 Description=mgu-emu car stand-ins (SOME/IP)
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
 Wants=vsomeipd.service
 After=vsomeipd.service
 Before=hmi.service earlyhmi.service

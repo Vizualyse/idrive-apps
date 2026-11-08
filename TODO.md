@@ -28,23 +28,22 @@ workflow (Actions > Release, the component ids).
 ## Emulator (tools/mgu-emu)
 
 The unit boots in QEMU to the HMI's home screen in English, with stand-ins
-for the car's SOME/IP services (carsim); nothing reacts to input yet
-([tools/mgu-emu](tools/mgu-emu/README.md)).
+for the car's SOME/IP services (carsim); a click is a touch on the centre
+screen; mgu-store installs and the updater installs apps through the uplink
+([tools/mgu-emu](tools/mgu-emu/README.md), "The Store").
 
 - [ ] **The controller:** carsim offers FrontCCU (0xB508) and the HMI sees
   it, but doesn't subscribe: `[CCS] Cannot set configuration: (pu, active
-  front active fond, alive)=(1, 1, 0, 0)`. Find what makes the controller
-  "alive" for `CDevCCS` (another service or field; its display state), then
-  map the host keyboard to `/run/carsim/ctl`.
-- [ ] **Touch on the centre screen:** which SOME/IP service brings the
-  display's touch to the HMI (no `wl_touch` in HmiMain3D), then tap2touch
-  into it instead of Winston.
-- [ ] **HmiTest answers nothing** (root is allowed now): what gates
-  `CHmiStubHmiTest::sendCommand`.
-- [ ] **A fake keystore device** (`dev-keystore.device`): persod,
-  CodingShmApp and oapcontroller all require it.
-- [ ] **Store apps in the emulator:** oapcontroller (needs
-  `dev-keystore.device` and joynr) and our tools' `/var/opt` from the car.
+  front active fond, alive)=(1, 1, 0, 0)`. carsim's SOME/IP policy
+  refused the HMI's subscriptions to it until 2026-11-08: look again before
+  anything else. Then map the host keyboard to `/run/carsim/ctl`.
+- [ ] **HmiTest answers nothing**: what gates
+  `CHmiStubHmiTest::sendCommand` (try again since the policy fix).
+- [ ] **The Store's page is blank:** the tile opens the app (in front,
+  mgu-render running), but nothing of it reaches the screen. mgu-render on
+  llvmpipe / virtio-gpu through Winston (`journalctl -u mgu-render`).
+- [ ] **Our tools in the emulator:** install them through the updater
+  (`updater.js install <id>`, README "The Store") and test them there.
 
 ## hook111 (CarPlay's second screen)
 

@@ -15,9 +15,17 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   (646 MB), the IBA squashfs, `/var/sys` and `/dev/shm/rawcodingdata`. With
   stand-ins for the car's SOME/IP services (lifecycle, PWF, key, vehicle
   units/language: `tools/mgu-emu/carsim`) it reaches the home screen in
-  English; no input yet. vsomeip checks a request in the serving process
+  English. vsomeip checks a request in the serving process
   against that process's own policy file (`/etc/vsomeip/<uid>_<gid>/`), so a
-  root provider must list its clients there.
+  root provider must list its clients there. A click is a touch (2026-11-07):
+  the HMI takes the centre display's touch not from Wayland but as AUTOSAR
+  PDUs over UDP (port 30567), and only while the lifecycle `Monitor` service
+  says the display is on. The controller doesn't work yet. The app platform
+  and mgu-store run (2026-11-08): oapcontroller and MainApp on a software
+  keystore (the 12 `ias_keystore_*` functions of libmgucrypto, preloaded),
+  `/var/opt` its own disk with quotas (MainApp's app uids need
+  `repquota`), the persistency tools' eCryptfs off, and the uplink on a
+  second QEMU network; the updater installs apps through it.
 - **The GPU off the car** ([tools/gpu-bench](../tools/gpu-bench/README.md),
   2026-11-06): nothing emulates the unit's Gen9 GPU (QEMU offers VGA or
   virtio-gpu only). In the rootfs container, on the unit's own Mesa 19.0.6:

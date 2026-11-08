@@ -5,7 +5,7 @@ booted whole in a QEMU VM on Windows: its own systemd, Winston, the HMI
 (`HmiMain3D`) and the services that don't need the car's hardware. The
 centre screen (1920x720) is the VM's window; the mouse is its touchscreen.
 
-## Where it stands (2026-11-07)
+## Where it stands (2026-11-08)
 
 - **Shows:** a clean boot reaches the HMI's home screen in English in about
   3 minutes: the main menu (MEDIA, COM, NAV, CAR, APPS), the status bar,
@@ -13,24 +13,31 @@ centre screen (1920x720) is the VM's window; the mouse is its touchscreen.
   on a fresh disk may show the "Component protection" pop-up (the unit sees
   none of its car); it is gone once closed or after the next HMI start.
 - **The car is played by [carsim](carsim/carsim.js)** ("Stand-in services"
-  below): lifecycle, vehicle condition (PWF Wohnen), key, vehicle (units,
-  language), the iDrive controller. With them the HMI leaves "not in use"
-  (`PWF change Parken -> Wohnen`) and gets a display language.
-- **No input yet:** carsim offers the controller (FrontCCU, 0xB508) and
+  below): lifecycle, the centre display's monitor, vehicle condition (PWF
+  Wohnen), key, vehicle (units, language), the iDrive controller. With them
+  the HMI leaves "not in use" (`PWF change Parken -> Wohnen`), gets a
+  display language and takes touch.
+- **Touch works:** a click in the window is a tap on the centre screen (a
+  drag a swipe), through the HMI's own touch path ("Touch" below).
+- **The controller doesn't yet:** carsim offers it (FrontCCU, 0xB508) and
   takes commands (`echo press > /run/carsim/ctl`), and the HMI sees the
   service (`[CCS] onFrontProxyAvailabilityStatus available`), but it never
   subscribes to its events: `[CCS] Cannot set configuration: (pu, active
-  front active fond, alive)=(1, 1, 0, 0)`. Something else has to say the
-  controller is alive (next to find). Touch: `HmiMain3D` has no `wl_touch`
-  code; on the car touch comes over SOME/IP too. A tap does reach Winston
-  (`input = /dev/input/tap2touch`).
+  front active fond, alive)=(1, 1, 0, 0)`, also after the monitor is on.
+  Something else has to say the controller is alive (next to find).
 - **The HMI's test interface** (`HmiTest`, SOME/IP 0xB066, `sendCommand`;
   [hmitest.js](hmitest.js)): registered, root allowed to call it, still no
   answer.
+- **The app platform and the Store work** (2026-11-08, "The Store" below):
+  oapcontroller and MainApp run on a software keystore, MainApp installs
+  apps (the stock ones and ours), mgu-store installs with its own installer,
+  the uplink is online through a second network card, and the updater
+  installs apps from GitHub through it. The Store's own page opens blank
+  (mgu-render draws nothing here yet).
 - **What's missing against the car** (its `ps`, `car-state.txt`):
-  `ipcServer` (`hdlc_ipc4`, the SPI link to the IOC), `ioclcproxy`, and what
-  needs the keystore device (`dev-keystore.device`): `persod`,
-  `CodingShmApp`, `oapcontroller`.
+  `ipcServer` (`hdlc_ipc4`, the SPI link to the IOC), `ioclcproxy`,
+  `CodingShmApp` (the pulled coding stands in), eCryptfs for
+  `/var/opt/public` and `personal` (plain folders here).
 - Logs: the HMI's application log is in the journal (DLT local print, the
   hmi drop-in); the in-RAM journal rotates within minutes, `journal.log` on
   the host keeps everything.
@@ -46,6 +53,7 @@ serves the ones the HMI waits for with the unit's own `/usr/lib/someip.node`
 | service | id | what carsim sets |
 |---|---|---|
 | Lifecycle (`Front`) | 0xB015 | `powerStateDetailed` FULL_ON_USER_ON |
+| Monitor (`Front`, the CID) | 0xFA61 | display on, monitor ready, picture visible (else the HMI drops touch) |
 | VehicleCondition | 0x1531 | PWF `WOHNEN` (`--pwf`), qualifier valid, alive counter each second |
 | Key | 0x5535 | defaults |
 | Vehicle | 0xB510 | units / language (`--lang`), stores what the HMI sets |
@@ -71,6 +79,113 @@ serves the ones the HMI waits for with the unit's own `/usr/lib/someip.node`
 - [someip-call.js](someip-call.js) `IFACE.json INSTANCE get|set|call NAME [JSON]`
   pokes any service by hand (in the VM: `/usr/lib/mgu-emu/iface/`:
   HMIContext, HMIControl, DiagHMI).
+
+## Touch
+
+`HmiMain3D` has no Wayland touch: on the car the centre display (CID) sends
+its touch over Ethernet (vlan73; `touchactivator` keeps the link up with ARP)
+as AUTOSAR PDUs in UDP to the HMI's `hmitouch::CTouchDataClient`, which
+listens on `0.0.0.0:30567` (`Starting to listen on socket` in its log).
+
+- **The format** (disassembly of `processSocketStream` and
+  `decodeTouchScreenPduData`; [cidtouch.js](cidtouch.js) has it byte by
+  byte): a 16-byte big-endian header with the PDU id (`0xB0048002`: the
+  touchscreen; `0xB509...`, `0xB530...`: the controller's touchpad), then 96
+  bytes, of which the HMI reads the second half of each 8-byte word. Up to 5
+  fingers of X, Y (screen pixels), Z, type, event (1 down, 2 held, 3 up) and
+  touch id. Several PDUs may share a datagram.
+- **The gate** that kept taps from doing anything although the client
+  decoded them (`Touch data: src=1 ... send=true` at info level):
+  `CHmiHomeTouchHandling::touchEvent` drops CID touch when the coding
+  feature `CID_HMI_ACTIVATION_VIA_TOUCH` (HMI_SPEECH, off on this car) is off
+  and `IHmiDisplayService` says the CID is off. The display service follows
+  `CDevCarMonitor`, the proxy of the lifecycle `Monitor` service, which the
+  display controller offers on the car (masked here). carsim's Monitor with
+  `userMonitorControl` DISPLAY_ON and `statusPicture` PICTURE_IS_VISIBLE
+  turns it on (`monitorOn=1`, `hideBlackscreen`).
+- [tap2touch](tap2touch/tap2touch.c) sends the mouse there: down, held
+  every 20 ms and while dragging, up. By hand:
+  `node /usr/lib/mgu-emu/cidtouch.js tap X Y`.
+- **How it was found:** strings, then `objdump` of the stripped binary
+  around the code that loads each log string, then `gdbserver` (Ubuntu
+  18.04's, run through the unit's `/lib/ld-linux-x86-64.so.2`) attached to
+  `HmiMain3D` for breakpoints that print and continue, with `gdb` in a
+  container (`target remote | ssh ... gdbserver --attach - PID`). Detach
+  within the HMI's 30 s watchdog. The HMI's debug log stays off:
+  `DLT_INITIAL_LOG_LEVEL` changes nothing, dlt-daemon has no TCP port here,
+  and a set-log-level message on `/run/dlt-files/dlt-ctrl.sock` made it exit
+  (`systemctl start dlt` brings it back).
+
+## The Store (mgu-store) and the uplink
+
+Installed with upstream's own installer, against the VM as against a car:
+
+```sh
+node mgu-install.js first-install --identity tools/mgu-emu/build/emu_key \
+    --host 127.0.0.1 --port 2222 --ssh-opt StrictHostKeyChecking=no \
+    --ssh-opt UserKnownHostsFile=/dev/null --no-restart-prompt
+```
+
+then a restart (`poweroff` in the VM, `run.ps1 -Keep`: without `-Keep` the
+next boot starts from the built disks). It ends with "Setup is done": all
+seven components, the Store's tile in APPS > Installed apps, the updater
+reading its four sources through the uplink, and
+`node /var/opt/mgu-updater/current/updater.js install <id>` installing an
+app (gforce 1.6.20 from idrive7-apps). Each boot after takes ~4 minutes to
+MainApp.
+
+What the car has and the emulator had to be given, in the order they block:
+
+- **The keystore** (`/dev/keystore`, Intel IAS): oapcontroller, cadaemon,
+  persod, necemad and MainApp's keychain script make their keys with it
+  (`libmgucrypto`). [keystore/kspreload.c](keystore/kspreload.c) replaces
+  the 12 `ias_keystore_*` client functions libmgucrypto calls through its
+  PLT (signatures from its disassembly): keys wrapped with a fixed emulator
+  key (AES-256-GCM, the unit's libgcrypt). It is in `/etc/ld.so.preload`,
+  since oapcontroller starts MainApp through `uidrun`, which clears the
+  environment. `99-emu-keystore.rules` aliases `/dev/zero` as the device
+  systemd waits for.
+- **Devices early**: the unit's full udev coldplug runs after
+  `early.target`, past systemd's 90 s for a device; `/dev/keystore` and
+  the `/var/opt` disk would time out and take their users down
+  ([emu-early-devices.service](overlay/etc/systemd/system/emu-early-devices.service)).
+- **MainApp's stock `main.js`**: on the car the Store's deploy tool
+  bind-mounts its "fallback" copy over it, so the pull holds the copy and
+  the installer refuses it. [mainapp/unfallback.js](mainapp/unfallback.js)
+  takes out the snippets mgu-deploy 0.7.16's `fallback_build.js` put in and
+  proves the result (built again it gives the car's file byte for byte).
+- **`/var/opt` on its own disk with quotas** (`opt.qcow2`, vdb): MainApp gives
+  an app a uid only when `repquota /var/opt` answers, which quota-tools never
+  do for a bind mount ("No free user Ids left").
+- **`/var/opt`'s folders**: the unit's tmpfiles runs for it are conditioned
+  on the car's partition layout (hdshare a mount point) or a factory reset;
+  [emu-var-opt.service](overlay/etc/systemd/system/emu-var-opt.service)
+  applies the unit's own tmpfiles.d (MainApp dies without
+  `hdshare/oap/hu`).
+- **No eCryptfs**: `persistencydecryptiontool` mounts `/var/opt/public` and
+  `personal` encrypted on the car; here it emptied `public` at every boot
+  (a new key, nothing mounted), so every app was gone at the next start. Its
+  two units are no-ops (drop-ins); the folders stay plain.
+- **The HMI first**: MainApp initializes only once the HMI is up, and
+  oapcontroller counts a MainApp that does not as a crash (three wipe every
+  app): oapcontroller starts after `hmi.service` (drop-in), and the HMI may
+  take 5 minutes to report ready.
+- **carsim's SOME/IP policy**: the unit's vsomeip took our allow-all entry
+  for nobody (string uid ranges), and judges a uid with a policy of its own
+  only by that: MainApp's Vehicle units getter timed out ("Cannot
+  initialize oap-mainapp"), and the HMI got none of carsim's data either.
+  [policy.js](carsim/policy.js) has the rules.
+- **The uplink**: run.ps1 gives the VM two user networks. eth0 is SSH only
+  (`restrict=on`, no way out, as root on the car); eth1 (10.0.3.0/24, a
+  subnet of its own: two networks both leasing 10.0.2.15 break SSH) is
+  unmanaged, and mgu-uplink takes it (`uplink = netdev:eth1`,
+  seeded in `/var/opt/mgu-uplink/mgu-uplink.local.conf` by the build).
+  `/run/mgu-uplink/status.json` says `online` with a lease from QEMU.
+
+Debugging MainApp: its output goes to oapcontroller through a pipe and its
+log to DLT only (the DLT daemon here has no TCP port and no offline trace).
+A throwaway preload that, in MainApp's process only, sends stdout to a file
+and sets `DLT_LOCAL_PRINT_MODE=FORCE_ON` shows its whole log.
 
 **No BMW bytes in this repository.** The disk is built from the pull into
 `../idrive-rootfs/<version>/emu/` and the docker volume `mgu-emu-root`.
@@ -110,12 +225,13 @@ serves the ones the HMI waits for with the unit's own `/usr/lib/someip.node`
 
 ```sh
 sh tools/mgu-emu/kernel/build.sh     # once: Linux 6.6 for the VM -> build/bzImage
-sh tools/mgu-emu/build-image.sh      # the disk -> ../idrive-rootfs/20.40.2/emu/mgu.qcow2
+sh tools/mgu-emu/build-image.sh      # the disks -> ../idrive-rootfs/20.40.2/emu/mgu.qcow2, opt.qcow2
 ```
 
 ```powershell
 powershell -File tools\mgu-emu\run.ps1          # a fresh boot each time
-powershell -File tools\mgu-emu\run.ps1 -Keep    # keep the last run's disk changes
+powershell -File tools\mgu-emu\run.ps1 -Keep    # keep the last run's disk changes (the Store, apps)
+powershell -File tools\mgu-emu\run.ps1 -Display 'gtk,zoom-to-fit=on,show-cursor=on'   # the Windows cursor stays visible
 ```
 
 - Shell: `telnet 127.0.0.1 4552` (the unit's own serial getty, root).
@@ -125,22 +241,31 @@ powershell -File tools\mgu-emu\run.ps1 -Keep    # keep the last run's disk chang
 - A reboot or power-off inside the VM ends QEMU (`-no-reboot`) instead of
   looping.
 - A tap without the mouse: `ssh ... node /usr/lib/mgu-emu/tap.js X Y`
-  ([tap.js](tap.js), screen pixels).
+  ([tap.js](tap.js), screen pixels, through QEMU's tablet like the mouse), or
+  straight to the HMI: `node /usr/lib/mgu-emu/cidtouch.js tap X Y`.
 - Winston logs to DLT once DLT is up (not the journal). To see it, run it by
   hand without the plugin: `--param "plugin=drm-output, notify, genivi"
   --param stdlog-level=3`.
-- Rebuilding the disk while the VM runs leaves `mgu.qcow2.new`; `run.ps1`
-  swaps it in at the next boot.
+- Rebuilding the disks while the VM runs leaves `mgu.qcow2.new` and
+  `opt.qcow2.new`; `run.ps1` swaps them in at the next boot (and drops
+  `-Keep`: a new disk means a fresh start).
 
 ## How the disk differs from the car
 
-- The eMMC partitions (`/mnt/dataro`, `/var/opt`, `/var/sys`) are
-  directories under `/emu`, bind-mounted by [our fstab](overlay/etc/fstab), so
-  the targets requiring their mount units still start. `/var/opt` holds only
-  `hdshare/hmi`: no Store apps, no personal data.
+- The eMMC partitions `/mnt/dataro` and `/var/sys` are directories under
+  `/emu`, bind-mounted by [our fstab](overlay/etc/fstab), so the targets
+  requiring their mount units still start. `/var/opt` is a disk of its own
+  (vdb, user and group quotas: "The Store") holding only `hdshare/hmi`,
+  the HMI's saved state and the uplink's setting: none of the car's Store
+  tools or apps, no personal data.
+- The car's Store tools left units and drop-ins in `/etc` (mgu-updater,
+  mgu-uplink, mgu-render, app-privacy, idrive7-renderd, ...) for binaries in
+  its `/var/opt`: the build removes them, so the Store installs as on a
+  unit that never had it.
 - `codingshm.service` is [ours](overlay/etc/systemd/system/codingshm.service):
   it copies the car's pulled `rawcodingdata` to `/dev/shm` (the real
   CodingShmApp needs the keystore device).
+- The keystore, eCryptfs and the boot order of the app platform: "The Store".
 - Winston drives `Virtual-1` (virtio-gpu) instead of `HDMI-A-1`
   ([drop-in](overlay/etc/systemd/system/winston.service.d/emu.conf)); the
   kernel line adds the 1920x720 mode (`video=Virtual-1:1920x720@60`: QEMU's
@@ -155,12 +280,16 @@ powershell -File tools\mgu-emu\run.ps1 -Keep    # keep the last run's disk chang
   `drm-output.so` with local scope, so `RTLD_NEXT` returns NULL (a segfault
   at address 0, its core dump taking 30 s to write).
 - [tap2touch](tap2touch/tap2touch.c) turns QEMU's tablet (where Windows sends
-  the mouse) into a one-finger touchscreen through uinput: Winston takes touch
-  only. A real touchscreen on the host goes to `virtio-multitouch` directly.
+  the mouse) into the CID's touch frames for the HMI ("Touch" above) and into
+  a one-finger touchscreen through uinput for Winston (Wayland clients; the
+  HMI reads none). QEMU splits the mouse: motion goes to the tablet, the
+  buttons to `virtio-multitouch` (it lists BTN_LEFT too), so tap2touch reads
+  both, and takes a real host touchscreen's contacts from the latter.
+  `tap.js` writes the button into the tablet itself, so it works either way.
 - Masked (`build-image.sh`): what restarts the unit (recmgr, crashhandler),
   what needs its hardware (IOC link, AVB, APIX display controller, HDCP,
-  Wi-Fi/BT, the i915 module), and Store tools whose binaries are in the real
-  `/var/opt`. There is no IOC, no other ECU, no SOME/IP peer: the iDrive
-  controller, vehicle data and anything from the car's network are absent.
+  Wi-Fi/BT, the i915 module). There is no IOC, no other ECU, no SOME/IP
+  peer: carsim stands in for what the HMI and MainApp wait for; anything
+  else from the car's network is absent.
 - The hardware watchdog is off and the journal goes to the serial port
   ([system.conf.d](overlay/etc/systemd/system.conf.d/emu.conf)).

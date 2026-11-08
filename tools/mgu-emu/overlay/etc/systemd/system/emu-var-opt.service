@@ -1,0 +1,25 @@
+# mgu-emu: /var/opt is one disk here (vdb); on the car it is the persistency
+# partition with hdshare (large data) mounted on it. The unit's own tmpfiles
+# runs for /var/opt are conditioned on those mounts (hdshare a mount point)
+# or on a factory reset, so the folders MainApp, oapcontroller and the
+# persistency daemons expect (oap, tm, hdshare/oap/hu, ...) would never be
+# made. Make them from the unit's own tmpfiles.d, once persistencydecryptiontool
+# has mounted public and personal (eCryptfs) and before any of their users.
+[Unit]
+Description=mgu-emu /var/opt folders (the unit's tmpfiles.d)
+DefaultDependencies=no
+RequiresMountsFor=/var/opt
+After=var-opt.mount persistencydecryptiontool.service persistencydecryptiontool-personal.service
+Before=persod.service cadaemon.service necemad.service telematics-platform.service oapcontroller.service basic.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# sps_8000:mgu_persist 0710, as on the car (numeric: busybox chown)
+ExecStart=/bin/mkdir -p /var/opt/public /var/opt/personal
+ExecStart=/bin/chown 8000:903 /var/opt/public /var/opt/personal
+ExecStart=/bin/chmod 0710 /var/opt/public /var/opt/personal
+ExecStart=-/bin/systemd-tmpfiles --create --prefix=/var/opt
+
+[Install]
+WantedBy=basic.target

@@ -23,19 +23,28 @@ $qemu = 'C:\Program Files\qemu\qemu-system-x86_64.exe'
 $img = 'C:\Program Files\qemu\qemu-img.exe'
 $emu = Join-Path (Resolve-Path $RootfsDir) 'emu'
 $kernel = Join-Path $PSScriptRoot 'build\bzImage'
-$base = Join-Path $emu 'mgu.qcow2'
-$run = Join-Path $emu 'run.qcow2'
-# build-image.sh leaves mgu.qcow2.new when a running VM held the old disk
-$new = Join-Path $emu 'mgu.qcow2.new'
-if (Test-Path $new) { Move-Item -Force $new $base; $Keep = $false }
-foreach ($f in $qemu, $kernel, $base) { if (-not (Test-Path $f)) { throw "missing: $f (README)" } }
-
-# Each boot runs on a throwaway overlay of the built disk, unless -Keep.
-if (-not $Keep -or -not (Test-Path $run)) {
-    Remove-Item $run -ErrorAction SilentlyContinue
-    & $img create -q -f qcow2 -b mgu.qcow2 -F qcow2 $run
-    if ($LASTEXITCODE) { throw 'qemu-img create failed' }
+# Two disks: mgu (the root) and opt (/var/opt, with quotas). build-image.sh
+# leaves <disk>.qcow2.new when a running VM held the old one.
+$disks = @{ mgu = 'run.qcow2'; opt = 'run-opt.qcow2' }
+foreach ($d in $disks.Keys) {
+    $new = Join-Path $emu "$d.qcow2.new"
+    if (Test-Path $new) { Move-Item -Force $new (Join-Path $emu "$d.qcow2"); $Keep = $false }
 }
+foreach ($f in $qemu, $kernel, (Join-Path $emu 'mgu.qcow2'), (Join-Path $emu 'opt.qcow2')) {
+    if (-not (Test-Path $f)) { throw "missing: $f (README)" }
+}
+
+# Each boot runs on throwaway overlays of the built disks, unless -Keep.
+foreach ($d in $disks.Keys) {
+    $ov = Join-Path $emu $disks[$d]
+    if (-not $Keep -or -not (Test-Path $ov)) {
+        Remove-Item $ov -ErrorAction SilentlyContinue
+        & $img create -q -f qcow2 -b "$d.qcow2" -F qcow2 $ov
+        if ($LASTEXITCODE) { throw 'qemu-img create failed' }
+    }
+}
+$run = Join-Path $emu $disks['mgu']
+$runOpt = Join-Path $emu $disks['opt']
 
 # The unit's own kernel line, minus its hardware: services read bootmode /
 # hwtype / hwvariant from /proc/cmdline.
@@ -50,10 +59,15 @@ $qargs = @(
     '-smp', "$Cpus", '-m', "$MemoryMB",
     '-kernel', $kernel, '-append', $append,
     '-drive', "file=$run,if=virtio,format=qcow2,cache=writeback,discard=unmap",
+    '-drive', "file=$runOpt,if=virtio,format=qcow2,cache=writeback,discard=unmap",
     '-vga', 'none', '-device', 'virtio-vga,xres=1920,yres=720,max_outputs=1',
     '-display', $Display,
     '-device', 'virtio-tablet-pci', '-device', 'virtio-keyboard-pci', '-device', 'virtio-multitouch-pci',
-    '-netdev', 'user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22', '-device', 'virtio-net-pci,netdev=n0',
+    # eth0: SSH only (restrict=on: no way out, as root has none on the car);
+    # eth1: the internet, for mgu-uplink (uplink = netdev:eth1) as a phone's hotspot would be
+    '-netdev', 'user,id=n0,restrict=on,hostfwd=tcp:127.0.0.1:2222-:22', '-device', 'virtio-net-pci,netdev=n0,mac=52:54:00:e0:00:01',
+    # (a subnet of its own: two user networks both lease 10.0.2.15, and SSH breaks)
+    '-netdev', 'user,id=n1,net=10.0.3.0/24', '-device', 'virtio-net-pci,netdev=n1,mac=52:54:00:e0:00:02',
     '-serial', "file:$console",
     '-serial', "file:$journal",
     '-serial', 'telnet:127.0.0.1:4552,server,nowait',
