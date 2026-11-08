@@ -13,7 +13,8 @@ answers). Background: [knowledge/browser.md](../../knowledge/browser.md)
 ```sh
 sh tools/iris-bench/build.sh      # the image (~10 min once) and build/
 sh tools/iris-bench/run_test.sh   # the checks below, on the stub
-IRIS=1 sh native/vizualyse-steam/test/run_unit_test.sh stub   # the Steam bench's Wine on iris
+IRIS=1 sh native/vizualyse-steam/test/run_unit_test.sh stub   # the Steam bench's Wine (and wl-sink) on iris
+IRIS=sink-unit sh native/vizualyse-steam/test/run_unit_test.sh stub   # wl-sink on the unit's i965, as on the car
 ```
 
 ## What it builds (`image/Dockerfile`)
