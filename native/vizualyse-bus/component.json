@@ -1,0 +1,43 @@
+{
+  "id": "vizualyse-bus",
+  "kind": "tool",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "title": "Vizualyse bus",
+  "description": "EXPERIMENTAL. The shared bus the Vizualyse tools use to ask each other to switch things off while they need the car's resources (Steam pauses Cast's cluster and HUD video while a game runs). Mosquitto 2.0.21 (MQTT) on a Unix socket only root's tools can reach; no network listener. Installed with the tools that use it; about 0.2 MB.",
+  "requires": {
+    "mgu-deploy": "0.7.0"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "build": [
+    "sh",
+    "build.sh"
+  ],
+  "files": [
+    { "path": "mosquitto", "from": "build/mosquitto", "mode": "0644" },
+    { "path": "mosquitto.conf", "from": "src/mosquitto.conf", "mode": "0644" },
+    { "path": "mosquitto-LICENSE.txt", "from": "build/mosquitto-LICENSE.txt", "mode": "0644" },
+    { "path": "mosquitto-epl-v20", "from": "build/mosquitto-epl-v20", "mode": "0644" },
+    { "path": "mosquitto-edl-v10", "from": "build/mosquitto-edl-v10", "mode": "0644" },
+    { "path": "THIRD-PARTY.md", "from": "THIRD-PARTY.md", "mode": "0644" },
+    { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }
+  ],
+  "units": [
+    { "name": "vizualyse-bus.service", "from": "systemd/vizualyse-bus.service" }
+  ],
+  "enable": [
+    { "unit": "vizualyse-bus.service", "target": "multi-user.target" }
+  ],
+  "recmgr": [
+    "vizualyse-bus"
+  ],
+  "crashNames": [
+    "mosquitto"
+  ],
+  "restart": [
+    "vizualyse-bus.service"
+  ]
+}

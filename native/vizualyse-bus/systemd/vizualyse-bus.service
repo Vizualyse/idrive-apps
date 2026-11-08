@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+[Unit]
+Description=vizualyse-bus: the Vizualyse tools' shared bus (MQTT on a root-only Unix socket)
+RequiresMountsFor=/var/opt
+# before the tools, so their first connection finds it (they retry anyway)
+Before=vizualyse-steam.service vizualyse-cast.service vizualyse-moonlight.service vizualyse-chromium.service
+
+[Service]
+# Files ship 0644 (the Store's kits): made executable at each start
+ExecStartPre=/bin/chmod 0755 /var/opt/vizualyse-bus/current/mosquitto
+ExecStart=/var/opt/vizualyse-bus/current/mosquitto -c /var/opt/vizualyse-bus/current/mosquitto.conf
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+# /run/vizualyse-bus, root's and 0700: the socket's folder, only root enters
+RuntimeDirectory=vizualyse-bus
+RuntimeDirectoryMode=0700
+# Root without any capability, no network (the socket is a file: a network
+# namespace doesn't hide it), nothing written outside its folder
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+MemoryLimit=32M
+# 1, not 0: the kernel then skips even a piped core handler (BUILDING-APPS.md, section 2)
+LimitCORE=1
+
+[Install]
+WantedBy=multi-user.target
