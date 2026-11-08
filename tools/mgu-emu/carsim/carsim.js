@@ -5,6 +5,7 @@
 // catalog (tools/someip_iface.py gen ...; README "Stand-in services").
 //
 //   node carsim.js [--pwf WOHNEN|FAHREN|PARKEN_BN_IO] [--lang ENGLISCH__UK]
+//                  [--ctl /run/carsim/ctl] [--keys 'QEMU Virtio Keyboard'|none]
 //
 // Every field starts from its schema's default and is then set from CAR
 // below; getters answer from that state, setters store and fire, notifiers
@@ -164,6 +165,70 @@ function listen() {
   console.log('carsim: controller on ' + CTL);
 }
 
+// The controller on the window's keyboard: QEMU's virtio keyboard is read
+// as is (no grab: nothing else in the VM reads it; Winston reads only
+// tap2touch). Left / Right turn (held: repeats), Enter pushes (held 0.8 s or
+// more: long), Up / Down tilt north / south, Shift+Left / Right tilt west /
+// east, Backspace / Esc are BACK (button 2), F1..F8 the buttons 1..8.
+// --keys NAME reads another device by its name, --keys none none.
+var KEYS = arg('keys', 'QEMU Virtio Keyboard');
+var KEY = { ESC: 1, BACKSPACE: 14, ENTER: 28, LEFTSHIFT: 42, RIGHTSHIFT: 54, F1: 59, F8: 66,
+  KPENTER: 96, UP: 103, LEFT: 105, RIGHT: 106, DOWN: 108 };
+var BACK_BUTTON = 2; // the HMI walks back through its screens on it (keycode 2)
+
+function keyEvent(code, value, st) {
+  // value: 1 down, 2 auto-repeat, 0 up
+  if (code === KEY.LEFTSHIFT || code === KEY.RIGHTSHIFT) { st.shift = value !== 0; return; }
+  if (code === KEY.LEFT || code === KEY.RIGHT) {
+    if (value === 0) return;
+    if (st.shift) { if (value === 1) command('tilt ' + (code === KEY.LEFT ? 'W' : 'E')); }
+    else command('rot ' + (code === KEY.LEFT ? -1 : 1));
+  } else if (code === KEY.ENTER || code === KEY.KPENTER) {
+    if (value === 1) st.enterAt = Date.now();
+    else if (value === 0 && st.enterAt) {
+      command(Date.now() - st.enterAt >= 800 ? 'longpress' : 'press');
+      st.enterAt = 0;
+    }
+  } else if (value !== 1) {
+    return;
+  } else if (code === KEY.UP || code === KEY.DOWN) {
+    command('tilt ' + (code === KEY.UP ? 'N' : 'S'));
+  } else if (code === KEY.BACKSPACE || code === KEY.ESC) {
+    command('button ' + BACK_BUTTON);
+  } else if (code >= KEY.F1 && code <= KEY.F8) {
+    command('button ' + (code - KEY.F1 + 1));
+  }
+}
+
+function readKeys() {
+  if (KEYS === 'none') return;
+  var fs = require('fs');
+  function device() {
+    var found = null;
+    fs.readFileSync('/proc/bus/input/devices', 'utf8').split('\n\n').forEach(function (b) {
+      var ev = /Handlers=.*\b(event\d+)/.exec(b);
+      if (!found && ev && b.indexOf('N: Name="' + KEYS + '"') >= 0) found = '/dev/input/' + ev[1];
+    });
+    return found;
+  }
+  (function open() {
+    var dev = null;
+    try { dev = device(); } catch (e) { console.error('carsim: keys: ' + e); }
+    if (!dev) return console.error('carsim: keys: no input device named ' + KEYS);
+    var st = { shift: false, enterAt: 0 }, rest = Buffer.alloc(0);
+    // struct input_event on x86_64: timeval (16), type, code (u16), value (s32)
+    fs.createReadStream(dev)
+      .on('data', function (d) {
+        var b = Buffer.concat([rest, d]), o = 0;
+        for (; o + 24 <= b.length; o += 24)
+          if (b.readUInt16LE(o + 16) === 1) keyEvent(b.readUInt16LE(o + 18), b.readInt32LE(o + 20), st);
+        rest = b.slice(o);
+      })
+      .on('error', function (e) { console.error('carsim: keys: ' + e); setTimeout(open, 2000); });
+    console.log('carsim: controller on the keys of ' + dev + ' (' + KEYS + ')');
+  })();
+}
+
 // a value for a schema: its declared default ("d") where it has one, else zero / first
 function defaultOf(s) {
   if (!s || !s.t) return undefined;
@@ -247,7 +312,7 @@ setImmediate(function () {
   console.log('carsim: PWF ' + PWF + ', language ' + LANG);
   Object.keys(CAR).reduce(function (p, n) {
     return p.then(function () { return start(n); }).catch(function (e) { console.error('carsim: ' + n + ': ' + (e && e.stack || e)); });
-  }, Promise.resolve()).then(listen).then(watchLanguage);
+  }, Promise.resolve()).then(listen).then(readKeys).then(watchLanguage);
 });
 
 // The HMI takes its display language from the car only when it is set in the

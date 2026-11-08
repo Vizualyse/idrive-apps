@@ -134,7 +134,7 @@ cat /build/emu_key.pub >> usr/share/sshd/authorized_keys.root
 #    on a unit that never had it (README, The Store)
 for n in mgu-updater mgu-uplink mgu-deploy-verify mgu-app-fallback mgu-render mgu-render-hmi \
     mgu-inputgate-guard mgu-inputgate-check app-privacy idrive7-renderd idrive7-renderd-hmi cluster-render \
-    vizualyse-cast virtual-hud1 virtual-hud2 virtual-ic1 virtual-ic2; do
+    vizualyse-cast vizualyse-chromium vizualyse-moonlight vizualyse-steam hook111 virtual-hud1 virtual-hud2 virtual-ic1 virtual-ic2; do
     rm -rf etc/systemd/system/$n.service etc/systemd/system/$n.socket etc/systemd/system/$n.service.d \
         etc/systemd/system/*.wants/$n.service etc/systemd/system/*.wants/$n.socket
 done
@@ -149,6 +149,12 @@ node /emu-src/mainapp/unfallback.js /tmp/fallback_build.js usr/lib/oap-mainapp/s
 # the uplink on the second NIC (run.ps1), once the Store installs mgu-uplink
 mkdir -p emu/opt/mgu-uplink
 printf "uplink = netdev:eth1\n" > emu/opt/mgu-uplink/mgu-uplink.local.conf
+# our fork as a Store source beside the upstream defaults: the updater adds each
+# default source once (state/default-sources.json), so this overrides its list
+mkdir -p emu/opt/mgu-updater
+printf "default_sources = cauliflowermossgrape/idrive7-apps:branch robertnisipeanu/idrive-apps:releases IterioDev/car-apps:tags Vizualyse/idrive-apps:releases\n" \
+    > emu/opt/mgu-updater/updater.local.conf
+chmod 600 emu/opt/mgu-updater/updater.local.conf
 
 # 5. services: masked (reboot the unit, or need its hardware), and enabled
 MASK="recmgr crashhandler crashkernel modprobe_i915 modprobe_igb_avb modprobe_inap560t modprobe_ptp modprobe_spi

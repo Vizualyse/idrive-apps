@@ -29,21 +29,30 @@ workflow (Actions > Release, the component ids).
 
 The unit boots in QEMU to the HMI's home screen in English, with stand-ins
 for the car's SOME/IP services (carsim); a click is a touch on the centre
-screen; mgu-store installs and the updater installs apps through the uplink
-([tools/mgu-emu](tools/mgu-emu/README.md), "The Store").
+screen, the arrow keys / Enter / Backspace the iDrive controller; mgu-store
+installs and the updater installs apps (ours too) through the uplink
+([tools/mgu-emu](tools/mgu-emu/README.md), "The Store", "The controller").
 
-- [ ] **The controller:** carsim offers FrontCCU (0xB508) and the HMI sees
-  it, but doesn't subscribe: `[CCS] Cannot set configuration: (pu, active
-  front active fond, alive)=(1, 1, 0, 0)`. carsim's SOME/IP policy
-  refused the HMI's subscriptions to it until 2026-11-08: look again before
-  anything else. Then map the host keyboard to `/run/carsim/ctl`.
 - [ ] **HmiTest answers nothing**: what gates
   `CHmiStubHmiTest::sendCommand` (try again since the policy fix).
-- [ ] **The Store's page is blank:** the tile opens the app (in front,
-  mgu-render running), but nothing of it reaches the screen. mgu-render on
-  llvmpipe / virtio-gpu through Winston (`journalctl -u mgu-render`).
-- [ ] **Our tools in the emulator:** install them through the updater
-  (`updater.js install <id>`, README "The Store") and test them there.
+- [ ] **The Store's touch:** mgu-render's nft rule fails to load
+  (`Could not process rule: No such file or directory`, "touch stays the
+  HMI's"); the controller keys work meanwhile. Likely an nftables module
+  the VM's kernel lacks (`tools/mgu-emu/kernel`).
+- [ ] **Our tools in the emulator:** vizualyse-chromium 0.2.10 and
+  vizualyse-moonlight 0.2.5 (with cluster-render 0.4.2 from upstream's
+  source) install through the updater from our fork, start after a restart
+  and pass mgu-deploy's health check (Chromium: "Unable to get gpu
+  adapter"); opening and using them on the screen is untested. Not tried:
+  vizualyse-steam (large download),
+  vizualyse-cast. The build's `updater.local.conf` seed is untested on a
+  fresh disk.
+- [ ] **Old `vizualyse_*` apps in our catalog:** the `releases` channel
+  lists cast 0.3.6, chromium 0.2.5, moonlight 0.2.1, steam 0.1.2 as apps
+  (tags `vizualyse_*@...`, 2026-11-07) beside the tools: delete those
+  releases or keep them out of the catalog.
+- [ ] **Name the controller's buttons:** button 2 is BACK; the keycodes of
+  the others (README "The controller") are guesses under lag.
 
 ## hook111 (CarPlay's second screen)
 

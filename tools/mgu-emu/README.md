@@ -19,12 +19,11 @@ centre screen (1920x720) is the VM's window; the mouse is its touchscreen.
   display language and takes touch.
 - **Touch works:** a click in the window is a tap on the centre screen (a
   drag a swipe), through the HMI's own touch path ("Touch" below).
-- **The controller doesn't yet:** carsim offers it (FrontCCU, 0xB508) and
-  takes commands (`echo press > /run/carsim/ctl`), and the HMI sees the
-  service (`[CCS] onFrontProxyAvailabilityStatus available`), but it never
-  subscribes to its events: `[CCS] Cannot set configuration: (pu, active
-  front active fond, alive)=(1, 1, 0, 0)`, also after the monitor is on.
-  Something else has to say the controller is alive (next to find).
+- **The controller works, on the window's keyboard** ("The controller"
+  below): carsim offers it (FrontCCU, 0xB508) and the HMI takes it since
+  carsim's SOME/IP policy let it subscribe (`[CCS] Sending
+  CHmiControllerEvent`). The arrow keys turn and tilt, Enter pushes,
+  Backspace / Esc are BACK: the whole HMI and the Store's page.
 - **The HMI's test interface** (`HmiTest`, SOME/IP 0xB066, `sendCommand`;
   [hmitest.js](hmitest.js)): registered, root allowed to call it, still no
   answer.
@@ -32,8 +31,10 @@ centre screen (1920x720) is the VM's window; the mouse is its touchscreen.
   oapcontroller and MainApp run on a software keystore, MainApp installs
   apps (the stock ones and ours), mgu-store installs with its own installer,
   the uplink is online through a second network card, and the updater
-  installs apps from GitHub through it. The Store's own page opens blank
-  (mgu-render draws nothing here yet).
+  installs apps from GitHub through it, from our fork
+  (`Vizualyse/idrive-apps`) too. The Store's page draws (blank at first on
+  2026-11-08, drawn later the same day without a change of ours); its touch
+  does not work (mgu-render's nft rule fails to load).
 - **What's missing against the car** (its `ps`, `car-state.txt`):
   `ipcServer` (`hdlc_ipc4`, the SPI link to the IOC), `ioclcproxy`,
   `CodingShmApp` (the pulled coding stands in), eCryptfs for
@@ -57,7 +58,7 @@ serves the ones the HMI waits for with the unit's own `/usr/lib/someip.node`
 | VehicleCondition | 0x1531 | PWF `WOHNEN` (`--pwf`), qualifier valid, alive counter each second |
 | Key | 0x5535 | defaults |
 | Vehicle | 0xB510 | units / language (`--lang`), stores what the HMI sets |
-| FrontCCU (the controller) | 0xB508 | turn / press / tilt / buttons from `/run/carsim/ctl` |
+| FrontCCU (the controller) | 0xB508 | turn / press / tilt / buttons from the keyboard and `/run/carsim/ctl` |
 
 - The interface JSONs are made by `build-image.sh` from the unit's catalog
   (`/etc/oap/someip/someip-interfaces.json`, 591 interfaces) with
@@ -79,6 +80,37 @@ serves the ones the HMI waits for with the unit's own `/usr/lib/someip.node`
 - [someip-call.js](someip-call.js) `IFACE.json INSTANCE get|set|call NAME [JSON]`
   pokes any service by hand (in the VM: `/usr/lib/mgu-emu/iface/`:
   HMIContext, HMIControl, DiagHMI).
+
+## The controller
+
+carsim fires FrontCCU's `statusRotaryEncoderState` (turn, push, tilt) and
+`statusPushButtonsState` (the eight buttons) on input only. The HMI turns
+them into `CHmiControllerEvent`s (`[CCS]` in its log); the Store's page,
+while it has the HMI's focus, follows them too.
+
+| key in the QEMU window | controller | carsim command |
+|---|---|---|
+| Left / Right (held: repeats) | turn one detent | `rot -1` / `rot 1` |
+| Enter (held 0.8 s or more: long) | push | `press` / `longpress` |
+| Up / Down | tilt north / south | `tilt N` / `tilt S` |
+| Shift+Left / Shift+Right | tilt west / east | `tilt W` / `tilt E` |
+| Backspace / Esc | BACK | `button 2` |
+| F1..F8 | the buttons | `button 1` .. `button 8` |
+
+- carsim reads `QEMU Virtio Keyboard` (`event2`) itself, without a grab:
+  nothing else in the VM reads it (Winston reads only tap2touch's device).
+  `--keys none` turns it off, `--keys NAME` reads another input device.
+- By hand, in the VM: `echo "rot 1" > /run/carsim/ctl`.
+- **The buttons** (found by firing each one): button 2 is BACK (the HMI
+  walks back through its screens; keycode 2, which CarPlay hooks too). The
+  others switch screens (MEDIA, COM and the like); their keycodes, read
+  while the HMI lagged, were about 1, 3, 6, 4, 7, 17 for buttons 1, 3, 4, 5,
+  6, 7, and none for 8. Not named yet.
+- A carsim restart sets the turn position to 0: the HMI takes the jump as
+  one big turn (`old position=32767`) and the focus moves once.
+- Keys typed into the window from a script need the virtual-key code as
+  well as the scan code (`SendInput`); QEMU's GTK window drops
+  `SendKeys`' Esc, Enter and letters.
 
 ## Touch
 
@@ -175,6 +207,16 @@ What the car has and the emulator had to be given, in the order they block:
   only by that: MainApp's Vehicle units getter timed out ("Cannot
   initialize oap-mainapp"), and the HMI got none of carsim's data either.
   [policy.js](carsim/policy.js) has the rules.
+- **Our fork as a source**: the build seeds
+  `/var/opt/mgu-updater/updater.local.conf` with `default_sources`, the
+  upstream three plus `Vizualyse/idrive-apps:releases`. The updater reads
+  `sources.json` only when it starts, and adds each default source once
+  (`state/default-sources.json`), here as `s-xxxx` (the name `idrive-apps`
+  is upstream's). No id clashes: our catalog lists only `vizualyse-*`
+  (and the old `vizualyse_*` apps) and hook111 (an id two sources list
+  would show beside as `<id>2`). A requirement comes from the requiring
+  source, else the first that has it: vizualyse-moonlight took
+  cluster-render 0.4.2 from upstream's.
 - **The uplink**: run.ps1 gives the VM two user networks. eth0 is SSH only
   (`restrict=on`, no way out, as root on the car); eth1 (10.0.3.0/24, a
   subnet of its own: two networks both leasing 10.0.2.15 break SSH) is
@@ -240,6 +282,10 @@ powershell -File tools\mgu-emu\run.ps1 -Display 'gtk,zoom-to-fit=on,show-cursor=
   journal, forwarded to the second serial port: readable after a crash).
 - A reboot or power-off inside the VM ends QEMU (`-no-reboot`) instead of
   looping.
+- The controller: the arrow keys, Enter and Backspace in the window ("The
+  controller").
+- Our tools: `node /var/opt/mgu-updater/current/updater.js install
+  vizualyse-chromium`, then a restart (`poweroff`, `run.ps1 -Keep`).
 - A tap without the mouse: `ssh ... node /usr/lib/mgu-emu/tap.js X Y`
   ([tap.js](tap.js), screen pixels, through QEMU's tablet like the mouse), or
   straight to the HMI: `node /usr/lib/mgu-emu/cidtouch.js tap X Y`.
