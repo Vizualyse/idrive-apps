@@ -156,12 +156,15 @@ printf "default_sources = cauliflowermossgrape/idrive7-apps:branch robertnisipea
     > emu/opt/mgu-updater/updater.local.conf
 chmod 600 emu/opt/mgu-updater/updater.local.conf
 
-# 5. services: masked (reboot the unit, or need its hardware), and enabled
+# 5. services: masked (reboot the unit, or need its hardware), and enabled.
+#    autosaronlinux (the AUTOSAR app) offers TrustedVinState: without the car
+#    gateway it reports component protection active, and the HMI shows its
+#    pop-up again every few seconds (README, Where it stands)
 MASK="recmgr crashhandler crashkernel modprobe_i915 modprobe_igb_avb modprobe_inap560t modprobe_ptp modprobe_spi
  avbstreamhandler avbsourcesinkcontroller dasvideo display-controller eth-ctrl eth-ctrl_18 gptp hdlc_ipc4
  ioclcproxy ufipc_daemon vlan hdcpd hdcpmanager hddmanager zram soc-configuration-basic soc-configuration-early
  soc-configuration-late strongswan ipseccontroller nfs-export-hdd nfs-export-ramdisks wicome wicome-gpio
- wicome-genivi usbpowermonitor udev-replay-add-usb-eth firewalldz sshd-always-on-fw var-opt-ro"
+ wicome-genivi usbpowermonitor udev-replay-add-usb-eth firewalldz sshd-always-on-fw var-opt-ro autosaronlinux"
 for s in $MASK; do ln -sfn /dev/null etc/systemd/system/$s.service; done
 mkdir -p etc/systemd/system/early.target.wants etc/systemd/system/multi-user.target.wants
 ln -sfn /etc/systemd/system/tap2touch.service etc/systemd/system/early.target.wants/tap2touch.service

@@ -9,9 +9,16 @@ centre screen (1920x720) is the VM's window; the mouse is its touchscreen.
 
 - **Shows:** a clean boot reaches the HMI's home screen in English in about
   3 minutes: the main menu (MEDIA, COM, NAV, CAR, APPS), the status bar,
-  drawn by `HmiMain3D` (RAMSES) through Winston on llvmpipe. The first boot
-  on a fresh disk may show the "Component protection" pop-up (the unit sees
-  none of its car); it is gone once closed or after the next HMI start.
+  drawn by `HmiMain3D` (RAMSES) through Winston on llvmpipe.
+- **No "Component protection" pop-up:** the HMI shows it while
+  `TrustedVinState.isComponentProtectionActive` (SOME/IP 0xF8AE) is true,
+  again every few seconds after a close (`onReappearTimer`). The service is
+  the AUTOSAR app's (`autosaronlinux`, uid 11002), which says true without
+  the car's gateway; necemad's TrustedVIN check fails too (the pulled keys
+  are the car keystore's). The build masks `autosaronlinux`: earlier it
+  died at boot anyway (the slow serial journal, "Logs"), and nothing
+  here has needed it since. Should something need one of its 14 services,
+  carsim could serve TrustedVinState as not active instead.
 - **The car is played by [carsim](carsim/carsim.js)** ("Stand-in services"
   below): lifecycle, the centre display's monitor, vehicle condition (PWF
   Wohnen), key, vehicle (units, language), the iDrive controller. With them
