@@ -1,0 +1,15 @@
+# mgu-emu: stands in for the unit's CodingShmApp (which needs the keystore
+# device): puts the coding pulled from the car where the HMI reads it.
+[Unit]
+Description=Coding Shared Memory (mgu-emu: the car's pulled coding)
+DefaultDependencies=no
+Before=early.target
+After=systemd-tmpfiles-setup-dev.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'cp /emu/rawcodingdata /dev/shm/rawcodingdata && chown 11001:11001 /dev/shm/rawcodingdata && chmod 0644 /dev/shm/rawcodingdata'
+
+[Install]
+WantedBy=early.target

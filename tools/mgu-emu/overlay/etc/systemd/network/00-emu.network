@@ -1,0 +1,8 @@
+# mgu-emu: eth0, QEMU's restricted user network (SSH on the host's
+# 127.0.0.1:2222, no internet). eth1 (52:54:00:e0:00:02) stays unmanaged:
+# mgu-uplink takes it (uplink = netdev:eth1) and runs its own DHCP.
+[Match]
+MACAddress=52:54:00:e0:00:01
+
+[Network]
+DHCP=ipv4

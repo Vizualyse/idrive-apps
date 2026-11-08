@@ -1,0 +1,22 @@
+# mgu-emu: the devices systemd waits for at boot, announced early. The unit's
+# full udev coldplug runs only after early.target, past the 90 s that systemd
+# waits for a device, so what requires one would fail with "dependency":
+# - /dev/vdb, the /var/opt disk (fstab): /var/opt and everything on it;
+# - /dev/keystore (99-emu-keystore.rules aliases /dev/zero): oapcontroller,
+#   persod, necemad, cadaemon, ...
+[Unit]
+Description=mgu-emu early devices (/var/opt disk, keystore)
+DefaultDependencies=no
+After=systemd-udevd.service systemd-udevd-kernel.socket
+Wants=systemd-udevd.service
+Before=sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/udevadm trigger --action=add --subsystem-match=block
+ExecStart=/bin/udevadm trigger --action=add --subsystem-match=mem --sysname-match=zero
+ExecStart=/bin/udevadm settle --timeout=10
+
+[Install]
+WantedBy=sysinit.target

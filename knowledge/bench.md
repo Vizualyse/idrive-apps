@@ -7,6 +7,25 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   `/usr/bin/node` (8.16.2), BusyBox and the unit's loader as on the car (no
   `/var/opt`, no `/tmp`: make them). No GPU, no SOME/IP, no HMI
   (vizualyse-chromium's `test/run_unit_test.sh`).
+- **The whole unit boots in a VM with its HMI on screen**
+  ([tools/mgu-emu](../tools/mgu-emu/README.md), 2026-11-07): QEMU on Windows
+  (WHPX; WSL gets no nested KVM on this AMD PC with VBS), the unit's systemd,
+  Winston on llvmpipe, `HmiMain3D` showing its status bar and start screen.
+  The HMI needs more than the root filesystem: `/mnt/dataro/dataro1/hmi`
+  (646 MB), the IBA squashfs, `/var/sys` and `/dev/shm/rawcodingdata`. With
+  stand-ins for the car's SOME/IP services (lifecycle, PWF, key, vehicle
+  units/language: `tools/mgu-emu/carsim`) it reaches the home screen in
+  English. vsomeip checks a request in the serving process
+  against that process's own policy file (`/etc/vsomeip/<uid>_<gid>/`), so a
+  root provider must list its clients there. A click is a touch (2026-11-07):
+  the HMI takes the centre display's touch not from Wayland but as AUTOSAR
+  PDUs over UDP (port 30567), and only while the lifecycle `Monitor` service
+  says the display is on. The controller doesn't work yet. The app platform
+  and mgu-store run (2026-11-08): oapcontroller and MainApp on a software
+  keystore (the 12 `ias_keystore_*` functions of libmgucrypto, preloaded),
+  `/var/opt` its own disk with quotas (MainApp's app uids need
+  `repquota`), the persistency tools' eCryptfs off, and the uplink on a
+  second QEMU network; the updater installs apps through it.
 - **The GPU off the car** ([tools/gpu-bench](../tools/gpu-bench/README.md),
   2026-11-06): nothing emulates the unit's Gen9 GPU (QEMU offers VGA or
   virtio-gpu only). In the rootfs container, on the unit's own Mesa 19.0.6:
