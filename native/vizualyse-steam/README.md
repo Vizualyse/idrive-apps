@@ -79,7 +79,11 @@ rebuilt `ntdll.so`, below).
   is drawn at its size on the screen into one of three GPU buffers of
   wl-sink's, which Winston shows 1:1; the game's own buffer goes back to Wine
   at once instead of waiting on Winston. Only when Winston would scale by 10 %
-  or more: from 960x540 (shown at 1134x638) it barely does, so it goes with the
+  or more. A window a little larger than the picture (Godot's full screen
+  one, 898x320 at -1,0 on 896x320) is trimmed to it, for FSR and for the
+  plain pass-on alike (0.1.13; before, it went through the CPU, 8-18 ms a
+  picture, and FSR never ran). On the car it costs about 10 ms of GPU a
+  picture (7.7 without sharpening). From 960x540 (shown at 1134x638) it barely does, so it goes with the
   screen-shaped Pictures 1120x400, **896x320** (2x) and 672x240. Its GPU time
   per picture (timer queries) is in the status (`game.fsr.gpuMs`) and on the
   phone page. It enlarges the HUD and text too; a game's own render scale
@@ -142,7 +146,9 @@ rebuilt `ntdll.so`, below).
   scrolled Slay the Spire 2's map on a tap).
 - **A swap file for games (0.1.12):** 4 GB on the hard disk
   (`/var/opt/hdshare/vizualyse-steam/swapfile`, `src/swap.js`), made once in
-  the background two minutes after the tool starts, on while a game runs
+  the background two minutes after the tool starts (a game sooner than that
+  still gets one made earlier, 0.1.13; the journal says when a game gets
+  none), on while a game runs
   behind the unit's own compressed swap (zram 3 GB, priority 75; the file
   10), off after it. A game near its cap pushed the HMI's memory into zram
   until it was full and the game stalled for seconds. The deactivate turns

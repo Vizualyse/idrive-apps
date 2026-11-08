@@ -102,7 +102,14 @@ function ensure(log) {
 /* at a game's start: the file behind zram */
 function on(log) {
     busy = busy.then(() => new Promise((resolve) => {
-        if (state !== 'ready' || active()) return resolve();
+        /* a game in the tool's first minutes, before ensure() looked: the
+         * file made earlier is ready all the same (0.1.12 skipped it) */
+        if (state === 'none' && MB > 0 && sizeOk()) state = 'ready';
+        if (active()) return resolve();
+        if (state !== 'ready') {
+            log('swap: no swap file for this game (' + (state === 'making' ? 'still being made' : note || state) + ')');
+            return resolve();
+        }
         run('swapon', ['-p', String(PRIO), FILE], (err) => {
             if (err) log('swap: ' + err.message); else log('swap: ' + MB + ' MB on the disk on (behind zram) while the game runs');
             resolve();

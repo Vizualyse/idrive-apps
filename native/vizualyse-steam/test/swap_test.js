@@ -30,9 +30,10 @@ const until = (f, ms) => new Promise((resolve, reject) => {
 });
 
 (async () => {
-    /* off while not made: nothing to do */
+    /* off while not made: nothing to do, said */
     await swap.on(log);
     assert.strictEqual(swap.status().on, false);
+    assert.ok(/^swap: no swap file for this game/.test(lines.pop()));
 
     /* made in the background: zeros, mkswap on the .part, renamed into place */
     swap.ensure(log);
@@ -61,6 +62,16 @@ const until = (f, ms) => new Promise((resolve, reject) => {
     assert.strictEqual(swap.status().on, false);
     assert.ok(/zram0/.test(fs.readFileSync(swaps, 'utf8')));
     console.log('ok   off after it, zram left alone: ' + lines[lines.length - 1]);
+
+    /* the tool just restarted (a new version) and a game starts before
+     * ensure() has looked: the file made earlier goes on all the same */
+    delete require.cache[require.resolve('../src/swap.js')];
+    const fresh = require('../src/swap.js');
+    assert.strictEqual(fresh.status().state, 'none');
+    await fresh.on(log);
+    assert.strictEqual(fresh.status().on, true, lines.slice(-2).join(' | '));
+    await fresh.off(log);
+    console.log('ok   a game before the first look still gets the file made earlier');
 
     /* deactivate while on: off and deleted */
     await swap.on(log);

@@ -370,6 +370,19 @@ screen; Detail doesn't reach it (not DXVK, no engine flags).
   (stub, 0.1.12's test). 0.1.12 says why in the perf lines.
 - **Taps scrolled its map:** a 14 px slop was too tight for a tap in the
   car; 0.1.12 has 32 px, 64 in a tap's first 250 ms.
+- **Why FSR never drew (0.1.12's reason):** "the window (898x320 at -1,0)
+  is not inside the picture (896x320)": Godot's full screen window is two
+  pixels wider than the screen, so wl-sink put every picture together on
+  the CPU (8-18 ms each). 0.1.13 trims such a window to the picture.
+- **It hangs at the enemy's turn, every time (0.1.12, three runs):** its
+  own log (`AppData/Roaming/SlayTheSpire2/logs/godot.log` in the prefix;
+  MegaDot 4.5.1, "Vulkan 1.1.96 - Forward+") ends at "Monster ...
+  performing move ...", the start of the enemy's animation; then two
+  Godot `WorkerThread`s spin a core each in user space, the rest wait on
+  futexes, ANV polls a fence (`SYNCOBJ_WAIT` in the crumbs). Not memory
+  (2 GB resident, 99 MB swapped), no GPU hang in `dmesg`. Animations were
+  slow before it, the rest smooth. The Compatibility renderer (Vulkan off
+  for the game: `--rendering-driver opengl3`) is the way round to try.
 
 ## iris / Gallium Nine (bench, 2026-11-08)
 

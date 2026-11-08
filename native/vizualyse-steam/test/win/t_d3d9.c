@@ -30,8 +30,16 @@ int main(void) {
     WNDCLASSA wc = { 0 };
     wc.lpfnWndProc = wndproc; wc.hInstance = GetModuleHandleA(NULL); wc.lpszClassName = "t_d3d9";
     RegisterClassA(&wc);
-    HWND hwnd = CreateWindowA("t_d3d9", "t_d3d9", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 640, 360, NULL, NULL, wc.hInstance, NULL);
+    /* Z:\tmp\t_popup holding "WxH+X+Y": a borderless window there instead
+     * (Godot's full screen window: 898x320 at -1,0 on an 896x320 screen,
+     * Slay the Spire 2 on the car), drawn at its size */
+    int pw = 0, ph = 0, ppx = 0, ppy = 0;
+    FILE *pf = fopen("Z:\\tmp\\t_popup", "r");
+    if (pf) { if (fscanf(pf, "%dx%d%d%d", &pw, &ph, &ppx, &ppy) != 4) pw = ph = 0; fclose(pf); }
+    HWND hwnd = pw ? CreateWindowA("t_d3d9", "t_d3d9", WS_POPUP | WS_VISIBLE, ppx, ppy, pw, ph, NULL, NULL, wc.hInstance, NULL)
+                   : CreateWindowA("t_d3d9", "t_d3d9", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 640, 360, NULL, NULL, wc.hInstance, NULL);
     if (!hwnd) FAIL("CreateWindow %lu", GetLastError());
+    if (pw) tlog("t_d3d9: popup %dx%d at %d,%d\n", pw, ph, ppx, ppy);
     RECT cr;
     GetClientRect(hwnd, &cr);
     tlog("t_d3d9: client %ld %ld\n", cr.right - cr.left, cr.bottom - cr.top);
@@ -57,7 +65,7 @@ int main(void) {
     if (ff) { if (fscanf(ff, "%dx%d", &fsw, &fsh) != 2) fsw = fsh = 0; fclose(ff); }
     D3DPRESENT_PARAMETERS pp = { 0 };
     pp.Windowed = fsw ? FALSE : TRUE; pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.BackBufferFormat = D3DFMT_X8R8G8B8;
-    pp.BackBufferWidth = fsw ? fsw : 640; pp.BackBufferHeight = fsw ? fsh : 360; pp.hDeviceWindow = hwnd;
+    pp.BackBufferWidth = fsw ? fsw : pw ? pw : 640; pp.BackBufferHeight = fsw ? fsh : pw ? ph : 360; pp.hDeviceWindow = hwnd;
     if (fsw) tlog("t_d3d9: full screen %dx%d\n", fsw, fsh);
     pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
     IDirect3DDevice9 *dev = NULL;

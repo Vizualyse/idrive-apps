@@ -475,6 +475,39 @@ async function vulkan() {
         await api('/api/hide', {});
         await api('/api/winston', { on: false });
         fs.unlinkSync('/tmp/t_fullscreen');
+        /* a borderless window a pixel larger than the picture on each side
+         * (Godot's: 898x320 at -1,0 on 896x320, Slay the Spire 2 on the car):
+         * trimmed to the picture, still passed on, and FSR draws it */
+        await api('/api/stop', {});
+        await until('the full-screen Vulkan game ending', (x) => x.game && x.game.state === 'ended', 60000);
+        fs.writeFileSync('/tmp/t_popup', '962x540-1+0\n');
+        try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+        await api('/api/play', { appId: APP });
+        s = await until('the wide-window Vulkan game drawing', (x) => x.game && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+        await api('/api/winston', { on: true });
+        await api('/api/show', {});
+        await sleep(3000);
+        const w0 = (await status()).game;
+        await sleep(3000);
+        const w1 = (await status()).game;
+        let wtl = '';
+        try { wtl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        ok('a window wider than the picture (962 at -1): trimmed and passed on, not put together on the CPU',
+            /popup 962x540 at -1,0/.test(wtl) && w1.buffers.fwd - w0.buffers.fwd > 20 && w1.buffers.ms < 3,
+            JSON.stringify(w1.buffers) + '; ' + wtl.split(/\r?\n/).filter((l) => /popup|FAIL/.test(l)).join(' | '));
+        await api('/api/settings', { upscale: 'fsr' });
+        await sleep(3000);
+        const v0 = (await status()).game;
+        await sleep(3000);
+        const v1 = (await status()).game;
+        const u0 = v0.fsr ? v0.fsr.pictures : 0, u1 = v1.fsr ? v1.fsr.pictures : 0;
+        ok('a window wider than the picture: FSR draws its part inside the picture (1134x638 on the screen)',
+            u1 - u0 > 20 && v1.fsr && String(v1.fsr.size) === '1134,638',
+            (u1 - u0) + ' FSR pictures in 3 s; ' + (v1.fsrWhy ? 'not used: ' + v1.fsrWhy + '; ' : '') + JSON.stringify(v1.fsr) + ', ' + JSON.stringify(v1.buffers));
+        await api('/api/settings', { upscale: 'off' });
+        await api('/api/hide', {});
+        await api('/api/winston', { on: false });
+        fs.unlinkSync('/tmp/t_popup');
     }
     let crumbs = '';
     try { crumbs = fs.readFileSync(CRUMBS, 'utf8'); } catch (e) { /* none */ }

@@ -1191,16 +1191,41 @@ static int has(const struct surface *s) { return s->pix || s->drm; }
  * emulated display mode: a game at 800x600 on a 960x540 screen) is Winston's
  * to apply: the source rectangle, and the size it is shown at, scaled on
  * Winston's GPU instead of read back and scaled here on the CPU. 1 when it went. */
-static int forward(struct surface *x, int px, int py) {
-    struct drm_buffer *d = x->drm;
-    int w, h;
-    shown_size(x, &w, &h);
-    if (!d || w <= 1 || h <= 1 || d->refused || px < 0 || py < 0 || px + w > out_w || py + h > out_h) return 0;
+/* The part of surface x (at px,py in the picture, shown w x h) inside the
+ * picture: its source rectangle in the buffer (sx..sh, from its viewport or
+ * the whole buffer) and where it goes (dx,dy, dw x dh). A window a little
+ * larger than the picture is trimmed, not refused: Slay the Spire 2's full
+ * screen window is 898x320 at -1,0 on an 896x320 picture (Godot, the car,
+ * 2026-11-08), and refusing it put every picture through the CPU. 0: none,
+ * or its viewport is outside its buffer. */
+struct clip { int sx, sy, sw, sh, dx, dy, dw, dh; };
+static int clip_view(const struct surface *x, const struct drm_buffer *d, int px, int py, int w, int h, struct clip *c) {
     int sx = 0, sy = 0, sw = d->w, sh = d->h;
     if (x->vw > 0 && x->vh > 0) {   /* wl_fixed source: to whole pixels */
         sx = (int)(x->vx + 0.5); sy = (int)(x->vy + 0.5); sw = (int)(x->vw + 0.5); sh = (int)(x->vh + 0.5);
         if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) return 0;
     }
+    int x0 = px > 0 ? px : 0, y0 = py > 0 ? py : 0;
+    int x1 = px + w < out_w ? px + w : out_w, y1 = py + h < out_h ? py + h : out_h;
+    if (x1 - x0 < 2 || y1 - y0 < 2) return 0;
+    /* the buffer's pixels for the trimmed part (the source scaled as shown) */
+    c->sx = sx + (int)((double)(x0 - px) * sw / w + 0.5);
+    c->sy = sy + (int)((double)(y0 - py) * sh / h + 0.5);
+    c->sw = (int)((double)(x1 - x0) * sw / w + 0.5);
+    c->sh = (int)((double)(y1 - y0) * sh / h + 0.5);
+    if (c->sw < 1 || c->sh < 1 || c->sx + c->sw > d->w || c->sy + c->sh > d->h) return 0;
+    c->dx = x0; c->dy = y0; c->dw = x1 - x0; c->dh = y1 - y0;
+    return 1;
+}
+
+static int forward(struct surface *x, int px, int py) {
+    struct drm_buffer *d = x->drm;
+    int w, h;
+    shown_size(x, &w, &h);
+    struct clip c;
+    if (!d || w <= 1 || h <= 1 || d->refused || !clip_view(x, d, px, py, w, h, &c)) return 0;
+    int sx = c.sx, sy = c.sy, sw = c.sw, sh = c.sh;
+    px = c.dx; py = c.dy; w = c.dw; h = c.dh;
     if (!d->wb) {
         /* no modifier said (wl_drm): the driver takes the buffer's tiling from the kernel */
         d->wb = wo_buf_dmabuf(wo, d->fd, d->w, d->h, d->format, (uint32_t)d->offset, (uint32_t)d->stride, 0x00ffffffffffffffull);
@@ -1307,18 +1332,15 @@ static int fsr_forward(struct surface *x, int px, int py) {
     if (!d) FSR_NOT("not a GPU buffer");
     int w, h;
     shown_size(x, &w, &h);
-    if (w <= 1 || h <= 1 || px < 0 || py < 0 || px + w > out_w || py + h > out_h) {
-        snprintf(fsr_why_buf, sizeof fsr_why_buf, "the window (%dx%d at %d,%d) is not inside the picture (%dx%d)", w, h, px, py, out_w, out_h);
+    struct clip c;
+    if (w <= 1 || h <= 1 || !clip_view(x, d, px, py, w, h, &c)) {
+        snprintf(fsr_why_buf, sizeof fsr_why_buf, "the window (%dx%d at %d,%d, buffer %dx%d) is outside the picture (%dx%d) or its viewport outside its buffer",
+                 w, h, px, py, d->w, d->h, out_w, out_h);
         FSR_NOT(fsr_why_buf);
     }
-    int sx = 0, sy = 0, sw = d->w, sh = d->h;
-    if (x->vw > 0 && x->vh > 0) {
-        sx = (int)(x->vx + 0.5); sy = (int)(x->vy + 0.5); sw = (int)(x->vw + 0.5); sh = (int)(x->vh + 0.5);
-        if (sx < 0 || sy < 0 || sw < 1 || sh < 1 || sx + sw > d->w || sy + sh > d->h) {
-            snprintf(fsr_why_buf, sizeof fsr_why_buf, "its viewport (%dx%d+%d+%d) is outside its buffer (%dx%d)", sw, sh, sx, sy, d->w, d->h);
-            FSR_NOT(fsr_why_buf);
-        }
-    }
+    /* the part inside the picture (a window a little larger is trimmed) */
+    int sx = c.sx, sy = c.sy, sw = c.sw, sh = c.sh;
+    px = c.dx; py = c.dy; w = c.dw; h = c.dh;
     /* its size on the screen: the picture (out_w x out_h) fitted into the place */
     double k = (double)place_w / out_w < (double)place_h / out_h ? (double)place_w / out_w : (double)place_h / out_h;
     int fw = (int)(w * k + 0.5), fh = (int)(h * k + 0.5);
