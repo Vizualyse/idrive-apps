@@ -5,7 +5,8 @@
 # what the trial needs from /out):
 #   /out/lib/libvulkan_intel.so  Mesa 19.0.6's ANV, the release of the unit's
 #       own i965 (knowledge/browser.md, "Vulkan on this kernel"), built on
-#       glibc 2.27 like the unit. Wayland WSI (no X11).
+#       glibc 2.27 like the unit. Wayland WSI (no X11). MESA_VER=19.1.8 for
+#       a trial of the next one (below).
 #   /out/lib/libvulkan.so.1      Ubuntu 18.04's Khronos loader 1.1.70 (the
 #       unit has none).
 #   /out/shaders.spv.h           the probe's shaders: compute, draw (glslang, below).
@@ -30,14 +31,23 @@ RUN apt-get update -qq \
       libwayland-dev libwayland-bin wayland-protocols \
       libvulkan1=1.1.70+dfsg1-1ubuntu0.18.04.1 libvulkan-dev=1.1.70+dfsg1-1ubuntu0.18.04.1 >/dev/null \
  && rm -rf /var/lib/apt/lists/*
-# Mesa 19.0.6's release tarball (the same as tools/gpu-bench's), sha256
+# Mesa's release tarball (19.0.6: the same as tools/gpu-bench's), sha256
 # checked. The Steam tool's release builds this image in CI, so it needs
 # nothing local (archive.mesa3d.org was very slow once: retries).
-RUN mkdir -p /src && cd /src \
- && curl -fsSLO --retry 8 --retry-delay 10 https://archive.mesa3d.org/older-versions/19.x/mesa-19.0.6.tar.xz \
- && echo "2db2f2fcaa4048b16e066fad76b8a93944f7d06d329972b0f5fd5ce692ce3d24  mesa-19.0.6.tar.xz" | sha256sum -c - \
- && tar xJf mesa-19.0.6.tar.xz && rm mesa-19.0.6.tar.xz \
- && mkdir -p /out/licenses && cp mesa-19.0.6/docs/license.html /out/licenses/mesa.html \
+# MESA_VER (build.sh passes it): 19.0.6, what Steam ships, or 19.1.8, the
+# first ANV with VK_EXT_external_memory_host (32-bit DXVK under new WoW64)
+# and VK_EXT_host_query_reset (DXVK 1.10.x): knowledge/games.md, "Vulkan".
+ARG MESA_VER=19.0.6
+RUN case $MESA_VER in \
+      19.0.6) sha=2db2f2fcaa4048b16e066fad76b8a93944f7d06d329972b0f5fd5ce692ce3d24 ;; \
+      19.1.8) sha=f0fe8289b7d147943bf2fc2147833254881577e8f9ed3d94ddb39e430e711725 ;; \
+      *) echo "no sha256 for Mesa $MESA_VER"; exit 1 ;; \
+    esac \
+ && mkdir -p /src && cd /src \
+ && curl -fsSLO --retry 8 --retry-delay 10 https://archive.mesa3d.org/older-versions/19.x/mesa-$MESA_VER.tar.xz \
+ && echo "$sha  mesa-$MESA_VER.tar.xz" | sha256sum -c - \
+ && tar xJf mesa-$MESA_VER.tar.xz && rm mesa-$MESA_VER.tar.xz && mv mesa-$MESA_VER mesa \
+ && mkdir -p /out/licenses && cp mesa/docs/license.html /out/licenses/mesa.html \
  && cp /usr/share/doc/libvulkan1/copyright /out/licenses/vulkan-loader.txt
 # ANV only. platforms=drm is the least Mesa 19 accepts; it brings
 # VK_KHR_display, which opens the primary node (card0, Winston's) only when
@@ -45,11 +55,18 @@ RUN mkdir -p /src && cd /src \
 # /dev/dri/card* from the child whatever asks. wayland adds
 # VK_KHR_wayland_surface: frames to a Wayland compositor as wl_drm PRIME
 # buffers (or dmabuf), linking the unit's own libwayland-client.so.0.
-RUN cd /src/mesa-19.0.6 \
- && meson b --buildtype=release --prefix=/opt/anv --libdir=lib \
+# 19.1 wants meson >= 0.46 (18.04 has 0.45: the pip one, installed here for
+# it, as for Wayland below) and its generated xmlpool/options.h built first
+# (missing from the newer meson's dependency order: "No such file").
+RUN cd /src/mesa \
+ && if [ "$MESA_VER" = 19.0.6 ]; then MESON=meson; else \
+      apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-pip python3-setuptools >/dev/null \
+      && pip3 -q install meson==0.61.5 && MESON=/usr/local/bin/meson; fi \
+ && $MESON b --buildtype=release --prefix=/opt/anv --libdir=lib \
       -Dplatforms=drm,wayland -Ddri-drivers= -Dgallium-drivers= -Dvulkan-drivers=intel \
       -Dglx=disabled -Degl=false -Dgbm=false -Dgles1=false -Dgles2=false -Dopengl=false \
       -Dllvm=false -Dvalgrind=false -Dlibunwind=false -Dbuild-tests=false >/dev/null \
+ && { [ "$MESA_VER" = 19.0.6 ] || ninja -C b src/util/xmlpool/options.h >/dev/null; } \
  && ninja -C b install >/dev/null \
  && mkdir -p /out/lib && cp /opt/anv/lib/libvulkan_intel.so /out/lib/ \
  && strip --strip-unneeded /out/lib/libvulkan_intel.so \

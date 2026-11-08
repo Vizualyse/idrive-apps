@@ -43,8 +43,10 @@ mkdir -p /tmp/bin && printf '#!/bin/sh\nexit 0\n' > /tmp/bin/xrandr && chmod +x 
 export PATH=/tmp/bin:$PATH
 export STEAM_COMPAT_DATA_PATH=/pfx STEAM_COMPAT_CLIENT_INSTALL_PATH=/tmp/steam
 # DXVK, not WineD3D: Proton copies its dxvk folder's DLLs (1.10.3, mounted)
-# into the prefix as native
+# into the prefix as native. New WoW64 as the Steam tool runs it (bundle.sh):
+# without it a 32-bit program never starts ("Failed to create process": 731)
 export PROTON_USE_WINED3D=0 PROTON_ENABLE_WAYLAND=1 PROTONFIXES_DISABLE=1 PROTON_ENABLE_NVAPI=0
+export PROTON_USE_WOW64=1
 export PROTON_LOG=1 PROTON_LOG_DIR=/tmp/log SteamGameId=0 SteamAppId=0
 export WINEDEBUG=${WINEDEBUG:-err+all,fixme-all}
 export DXVK_LOG_LEVEL=info DXVK_LOG_PATH='/tmp/log' T_LOG='Z:\tmp\log\t.log'

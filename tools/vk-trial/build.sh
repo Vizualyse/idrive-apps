@@ -8,7 +8,7 @@
 #   bin/wl-sink        the Steam tool's compositor (main's source, compiled
 #                      here for the unit): the present stage's target
 #   lib/vk_crumbs.so   breadcrumbs and the display-node guard
-#   lib/libvulkan_intel.so, lib/libvulkan.so.1   Mesa 19.0.6 ANV, the loader
+#   lib/libvulkan_intel.so, lib/libvulkan.so.1   Mesa 19.0.6 ANV (MESA_VER), the loader
 #   bench/kernel414.so the bench's stand-in for the unit's kernel (never packed)
 #   vk-trial.tgz       bin/ and lib/, to unpack into /var/opt/vk-trial by hand
 # Kept when its inputs haven't changed.
@@ -19,11 +19,16 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 # (the tests need tools/gpu-bench's stub GPU too: they build it themselves;
 # this build needs nothing local, so the Steam tool's release builds it in CI)
+# MESA_VER: the ANV to build (image/Dockerfile): 19.0.6, what Steam ships, by
+# default; 19.1.8 for a trial of the next (32-bit DXVK, DXVK 1.10.x).
+# build/ holds one at a time: build/mesa says which.
+MESA_VER=${MESA_VER:-19.0.6}
 IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
+[ "$MESA_VER" = 19.0.6 ] || IMG=$IMG-mesa$MESA_VER
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/vk-trial-image.$$.log
-    echo "vk-trial: building $IMG (Mesa 19.0.6 ANV, ~5 min the first time)"
-    docker build --platform linux/amd64 --progress=plain -t "$IMG" "$WIN_HERE/image" > "$LOG" 2>&1 \
+    echo "vk-trial: building $IMG (Mesa $MESA_VER ANV, ~5 min the first time)"
+    docker build --platform linux/amd64 --progress=plain --build-arg MESA_VER="$MESA_VER" -t "$IMG" "$WIN_HERE/image" > "$LOG" 2>&1 \
         || { tail -30 "$LOG" >&2; echo "vk-trial: the image did not build (log: $LOG)" >&2; exit 1; }
     rm -f "$LOG"
 fi
@@ -124,4 +129,5 @@ docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id
     chown -R "$HOST_IDS" /m/build/pkg /m/build/bench /m/build/vk-trial.tgz'
 echo "$key" > "$HERE/build/key"
 echo "$IMG" > "$HERE/build/image"
+echo "$MESA_VER" > "$HERE/build/mesa"
 echo "vk-trial: built ($key): build/vk-trial.tgz"

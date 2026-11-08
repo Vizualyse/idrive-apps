@@ -25,6 +25,8 @@ echo "== setup (root)"; node /var/opt/vk-trial/dxvk/run.js setup; echo "setup rc
 echo "owner of / $(stat -c %u /), 12990 outside vk-trial: [$(find / -xdev -user 12990 2>/dev/null | grep -v "^/var/opt/vk-trial/" | wc -l)] in /dev: [$(find /dev -user 12990 2>/dev/null | wc -l)]"
 G=/var/opt/vk-trial/bin/vk-trial
 if [ "$MODE" = winston ]; then ARM="--winston"; RUN="run winston"; else ARM=; RUN=run; fi
+# DXVK_PROGRAMS (car_test.sh, commas): run.js's arguments, as typed on the car
+RUN="$RUN $(echo "${DXVK_PROGRAMS:-}" | tr ',' ' ')"
 echo "== arm, run ($MODE)"
 # shellcheck disable=SC2086
 $G arm command --timeout 300 $ARM -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js $RUN && $G run; echo "run rc=$?"

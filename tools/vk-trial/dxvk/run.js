@@ -20,6 +20,7 @@
 //   vk-trial arm command --timeout 300 -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run
 //   vk-trial arm command --timeout 300 --winston -- /usr/bin/node /var/opt/vk-trial/dxvk/run.js run winston
 //     (on the centre screen through Winston, in the app area)
+//   ... run.js run t_d3d932.exe t_d3d1132.exe   (those programs instead)
 //
 // Sound is off (winealsa.drv=d): the car's audio path is not touched. The
 // Vulkan loader is vk-trial's lib/libvulkan.so.1 (the Steam runtime has none
@@ -44,10 +45,15 @@ const DLLS = ['d3d11', 'd3d10core', 'd3d9', 'dxgi'];
 const WINSTON = process.argv[2] === 'run' && process.argv[3] === 'winston';
 const WINSTON_SOCKET = '/run/wayland/wayland-0';
 const VIEW = '108,82,1790,638';
-/* t_d3d932.exe (32-bit: WoW64, DXVK's x32) is built and packaged too but left
- * out until it passes off the car (it exits 1 after finding the adapter):
- * DXVK_PROGRAMS=t_d3d932.exe runs it alone */
-const PROGRAMS = process.env.DXVK_PROGRAMS ? process.env.DXVK_PROGRAMS.split(/[ ,]+/).filter(Boolean) : ['t_d3d1164.exe', 't_d3d964.exe'];
+/* Which programs: any *.exe after `run` (`run [winston] t_d3d932.exe ...`:
+ * the gate gives its child a clean environment, so on the car arguments are
+ * the only way in), else DXVK_PROGRAMS, else the 64-bit two. The 32-bit
+ * ones (t_d3d932, t_d3d1132: WoW64, DXVK's x32) need ANV 19.1.8 (MESA_VER):
+ * 19.0.6 has no VK_EXT_external_memory_host, so WoW64 winevulkan can't map
+ * memory below 4 GB and DXVK's device fails (knowledge/games.md) */
+const ARG_PROGRAMS = process.argv.slice(3).filter((a) => /\.exe$/.test(a));
+const PROGRAMS = ARG_PROGRAMS.length ? ARG_PROGRAMS
+    : process.env.DXVK_PROGRAMS ? process.env.DXVK_PROGRAMS.split(/[ ,]+/).filter(Boolean) : ['t_d3d1164.exe', 't_d3d964.exe'];
 
 function say(s) { process.stdout.write('dxvk: ' + s + '\n'); }
 function crumb(s) {
@@ -189,7 +195,8 @@ function run() {
         }
         cp.spawnSync(STEAM + '/proton/files/bin/wineserver', ['-k'], { env: e });
     });
-    readLines(tmp + '/t_d3d1164_d3d11.log').concat(readLines(tmp + '/t_d3d1164_dxgi.log'))
+    const first = path.basename(PROGRAMS[0] || '', '.exe');
+    readLines(tmp + '/' + first + '_d3d11.log').concat(readLines(tmp + '/' + first + '_dxgi.log'), readLines(tmp + '/' + first + '_d3d9.log'))
         .filter((l) => /DXVK: v|Feature level|err:/.test(l)).slice(0, 8).forEach((l) => say('  dxvk: ' + l));
 
     /* wl-sink: off the screen first, then its counts (all totals) */

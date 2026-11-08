@@ -25,6 +25,8 @@ sh "$HERE/package.sh" >&2
 MOUNTS="-v $(win "$VKT/build"):/b:ro -v $(win "$VKT/../gpu-bench/build"):/g:ro -v $(win "$STEAM/build"):/sb:ro -v $(win "$VKT/test"):/tst:ro -v $(win "$HERE"):/s:ro"
 OPTS="--shm-size=1g --cap-add SYS_ADMIN --tmpfs /run:mode=755 --tmpfs /tmp:exec,mode=1777"
 STUB="-e VK_TRIAL_EXTRA_PRELOAD=/b/bench/kernel414.so:/g/stub/libintel_noop_drm_shim.so -e INTEL_STUB_GPU_PLATFORM=bxt"
+# DXVK_PROGRAMS="t_d3d932.exe t_d3d1132.exe ...": those programs (32-bit ones need MESA_VER=19.1.8)
+[ -z "${DXVK_PROGRAMS:-}" ] || STUB="$STUB -e DXVK_PROGRAMS=$(echo "$DXVK_PROGRAMS" | tr ' ' ',')"
 if [ "$MODE" = winston ]; then
     # shellcheck disable=SC2086
     out=$(DOCKER_ARGS="$OPTS $MOUNTS $STUB" sh "$WB/run.sh" stub sh /s/car_steps.sh winston 2>&1 || true)
@@ -38,9 +40,11 @@ printf '%s\n' "$out" | grep -v "wine: .*err:\(waylanddrv\|keyboard\|cursor\|stea
 fails=0
 check() { printf '%s\n' "$out" | grep -qF -- "$1" && echo "  ok   $1" || { echo "  FAIL $1"; fails=$((fails + 1)); }; }
 for want in "setup rc=0" "prefix ready" "owner of / 0," "12990 outside vk-trial: [0] in /dev: [0]" "run rc=0" "result=ok" \
-        "t_d3d11: device, feature level 11_1" "t_d3d1164.exe: ok" "t_d3d9: device" "t_d3d964.exe: ok" "GPU (wl_drm)" "dxvk: ok" "run-dir:[]"; do
+        "GPU (wl_drm)" "dxvk: ok" "run-dir:[]"; do
     check "$want"
 done
+for p in ${DXVK_PROGRAMS:-t_d3d1164.exe t_d3d964.exe}; do check "$p: ok"; done
+[ -n "${DXVK_PROGRAMS:-}" ] || { check "t_d3d11: device, feature level 11_1"; check "t_d3d9: device"; }
 if [ "$MODE" = winston ]; then
     check "group video and mgu_wayland (Winston)"
     check '"winston":true'

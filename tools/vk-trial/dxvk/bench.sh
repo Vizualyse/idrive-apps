@@ -69,7 +69,7 @@ docker run --rm -v "$(win "$HERE/win"):/src:ro" -v "$(win "$STEAM/test/win"):/tl
 
 [ $# -gt 0 ] || set -- t_d3d11 t_d3d9
 progs=
-for p in "$@"; do p=${p%.exe}; case $p in *64) ;; *) p=${p}64 ;; esac; progs="$progs /w/$p.exe"; done
+for p in "$@"; do p=${p%.exe}; case $p in *64|*32) ;; *) p=${p}64 ;; esac; progs="$progs /w/$p.exe"; done
 NAME=vk-trial-dxvk-$$
 trap 'docker rm -f $NAME >/dev/null 2>&1' EXIT INT TERM
 D=/proton/$PROTON_VER/files/lib/wine/dxvk
@@ -78,7 +78,8 @@ docker run --rm --name $NAME --network none --shm-size=512m \
     -v steam-bench-proton:/proton:ro \
     --mount type=volume,src=vk-trial-dxvk,dst=$D/x86_64-windows,volume-subpath=proton/x86_64-windows,readonly \
     --mount type=volume,src=vk-trial-dxvk,dst=$D/i386-windows,volume-subpath=proton/i386-windows,readonly \
-    -v "vk-trial-dxvk-pfx-$PROTON_VER-$DXVK_VER:/pfx" -e PROTON="/proton/$PROTON_VER" \
+    --mount type=volume,src=steam-bench-proton,dst=/proton/$PROTON_VER/files/lib/wine/i386-unix,volume-subpath=$PROTON_VER-i386-unix-64only,readonly \
+    -v "vk-trial-dxvk-pfx-$PROTON_VER-$DXVK_VER-wow64:/pfx" -e PROTON="/proton/$PROTON_VER" \
     -v "$(win "$VKT/../gpu-bench/build"):/g:ro" -v "$(win "$VKT/build"):/v:ro" -v "$(win "$STEAM/build/unit-gl"):/ugl:ro" \
     -v "$(win "$VKT/build/dxvk-win"):/w:ro" -v "$(win "$VKT/build/dxvk-out"):/o" -v "$(win "$HERE"):/s:ro" \
     ${T_TIMEOUT:+-e T_TIMEOUT="$T_TIMEOUT"} ${WINEDEBUG:+-e WINEDEBUG="$WINEDEBUG"} ${DOCKER_ARGS:-} \
