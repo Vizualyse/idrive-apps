@@ -14,24 +14,27 @@ workflow (Actions > Release, the component ids).
   2026-11-08 with FSR, perf lines and Detail, 0.1.12 with FSR's reasons,
   the tap deadzone and the swap file; 32-bit DXVK, newer ANV and
   iris are by-hand trials, not shipped).** Each step asked first; the
-  journal read after, not polled during. Step 1 passed on the car
-  2026-11-08 (Slay the Spire 2 started, showed, hid; perf lines). In order:
-  2. FSR with 0.1.12: on 0.1.11 it never drew on Slay the Spire 2 (Godot,
-     Vulkan, full screen; no "FSR n/s" in any perf line, and wl-sink took
-     12-27 ms a picture where passing a buffer on takes under 1: likely
-     put together in software). 0.1.12's perf lines say why FSR isn't
-     used (`FSR not used: ...`) and the `wl-sink: ready` line whether FSR
-     is ready. Then Picture 896x320, off / FSR / FSR no sharpening, a
-     photo. Plain 896x320 already beat 960x540 there (about 18 fps, 1%
-     low 12, against 13-15 and 2-4).
+  journal read after, not polled during. Done on the car 2026-11-08: step
+  1 (Slay the Spire 2 started, showed, hid; perf lines); FSR and its live
+  switching (off / FSR / no sharpening, from off too) on Vampire Survivors
+  (DXVK, Unity): about 10 ms GPU a frame (7.7 without sharpening), no fps
+  change at a GPU already 100 % busy; Detail Lite and Potato start and run
+  there (about 13 fps in play with FSR; the user is happy with it, no
+  more Detail runs). The unit's journal kept only 10-15 minutes of the
+  tool's lines: read right after a run. In order:
+  2. FSR on Slay the Spire 2 with 0.1.12: on 0.1.11 it never drew there
+     (Godot, Vulkan, full screen), and wl-sink took 12-27 ms a picture in
+     every mode (Vampire Survivors: 0.2-0.5): put together in software,
+     where FSR isn't tried; a guess: Godot's window bigger than the
+     picture. 0.1.12's perf lines say why (`FSR not used: ...`); fix
+     that path. Plain 896x320 already beat 960x540 there (about 18 fps,
+     1% low 12, against 13-15 and 2-4).
   2b. 0.1.12's tap deadzone (32 px, 64 in a tap's first 250 ms): the
      Slay the Spire 2 map no longer scrolls on a tap; drags still drag.
   2c. 0.1.12's swap file: `swap: ... ready` about two minutes after the
      tool starts (4 GB on the disk; the hand-made one at the same path is
      taken as it is), `swap: ... on` at a game's start and `off` after it
      in the journal; `cat /proc/swaps` during a game (one read).
-  3. Detail: step 4 (Normal / Lite / Potato on a DXVK game and a WineD3D
-     game; which refuse Potato).
   4. The app's page on the real HMI: the new Upscaling button draws,
      cycles and says "not in this Steam tool" with an older tool (only a
      fake HMI has seen it; mgu-emu can't install a local app build).
