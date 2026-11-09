@@ -22,7 +22,10 @@ fi
 if [ "$(cat "$HERE/build/image" 2>/dev/null)" != "$IMG" ]; then
     rm -rf "$HERE/build"
     mkdir -p "$HERE/build"
-    docker run --rm --platform linux/amd64 --network none -v "$WIN_HERE/build:/b" "$IMG" sh -c 'cp -r /out/. /b/'
+    # the caller's own (as tools/vk-trial's build): folders made here as root
+    # couldn't be emptied by it after (the Release workflow's export, 0.2.0)
+    docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id -g)" -v "$WIN_HERE/build:/b" "$IMG" \
+        sh -c 'cp -r /out/. /b/ && chown -R "$HOST_IDS" /b'
     echo "$IMG" > "$HERE/build/image"
 fi
 echo "iris-bench: built ($IMG)"
