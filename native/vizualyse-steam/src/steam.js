@@ -243,6 +243,34 @@ function engine(dir, exeRel) {
     return null;
 }
 
+/* The smallest screen a game's engine takes, or null. Unity 4 lists only
+ * display modes of at least 640x480, and Wine's Wayland driver offers only
+ * modes that fit inside its screen: at 896x320 Teslagrad's Unity 4 found "no
+ * video modes" and quit; at 960x540 it started (the car, 2026-11-08). Unity
+ * 4: the <exe>_Data folder without Unity 5's UnityPlayer.dll. */
+function minScreen(dir, exeRel) {
+    if (!exeRel) return null;
+    const d = path.join(dir, path.dirname(exeRel));
+    let names = [];
+    try { names = fs.readdirSync(d); } catch (e) { return null; }
+    const base = path.basename(exeRel).replace(/\.exe$/i, '');
+    if (names.indexOf(base + '_Data') >= 0 && names.indexOf('UnityPlayer.dll') < 0) return { w: 640, h: 480, why: 'Unity 4' };
+    return null;
+}
+
+/* The game's screen: the chosen resolution res, or for an engine that needs
+ * more (minScreen) the same shape at a size that holds its minimum: one from
+ * list (896x320 -> 1344x480, 640x360 -> 848x480), else res scaled up. */
+function screenFor(res, min, list) {
+    if (!min || (res.w >= min.w && res.h >= min.h)) return res;
+    const a = res.w / res.h;
+    const fit = list.filter((r) => r.w >= min.w && r.h >= min.h && Math.abs(r.w / r.h - a) / a < 0.02)
+        .sort((x, y) => x.w * x.h - y.w * y.h)[0];
+    if (fit) return fit;
+    const k = Math.max(min.w / res.w, min.h / res.h);
+    return { id: 'scaled', w: Math.ceil(res.w * k / 16) * 16, h: Math.ceil(res.h * k / 2) * 2 };
+}
+
 function defaultArgs(eng) {
     return eng === 'godot' ? ['--rendering-driver', 'opengl3'] : [];
 }
@@ -355,4 +383,4 @@ function arch(dir, exeRel) {
     }
 }
 
-module.exports = { Download, findExes, engine, arch, defaultArgs, detailArgs, du, storeName, remembered, KNOWN };
+module.exports = { Download, findExes, engine, arch, minScreen, screenFor, defaultArgs, detailArgs, du, storeName, remembered, KNOWN };

@@ -50,6 +50,7 @@
     { "path": "screen.js", "from": "src/screen.js", "mode": "0644" },
     { "path": "firewall.js", "from": "src/firewall.js", "mode": "0644" },
     { "path": "swap.js", "from": "src/swap.js", "mode": "0644" },
+    { "path": "tap.js", "from": "src/tap.js", "mode": "0644" },
     { "path": "deactivate.js", "from": "src/deactivate.js", "mode": "0644" },
     { "path": "control.js", "from": "src/control.js", "mode": "0644" },
     { "path": "pcm_play.py", "from": "src/pcm_play.py", "mode": "0644" },

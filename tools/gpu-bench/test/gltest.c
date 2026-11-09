@@ -81,6 +81,32 @@ static int near(unsigned got, double want) {
     return fabs((double)got - want * 255.0) <= 2.0;
 }
 
+/* Godot 4's opengl3 renderer (Slay the Spire 2, the car 2026-11-09) writes
+ * #version 330 shaders that call packHalf2x16 / unpackHalf2x16 (GLSL 4.20,
+ * or 3.30 with ARB_shading_language_packing enabled, which they don't): Mesa
+ * 19's i965 refuses them unless force_glsl_extensions_warn (a driconf
+ * option, also an environment variable) enables every extension it has. */
+static void glsl330_pack(void) {
+    static const char *src =
+        "#version 330 core\n"
+        "out vec4 color;\n"
+        "uniform vec2 v;\n"
+        "void main() { uint p = packHalf2x16(v); color = vec4(unpackHalf2x16(p), 0.0, 1.0); }\n";
+    GLuint s = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(s, 1, &src, NULL);
+    glCompileShader(s);
+    GLint ok = 0;
+    glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    char log[256] = "";
+    if (!ok) {
+        glGetShaderInfoLog(s, sizeof log, NULL, log);
+        char *nl = strchr(log, '\n');
+        if (nl) *nl = 0;
+    }
+    printf("desktop_glsl330_pack: %s%s\n", ok ? "ok" : "fails: ", log);
+    glDeleteShader(s);
+}
+
 static void desktop_gl(EGLDisplay dpy) {
     if (!eglBindAPI(EGL_OPENGL_API)) {
         printf("desktop_gl: no (eglBindAPI 0x%x)\n", eglGetError());
@@ -104,6 +130,7 @@ static void desktop_gl(EGLDisplay dpy) {
             if (i == 0) {
                 const char *sl = (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
                 printf("desktop_glsl: %s\n", sl ? sl : "?");
+                glsl330_pack();
             }
         } else {
             printf("desktop_gl_%s: no current (0x%x)\n", names[i], eglGetError());

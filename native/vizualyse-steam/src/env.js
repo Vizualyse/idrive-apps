@@ -252,7 +252,7 @@ function dotnetEnv() {
 /* Wine for a game, as Proton starts it (build/launch.json, captured from
  * Proton's own launcher at build time), here: the unit's EGL first, the
  * runtime's libraries, then Proton's own. */
-function wineEnv(launch, appId, display, vulkan, detail, iris) {
+function wineEnv(launch, appId, display, vulkan, detail, iris, engine) {
     const e = Object.assign({}, launch.env, baseEnv());
     const protonLibs = (launch.env.LD_LIBRARY_PATH || '').split(':').filter((p) => p && p.indexOf(PROTON) === 0);
     e.LD_LIBRARY_PATH = EXTRA_LIBS + [GPU_LIBS, RUNTIME + '/lib'].concat(protonLibs).join(':');
@@ -270,7 +270,8 @@ function wineEnv(launch, appId, display, vulkan, detail, iris) {
      * mscoree.dll to load any IL-only DLL, even for a modern .NET game with
      * its own runtime. Slay the Spire 2 (Godot, .NET 9) crashed on the car
      * with "mscoree.dll not found, IL-only binary sts2.dll cannot be loaded"
-     * (2026-11-07). A .NET Framework game still has no Wine Mono. */
+     * (2026-11-07). A .NET Framework game runs on Wine Mono 11.3.0 (proton/
+     * share/wine/mono since 0.2.0, found there by mscoree; FNA for XNA). */
     e.WINEDLLOVERRIDES = (e.WINEDLLOVERRIDES ? e.WINEDLLOVERRIDES + ';' : '') + 'mshtml=' +
         /* our XInput (src/xinput.c, server.js installXInput): Wine's reads its
          * winebus, which has nothing to read on the car */
@@ -308,6 +309,15 @@ function wineEnv(launch, appId, display, vulkan, detail, iris) {
         e.LIBGL_DRIVERS_PATH = IRIS_DRI;
         e.MESA_LOADER_DRIVER_OVERRIDE = 'iris';
     }
+    /* Godot 4's OpenGL renderer writes #version 330 shaders that call
+     * packHalf2x16 / unpackHalf2x16 without enabling
+     * ARB_shading_language_packing: Mesa 19 refuses its scene shader and the
+     * menu never draws (Slay the Spire 2 with Vulkan off, the car
+     * 2026-11-09). This driconf option, read from the environment, enables
+     * every extension the driver has in every shader (tools/gpu-bench's
+     * gltest: the same shader fails without it on the unit's i965, compiles
+     * with it). */
+    if (engine === 'godot' && !vulkan) e.force_glsl_extensions_warn = 'true';
     /* vk_crumbs.so first, ahead of any preload the bench adds (STEAM_EXTRA_ENV, applied by mesaEnv) */
     if (vulkan) e.LD_PRELOAD = [VK.crumbs].concat((e.LD_PRELOAD || '').split(':').filter((p) => p && !/vk_crumbs\.so$/.test(p))).join(':');
     return e;

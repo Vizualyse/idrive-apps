@@ -53,6 +53,40 @@ assert(/MaxShaderModelPS=2,VideoMemorySize=512$/.test(w('potato')));
 assert.strictEqual(env.wineEnv({ env: {}, argv: [] }, 1, 'wayland-x', true, 'potato').WINE_D3D_CONFIG, undefined, 'not with DXVK');
 console.log('ok   WINE_D3D_CONFIG per Detail, WineD3D only');
 
+/* Unity 4 needs a screen of at least 640x480: the chosen one's shape at a size that holds it */
+assert.deepStrictEqual(steam.minScreen(path.join(root, 'unity4'), 'Teslagrad.exe'), { w: 640, h: 480, why: 'Unity 4' });
+assert.strictEqual(steam.minScreen(path.join(root, 'unity5'), 'Game.exe'), null, 'Unity 5 takes any size');
+assert.strictEqual(steam.minScreen(path.join(root, 'godot'), 'g.exe'), null);
+const LIST = [{ id: '960x540', w: 960, h: 540 }, { id: '848x480', w: 848, h: 480 }, { id: '640x360', w: 640, h: 360 },
+    { id: '1344x480', w: 1344, h: 480 }, { id: '1120x400', w: 1120, h: 400 }, { id: '896x320', w: 896, h: 320 }];
+const at = (id) => LIST.filter((r) => r.id === id)[0];
+const U4 = { w: 640, h: 480 };
+assert.strictEqual(steam.screenFor(at('896x320'), U4, LIST).id, '1344x480');
+assert.strictEqual(steam.screenFor(at('1120x400'), U4, LIST).id, '1344x480');
+assert.strictEqual(steam.screenFor(at('640x360'), U4, LIST).id, '848x480');
+assert.strictEqual(steam.screenFor(at('960x540'), U4, LIST).id, '960x540', 'big enough: kept');
+assert.strictEqual(steam.screenFor(at('896x320'), null, LIST).id, '896x320', 'no minimum: kept');
+const odd = steam.screenFor({ id: 'x', w: 700, h: 300 }, U4, LIST);
+assert(odd.w >= 640 && odd.h >= 480 && odd.w % 16 === 0 && Math.abs(odd.w / odd.h - 700 / 300) < 0.05, JSON.stringify(odd));
+console.log('ok   a Unity 4 game\'s screen at least 640x480, the chosen shape kept');
+
+/* iris for OpenGL: its own EGL set in place of the unit's, by name; not with Vulkan */
+const we = (vulkan, iris, engine) => env.wineEnv({ env: {}, argv: [] }, 1, 'wayland-x', vulkan, 'normal', iris, engine);
+const ir = we(false, true);
+assert(ir.LD_LIBRARY_PATH.split(':')[0] === env.IRIS + '/lib' && ir.LD_LIBRARY_PATH.indexOf(env.GPU_LIBS) < 0, ir.LD_LIBRARY_PATH);
+assert.strictEqual(ir.LIBGL_DRIVERS_PATH, env.IRIS + '/lib/dri');
+assert.strictEqual(ir.MESA_LOADER_DRIVER_OVERRIDE, 'iris');
+const i9 = we(false, false);
+assert(i9.LD_LIBRARY_PATH.split(':')[0] === env.GPU_LIBS && i9.MESA_LOADER_DRIVER_OVERRIDE === undefined, 'i965 by default');
+assert.strictEqual(we(true, true).MESA_LOADER_DRIVER_OVERRIDE, undefined, 'not with Vulkan on');
+console.log('ok   iris: Wine\'s GL on its own set, by name; i965 by default and with Vulkan');
+
+/* Godot on OpenGL: every extension enabled in its shaders (packHalf2x16 in GLSL 330) */
+assert.strictEqual(we(false, false, 'godot').force_glsl_extensions_warn, 'true');
+assert.strictEqual(we(true, false, 'godot').force_glsl_extensions_warn, undefined, 'not on Vulkan');
+assert.strictEqual(we(false, false, 'unity').force_glsl_extensions_warn, undefined, 'Godot only');
+console.log('ok   Godot on OpenGL: force_glsl_extensions_warn');
+
 const rm = (d) => { fs.readdirSync(d).forEach((n) => { const f = path.join(d, n); if (fs.statSync(f).isDirectory()) rm(f); else fs.unlinkSync(f); }); fs.rmdirSync(d); };
 rm(root);
 console.log('all detail tests passed');

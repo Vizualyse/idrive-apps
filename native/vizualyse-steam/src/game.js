@@ -234,7 +234,7 @@ class Game extends EventEmitter {
         this._startSound();
         this._startPads();
         const exe = path.join(o.dir, o.exe);
-        const e = env.wineEnv(o.launch, o.appId, DISPLAY, !!o.vulkan, o.detail, !!o.iris);
+        const e = env.wineEnv(o.launch, o.appId, DISPLAY, !!o.vulkan, o.detail, !!o.iris, o.engine);
         const libs = e.LD_LIBRARY_PATH;
         delete e.LD_LIBRARY_PATH;
         /* into the memory cgroup first, then exec: every Wine process stays in

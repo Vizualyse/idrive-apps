@@ -44,6 +44,7 @@ const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
 const { Bus } = require('./mqtt_bus.js');
 const swap = require('./swap.js');
+const { Tap } = require('./tap.js');
 
 const HERE = __dirname;
 const PORT = Number(process.env.STEAM_PORT) || 8494;           /* the phone page, on the uplink's Wi-Fi */
@@ -400,6 +401,7 @@ function stopTouch() {
     if (!touch) return;
     const t = touch;
     touch = null;
+    tap.flush();
     if (touching && game) game.input('u', lastTouch.x, lastTouch.y);   /* the button is not left held */
     touching = false;
     try { t.stdin.end(); } catch (e) { /* gone */ }
@@ -425,6 +427,15 @@ function toFrame(sx, sy) {
  * a click where it went down. */
 const TAP_SLOP = 32, TAP_MS = 250;
 let touchDown = null;      /* { sx, sy (screen), x, y (frame), at, dragging } */
+/* the button's timing (src/tap.js): pointer first, press a frame later, a
+ * tap held at least 150 ms or three of the game's frames */
+const tap = new Tap({
+    input: (k, x, y) => { if (game && game.state !== 'ended') game.input(k, x, y); },
+    frameMs: () => {
+        const f = game && game.stats && game.stats.fps;
+        return 1000 / (f > 0 ? f : settings.fps);
+    },
+});
 
 /* a move far enough from where the finger went down to be a drag */
 function dragged(d, sx, sy, now) {
@@ -442,18 +453,18 @@ function onTouch(e) {
         if (!p.on) return;
         touching = true;
         touchDown = { sx: e.x, sy: e.y, x: p.x, y: p.y, at: Date.now(), dragging: false };
-        game.input('d', p.x, p.y);
+        tap.down(p.x, p.y);
     } else if (e.p === 2) {     /* move */
         if (!touching) return;
         if (touchDown && !touchDown.dragging) {
             if (!dragged(touchDown, e.x, e.y, Date.now())) return;
             touchDown.dragging = true;
         }
-        game.input('m', cx, cy);
+        tap.move(cx, cy);
     } else if (e.p === 3) {     /* up */
         if (touching) {
-            if (touchDown && !touchDown.dragging) { game.input('u', touchDown.x, touchDown.y); lastTouch = { x: touchDown.x, y: touchDown.y }; }
-            else game.input('u', cx, cy);
+            if (touchDown && !touchDown.dragging) { tap.up(touchDown.x, touchDown.y, true); lastTouch = { x: touchDown.x, y: touchDown.y }; }
+            else tap.up(cx, cy, false);
         }
         touching = false;
         touchDown = null;
@@ -824,7 +835,10 @@ function play(appId) {
     let missing;
     try { missing = env.gpuLibs(); } catch (e) { return 'the GPU libraries: ' + e.message; }
     if (missing.length) return 'this unit has no ' + missing.join(', ');
-    const res = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
+    const chosen = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
+    const min = steam.minScreen(g.dir, g.exe);
+    const res = steam.screenFor(chosen, min, RESOLUTIONS);
+    if (res !== chosen) log('screen: ' + res.w + 'x' + res.h + ' for ' + g.name + ' (' + min.why + ' needs at least ' + min.w + 'x' + min.h + '; the setting is ' + chosen.w + 'x' + chosen.h + ')');
     try { userDir(env.HOME); writeDns(); } catch (e) { return e.message; }
     const vulkan = vulkanOn(g);
     const iris = irisOn(g);
@@ -843,7 +857,7 @@ function play(appId) {
     const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch, detail: detail,
         frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, log: log,
-        vulkan: vulkan, iris: iris, crumbsFd: vulkan ? vulkanCrumbs : undefined });
+        vulkan: vulkan, iris: iris, engine: g.engine, crumbsFd: vulkan ? vulkanCrumbs : undefined });
     log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (' + env.vulkanLabel() + ')' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
         : ' on OpenGL (WineD3D, ' + (iris ? env.irisLabel() : 'the unit\'s i965') + ')') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
     game = x;
