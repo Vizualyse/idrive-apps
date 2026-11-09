@@ -55,4 +55,30 @@ Gen9 LP, and L3CNTLREG (L3 partitioning, which i965 and ANV program too).
 ## Not shown here
 
 The kernel and the GPU themselves (a hang, a leak into the HMI's
-contexts), speed. A car try is a vk-trial-style gated run.
+contexts), speed. A car try is a vk-trial-style gated run (below).
+
+## On the car (`car/`)
+
+Through [tools/vk-trial](../vk-trial)'s gate: one start, armed by hand
+over SSH, uid 12990, the display nodes hidden (GBM on the render node,
+offscreen), a timeout, every DRM call in `crumbs.log`, disarmed by any
+restart. `car/run.sh` runs gltest on iris (pixels checked), the registers
+iris writes (`INTEL_DEBUG=bat`), Nine's adapter, then gltest on the unit's
+own Mesa (i965, as the HMI) to see it still draws right.
+
+```sh
+sh tools/iris-bench/car/car_test.sh   # off the car: the same steps in the unit's rootfs, stub GPU behind kernel414
+```
+
+On the car (each step asked first), with vk-trial installed:
+
+```sh
+scp tools/iris-bench/car/build/iris-trial.tgz root@169.254.224.142:/tmp/
+tar xzf /tmp/iris-trial.tgz -C /var/opt/vk-trial && rm /tmp/iris-trial.tgz
+G=/var/opt/vk-trial/bin/vk-trial
+$G arm command --timeout 120 -- /bin/sh /var/opt/vk-trial/iris/run.sh && $G run
+cat $(cat /var/opt/vk-trial/state/last)/{result,out.log}; dmesg | tail -30
+```
+
+Watch the HMI while it runs and after (drawing right, no flicker or wrong
+colours: a register leaking into its contexts would show there).
