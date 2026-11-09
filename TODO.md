@@ -27,13 +27,12 @@ workflow (Actions > Release, the component ids).
   1. Vulkan 1.3: patched ANV 22.3.7 restarted the unit at `enumerate`
      (2026-11-09; knowledge/browser.md): its context GETPARAM 0x7 (`SSEU`
      upstream) is answered by the unit's kernel and the close then waits on
-     `struct_mutex` for ever. Next: kernel414 to answer param 7 like the
-     unit and flag it HAZARD; patch 22.3.7 not to ask it (and check every
-     context param above 6 it sends); off the car first, then the gate
-     again with `arm --again`, `enumerate` up. Then Slay the Spire 2's
+     `struct_mutex` for ever. Patched off the car (no context param after
+     6: `mesa-ctx-params-max-6.patch`; both benches and the DXVK car test
+     pass). Next: the gate again with `arm --again`, `enumerate` up. Then Slay the Spire 2's
      enemy turn on it (if Mesa 19's shader compiler is the hang, 22.3's
      gets past it).
-  2. iris: the gated try (patched 19.3.5, its own EGL set; `dmesg` and the
+  2. iris: the gated try (patched 19.3.5, now without `RECOVERABLE`; its own EGL set; `dmesg` and the
      HMI drawing right, during and after).
 - [ ] **Steam 0.1.15 (off the car first):** Wine Mono back (GE-Proton's
   11.3.0 with FNA, 276 MB unpacked, about 220 without its `.dbg` files:

@@ -1,0 +1,39 @@
+The unit's kernel (Intel's IOTG 4.14) knows context params up to PRIORITY
+(6); its uapi header stops there, but the kernel answers 0x7 (SSEU
+upstream, 4.20+) with 0. On the car (2026-11-09, through vk-trial) ANV
+22.3.7's enumerate asked GETPARAM 0x7 (intel_perf.c, i915_get_sseu), and
+closing the render node afterwards waited on i915's mutex until the unit
+restarted. Its device stage would then set RECOVERABLE (0x8), and
+intel_gem.c can pass RECOVERABLE / PROTECTED_CONTENT / ENGINES as
+CONTEXT_CREATE extensions (flags: `pad` on 4.14). Fail all of them here,
+before the kernel, as a 4.14 kernel without them answers (EINVAL): every
+caller already ignores the failure. Every context param goes through
+intel_ioctl (22.3.7 and 23.1.9 alike); tools/vk-trial/test/kernel414.c
+names any that reaches it a HAZARD.
+
+--- a/src/intel/common/intel_gem.h
++++ b/src/intel/common/intel_gem.h
+@@ -76,6 +76,23 @@
+ {
+     int ret;
+ 
++    /* vizualyse: the unit's kernel (IOTG 4.14) knows context params up to
++     * PRIORITY (6) and has its own after that: GETPARAM 0x7 (SSEU here)
++     * left i915's mutex held on the car. Refuse them, and context params
++     * passed as CONTEXT_CREATE extensions (flags: `pad` on 4.14), before
++     * the kernel, as a 4.14 kernel answers (EINVAL). */
++    if ((request == DRM_IOCTL_I915_GEM_CONTEXT_GETPARAM ||
++         request == DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM) &&
++        ((struct drm_i915_gem_context_param *)arg)->param > I915_CONTEXT_PARAM_PRIORITY) {
++        errno = EINVAL;
++        return -1;
++    }
++    if (request == DRM_IOCTL_I915_GEM_CONTEXT_CREATE_EXT &&
++        ((struct drm_i915_gem_context_create_ext *)arg)->flags) {
++        errno = EINVAL;
++        return -1;
++    }
++
+     do {
+         ret = ioctl(fd, request, arg);
+     } while (ret == -1 && (errno == EINTR || errno == EAGAIN));

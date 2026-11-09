@@ -282,6 +282,14 @@ refuse scripts; `git` works) and a web search.
   `GEM_GET_APERTURE`, `REG_READ`, `GET_CAP 20` (EINVAL), the context
   priority set to -512 / 0 / 512 (512: EPERM). Logs on the unit:
   `/var/opt/vk-trial/state/log/20261109-132615-74416773-enumerate/`.
+  **Patched the same day (bench):** kernel414 now names any context param
+  after 6 (and `CONTEXT_CREATE` with extensions) a HAZARD; unpatched 22.3.7
+  sent `GETPARAM 0x7` (`intel_perf.c`'s SSEU) from `enumerate` and
+  `SETPARAM 0x8` (`RECOVERABLE`) from `device`, iris 19.3.5 `RECOVERABLE` on
+  every context. `image/mesa-ctx-params-max-6.patch` (ANV) and
+  iris_no_isolation.py (iris) refuse them before the kernel; both benches
+  and the DXVK car test (64- and 32-bit) pass without a HAZARD. ANV 19.1.8
+  (the Steam tool's) sends none.
 - **Past 23.1 (a sketch, not built):** reverting `8a1a49aae40` means the
   context-isolation GETPARAM back, the "Vulkan requires context isolation"
   refusal in `anv_physical_device_try_create` gone, buffer 0 of the push

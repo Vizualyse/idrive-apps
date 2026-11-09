@@ -44,6 +44,10 @@ for want in "setup rc=0" "prefix ready" "owner of / 0," "12990 outside vk-trial:
     check "$want"
 done
 for p in ${DXVK_PROGRAMS:-t_d3d1164.exe t_d3d964.exe}; do check "$p: ok"; done
+# an ioctl that means something else on the unit's kernel (kernel414 names it)
+if printf '%s\n' "$out" | grep -q "kernel414: HAZARD"; then
+    echo "  FAIL kernel414: HAZARD"; printf '%s\n' "$out" | grep "kernel414: HAZARD" | sort | uniq -c | head -5 | sed 's/^/       | /'; fails=$((fails + 1))
+else echo "  ok   no kernel414: HAZARD"; fi
 [ -n "${DXVK_PROGRAMS:-}" ] || { check "t_d3d11: device, feature level 11_1"; check "t_d3d9: device"; }
 if [ "$MODE" = winston ]; then
     check "group video and mgu_wayland (Winston)"

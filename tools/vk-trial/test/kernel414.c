@@ -11,7 +11,12 @@
 // - SYNCOBJ_WAIT on an unsignalled syncobj: ETIME, and MMAP_VERSION 1, as
 //   the car answered (2026-11-07); syncobjs tracked below.
 // - CONTEXT_GET/SETPARAM: params after PRIORITY (6; IOTG has it, mainline
-//   4.14 doesn't): EINVAL.
+//   4.14 doesn't): EINVAL here, and a HAZARD. IOTG's header stops at 6, but
+//   the car's kernel answered GETPARAM 0x7 (SSEU upstream) with 0, and
+//   closing that render node then waited on i915's mutex until the unit
+//   restarted (ANV 22.3.7, 2026-11-09): the car has params of its own there.
+// - CONTEXT_CREATE with flags (CREATE_EXT: params as extensions, 4.19+):
+//   the same field is `pad` on 4.14; a HAZARD for the same reason.
 // - i915 ioctl 0x39 is QUERY on newer kernels but GEM_GVTBUFFER on the
 //   unit's: a program that asks it is told EINVAL here and named on stderr
 //   ("kernel414: HAZARD"), because on the car the same number reaches a
@@ -100,6 +105,16 @@ int ioctl(int fd, unsigned long req, ...) {
     }
     if ((nr == DRM_COMMAND_BASE + DRM_I915_GEM_CONTEXT_GETPARAM || nr == DRM_COMMAND_BASE + DRM_I915_GEM_CONTEXT_SETPARAM)
         && ((struct drm_i915_gem_context_param *)arg)->param > LAST_CTX_PARAM) {
+        fprintf(stderr, "kernel414: HAZARD: context %sPARAM 0x%llx (none after 0x%x on IOTG 4.14; the car's kernel answered 0x7 and then hung)\n",
+                nr == DRM_COMMAND_BASE + DRM_I915_GEM_CONTEXT_GETPARAM ? "GET" : "SET",
+                (unsigned long long)((struct drm_i915_gem_context_param *)arg)->param, LAST_CTX_PARAM);
+        errno = EINVAL;
+        return -1;
+    }
+    if (nr == DRM_COMMAND_BASE + DRM_I915_GEM_CONTEXT_CREATE && _IOC_SIZE(req) >= sizeof(struct drm_i915_gem_context_create_ext)
+        && ((struct drm_i915_gem_context_create_ext *)arg)->flags) {
+        fprintf(stderr, "kernel414: HAZARD: CONTEXT_CREATE with flags 0x%x (pad on 4.14: context params as extensions)\n",
+                ((struct drm_i915_gem_context_create_ext *)arg)->flags);
         errno = EINVAL;
         return -1;
     }

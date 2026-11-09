@@ -23,7 +23,7 @@ WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 # default; 19.1.8 for a trial of the next (32-bit DXVK, DXVK 1.10.x).
 # build/ holds one at a time: build/mesa says which.
 MESA_VER=${MESA_VER:-19.0.6}
-IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE/image/anv_new.sh" "$HERE/image/mesa-no-i915-query.patch" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
+IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE/image/anv_new.sh" "$HERE/image/mesa-no-i915-query.patch" "$HERE/image/mesa-ctx-params-max-6.patch" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
 [ "$MESA_VER" = 19.0.6 ] || IMG=$IMG-mesa$MESA_VER
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/vk-trial-image.$$.log

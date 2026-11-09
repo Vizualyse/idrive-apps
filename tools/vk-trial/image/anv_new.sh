@@ -57,6 +57,8 @@ export PATH=$P/bin:$PATH PKG_CONFIG_PATH=$P/lib/pkgconfig:$P/share/pkgconfig
 cd /src/mesa
 # no I915_QUERY: ioctl 0x39 is another call on the unit's kernel (the patch says why)
 patch -p1 < /tmp/mesa-no-i915-query.patch
+# no context params after PRIORITY (6): the car's kernel has its own (0x7 hung it)
+patch -p1 < /tmp/mesa-ctx-params-max-6.patch
 OPTS="-Dplatforms=wayland -Dgallium-drivers= -Dvulkan-drivers=intel -Dglx=disabled -Degl=disabled -Dgbm=disabled
   -Dgles1=disabled -Dgles2=disabled -Dopengl=false -Dllvm=disabled -Dvalgrind=disabled -Dlibunwind=disabled
   -Dbuild-tests=false -Dzstd=disabled -Dshared-glapi=disabled -Dvulkan-layers="

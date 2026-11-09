@@ -145,7 +145,11 @@ cat $(cat /var/opt/vk-trial/state/last)/out.log  # each program's lines, wl-sink
 wayland 1.18's scanner, glslang at build time) with
 `image/mesa-no-i915-query.patch`: ioctl 0x39 is `I915_QUERY` to Mesa but
 `GEM_GVTBUFFER` on the unit's kernel (kernel414 names it a HAZARD; 19.3.5,
-unpatched, sends it too). Its WSI wants linux-dmabuf: `lib/mesa` in the
+unpatched, sends it too) and `image/mesa-ctx-params-max-6.patch`: no
+context param after `PRIORITY` (6) and no `CONTEXT_CREATE` extensions, all
+refused in `intel_ioctl` before the kernel (the car answered 22.3.7's
+`GETPARAM 0x7` and then restarted, 2026-11-09; kernel414 names any of them
+a HAZARD). Its WSI wants linux-dmabuf: `lib/mesa` in the
 package says which Mesa, and vkprobe / run.js start wl-sink with `--dmabuf`
 for 20+. `DXVK_VER` for the DXVK bench and package: 1.9.4, 1.10.3, 2.3.1,
 2.6.2 (the newest ANV 22.3 can run: 2.7 needs maintenance5), 2.7.1. On the

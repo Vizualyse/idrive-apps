@@ -65,7 +65,7 @@ RUN case $MESA_VER in \
 # (missing from the newer meson's dependency order: "No such file").
 # Mesa 22.x / 23.x (Vulkan 1.3, for DXVK 2.x): image/anv_new.sh, its own
 # way (libdrm built in, wayland 1.18's scanner, glslang at build time).
-COPY anv_new.sh mesa-no-i915-query.patch /tmp/
+COPY anv_new.sh mesa-no-i915-query.patch mesa-ctx-params-max-6.patch /tmp/
 RUN case $MESA_VER in 19.*) exit 0 ;; esac \
  && sh /tmp/anv_new.sh \
  && cp -L /usr/lib/x86_64-linux-gnu/libvulkan.so.1 /out/lib/

@@ -42,6 +42,11 @@ Only when GETPARAM `I915_PARAM_HAS_CONTEXT_ISOLATION` fails (kernels before
 - **No `I915_QUERY` (ioctl 0x39)**: GEM_GVTBUFFER on the unit's kernel.
   Device info's topology query (Gen9 falls back to the 4.13 getparams) and
   gen_perf's config query are skipped.
+- **No context param after `PRIORITY` (6)**: the unit's kernel has its own
+  there (it answered ANV 22.3.7's `GETPARAM 0x7`, then restarted: 2026-11-09,
+  [knowledge/browser.md](../../knowledge/browser.md)). iris's `RECOVERABLE`
+  (0x8, on every context, through libdrm) isn't sent, and `gen_ioctl`
+  refuses any other (kernel414 names them a HAZARD).
 
 What iris then writes on its own (`INTEL_DEBUG=bat`): CACHE_MODE_1
 0x00120012 and GT_MODE 0x03000100, the values the unit's i965 writes on

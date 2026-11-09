@@ -101,4 +101,43 @@ patch('src/intel/perf/gen_perf.c',
       '      return -1;\n'
       '   }\n'
       '   return gen_ioctl(fd, DRM_IOCTL_I915_QUERY, &q);\n')
+# Context params after PRIORITY (6): the unit's kernel has its own there.
+# On the car (2026-11-09) ANV 22.3.7's GETPARAM 0x7 (SSEU upstream) was
+# answered 0, and closing the render node then waited on i915's mutex until
+# the unit restarted (tools/vk-trial's mesa-ctx-params-max-6.patch).
+# iris sets RECOVERABLE (0x8) on every context it makes, through libdrm's
+# drmIoctl: not sent at all. A 4.14 kernel without it recovers the context
+# itself after a hang, as it does for the unit's i965.
+patch('src/gallium/drivers/iris/iris_bufmgr.c',
+      '   drmIoctl(bufmgr->fd, DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM, &p);\n'
+      '\n'
+      '   return create.ctx_id;\n',
+      '   /* not on the unit\'s 4.14: context params after 6 are its own (tools/iris-bench) */\n'
+      '   if (p.param <= I915_CONTEXT_PARAM_PRIORITY)\n'
+      '      drmIoctl(bufmgr->fd, DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM, &p);\n'
+      '\n'
+      '   return create.ctx_id;\n')
+# ...and any other context param or CONTEXT_CREATE extension through
+# gen_ioctl, as tools/vk-trial does for ANV's intel_ioctl
+patch('src/intel/common/gen_gem.h',
+      '#include <sys/ioctl.h>\n',
+      '#include <sys/ioctl.h>\n'
+      '#include "drm-uapi/i915_drm.h"\n')
+patch('src/intel/common/gen_gem.h',
+      '    int ret;\n'
+      '\n'
+      '    do {\n'
+      '        ret = ioctl(fd, request, arg);\n',
+      '    int ret;\n'
+      '\n'
+      '    /* the unit\'s 4.14: no context params after PRIORITY (6) (tools/iris-bench) */\n'
+      '    if ((request == DRM_IOCTL_I915_GEM_CONTEXT_GETPARAM ||\n'
+      '         request == DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM) &&\n'
+      '        ((struct drm_i915_gem_context_param *)arg)->param > I915_CONTEXT_PARAM_PRIORITY) {\n'
+      '        errno = EINVAL;\n'
+      '        return -1;\n'
+      '    }\n'
+      '\n'
+      '    do {\n'
+      '        ret = ioctl(fd, request, arg);\n')
 print('iris_no_isolation: patched')
