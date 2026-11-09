@@ -9,59 +9,30 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
-- [ ] **The car list for game performance (Steam 0.1.14, 2026-11-08).**
-  Each step asked first; the journal read right after a run (the unit keeps
-  only 10-15 minutes of the tool's lines), not polled during. The day's
-  findings: knowledge/game-compatibility.md and knowledge/games.md.
-  Done on the car 2026-11-08: a game starts, shows, hides, perf lines (0.1.11);
-  FSR and its live switching on Vampire Survivors (about 10 ms GPU a
-  picture); Detail Lite / Potato start there (no more Detail runs wanted);
-  the app's Upscaling button; 0.1.12's tap deadzone and swap file seen;
-  **32-bit DXVK on ANV 19.1.8 through vk-trial** (t_d3d932 / t_d3d1132 and
-  the 64-bit pair, pixels checked, no GPU hang): 0.1.14 ships 19.1.8.
-  Done 2026-11-09 on 0.1.14: Don't Starve on Vulkan (about 20 pictures/s,
-  smooth with a pad; taps still miss); Vampire Survivors fine on 19.1.8;
-  Slay the Spire 2's FSR runs (about 21/s at 8 ms GPU, wl-sink 0.6 ms a
-  picture), its enemy-turn hang the same on 19.1.8, its OpenGL renderer
-  broken (both in knowledge/game-compatibility.md). Next:
-  1. Vulkan 1.3: patched ANV 22.3.7 restarted the unit at `enumerate`
-     (2026-11-09; knowledge/browser.md): its context GETPARAM 0x7 (`SSEU`
-     upstream) is answered by the unit's kernel and the close then waits on
-     `struct_mutex` for ever. Patched (no context param after 6:
-     `mesa-ctx-params-max-6.patch`): **every gate stage ok on the car**
-     (enumerate to present), and DXVK 2.6.2's programs, 64- and 32-bit,
-     pixels right. Next: 22.3.7 as a choice in the Steam tool (planned
-     first: a build and a release), then Slay the Spire 2's
-     enemy turn on it (if Mesa 19's shader compiler is the hang, 22.3's
-     gets past it).
-  2. iris: the gated try passed on the car (2026-11-09, `tools/iris-bench/car`;
-     knowledge/games.md). Next: WineD3D games on iris in the Steam tool
-     (a 32-bit OpenGL path faster than i965?), and the HMI's look during it.
-- [ ] **Steam 0.2.0, one release (the owner's call, 2026-11-09):** ANV
-  22.3.7 + DXVK 2.6.2 (done on `steam-fsr-vk`, 416e01d), iris, and the
-  rest below. **iris in the tool:** a per-game OpenGL choice (i965 / iris,
-  like the Vulkan one): an iris bundle (tools/iris-bench's set) unpacked
-  beside vulkan/, Wine's GL through it (`LD_LIBRARY_PATH`, the dri path,
-  `MESA_LOADER_DRIVER_OVERRIDE=iris`), wl-sink staying on the unit's i965
-  (the bench's `IRIS=sink-unit`); then on the car against i965: FTL (15
-  pictures/s on i965), Don't Starve with Vulkan off (WineD3D, 2.5 fps on
-  i965), Half-Life (GoldSrc, OpenGL, pad).
-  The rest (off the car first): Wine Mono back (GE-Proton's
-  11.3.0 with FNA, 276 MB unpacked, about 220 without its `.dbg` files:
-  Terraria and the XNA games); Wine's screen at least 640x480 for older
-  engines (Teslagrad's Unity 4 refused 896x320); taps held at least ~150 ms,
-  longer at a low frame rate (Don't Starve at 2.5 fps missed them); gbe_fork
-  for 2013-era SDKs (Teslagrad: `STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001`
-  through `GetISteamController`); SteamStub (`.bind`) spotted at install and
-  said on the phone page (Castle Crashers); perf lines kept in the tool's
-  own file. From 2026-11-09: taps still miss in Don't Starve at 20 pictures/s
-  (they reach it: a tap drops the pad's focus), so the hold matters at any
-  rate; Godot's `opengl3` on Mesa 19 (Slay the Spire 2's Vulkan off) fails
-  its scene shader (`packHalf2x16` in `#version 330`, no
-  `ARB_shading_language_packing` enabled): try `force_glsl_extensions_warn=true`
-  in Godot games' environment on the bench; the phone page's per-game
-  switches (Run without Steam, Detail, Vulkan) take but only show after a
-  reload (a few releases now), and its FSR size says 0x0 after a hide/show.
+- [ ] **Steam 0.2.0 on the car (2026-11-09).** The release: ANV 22.3.7
+  (patched for the unit's 4.14: no I915_QUERY, no context param after 6)
+  with DXVK 2.6.2 as the games' Vulkan; iris for a game's OpenGL (a choice);
+  Wine Mono; tap timing; Godot's GL shaders; Unity 4's screen; old Steam
+  SDKs' interfaces for gbe_fork; SteamStub spotted; the phone page's switches
+  live and its perf graphs; state/perf.log. What led here: the 2026-11-08
+  and 09 car tests (knowledge/browser.md, games.md, game-compatibility.md;
+  Slay the Spire 2 got past its enemy turn on 22.3.7 by hand). Each step
+  asked first; the journal read after a run, not polled during. To check:
+  1. Slay the Spire 2 and Vampire Survivors on Vulkan (22.3.7 now shipped,
+     DXVK 2.6.2 for Vampire Survivors): run, no hang, the perf graphs.
+  2. Don't Starve: taps click now (Vulkan, then Vulkan off on iris against
+     i965 for WineD3D speed).
+  3. iris in a game, first time through wl-sink (only GBM offscreen so far):
+     FTL (15 pictures/s on i965), Half-Life; the picture right, the HMI's
+     look during and after.
+  4. Slay the Spire 2 with Vulkan off (opengl3 with force_glsl_extensions_warn):
+     its menu draws?
+  5. Teslagrad: Run without Steam on again (writes steam_interfaces.txt;
+     its screen 1344x480 at 896x320): starts?
+  6. Terraria on Wine Mono (an XNA game, FNA).
+  7. Castle Crashers: the SteamStub note on the phone page.
+  8. The pad: Slay the Spire 2's didn't work once when it connected two
+     minutes into the game (not proven: try with it on before the start).
 
 - [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
   tested off the car against the unit's own Winston, `tools/winston-bench`,

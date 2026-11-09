@@ -263,14 +263,29 @@ function steamInterfaces(buf) {
  * display modes of at least 640x480, and Wine's Wayland driver offers only
  * modes that fit inside its screen: at 896x320 Teslagrad's Unity 4 found "no
  * video modes" and quit; at 960x540 it started (the car, 2026-11-08). Unity
- * 4: the <exe>_Data folder without Unity 5's UnityPlayer.dll. */
+ * 4 by the version in the head of <exe>_Data's mainData or
+ * globalgamemanagers (Teslagrad "4.6.2f1", Vampire Survivors "6000.0.62f1"):
+ * UnityPlayer.dll's absence alone also fits Unity 5.0 to 2017.1. */
+function unityMajor(dataDir) {
+    for (const n of ['mainData', 'globalgamemanagers']) {
+        let fd;
+        try {
+            fd = fs.openSync(path.join(dataDir, n), 'r');
+            const h = Buffer.alloc(256);
+            const len = fs.readSync(fd, h, 0, h.length, 0);
+            const m = /(\d{1,4})\.\d{1,3}\.\d{1,3}[abfpx]\d{1,3}/.exec(h.toString('latin1', 0, len));
+            if (m) return Number(m[1]);
+        } catch (e) { /* not this one */ } finally {
+            if (fd !== undefined) try { fs.closeSync(fd); } catch (e) { /* closed */ }
+        }
+    }
+    return null;
+}
 function minScreen(dir, exeRel) {
     if (!exeRel) return null;
-    const d = path.join(dir, path.dirname(exeRel));
-    let names = [];
-    try { names = fs.readdirSync(d); } catch (e) { return null; }
     const base = path.basename(exeRel).replace(/\.exe$/i, '');
-    if (names.indexOf(base + '_Data') >= 0 && names.indexOf('UnityPlayer.dll') < 0) return { w: 640, h: 480, why: 'Unity 4' };
+    const major = unityMajor(path.join(dir, path.dirname(exeRel), base + '_Data'));
+    if (major !== null && major <= 4) return { w: 640, h: 480, why: 'Unity ' + major };
     return null;
 }
 

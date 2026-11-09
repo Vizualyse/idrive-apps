@@ -90,8 +90,11 @@ const VK = {
  * with its own EGL / GBM / GLES / glapi set (the unit's libEGL 19.0.6
  * can't load it) from iris.tgz (tools/iris.sh, unpacked into IRIS). Only
  * Wine's GL is on it; wl-sink stays on the unit's i965 and imports iris's
- * buffers. Its gated try passed on the car (2026-11-09: pixels right, only
- * the registers i965 writes too, i965 drawing right after). */
+ * buffers (seen on the bench only: test/run_unit_test.sh with IRIS=sink-unit,
+ * where the stub draws no pixels). Its gated try passed on the car
+ * (2026-11-09: GBM offscreen, pixels right, only the registers i965 writes
+ * too, i965 drawing right after); a game through wl-sink on iris is the
+ * car's first. */
 const IRIS = ROOT + '/iris';
 const IRIS_LIB = IRIS + '/lib';
 const IRIS_DRI = IRIS_LIB + '/dri';

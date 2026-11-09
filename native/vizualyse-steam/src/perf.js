@@ -96,6 +96,7 @@ function emptyAcc() {
 const MAXED = { fsrMax: 1, gameMax: 1, peak: 1, cap: 1, swapMax: 1 };
 function add(a, b) {
     Object.keys(b).forEach((k) => {
+        if (k === 'fs') return;   /* a window's own frame statistics: the total's are its own */
         if (k === 'ft') { if (a.ft.length < MAX_FT) a.ft = a.ft.concat(b.ft.slice(0, MAX_FT - a.ft.length)); }
         else if (k === 'availMin') a[k] = Math.min(a[k], b[k]);
         else if (k === 'why') a[k] = b[k] || a[k];
@@ -139,7 +140,7 @@ function frameStats(ft) {
 /* A window as numbers, for the phone page's graphs (server.js /api/perf):
  * the same figures as its "perf:" line, null where not measured. */
 function point(a, mode, at) {
-    const f = frameStats(a.ft), r1 = (x) => Math.round(x * 10) / 10;
+    const f = a.fs !== undefined ? a.fs : frameStats(a.ft), r1 = (x) => Math.round(x * 10) / 10;
     return {
         t: at, mode: mode, s: a.s,
         fps: f ? r1(f.fps) : null, low1: f ? r1(f.low1) : null, worstMs: f ? r1(f.worst) : null,
@@ -158,7 +159,7 @@ function point(a, mode, at) {
 
 function fmt(a, mode, frame) {
     const r = (x, d) => (a.s ? x / a.s : 0).toFixed(d === undefined ? 1 : d);
-    const f = frameStats(a.ft);
+    const f = a.fs !== undefined ? a.fs : frameStats(a.ft);
     let t = mode + ' at ' + frame.w + 'x' + frame.h + (frame.detail && frame.detail !== 'normal' ? ' ' + frame.detail : '') + ': ' +
         (f ? f.fps.toFixed(1) + ' fps, 1% low ' + f.low1.toFixed(1) + ', 0.1% low ' + f.low01.toFixed(1) +
             ', frame time p99 ' + f.p99.toFixed(1) + ' ms, worst ' + f.worst.toFixed(1) + ' ms (' + f.frames + ' frames); ' : '') +
@@ -244,6 +245,7 @@ class Perf {
             a.wallMs += now - this.started;
         }
         if (a.s) {
+            a.fs = frameStats(a.ft);   /* once, for the line and the numbers */
             this.o.log('perf: ' + fmt(a, this.m, this.o.frame));
             if (this.o.point) this.o.point(point(a, this.m, now));
             if (!this.totals[this.m]) { this.totals[this.m] = emptyAcc(); this.order.push(this.m); }

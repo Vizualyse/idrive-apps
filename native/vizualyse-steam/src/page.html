@@ -184,20 +184,25 @@ function drawPerf() {
   $('perfGraphs').innerHTML = html;
 }
 
+/* one request at a time (a slow link, the panel opened again): two with the
+ * same "since" would add the same points twice */
 function perfFetch() {
+  if (perf.busy) return;
+  perf.busy = true;
   const since = perf.points.length ? perf.points[perf.points.length - 1].t : 0;
+  let again = false;
   fetch('/api/perf?since=' + since, { headers: { 'X-Steam-Token': T } }).then((r) => r.json()).then((j) => {
     const key = (j.name || '') + '@' + (j.started || '');
     if (key !== perf.key) {
       /* another game, or the same one again: start over */
-      const fresh = perf.key !== null && since > 0;
+      again = perf.key !== null && since > 0;
       perf.key = key; perf.points = [];
-      if (fresh) return perfFetch();
+      if (again) return;
     }
     perf.name = j.name; perf.running = !!j.running;
-    perf.points = perf.points.concat(j.points || []).slice(-360);
+    perf.points = perf.points.concat((j.points || []).filter((p) => !perf.points.length || p.t > perf.points[perf.points.length - 1].t)).slice(-360);
     drawPerf();
-  }).catch(() => null);
+  }).catch(() => null).then(() => { perf.busy = false; if (again) perfFetch(); });
 }
 
 $('perfBox').addEventListener('toggle', () => {
@@ -250,7 +255,7 @@ function render(s) {
   const label = (act, x) => ({
     nosteam: 'Run without Steam: ' + (x.noSteam ? 'on' : 'off'),
     vulkan: 'Vulkan: ' + (x.vulkan ? 'on' : 'off') + (x.vulkan === x.vulkanDefault ? ' (the default)' : ''),
-    iris: 'OpenGL driver: ' + (x.iris ? 'iris' : 'i965 (the default)'),
+    iris: 'OpenGL driver: ' + (x.iris ? 'iris' + (x.vulkan ? ' (used only with Vulkan off)' : '') : 'i965 (the default)'),
     detail: 'Detail: ' + (x.detail || 'normal'),
   })[act];
   if (editing) {

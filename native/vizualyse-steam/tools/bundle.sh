@@ -115,8 +115,8 @@ cp -a "$G/files/lib/x86_64-linux-gnu" "$F/lib/"
 rm -rf "$F/share"
 cp -a "$G/files/share" "$F/"
 rm -rf "$F/share/wine/gecko" "$F/share/espeak-ng-data" "$F/share/libtashkeel_model.ort"
+[ -d "$F/share/wine/mono/wine-mono-11.3.0" ] || { echo "bundle: no Wine Mono 11.3.0 in $GE (share/wine/mono: $(ls "$F/share/wine/mono" 2>&1 | tr '\n' ' '))" >&2; exit 1; }
 find "$F/share/wine/mono" -name '*.dbg' -type f -delete
-[ -d "$F/share/wine/mono/wine-mono-11.3.0" ] || { echo "bundle: no Wine Mono 11.3.0 in $GE" >&2; exit 1; }
 # Every ELF program asks for the runtime's loader (the unit has no /lib64).
 # wine-preloader is static: it maps the interpreter `wine` names.
 n=0

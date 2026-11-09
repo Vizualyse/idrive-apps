@@ -595,6 +595,26 @@ function sameFile(a, b) {
 /* owners where the filesystem has them (FAT / exFAT / NTFS: none) */
 function ownIfCan(p) { try { fs.chownSync(p, UID, UID); } catch (e) { /* no owners */ } }
 
+/* gbe_fork's steam_interfaces.txt in our steam_settings sd: the interface
+ * versions Steam's own DLL (kept as f + ORIG) was built with
+ * (steam.steamInterfaces). An older game (Teslagrad) otherwise calls gbe's
+ * newest ISteamClient through its own, older slots. */
+function writeInterfaces(f, sd) {
+    let itfs = [];
+    try { itfs = steam.steamInterfaces(fs.readFileSync(f + ORIG)); } catch (e) { /* no original kept */ }
+    const t = path.join(sd, 'steam_interfaces.txt');
+    if (itfs.length) { fs.writeFileSync(t, itfs.join('\n') + '\n'); ownIfCan(t); } else { try { fs.unlinkSync(t); } catch (e) { /* none */ } }
+}
+/* at a game's start: one switched to Run without Steam before 0.2.0 has none yet */
+function ensureInterfaces(g) {
+    if (!g.noSteam) return;
+    steamApiFiles(g.dir).forEach((f) => {
+        const sd = path.join(path.dirname(f), 'steam_settings');
+        if (!fs.existsSync(path.join(sd, MARK)) || fs.existsSync(path.join(sd, 'steam_interfaces.txt'))) return;
+        try { writeInterfaces(f, sd); } catch (e) { log('no-steam: ' + g.name + ': steam_interfaces.txt: ' + e.message); }
+    });
+}
+
 function noSteam(appId, on) {
     const g = library[appId];
     if (!g) return 'not in the library';
@@ -623,13 +643,7 @@ function noSteam(appId, on) {
                     fs.writeFileSync(path.join(sd, 'steam_appid.txt'), String(appId) + '\n');
                     fs.writeFileSync(path.join(sd, 'configs.user.ini'), '[user::general]\naccount_name=' + acct + '\nlanguage=english\n');
                     fs.writeFileSync(path.join(sd, 'configs.main.ini'), '[main::connectivity]\ndisable_networking=1\n');
-                    /* the interface versions Steam's own DLL was built with (steam.steamInterfaces):
-                     * an older game (Teslagrad) otherwise calls gbe's newest ISteamClient through
-                     * its own, older slots */
-                    let itfs = [];
-                    try { itfs = steam.steamInterfaces(fs.readFileSync(f + ORIG)); } catch (e) { /* no original kept */ }
-                    if (itfs.length) fs.writeFileSync(path.join(sd, 'steam_interfaces.txt'), itfs.join('\n') + '\n');
-                    else { try { fs.unlinkSync(path.join(sd, 'steam_interfaces.txt')); } catch (e) { /* none */ } }
+                    writeInterfaces(f, sd);
                     ownIfCan(sd);
                     fs.readdirSync(sd).forEach((n) => ownIfCan(path.join(sd, n)));
                 }
@@ -784,7 +798,11 @@ function gameArch(g) {
 }
 /* SteamStub on its program, read once (a game added before 0.2.0 too) */
 function gameStub(g) {
-    if (g.steamStub === undefined && g.exe) { g.steamStub = steam.steamStub(g.dir, g.exe); saveLibrary(); }
+    /* null (unreadable: a stick that is out) is asked again next time, not kept */
+    if ((g.steamStub === undefined || g.steamStub === null) && g.exe) {
+        const s = steam.steamStub(g.dir, g.exe);
+        if (s !== null) { g.steamStub = s; saveLibrary(); }
+    }
     return !!g.steamStub;
 }
 function vulkanDefault(g) { return gameArch(g) === 'x64' && env.vulkanMissing().length === 0; }
@@ -854,6 +872,7 @@ function play(appId) {
     try { missing = env.gpuLibs(); } catch (e) { return 'the GPU libraries: ' + e.message; }
     if (missing.length) return 'this unit has no ' + missing.join(', ');
     const chosen = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
+    ensureInterfaces(g);
     const min = steam.minScreen(g.dir, g.exe);
     const res = steam.screenFor(chosen, min, RESOLUTIONS);
     if (res !== chosen) log('screen: ' + res.w + 'x' + res.h + ' for ' + g.name + ' (' + min.why + ' needs at least ' + min.w + 'x' + min.h + '; the setting is ' + chosen.w + 'x' + chosen.h + ')');

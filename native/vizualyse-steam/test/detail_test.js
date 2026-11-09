@@ -54,8 +54,16 @@ assert.strictEqual(env.wineEnv({ env: {}, argv: [] }, 1, 'wayland-x', true, 'pot
 console.log('ok   WINE_D3D_CONFIG per Detail, WineD3D only');
 
 /* Unity 4 needs a screen of at least 640x480: the chosen one's shape at a size that holds it */
+/* the version in the head of mainData / globalgamemanagers, as on the car */
+const head = (v) => Buffer.concat([Buffer.from([0, 0, 0x5e, 0x19, 0, 5, 0x37, 0x1c, 0, 0, 0, 9, 0, 0, 0x5e, 0x30, 0, 0, 0, 0]), Buffer.from(v + '\0', 'latin1'), Buffer.alloc(40)]);
+fs.writeFileSync(path.join(root, 'unity4', 'Teslagrad_Data', 'mainData'), head('4.6.2f1'));
+fs.writeFileSync(path.join(root, 'unity5', 'Game_Data', 'globalgamemanagers'), head('6000.0.62f1'));
+game('unity56', ['Old.exe', 'Old_Data/x']);   /* Unity 5.6: no UnityPlayer.dll either */
+fs.writeFileSync(path.join(root, 'unity56', 'Old_Data', 'mainData'), head('5.6.7f1'));
 assert.deepStrictEqual(steam.minScreen(path.join(root, 'unity4'), 'Teslagrad.exe'), { w: 640, h: 480, why: 'Unity 4' });
-assert.strictEqual(steam.minScreen(path.join(root, 'unity5'), 'Game.exe'), null, 'Unity 5 takes any size');
+assert.strictEqual(steam.minScreen(path.join(root, 'unity5'), 'Game.exe'), null, 'Unity 6 takes any size');
+assert.strictEqual(steam.minScreen(path.join(root, 'unity56'), 'Old.exe'), null, 'Unity 5.6 without UnityPlayer.dll: not Unity 4');
+assert.strictEqual(steam.minScreen(path.join(root, 'plain'), 'a.exe'), null, 'no data folder');
 assert.strictEqual(steam.minScreen(path.join(root, 'godot'), 'g.exe'), null);
 const LIST = [{ id: '960x540', w: 960, h: 540 }, { id: '848x480', w: 848, h: 480 }, { id: '640x360', w: 640, h: 360 },
     { id: '1344x480', w: 1344, h: 480 }, { id: '1120x400', w: 1120, h: 400 }, { id: '896x320', w: 896, h: 320 }];
