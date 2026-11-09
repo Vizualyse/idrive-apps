@@ -24,11 +24,15 @@ workflow (Actions > Release, the component ids).
   Slay the Spire 2's FSR runs (about 21/s at 8 ms GPU, wl-sink 0.6 ms a
   picture), its enemy-turn hang the same on 19.1.8, its OpenGL renderer
   broken (both in knowledge/game-compatibility.md). Next:
-  1. Vulkan 1.3: patched ANV 22.3.7 + DXVK 2.6.2 through the gate (the
-     off-car `car_test.sh` first). If it runs where unpatched 22.3 hung in
-     0.1.1, `I915_QUERY` was very likely that hang: record it. Then Slay the
-     Spire 2's enemy turn on it (if Mesa 19's shader compiler is the hang,
-     22.3's gets past it).
+  1. Vulkan 1.3: patched ANV 22.3.7 restarted the unit at `enumerate`
+     (2026-11-09; knowledge/browser.md): its context GETPARAM 0x7 (`SSEU`
+     upstream) is answered by the unit's kernel and the close then waits on
+     `struct_mutex` for ever. Next: kernel414 to answer param 7 like the
+     unit and flag it HAZARD; patch 22.3.7 not to ask it (and check every
+     context param above 6 it sends); off the car first, then the gate
+     again with `arm --again`, `enumerate` up. Then Slay the Spire 2's
+     enemy turn on it (if Mesa 19's shader compiler is the hang, 22.3's
+     gets past it).
   2. iris: the gated try (patched 19.3.5, its own EGL set; `dmesg` and the
      HMI drawing right, during and after).
 - [ ] **Steam 0.1.15 (off the car first):** Wine Mono back (GE-Proton's

@@ -264,6 +264,24 @@ refuse scripts; `git` works) and a web search.
   kernel; ANV falls back to GETPARAM): on the stub 22.3.7 then passes
   every stage and DXVK 1.10.3 / 2.6.2 run ([games.md](games.md),
   "Vulkan"). So 22.3 is a candidate again, patched, through the gate.
+- **On the car (2026-11-09), patched 22.3.7 through the gate: `instance`
+  ok, then `enumerate` restarted the unit.** The probe finished the stage
+  (`Intel(R) HD Graphics 505 (APL 3), Vulkan 1.3.230, driver 22.3.7`, no
+  `I915_QUERY`), then its exit stuck closing the render node: `drm_release`
+  -> `i915_driver_postclose` -> `mutex_lock` (D state, `sysrq w`: the only
+  blocked task; SIGKILL no use). About a minute later the unit restarted
+  (the HMI waiting on the same lock, interruptibly, so not listed: as in
+  0.1.1). Its last ioctl before the close, one 19.x never sends:
+  **`GEM_CONTEXT_GETPARAM ctx 0 param 0x7` with a user pointer as its
+  value, answered 0** (success). Upstream 0x7 is `SSEU` (4.20+); the
+  unit's kernel answers it, so it is something of its own (IOTG / GVT), and
+  very likely the handler that leaves `struct_mutex` held. kernel414 says
+  "no context param after 6" (EINVAL), which is why the stub passed it. So
+  `I915_QUERY` was probably not (or not alone) 0.1.1's hang: **context param
+  7 is the lead now.** Also new against 19.0.6 in that stage, all returned:
+  `GEM_GET_APERTURE`, `REG_READ`, `GET_CAP 20` (EINVAL), the context
+  priority set to -512 / 0 / 512 (512: EPERM). Logs on the unit:
+  `/var/opt/vk-trial/state/log/20261109-132615-74416773-enumerate/`.
 - **Past 23.1 (a sketch, not built):** reverting `8a1a49aae40` means the
   context-isolation GETPARAM back, the "Vulkan requires context isolation"
   refusal in `anv_physical_device_try_create` gone, buffer 0 of the push
