@@ -37,7 +37,16 @@ workflow (Actions > Release, the component ids).
   2. iris: the gated try passed on the car (2026-11-09, `tools/iris-bench/car`;
      knowledge/games.md). Next: WineD3D games on iris in the Steam tool
      (a 32-bit OpenGL path faster than i965?), and the HMI's look during it.
-- [ ] **Steam 0.1.15 (off the car first):** Wine Mono back (GE-Proton's
+- [ ] **Steam 0.2.0, one release (the owner's call, 2026-11-09):** ANV
+  22.3.7 + DXVK 2.6.2 (done on `steam-fsr-vk`, 416e01d), iris, and the
+  rest below. **iris in the tool:** a per-game OpenGL choice (i965 / iris,
+  like the Vulkan one): an iris bundle (tools/iris-bench's set) unpacked
+  beside vulkan/, Wine's GL through it (`LD_LIBRARY_PATH`, the dri path,
+  `MESA_LOADER_DRIVER_OVERRIDE=iris`), wl-sink staying on the unit's i965
+  (the bench's `IRIS=sink-unit`); then on the car against i965: FTL (15
+  pictures/s on i965), Don't Starve with Vulkan off (WineD3D, 2.5 fps on
+  i965), Half-Life (GoldSrc, OpenGL, pad).
+  The rest (off the car first): Wine Mono back (GE-Proton's
   11.3.0 with FNA, 276 MB unpacked, about 220 without its `.dbg` files:
   Terraria and the XNA games); Wine's screen at least 640x480 for older
   engines (Teslagrad's Unity 4 refused 896x320); taps held at least ~150 ms,
