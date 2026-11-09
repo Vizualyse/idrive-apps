@@ -290,6 +290,13 @@ refuse scripts; `git` works) and a web search.
   iris_no_isolation.py (iris) refuse them before the kernel; both benches
   and the DXVK car test (64- and 32-bit) pass without a HAZARD. ANV 19.1.8
   (the Steam tool's) sends none.
+- **On the car (2026-11-09), 22.3.7 with both patches: every stage ok**
+  (`enumerate` with `--again`, `device`, `compute` 1024 of 1024, `draw`
+  65536 of 65536 pixels, `present` 60 frames, wl-sink's picture right), 1-4 s
+  each, no GPU hang, no blocked task, no new i915 line. So the context param
+  after 6 (0x7) was the hang; `I915_QUERY` was patched out too, so whether
+  it alone would hang stays unknown. **Vulkan 1.3 runs on the unit's 4.14.**
+  Logs: `/var/opt/vk-trial/state/log/20261109-1347*` / `-1348*`.
 - **Past 23.1 (a sketch, not built):** reverting `8a1a49aae40` means the
   context-isolation GETPARAM back, the "Vulkan requires context isolation"
   refusal in `anv_physical_device_try_create` gone, buffer 0 of the push

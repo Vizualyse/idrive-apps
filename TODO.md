@@ -27,9 +27,10 @@ workflow (Actions > Release, the component ids).
   1. Vulkan 1.3: patched ANV 22.3.7 restarted the unit at `enumerate`
      (2026-11-09; knowledge/browser.md): its context GETPARAM 0x7 (`SSEU`
      upstream) is answered by the unit's kernel and the close then waits on
-     `struct_mutex` for ever. Patched off the car (no context param after
-     6: `mesa-ctx-params-max-6.patch`; both benches and the DXVK car test
-     pass). Next: the gate again with `arm --again`, `enumerate` up. Then Slay the Spire 2's
+     `struct_mutex` for ever. Patched (no context param after 6:
+     `mesa-ctx-params-max-6.patch`): **every gate stage ok on the car**
+     (enumerate to present). Next: the DXVK 2.6.2 programs through the gate
+     (64-bit, then 32-bit; the prefix is set up), then Slay the Spire 2's
      enemy turn on it (if Mesa 19's shader compiler is the hang, 22.3's
      gets past it).
   2. iris: the gated try (patched 19.3.5, now without `RECOVERABLE`; its own EGL set; `dmesg` and the
