@@ -297,6 +297,11 @@ refuse scripts; `git` works) and a web search.
   after 6 (0x7) was the hang; `I915_QUERY` was patched out too, so whether
   it alone would hang stays unknown. **Vulkan 1.3 runs on the unit's 4.14.**
   Logs: `/var/opt/vk-trial/state/log/20261109-1347*` / `-1348*`.
+  **DXVK 2.6.2 on it, same day:** t_d3d1164 / t_d3d964 and t_d3d932 /
+  t_d3d1132 through the gate (Proton, Wine's Wayland driver into wl-sink),
+  all ok with their pixels checked: D3D11 feature level 11_1 (64-bit sees
+  4209 MB, 32-bit 3072 MB), 60 frames in about 4.2 s each, 120 GPU buffers
+  a run, 26 s a run, no GPU hang, no blocked task. Logs `-1355*`.
 - **Past 23.1 (a sketch, not built):** reverting `8a1a49aae40` means the
   context-isolation GETPARAM back, the "Vulkan requires context isolation"
   refusal in `anv_physical_device_try_create` gone, buffer 0 of the push

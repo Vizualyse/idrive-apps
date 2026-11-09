@@ -29,8 +29,9 @@ workflow (Actions > Release, the component ids).
      upstream) is answered by the unit's kernel and the close then waits on
      `struct_mutex` for ever. Patched (no context param after 6:
      `mesa-ctx-params-max-6.patch`): **every gate stage ok on the car**
-     (enumerate to present). Next: the DXVK 2.6.2 programs through the gate
-     (64-bit, then 32-bit; the prefix is set up), then Slay the Spire 2's
+     (enumerate to present), and DXVK 2.6.2's programs, 64- and 32-bit,
+     pixels right. Next: 22.3.7 as a choice in the Steam tool (planned
+     first: a build and a release), then Slay the Spire 2's
      enemy turn on it (if Mesa 19's shader compiler is the hang, 22.3's
      gets past it).
   2. iris: the gated try (patched 19.3.5, now without `RECOVERABLE`; its own EGL set; `dmesg` and the
