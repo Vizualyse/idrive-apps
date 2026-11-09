@@ -34,6 +34,8 @@ fi
 mkdir -p "$HERE/build"
 # Vulkan for the games (ANV, its loader, DXVK): build/vulkan.tgz (tools/vulkan.sh)
 sh "$HERE/tools/vulkan.sh" >&2
+# iris for a game's OpenGL (a per-game choice): build/iris.tgz (tools/iris.sh)
+sh "$HERE/tools/iris.sh" >&2
 # Proton's ntdll.so rebuilt from GE's own Wine tree with
 # patches/wine-no-ia32.patch (32-bit programs on the unit's kernel, which has
 # no IA32 emulation): tools/build_ntdll.sh in image/wine.Dockerfile, the

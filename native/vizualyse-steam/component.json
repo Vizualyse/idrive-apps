@@ -59,6 +59,7 @@
     { "path": "proton.tgz", "from": "build/proton.tgz", "mode": "0644" },
     { "path": "prefix.tgz", "from": "build/prefix.tgz", "mode": "0644" },
     { "path": "vulkan.tgz", "from": "build/vulkan.tgz", "mode": "0644" },
+    { "path": "iris.tgz", "from": "build/iris.tgz", "mode": "0644" },
     { "path": "bundle-VERSION.txt", "from": "build/bundle-VERSION.txt", "mode": "0644" },
     { "path": "THIRD-PARTY.md", "from": "THIRD-PARTY.md", "mode": "0644" },
     { "path": "LICENSE", "from": "LICENSE", "mode": "0644" }

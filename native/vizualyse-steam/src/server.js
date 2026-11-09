@@ -250,6 +250,7 @@ function ensureBundles(done) {
         ['proton.tgz', env.PROTON, {}],
         ['prefix.tgz', env.PREFIX, { keep: true }],
         ['vulkan.tgz', env.VULKAN, {}],
+        ['iris.tgz', env.IRIS, {}],
     ];
     const next = (i) => {
         if (i === steps.length) return done(null);
@@ -670,6 +671,14 @@ function setGameOptions(appId, b) {
         if (!!b.vulkan !== vulkanOn(g)) log('vulkan: ' + g.name + ' ' + (b.vulkan ? 'on (from its next start)' : 'off (OpenGL, WineD3D)'));
         g.vulkan = !!b.vulkan;
     }
+    if (b.iris !== undefined) {
+        if (b.iris) {
+            const m = env.irisMissing();
+            if (m.length) return 'no iris here (' + m[0] + ' is missing)';
+        }
+        if (!!b.iris !== !!g.iris) log('iris: ' + g.name + ' ' + (b.iris ? 'on for its OpenGL (from its next start)' : 'off (the unit\'s i965)'));
+        g.iris = !!b.iris;
+    }
     if (b.detail !== undefined) {
         if (env.DETAILS.indexOf(String(b.detail)) < 0) return 'detail: ' + env.DETAILS.join(', ');
         if (String(b.detail) !== (g.detail || 'normal')) log('detail: ' + g.name + ' ' + b.detail + ' (from its next start)');
@@ -694,6 +703,12 @@ let restartNote = null;
         library[t.appId].vulkan = false;
         saveLibrary();
         restartNote += ' on Vulkan: Vulkan is off for it now (its last DRM calls: state/vulkan-crumbs.log)';
+    }
+    /* the same for iris: back on the unit's i965 */
+    if (t.iris && library[t.appId] && library[t.appId].iris) {
+        library[t.appId].iris = false;
+        saveLibrary();
+        restartNote += ' on iris: iris is off for it now';
     }
     log('game: ' + restartNote);
     try { fs.unlinkSync(GAME_RUNNING); } catch (e) { /* gone */ }
@@ -745,6 +760,8 @@ function gameArch(g) {
 }
 function vulkanDefault(g) { return gameArch(g) === 'x64' && env.vulkanMissing().length === 0; }
 function vulkanOn(g) { return g.vulkan === true || g.vulkan === false ? g.vulkan : vulkanDefault(g); }
+/* iris (env.IRIS): a choice, never a default; for OpenGL, so not with Vulkan on */
+function irisOn(g) { return g.iris === true && !vulkanOn(g) && env.irisMissing().length === 0; }
 
 function vulkanPrepare(fps, detail) {
     const m = env.vulkanMissing();
@@ -810,13 +827,14 @@ function play(appId) {
     const res = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
     try { userDir(env.HOME); writeDns(); } catch (e) { return e.message; }
     const vulkan = vulkanOn(g);
+    const iris = irisOn(g);
     const detail = g.detail || 'normal';
     if (vulkan) { try { vulkanPrepare(settings.fps, detail); } catch (e) { vulkanEnd(); return 'Vulkan: ' + e.message; } }
     cgroupDir = cgroup();
     mem.ooms = null; mem.note = null; mem.oomAt = null; mem.peakMb = null;
     restartNote = null;
     /* written (fsynced) before Wine opens the GPU: found at the next start, the unit restarted during it */
-    try { writeJson(GAME_RUNNING, { appId: appId, name: g.name, at: new Date().toISOString(), vulkan: vulkan }); } catch (e) { log('game: ' + e.message); }
+    try { writeJson(GAME_RUNNING, { appId: appId, name: g.name, at: new Date().toISOString(), vulkan: vulkan, iris: iris }); } catch (e) { log('game: ' + e.message); }
     /* the game's options, then its Detail's for its engine (steam.detailArgs; not saved) */
     const extra = steam.detailArgs(g.engine, detail);
     const args = (vulkan ? vulkanArgs(g) : (g.args || [])).concat(extra);
@@ -825,9 +843,9 @@ function play(appId) {
     const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch, detail: detail,
         frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, log: log,
-        vulkan: vulkan, crumbsFd: vulkan ? vulkanCrumbs : undefined });
+        vulkan: vulkan, iris: iris, crumbsFd: vulkan ? vulkanCrumbs : undefined });
     log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (' + env.vulkanLabel() + ')' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
-        : ' on OpenGL (WineD3D)') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
+        : ' on OpenGL (WineD3D, ' + (iris ? env.irisLabel() : 'the unit\'s i965') + ')') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
     game = x;
     x.on('winston-lost', () => {
         winstonNote = 'the connection to Winston was lost: back on mgu-render';
@@ -933,6 +951,7 @@ function status() {
     return {
         enabled: settings.enabled, link: link(), uplink: up.state || 'unknown', bundle: bundle.state,
         error: bundle.error || null, prefixNote: prefixNote, restartNote: restartNote, vulkanAvailable: env.vulkanMissing().length === 0,
+        irisAvailable: env.irisMissing().length === 0,
         account: { username: settings.username || null, remembered: settings.username ? steam.remembered() : false },
         download: download ? Object.assign(download.status(), { name: (library[download.o.appId] && library[download.o.appId].name) || names[download.o.appId] || null }) : null,
         library: Object.keys(library).map((id) => {
@@ -941,7 +960,7 @@ function status() {
                 usb: gameStick(x), present: present(x),
                 /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
                 noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
-                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), arch: gameArch(x), detail: x.detail || 'normal' };
+                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), iris: !!x.iris, arch: gameArch(x), detail: x.detail || 'normal' };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,

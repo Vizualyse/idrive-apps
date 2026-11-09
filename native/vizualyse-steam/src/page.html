@@ -156,6 +156,10 @@ function render(s) {
         '<p class="dim">Direct3D 9-11 through DXVK, or a Godot 4 game\'s own Vulkan renderer, instead of OpenGL: on by default for 64-bit games' +
         (x.arch === 'x86' ? ' (this one is 32-bit: OpenGL by default)' : '') + '. If the unit restarts during the game, Vulkan turns itself off for it. ' +
         'A Godot 4 game\'s default launch options switch to Vulkan by themselves.</p>' : '') +
+      (s.irisAvailable || x.iris ?
+        '<div class="row"><button data-act="iris">OpenGL driver: ' + (x.iris ? 'iris' : 'i965 (the default)') + '</button></div>' +
+        '<p class="dim">With Vulkan off: the game\'s OpenGL (and Direct3D through WineD3D) on iris, Mesa\'s newer Intel driver, ' +
+        'instead of the car\'s own i965. Try it where OpenGL is slow. If the unit restarts during the game, it goes back to i965.</p>' : '') +
       '<div class="row"><button data-act="detail">Detail: ' + esc(x.detail || 'normal') + '</button></div>' +
       '<p class="dim">Lite: no anti-aliasing or tessellation, and the game\'s own low settings where the tool knows its engine ' +
       '(Unity, Unreal, Source). Potato: also Direct3D 11 at 10.1, shader model 2 for Direct3D 9, less video memory reported: ' +
@@ -253,6 +257,10 @@ $('library').addEventListener('click', (e) => {
   if (act === 'vulkan') {
     const g = last && last.library.filter((x) => x.appId === appId)[0];
     api('/api/game', { appId: appId, vulkan: !(g && g.vulkan) }).catch(() => null);
+  }
+  if (act === 'iris') {
+    const g = last && last.library.filter((x) => x.appId === appId)[0];
+    api('/api/game', { appId: appId, iris: !(g && g.iris) }).catch(() => null);
   }
   if (act === 'detail') {
     const g = last && last.library.filter((x) => x.appId === appId)[0];

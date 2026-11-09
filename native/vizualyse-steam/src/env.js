@@ -21,9 +21,11 @@
  * LD_LIBRARY_PATH is set only on their exec, never on the unit's own shell
  * or Node (glibc 2.27).
  *
- * The GPU: Wine and wl-sink draw on the unit's OWN Mesa 19 (libEGL and the
- * i965 driver, what the HMI and mgu-render use), never a driver of ours
- * (0.1.1 of the browser hung the kernel with one: knowledge/browser.md).
+ * The GPU: wl-sink, and Wine by default, draw on the unit's OWN Mesa 19
+ * (libEGL and the i965 driver, what the HMI and mgu-render use). A driver of
+ * ours only where it passed tools/vk-trial's gate on the car first (0.1.1 of
+ * the browser hung the kernel with one: knowledge/browser.md): ANV for a
+ * game on Vulkan, iris for a game's OpenGL when chosen (below).
  * Mesa 19 runs on the runtime's newer libwayland (Wine's Wayland driver
  * needs >= 1.20; the unit has 1.15), libdrm and libstdc++; what the runtime
  * lacks (libdrm_intel, libpciaccess) comes from the unit's /usr/lib by the
@@ -80,6 +82,27 @@ const VK = {
     dlls: ['d3d11', 'd3d10core', 'd3d9', 'dxgi'],
     mesa: VK_BASE + '/lib/mesa',   /* the ANV's Mesa version (vulkan.tgz since the candidates; 19 when absent) */
 };
+
+/* iris for a game's OpenGL (per game, a choice; off by default): Mesa
+ * 19.3.5's iris, the last before 20.0 refused kernels without context
+ * isolation, patched for the unit's 4.14 (tools/iris-bench: CS_DEBUG_MODE2
+ * and CS_CHICKEN1 left alone, no I915_QUERY, no context param after 6),
+ * with its own EGL / GBM / GLES / glapi set (the unit's libEGL 19.0.6
+ * can't load it) from iris.tgz (tools/iris.sh, unpacked into IRIS). Only
+ * Wine's GL is on it; wl-sink stays on the unit's i965 and imports iris's
+ * buffers. Its gated try passed on the car (2026-11-09: pixels right, only
+ * the registers i965 writes too, i965 drawing right after). */
+const IRIS = ROOT + '/iris';
+const IRIS_LIB = IRIS + '/lib';
+const IRIS_DRI = IRIS_LIB + '/dri';
+function irisMissing() {
+    return UNIT_GL.map((n) => path.join(IRIS_LIB, n)).concat([path.join(IRIS_DRI, 'iris_dri.so')])
+        .filter((f) => !fs.existsSync(f));
+}
+/* "Mesa 19.3.5 iris": what the unpacked iris.tgz holds, for the journal */
+function irisLabel() {
+    try { return fs.readFileSync(IRIS + '/VERSION', 'utf8').trim() || 'iris'; } catch (e) { return 'iris'; }
+}
 
 /* DXVK's options for every game on Vulkan (VK.conf while one runs; DXVK
  * names, all seen in 1.9.4's and 2.6.2's DLLs):
@@ -229,7 +252,7 @@ function dotnetEnv() {
 /* Wine for a game, as Proton starts it (build/launch.json, captured from
  * Proton's own launcher at build time), here: the unit's EGL first, the
  * runtime's libraries, then Proton's own. */
-function wineEnv(launch, appId, display, vulkan, detail) {
+function wineEnv(launch, appId, display, vulkan, detail, iris) {
     const e = Object.assign({}, launch.env, baseEnv());
     const protonLibs = (launch.env.LD_LIBRARY_PATH || '').split(':').filter((p) => p && p.indexOf(PROTON) === 0);
     e.LD_LIBRARY_PATH = EXTRA_LIBS + [GPU_LIBS, RUNTIME + '/lib'].concat(protonLibs).join(':');
@@ -276,6 +299,15 @@ function wineEnv(launch, appId, display, vulkan, detail) {
     /* the game's Detail for WineD3D (DETAIL_WINED3D) */
     if (!vulkan && DETAIL_WINED3D[detail]) e.WINE_D3D_CONFIG = DETAIL_WINED3D[detail];
     mesaEnv(e);
+    /* iris for OpenGL (not with Vulkan on: nothing of the game draws GL
+     * then): its own EGL set in place of the unit's (GPU_LIBS), its driver
+     * folder, and iris asked for by name (Mesa 19.3 still gives Gen9 to
+     * i965). vblank_mode stays: gallium's DRI reads it too. */
+    if (iris && !vulkan) {
+        e.LD_LIBRARY_PATH = e.LD_LIBRARY_PATH.split(':').map((p) => (p === GPU_LIBS ? IRIS_LIB : p)).join(':');
+        e.LIBGL_DRIVERS_PATH = IRIS_DRI;
+        e.MESA_LOADER_DRIVER_OVERRIDE = 'iris';
+    }
     /* vk_crumbs.so first, ahead of any preload the bench adds (STEAM_EXTRA_ENV, applied by mesaEnv) */
     if (vulkan) e.LD_PRELOAD = [VK.crumbs].concat((e.LD_PRELOAD || '').split(':').filter((p) => p && !/vk_crumbs\.so$/.test(p))).join(':');
     return e;
@@ -301,6 +333,7 @@ function userDirs(uid, gid) {
 module.exports = {
     ROOT, RUNTIME, PROTON, PREFIX, HOME, GPU_LIBS, STATE_DIR, INTERNAL_GAMES, DISK, DISK_GAMES, LOADER,
     RUN_DIR, PCM_FIFO, XDG_DIR, PADS_FILE, DNS_FILE, RENDER_NODE, UNIT_LIB, WINSTON_SOCKET, VK, VULKAN, vulkanMissing, vulkanMesaMajor, vulkanLabel, dxvkConf,
+    IRIS, irisMissing, irisLabel,
     DETAILS, DETAIL_DXVK, DETAIL_WINED3D,
     gpuLibs, userDirs, baseEnv, sinkEnv, dotnetEnv, wineEnv,
 };

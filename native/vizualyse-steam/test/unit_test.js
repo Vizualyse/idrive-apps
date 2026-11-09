@@ -73,7 +73,7 @@ const senv = Object.assign({}, process.env, {
     STEAM_NO_FIREWALL: '1', STEAM_LEASE: '/tmp/lease.json', STEAM_CTL_SOCKET: '/tmp/ctl/ctl.sock',
     STEAM_SWAP_MB: '0',   /* the swap file: test/swap_test.js */
     STEAM_RUNTIME_ARCHIVE: T + '/build/runtime.tgz', STEAM_PROTON_ARCHIVE: T + '/build/proton.tgz',
-    STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_VULKAN_ARCHIVE: T + '/build/vulkan.tgz', STEAM_LAUNCH: T + '/build/launch.json',
+    STEAM_PREFIX_ARCHIVE: T + '/build/prefix.tgz', STEAM_VULKAN_ARCHIVE: T + '/build/vulkan.tgz', STEAM_IRIS_ARCHIVE: T + '/build/iris.tgz', STEAM_LAUNCH: T + '/build/launch.json',
     STEAM_DD_CMD: '/usr/bin/node ' + T + '/test/fake_dd.js ' + T + '/build/win/' + (process.env.T_GAME || 't_d3d964.exe'),
     /* mgu-render's client: a stand-in (show works); the display's touches: a
      * replayed capture (touchFile) for steam-touch */
@@ -363,6 +363,7 @@ async function main() {
 
     await controller();
     await usbStick();
+    await irisMode();
     await vulkan();
 
     server.kill('SIGTERM');
@@ -384,6 +385,43 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* iris, per game: the test game with Vulkan off on iris from the bundled
+ * iris.tgz (its own EGL set; wl-sink stays on the unit's Mesa), the patch's
+ * own line in the log, nothing kernel414 calls a hazard; then a restart of
+ * the unit during it turns iris off for it. The stub, behind kernel414. */
+async function irisMode() {
+    if (!VK) { console.log('  (iris: kernel414 (tools/vk-trial\'s build) not mounted, or not the stub: skipped)'); return; }
+    let s = await status();
+    ok('iris is offered (iris.tgz unpacked)', s.irisAvailable === true);
+    let r = await api('/api/game', { appId: APP, vulkan: false, iris: true });
+    ok('iris: on for the game (Vulkan off)', r.code === 200, r.body && r.body.error);
+    s = await status();
+    const g0 = s.library.filter((x) => x.appId === APP)[0];
+    ok('the library says iris', g0 && g0.iris === true && g0.vulkan === false, JSON.stringify(g0 && { iris: g0.iris, vulkan: g0.vulkan }));
+    const log0 = serverLog.length;
+    r = await api('/api/play', { appId: APP });
+    ok('play on iris starts', r.code === 200, r.body && r.body.error);
+    let mark = {};
+    try { mark = JSON.parse(fs.readFileSync(ROOT + '/state/game-running', 'utf8')); } catch (e) { /* none */ }
+    ok('the running marker says iris', mark.iris === true && mark.vulkan === false, JSON.stringify(mark));
+    s = await until('the game drawing on iris', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    ok('the game draws on iris', s.game.state === 'running', s.game.note);
+    const lines = serverLog.slice(log0);
+    ok('the journal names iris', /on OpenGL \(WineD3D, Mesa 19\.3\.5 iris/.test(lines));
+    ok('Wine\'s GL is iris (its patch says so)', /iris: no context isolation in the kernel/.test(lines));
+    ok('no ioctl that means something else on the unit\'s kernel', !/kernel414: HAZARD/.test(lines));
+    await api('/api/stop', {});
+    await until('the iris game ending', (x) => x.game && x.game.state === 'ended', 60000);
+    /* the unit restarts during a game on iris: the marker stays, the tool starts again */
+    server.kill('SIGTERM');
+    await new Promise((resolve) => { server.on('exit', resolve); setTimeout(resolve, 15000); });
+    fs.writeFileSync(ROOT + '/state/game-running', JSON.stringify({ appId: APP, name: 'TestGame', at: new Date().toISOString(), vulkan: false, iris: true }));
+    startServer();
+    s = await until('the tool again', (x) => x.bundle === 'ready' || x.bundle === 'failed', 120000);
+    const g = s.library.filter((x) => x.appId === APP)[0];
+    ok('after a restart during it, iris is off for the game', g && g.iris === false && /iris is off/.test(s.restartNote || ''), s.restartNote);
 }
 
 /* Vulkan, per game: the test game (t_d3d9, 64-bit) on DXVK and ANV
