@@ -33,6 +33,33 @@ workflow (Actions > Release, the component ids).
   7. Castle Crashers: the SteamStub note on the phone page.
   8. The pad: Slay the Spire 2's didn't work once when it connected two
      minutes into the game (not proven: try with it on before the start).
+- [ ] **Newer Mesa with context isolation patched out (off the car first).**
+  The unit's IOTG 4.14 has no context isolation (Linux 4.16: new contexts
+  built from a recorded default state), and newer Mesa assumes it: iris
+  refuses such a kernel from 20.0, ANV from 23.2 (`8a1a49aae40`), and both
+  then write registers (`CS_DEBUG_MODE2`, `CS_CHICKEN1`, maybe more) that
+  without isolation would carry into the HMI's contexts. Adding isolation to
+  the kernel instead was ruled out (2026-11-09): i915 is a module the HMI
+  holds (refcount 29), the car's build differs from Intel's 4.14 tree (it
+  answered context param 0x7), swapping it means the read-only root or the
+  boot, and a bad one loops the unit into recmgr's data wipe. So, in Mesa,
+  as iris 19.3.5 (`tools/iris-bench/image/iris_no_isolation.py`) and ANV
+  22.3.7 (`tools/vk-trial/image/*.patch`) already are:
+  1. Pick versions: ANV 24.x / 25.x (newer DXVK: 2.7 needs
+     `VK_KHR_maintenance5`), iris 22.3 / 24.x (GL 4.6 either way: what does
+     newer iris buy here?).
+  2. Undo the refusal (the isolation GETPARAM back, no "requires context
+     isolation"), constant buffer 0 relative again, and no write of a
+     register that isn't the context's own without isolation: list every
+     register the newer driver writes (`INTEL_DEBUG=bat` on the stub) against
+     what the unit's i965 and ANV 19 write; keep it to those.
+  3. kernel414 (`tools/vk-trial/test/kernel414.c`): every ioctl and param
+     the newer driver sends that the unit's kernel doesn't know named a
+     HAZARD (I915_QUERY, context params after 6 so far; newer Mesa asks more:
+     check each against the unit's real answers in vk-trial's crumbs).
+  4. The bench (iris-bench run_test, vk-trial anv_test / dxvk car_test, the
+     Steam unit test), then the gate on the car stage by stage, the HMI's look
+     watched (the registers would show there), before any game.
 
 - [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
   tested off the car against the unit's own Winston, `tools/winston-bench`,
