@@ -255,7 +255,7 @@ function render(s) {
   const label = (act, x) => ({
     nosteam: 'Run without Steam: ' + (x.noSteam ? 'on' : 'off'),
     vulkan: 'Vulkan: ' + (x.vulkan ? 'on' : 'off') + (x.vulkan === x.vulkanDefault ? ' (the default)' : ''),
-    iris: 'OpenGL driver: ' + (x.iris ? 'iris' + (x.vulkan ? ' (used only with Vulkan off)' : '') : 'i965 (the default)'),
+    iris: 'OpenGL driver: ' + (x.iris ? 'iris' + (x.irisDefault ? ' (the default)' : '') + (x.vulkan ? ', used only with Vulkan off' : '') : 'i965'),
     detail: 'Detail: ' + (x.detail || 'normal'),
   })[act];
   if (editing) {
@@ -287,13 +287,13 @@ function render(s) {
         'achievements and cloud saves stay on the car. Off puts Steam\'s back. Steam\'s DRM wrapper still stops some games.</p>') +
       (s.vulkanAvailable || x.vulkan ?
         '<div class="row"><button data-act="vulkan">' + esc(label('vulkan', x)) + '</button></div>' +
-        '<p class="dim">Direct3D 9-11 through DXVK, or a Godot 4 game\'s own Vulkan renderer, instead of OpenGL: on by default for 64-bit games' +
-        (x.arch === 'x86' ? ' (this one is 32-bit: OpenGL by default)' : '') + '. If the unit restarts during the game, Vulkan turns itself off for it. ' +
+        '<p class="dim">Direct3D 9-11 through DXVK, or a Godot 4 game\'s own Vulkan renderer, instead of OpenGL: on by default, 32- and 64-bit. ' +
+        'If the unit restarts during the game, Vulkan turns itself off for it. ' +
         'A Godot 4 game\'s default launch options switch to Vulkan by themselves.</p>' : '') +
       (s.irisAvailable || x.iris ?
         '<div class="row"><button data-act="iris">' + esc(label('iris', x)) + '</button></div>' +
-        '<p class="dim">With Vulkan off: the game\'s OpenGL (and Direct3D through WineD3D) on iris, Mesa\'s newer Intel driver, ' +
-        'instead of the car\'s own i965. Try it where OpenGL is slow. If the unit restarts during the game, it goes back to i965.</p>' : '') +
+        '<p class="dim">With Vulkan off: the game\'s OpenGL (and Direct3D through WineD3D) on iris, Mesa\'s newer Intel driver (the default), ' +
+        'or on the car\'s own i965. If the unit restarts during the game, it goes back to i965.</p>' : '') +
       '<div class="row"><button data-act="detail">' + esc(label('detail', x)) + '</button></div>' +
       '<p class="dim">Lite: no anti-aliasing or tessellation, and the game\'s own low settings where the tool knows its engine ' +
       '(Unity, Unreal, Source). Potato: also Direct3D 11 at 10.1, shader model 2 for Direct3D 9, less video memory reported: ' +

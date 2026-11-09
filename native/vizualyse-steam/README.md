@@ -129,7 +129,16 @@ rebuilt `ntdll.so`, below).
   busy share and clock, the CPU, memory and swap, and FSR's and wl-sink's
   time a picture, as inline SVG; dashed lines where the upscaling changed.
   Nothing on the frame path, nothing fetched from outside the car.
-- **iris for OpenGL (0.2.0, per game, off by default):** Mesa 19.3.5's iris
+- **A window bigger than the picture (0.2.1)** is fitted into it, aspect
+  kept, and touches are scaled back (FTL's fixed 1280x720 window showed only
+  its top left at 896x320, and its right and bottom couldn't be touched); a
+  2-pixel overhang is still trimmed (Godot). The journal: "the window WxH
+  fitted into the picture". With Vulkan on, wl-sink also offers linux-dmabuf
+  (ANV 20+); Wine's EGL (Mesa 19) names its buffers' linear, X- or Y-tiled
+  layout there anyway, which is taken (0.2.1: Stardew Valley quit at it).
+- **Defaults (0.2.1):** Vulkan for every game, 32-bit too (Terraria at twice
+  WineD3D's pictures); with Vulkan off, iris over i965.
+- **iris for OpenGL (0.2.0, per game, iris the default from 0.2.1):** Mesa 19.3.5's iris
   (`iris.tgz`, `tools/iris.sh` from `tools/iris-bench`: patched for the
   unit's 4.14, its own EGL / GBM / GLES set) for a game's OpenGL and
   WineD3D with Vulkan off, the phone page's "OpenGL driver" button; wl-sink

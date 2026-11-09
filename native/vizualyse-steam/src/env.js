@@ -99,6 +99,8 @@ const IRIS = ROOT + '/iris';
 const IRIS_LIB = IRIS + '/lib';
 const IRIS_DRI = IRIS_LIB + '/dri';
 function irisMissing() {
+    /* the bench's software GL ahead of the unit's (STEAM_EXTRA_LIBS: llvmpipe): no iris there */
+    if (process.env.STEAM_EXTRA_LIBS) return ['(the bench\'s software GL)'];
     return UNIT_GL.map((n) => path.join(IRIS_LIB, n)).concat([path.join(IRIS_DRI, 'iris_dri.so')])
         .filter((f) => !fs.existsSync(f));
 }

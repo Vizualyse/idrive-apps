@@ -31,7 +31,9 @@
  * (Mesa's swrast).
  *
  * The picture: the newest mapped toplevel with its subsurfaces (Wine puts a
- * GL client area in a subsurface), centred on black, cut off if bigger.
+ * GL client area in a subsurface), centred on black; one bigger than the
+ * picture by more than 2 pixels fitted into it, aspect kept (fit_k: touches
+ * scaled back), a 2-pixel overhang trimmed.
  * Subsurfaces are treated as desynchronised. Surfaces are copied at commit
  * and their buffers released at once, so a client is never held up by us.
  *
@@ -392,7 +394,15 @@ static void params_add(struct wl_client *c, struct wl_resource *r, int32_t fd, u
         wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX, "one plane only");
         return;
     }
-    if (mod != 0x00ffffffffffffffull) {   /* DRM_FORMAT_MOD_INVALID: all we offer */
+    /* We offer DRM_FORMAT_MOD_INVALID only (implicit: the layout the kernel
+     * knows), what ANV's WSI takes. But Mesa 19's EGL (Wine's OpenGL) names
+     * its buffer's own layout whatever was offered: linear, X- or Y-tiled
+     * (0x100000000000001: Stardew Valley quit at that protocol error, the
+     * car, 0.2.0). i965 sets those tilings on its buffers in the kernel
+     * (SET_TILING), so they import as implicit, as its wl_drm buffers do; a
+     * compressed (CCS) or other layout is still refused. */
+    if (mod != 0x00ffffffffffffffull && mod != 0 /* LINEAR */ &&
+        mod != 0x0100000000000001ull /* I915_X_TILED */ && mod != 0x0100000000000002ull /* I915_Y_TILED */) {
         close(fd);
         wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "modifier %#llx not offered", (unsigned long long)mod);
         return;
@@ -508,6 +518,14 @@ static void remove_cb(struct wl_resource *res) { wl_list_remove(wl_resource_get_
  * where the shown toplevel's (0,0) is on the canvas (compose) */
 static struct surface *entered, *shown_top;
 static int org_x, org_y;
+/* A window bigger than the picture is fitted into it (aspect kept) at
+ * fit_k < 1 rather than cut off: FTL's fixed 1280x720 window on an 896x320
+ * picture showed its top left only, and the pointer never reached its right
+ * or bottom (the car, 2026-11-09); Terraria's top was cut at 960x540. Up to
+ * FIT_SLOP pixels over is still trimmed, not scaled (Godot's full screen
+ * window: 898x320 at -1,0 on 896x320, 0.1.13). Touches go back through it. */
+#define FIT_SLOP 2
+static double fit_k = 1.0;
 
 static void surface_destroy_res(struct wl_resource *res) {
     struct surface *s = wl_resource_get_user_data(res);
@@ -1001,7 +1019,8 @@ static void touch_input(char kind, int X, int Y) {
     struct surface *top = shown_top;
     if (!top || !top->res) return;
     struct wl_client *cl = wl_resource_get_client(top->res);
-    wl_fixed_t fx = wl_fixed_from_int(X - org_x), fy = wl_fixed_from_int(Y - org_y);
+    /* the picture's pixels back to the window's (a fitted window: fit_k) */
+    wl_fixed_t fx = wl_fixed_from_double((X - org_x) / fit_k), fy = wl_fixed_from_double((Y - org_y) / fit_k);
     uint32_t t = (uint32_t)now_ms();
     struct wl_resource *p;
     if (entered != top) {
@@ -1130,11 +1149,19 @@ static void shown_size(const struct surface *s, int *w, int *h) {
     *h = s->dh ? s->dh : (s->vh > 0 ? (int)s->vh : s->h);
 }
 
+/* Its size in the picture: shown_size, fitted (fit_k) when the window is
+ * bigger than the picture. */
+static void fit_size(const struct surface *s, int *w, int *h) {
+    shown_size(s, w, h);
+    if (fit_k < 1.0 && *w > 1 && *h > 1) { *w = (int)(*w * fit_k + 0.5); *h = (int)(*h * fit_k + 0.5); }
+}
+static int fit_px(int v) { return fit_k < 1.0 ? (int)(v * fit_k + (v < 0 ? -0.5 : 0.5)) : v; }
+
 /* Draws s at x, y in its shown size (nearest-neighbour from its source
  * rectangle), clipped to the canvas. A 1x1 destination is how Wine hides one. */
 static void blit(const struct surface *s, int x, int y) {
     int w, h;
-    shown_size(s, &w, &h);
+    fit_size(s, &w, &h);
     if (w <= 1 && h <= 1) return;
     double sx0 = s->vw > 0 ? s->vx : 0, sy0 = s->vw > 0 ? s->vy : 0;
     double sw = s->vw > 0 ? s->vw : s->w, sh = s->vh > 0 ? s->vh : s->h;
@@ -1221,7 +1248,7 @@ static int clip_view(const struct surface *x, const struct drm_buffer *d, int px
 static int forward(struct surface *x, int px, int py) {
     struct drm_buffer *d = x->drm;
     int w, h;
-    shown_size(x, &w, &h);
+    fit_size(x, &w, &h);
     struct clip c;
     if (!d || w <= 1 || h <= 1 || d->refused || !clip_view(x, d, px, py, w, h, &c)) return 0;
     int sx = c.sx, sy = c.sy, sw = c.sw, sh = c.sh;
@@ -1331,7 +1358,7 @@ static int fsr_forward(struct surface *x, int px, int py) {
     if (!gl.bo_create || !gl.gbm) FSR_NOT("no GBM");
     if (!d) FSR_NOT("not a GPU buffer");
     int w, h;
-    shown_size(x, &w, &h);
+    fit_size(x, &w, &h);
     struct clip c;
     if (w <= 1 || h <= 1 || !clip_view(x, d, px, py, w, h, &c)) {
         snprintf(fsr_why_buf, sizeof fsr_why_buf, "the window (%dx%d at %d,%d, buffer %dx%d) is outside the picture (%dx%d) or its viewport outside its buffer",
@@ -1416,6 +1443,27 @@ static void compose(void) {
         }
     }
     shown_top = top;
+    /* the picture's surface (the client area, else the window) bigger than
+     * the picture by more than FIT_SLOP: fitted into it, aspect kept */
+    {
+        const struct surface *pic = client ? client : top;
+        double k = 1.0;
+        int pw = 0, ph = 0;
+        if (pic) {
+            shown_size(pic, &pw, &ph);
+            if (pw > 1 && ph > 1 && (pw > out_w + FIT_SLOP || ph > out_h + FIT_SLOP)) {
+                k = (double)out_w / pw < (double)out_h / ph ? (double)out_w / pw : (double)out_h / ph;
+            }
+        }
+        static int said_w = -1, said_h = -1;
+        if (k != fit_k || (k < 1.0 && (pw != said_w || ph != said_h))) {
+            /* the tool's journal: "wl-sink: the window 1280x720 fitted into 896x320 (x0.44)" */
+            printf("{\"ev\":\"fit\",\"size\":[%d,%d],\"into\":[%d,%d],\"k\":%.3f}\n", pw, ph, out_w, out_h, k);
+            fflush(stdout);
+            said_w = pw; said_h = ph;
+        }
+        fit_k = k;
+    }
     /* the one surface shown alone, at its place in the picture */
     struct surface *alone = client ? client : (top && !subs ? top : NULL);
     /* frame times are the game's picture's: the client area, else the window */
@@ -1425,10 +1473,10 @@ static void compose(void) {
         fsr_why = !alone ? "the window's surfaces are put together in software (several, or none alone)" : "the game's picture is not a GPU buffer";
     if (alone && wshown && wo && alone->drm) {
         int w, h;
-        shown_size(alone, &w, &h);
+        fit_size(alone, &w, &h);
         int x = (out_w - w) / 2, y = (out_h - h) / 2;
         if (fsr_forward(alone, x, y) || forward(alone, x, y)) {
-            org_x = x - (client ? client->sx : 0); org_y = y - (client ? client->sy : 0);
+            org_x = x - (client ? fit_px(client->sx) : 0); org_y = y - (client ? fit_px(client->sy) : 0);
             n_pictures++;
             n_ms_total += (unsigned long)(now_ms() - t0);
             return;
@@ -1440,18 +1488,18 @@ static void compose(void) {
     memset(canvas, 0, (size_t)out_w * out_h * 4);
     if (client) {
         int cw, ch;
-        shown_size(client, &cw, &ch);
+        fit_size(client, &cw, &ch);
         int x = (out_w - cw) / 2, y = (out_h - ch) / 2;
         blit(client, x, y);
-        org_x = x - client->sx; org_y = y - client->sy;
+        org_x = x - fit_px(client->sx); org_y = y - fit_px(client->sy);
     } else if (top) {
         int tw, th;
-        shown_size(top, &tw, &th);
+        fit_size(top, &tw, &th);
         int x = (out_w - tw) / 2, y = (out_h - th) / 2;
         blit(top, x, y);
         /* its subsurfaces, oldest first (the list is newest first) */
         wl_list_for_each_reverse(s, &surfaces, link)
-            if (s->role == ROLE_SUB && s->parent == top && s->pix) blit(s, x + s->sx, y + s->sy);
+            if (s->role == ROLE_SUB && s->parent == top && s->pix) blit(s, x + fit_px(s->sx), y + fit_px(s->sy));
         org_x = x; org_y = y;
     }
     if (wshown && wo) {

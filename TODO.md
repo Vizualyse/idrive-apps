@@ -9,30 +9,24 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
-- [ ] **Steam 0.2.0 on the car (2026-11-09).** The release: ANV 22.3.7
-  (patched for the unit's 4.14: no I915_QUERY, no context param after 6)
-  with DXVK 2.6.2 as the games' Vulkan; iris for a game's OpenGL (a choice);
-  Wine Mono; tap timing; Godot's GL shaders; Unity 4's screen; old Steam
-  SDKs' interfaces for gbe_fork; SteamStub spotted; the phone page's switches
-  live and its perf graphs; state/perf.log. What led here: the 2026-11-08
-  and 09 car tests (knowledge/browser.md, games.md, game-compatibility.md;
-  Slay the Spire 2 got past its enemy turn on 22.3.7 by hand). Each step
-  asked first; the journal read after a run, not polled during. To check:
-  1. Slay the Spire 2 and Vampire Survivors on Vulkan (22.3.7 now shipped,
-     DXVK 2.6.2 for Vampire Survivors): run, no hang, the perf graphs.
-  2. Don't Starve: taps click now (Vulkan, then Vulkan off on iris against
-     i965 for WineD3D speed).
-  3. iris in a game, first time through wl-sink (only GBM offscreen so far):
-     FTL (15 pictures/s on i965), Half-Life; the picture right, the HMI's
-     look during and after.
-  4. Slay the Spire 2 with Vulkan off (opengl3 with force_glsl_extensions_warn):
-     its menu draws?
-  5. Teslagrad: Run without Steam on again (writes steam_interfaces.txt;
-     its screen 1344x480 at 896x320): starts?
-  6. Terraria on Wine Mono (an XNA game, FNA).
-  7. Castle Crashers: the SteamStub note on the phone page.
-  8. The pad: Slay the Spire 2's didn't work once when it connected two
-     minutes into the game (not proven: try with it on before the start).
+- [ ] **Steam 0.2.1 on the car.** 0.2.0 on the car (2026-11-09): Vampire
+  Survivors and Slay the Spire 2 run on ANV 22.3.7; Teslagrad launches (Vulkan,
+  Run without Steam); Terraria on Wine Mono, 12 pictures/s on Vulkan against 6
+  on iris or i965; FTL on iris; the SteamStub note shows (knowledge/
+  game-compatibility.md). 0.2.1: a window bigger than the picture fitted into
+  it with touches scaled back (FTL's 1280x720, Terraria's cut top); Vulkan the
+  default for 32-bit games too; iris the default over i965. To check:
+  1. FTL at 896x320 and 960x540: all of its window shown, the pointer
+     reaching its right and bottom (the journal's "fitted into the picture").
+  2. Terraria: its top no longer cut.
+  3. Don't Starve's taps: they still didn't click on 0.2.0, the pad connected.
+     Try with the pad unplugged (the game may ignore the mouse while it is in
+     pad mode); then wl-sink's pointer events against what the game reads.
+  4. The pad in Slay the Spire 2 when connected after the start (not proven).
+  5. iris by default: a WineD3D game's picture and the HMI's look.
+  6. Stardew Valley with Vulkan on (the default): it quit on 0.2.0 at an
+     X-tiled dmabuf buffer wl-sink refused; 0.2.1 takes it. Its picture right
+     (the stub has no pixels: the tiling is only seen on the car).
 - [ ] **Newer Mesa with context isolation patched out (off the car first).**
   The unit's IOTG 4.14 has no context isolation (Linux 4.16: new contexts
   built from a recorded default state), and newer Mesa assumes it: iris

@@ -714,7 +714,7 @@ function setGameOptions(appId, b) {
             const m = env.irisMissing();
             if (m.length) return 'no iris here (' + m[0] + ' is missing)';
         }
-        if (!!b.iris !== !!g.iris) log('iris: ' + g.name + ' ' + (b.iris ? 'on for its OpenGL (from its next start)' : 'off (the unit\'s i965)'));
+        if (!!b.iris !== irisChosen(g)) log('iris: ' + g.name + ' ' + (b.iris ? 'on for its OpenGL (from its next start)' : 'off (the unit\'s i965)'));
         g.iris = !!b.iris;
     }
     if (b.detail !== undefined) {
@@ -743,7 +743,7 @@ let restartNote = null;
         restartNote += ' on Vulkan: Vulkan is off for it now (its last DRM calls: state/vulkan-crumbs.log)';
     }
     /* the same for iris: back on the unit's i965 */
-    if (t.iris && library[t.appId] && library[t.appId].iris) {
+    if (t.iris && library[t.appId] && irisChosen(library[t.appId])) {
         library[t.appId].iris = false;
         saveLibrary();
         restartNote += ' on iris: iris is off for it now';
@@ -755,11 +755,9 @@ let restartNote = null;
 /* ---- Vulkan (per game) -------------------------------------------------------
  * DXVK 2.6.2 for Direct3D 9-11, a Godot 4 game's own Vulkan renderer, on
  * Mesa 22.3.7's ANV, Vulkan 1.3 (vulkan.tgz, env.VK; 19.1.8 and DXVK 1.9.4
- * in 0.1.14, 19.0.6 up to 0.1.13). The default
- * for 64-bit games (seen on the car 2026-11-08: Direct3D 9 / 11 test
- * programs, Slay the Spire 2 on Forward+); 32-bit games stay on OpenGL
- * (WineD3D) by default, Vulkan a choice: 32-bit DXVK runs through WoW64
- * (vk-trial on the car; Don't Starve on 19.1.8, 2026-11-09). A choice made on the phone page stays
+ * in 0.1.14, 19.0.6 up to 0.1.13). The default for every game, 32-bit too
+ * from 0.2.1 (32-bit DXVK through WoW64: Don't Starve, Teslagrad, Terraria at
+ * twice WineD3D's pictures on the car, 2026-11-09). A choice made on the phone page stays
  * (g.vulkan); a restart of the unit during a game on Vulkan turns it off for
  * that game. While one runs: ANV's ICD in RUN_DIR (tmpfs: gone at any
  * restart), removed at its end; DXVK in the prefix (native only with Vulkan
@@ -805,10 +803,16 @@ function gameStub(g) {
     }
     return !!g.steamStub;
 }
-function vulkanDefault(g) { return gameArch(g) === 'x64' && env.vulkanMissing().length === 0; }
+/* Vulkan by default for every game whose program reads as Windows x86 or x64
+ * (32-bit too from 0.2.1: DXVK through WoW64 ran Don't Starve, Teslagrad and
+ * Terraria, Terraria at twice WineD3D's pictures; the car, 2026-11-09) */
+function vulkanDefault(g) { return gameArch(g) !== null && env.vulkanMissing().length === 0; }
 function vulkanOn(g) { return g.vulkan === true || g.vulkan === false ? g.vulkan : vulkanDefault(g); }
 /* iris (env.IRIS): a choice, never a default; for OpenGL, so not with Vulkan on */
-function irisOn(g) { return g.iris === true && !vulkanOn(g) && env.irisMissing().length === 0; }
+/* iris by default from 0.2.1 (the owner's call, 2026-11-09: as fast as i965 in
+ * Terraria, faster to start); off by choice, or after a restart during it */
+function irisChosen(g) { return g.iris !== false && env.irisMissing().length === 0; }
+function irisOn(g) { return irisChosen(g) && !vulkanOn(g); }
 
 function vulkanPrepare(fps, detail) {
     const m = env.vulkanMissing();
@@ -1011,7 +1015,7 @@ function status() {
                 usb: gameStick(x), present: present(x),
                 /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
                 noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
-                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), iris: !!x.iris, arch: gameArch(x), detail: x.detail || 'normal',
+                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), iris: irisChosen(x), irisDefault: env.irisMissing().length === 0, arch: gameArch(x), detail: x.detail || 'normal',
                 steamStub: gameStub(x) };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),

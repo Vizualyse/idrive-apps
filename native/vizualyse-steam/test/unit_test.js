@@ -363,6 +363,8 @@ async function main() {
 
     await dotnetGame();
     ok('still no Wine Mono installer window after a .NET program', !/window "Wine Mono Installer"/.test(serverLog));
+    await oversizedWindow();
+    await openglGame();
 
     await controller();
     await usbStick();
@@ -423,6 +425,85 @@ async function dotnetGame() {
     }
     const r = await api('/api/game', { appId: APP, exe: 'TestGame.exe' });
     ok('the test game\'s own program back', r.code === 200, r.body && r.body.error);
+}
+
+/* A game that draws with OpenGL itself (test/win/t_gl.c: WGL, as FTL,
+ * MonoGame, GoldSrc) with Vulkan on, as every game is by default: wl-sink
+ * then also offers linux-dmabuf (for ANV 20+), and Wine's EGL (Mesa 19) sent
+ * an X-tiled buffer it hadn't offered: a protocol error, and Stardew Valley
+ * quit (the car, 0.2.0). 64- and 32-bit; then with Vulkan off, on iris. */
+async function openglGame() {
+    const gd = ROOT + '/games/' + APP;
+    const runs = VK ? [['t_gl64.exe', '64-bit', true], ['t_gl32.exe', '32-bit', true], ['t_gl64.exe', '64-bit', false]] : [['t_gl64.exe', '64-bit', false]];
+    for (const [exe, bits, vulkan] of runs) {
+        const what = 'OpenGL (' + bits + (vulkan ? ', Vulkan on' : ', Vulkan off: ' + (GPU === 'stub' ? 'iris' : 'the bench\'s GL')) + ')';
+        fs.copyFileSync(T + '/build/win/' + exe, gd + '/' + exe);
+        fs.chownSync(gd + '/' + exe, UID, UID);
+        let r = await api('/api/game', { appId: APP, exe: exe, vulkan: vulkan, iris: GPU === 'stub' });
+        ok(what + ': ' + exe + ' as the game\'s program', r.code === 200, r.body && r.body.error);
+        try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+        const log0 = serverLog.length;
+        r = await api('/api/play', { appId: APP });
+        ok(what + ': play starts', r.code === 200, r.body && r.body.error);
+        let s = await until('the GL program drawing', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+        /* this run's lines, then 100 frames more: still running, no protocol error */
+        let tl = '';
+        for (let i = 0; i < 60; i++) {
+            await sleep(500);
+            let all = '';
+            try { all = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+            const at = all.lastIndexOf('t_gl: ' + bits);
+            tl = at >= 0 ? all.slice(at) : '';
+            if (/t_gl: drew [1-9]\d*00/.test(tl)) break;
+        }
+        s = await status();
+        const lines = serverLog.slice(log0);
+        ok(what + ': it keeps drawing, no protocol error from wl-sink',
+            s.game && s.game.state === 'running' && /t_gl: drew [1-9]\d*00/.test(tl) && !/not offered|Protocol error|error in client communication/.test(lines),
+            tl.trim().split('\n').slice(0, 2).join(' | ') + '; ' + (lines.split('\n').filter((l) => /not offered|Protocol error|Wine exited/.test(l)).join(' | ') || (s.game && s.game.state)));
+        await api('/api/stop', {});
+        await until('the GL program ending', (x) => x.game && x.game.state === 'ended', 60000);
+        fs.unlinkSync(gd + '/' + exe);
+    }
+    const r = await api('/api/game', { appId: APP, exe: 'TestGame.exe' });
+    ok('the test game\'s own program back', r.code === 200, r.body && r.body.error);
+}
+
+/* A window bigger than the picture (FTL's fixed 1280x720 on the car) is
+ * fitted into it, not cut off, and a tap lands where it is shown: t_d3d9 as
+ * a borderless 1280x720 window on the 960x540 picture (x0.75), a tap three
+ * quarters across and down the picture on the screen is a click near
+ * 960,540 in the window (cut off, it would be near 720,405). WineD3D. */
+async function oversizedWindow() {
+    fs.writeFileSync('/tmp/t_popup', '1280x720+0+0\n');
+    try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+    let r = await api('/api/game', { appId: APP, vulkan: false, iris: false });
+    const log0 = serverLog.length;
+    r = await api('/api/play', { appId: APP });
+    ok('a 1280x720 window: play starts', r.code === 200, r.body && r.body.error);
+    let s = await until('the big window drawing', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    for (let i = 0; i < 20 && !/fitted into the picture/.test(serverLog.slice(log0)); i++) await sleep(500);
+    ok('wl-sink fits it into the picture (the journal says so)', /the window 1280x720 fitted into the picture 960x540 \(x0\.75\)/.test(serverLog.slice(log0)),
+        serverLog.slice(log0).split('\n').filter((l) => /wl-sink|fit/.test(l)).slice(-3).join(' | '));
+    const w = 960, h = 540, sc = Math.min(1790 / w, 638 / h);
+    let tl = '';
+    try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+    const before = (tl.match(/t_d3d9: click/g) || []).length;
+    touchFile(Math.round(108 + (1790 - w * sc) / 2 + w * 0.75 * sc), Math.round(82 + (638 - h * sc) / 2 + h * 0.75 * sc));
+    await api('/api/show', {});
+    let ck = null;
+    for (let i = 0; i < 40 && !ck; i++) {
+        await sleep(250);
+        try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        const all = tl.match(/t_d3d9: click -?\d+ -?\d+/g) || [];
+        if (all.length > before) ck = /(-?\d+) (-?\d+)$/.exec(all[all.length - 1]);
+    }
+    ok('a tap three quarters across and down the picture: a click near 960,540 in the 1280x720 window',
+        ck && Math.abs(Number(ck[1]) - 960) <= 4 && Math.abs(Number(ck[2]) - 540) <= 4, ck ? 'click ' + ck[1] + ',' + ck[2] : 'no click');
+    await api('/api/hide', {});
+    await api('/api/stop', {});
+    await until('the big window ending', (x) => x.game && x.game.state === 'ended', 60000);
+    fs.unlinkSync('/tmp/t_popup');
 }
 
 /* iris, per game: the test game with Vulkan off on iris from the bundled
@@ -838,8 +919,13 @@ async function usbStick() {
     /* the stick's game is the 32-bit test program (fake_dd.js): new WoW64
      * through patches/wine-no-ia32.patch (no int $0x80, an LDT %fs per thread) */
     if (!process.env.T_GAME) {
+        /* its lines can come after its first pictures (Vulkan by default from 0.2.1: DXVK starts slower) */
         let tl = '';
-        try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        for (let i = 0; i < 60; i++) {
+            try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+            if (/t_d3d9: 32-bit/.test(tl) && /t_d3d9: device/.test(tl.slice(tl.lastIndexOf('t_d3d9: 32-bit')))) break;
+            await sleep(500);
+        }
         ok('the 32-bit program draws through Direct3D 9 (WoW64, LDT %fs)', /t_d3d9: 32-bit/.test(tl) && /t_d3d9: device/.test(tl.slice(tl.lastIndexOf('t_d3d9: 32-bit'))),
             tl.split('\n').filter((l) => /32-bit|device|FAIL/.test(l)).join(' | ').slice(0, 200));
     }

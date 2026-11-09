@@ -158,6 +158,11 @@ class Game extends EventEmitter {
                     this._log('wl-sink: winston: ' + e.msg);
                 } else if (e.ev === 'fsr') {
                     this._log('wl-sink: ' + e.msg);   /* FSR off by itself; the picture goes on through Winston */
+                } else if (e.ev === 'fit') {
+                    /* a window bigger than the picture, fitted into it (touches scaled back) */
+                    this.fit = e.k < 1 ? { size: e.size, k: e.k } : null;
+                    this._log('wl-sink: ' + (e.k < 1 ? 'the window ' + e.size.join('x') + ' fitted into the picture ' + e.into.join('x') + ' (x' + e.k.toFixed(2) + ')'
+                        : 'the window fits the picture again'));
                 } else if (e.ev === 'winston-lost') {
                     this.winston = false;
                     this._log('wl-sink: the connection to Winston was lost');
