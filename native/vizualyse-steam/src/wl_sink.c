@@ -1011,6 +1011,8 @@ static void seat_bind(struct wl_client *c, void *d, uint32_t v, uint32_t id) {
 
 /* ---- input (--input): stdin lines "d|m|u X Y" ---- */
 
+static void shown_size(const struct surface *s, int *w, int *h);
+
 /* A touch on the picture (canvas pixels): the shown toplevel gets the pointer
  * there (and the keyboard's focus, which Wine takes for its foreground
  * window), and the left button down (d) or up (u). Coordinates go through
@@ -1022,6 +1024,16 @@ static void touch_input(char kind, int X, int Y) {
     /* the picture's pixels back to the window's (a fitted window: fit_k) */
     wl_fixed_t fx = wl_fixed_from_double((X - org_x) / fit_k), fy = wl_fixed_from_double((Y - org_y) / fit_k);
     uint32_t t = (uint32_t)now_ms();
+    /* each press, for the journal: where it was on the picture and where it
+     * landed in the window (Don't Starve's taps didn't click: a misplaced
+     * pointer, or the game not taking them?) */
+    if (kind == 'd') {
+        int tw, th;
+        shown_size(top, &tw, &th);
+        printf("{\"ev\":\"tap\",\"at\":[%d,%d],\"window\":[%.1f,%.1f],\"size\":[%d,%d],\"k\":%.3f}\n",
+               X, Y, wl_fixed_to_double(fx), wl_fixed_to_double(fy), tw, th, fit_k);
+        fflush(stdout);
+    }
     struct wl_resource *p;
     if (entered != top) {
         struct wl_array keys;

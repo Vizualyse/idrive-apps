@@ -158,6 +158,10 @@ class Game extends EventEmitter {
                     this._log('wl-sink: winston: ' + e.msg);
                 } else if (e.ev === 'fsr') {
                     this._log('wl-sink: ' + e.msg);   /* FSR off by itself; the picture goes on through Winston */
+                } else if (e.ev === 'tap') {
+                    /* a press: on the picture, and in the game's window (its size; the fit) */
+                    this._log('touch: press at ' + e.at.join(',') + ' in the picture -> ' + e.window.map((v) => Math.round(v)).join(',') +
+                        ' in the window ' + e.size.join('x') + (e.k < 1 ? ' (fitted x' + e.k.toFixed(2) + ')' : ''));
                 } else if (e.ev === 'fit') {
                     /* a window bigger than the picture, fitted into it (touches scaled back) */
                     this.fit = e.k < 1 ? { size: e.size, k: e.k } : null;

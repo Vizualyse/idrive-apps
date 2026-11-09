@@ -20,8 +20,10 @@ workflow (Actions > Release, the component ids).
      reaching its right and bottom (the journal's "fitted into the picture").
   2. Terraria: its top no longer cut.
   3. Don't Starve's taps: they still didn't click on 0.2.0, the pad connected.
-     Try with the pad unplugged (the game may ignore the mouse while it is in
-     pad mode); then wl-sink's pointer events against what the game reads.
+     Tap a button once, then read the journal's "touch: press at X,Y in the
+     picture -> x,y in the window WxH" line (0.2.1): a misplaced pointer, or
+     the game not taking it? Then with the pad unplugged (pad mode may ignore
+     the mouse).
   4. The pad in Slay the Spire 2 when connected after the start (not proven).
   5. iris by default: a WineD3D game's picture and the HMI's look.
   6. Stardew Valley with Vulkan on (the default): it quit on 0.2.0 at an
