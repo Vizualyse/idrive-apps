@@ -386,7 +386,7 @@ async function main() {
     process.exit(failed ? 1 : 0);
 }
 
-/* Vulkan, per game: the test game (t_d3d9, 64-bit) on DXVK 1.9.4 and ANV
+/* Vulkan, per game: the test game (t_d3d9, 64-bit) on DXVK and ANV
  * from the bundled vulkan.tgz, its ICD only while it runs, its DRM calls in
  * state/vulkan-crumbs.log; then a restart of the unit during it (the marker
  * left, the tool started again) turns its Vulkan off. */

@@ -4,13 +4,16 @@
 #
 # build/vulkan.tgz: Vulkan for the tool's games, unpacked by server.js into
 # /var/opt/vizualyse-steam/vulkan (env.VK):
-#   lib/libvulkan_intel.so  Mesa 19.1.8's ANV for the unit's HD 505, built for
-#                           glibc 2.27 by tools/vk-trial (seen on the car:
+#   lib/libvulkan_intel.so  Mesa 22.3.7's ANV (Vulkan 1.3) for the unit's HD
+#                           505, built for glibc 2.27 and patched for its
+#                           4.14 kernel by tools/vk-trial (no I915_QUERY, no
+#                           context param after 6; seen on the car:
 #                           knowledge/browser.md, "Vulkan on this kernel")
 #   lib/libvulkan.so.1      the Khronos loader 1.1.70 (the runtime has none)
 #   lib/vk_crumbs.so        every DRM call of a Vulkan game logged before it
 #                           enters the kernel (state/vulkan-crumbs.log)
-#   dxvk/x64, dxvk/x32      DXVK 1.9.4 (the newest for ANV 19's Vulkan 1.1)
+#   dxvk/x64, dxvk/x32      DXVK 2.6.2 (the newest for ANV 22.3: 2.7 needs
+#                           VK_KHR_maintenance5)
 #   licenses/               Mesa (MIT), the loader (Apache-2.0), DXVK (zlib)
 # No ICD file: server.js writes one into /dev/shm only while a Vulkan game
 # runs. Reproducible: sorted, dated 0, root's, gzip -n.
@@ -21,14 +24,14 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 VKT=$(cd "$HERE/../../tools/vk-trial" && pwd)
 WIN_VKT=$(cd "$VKT" && (pwd -W 2>/dev/null || pwd))
-# Steam ships 19.1.8 and DXVK 1.9.4 from 0.1.14: 19.1.8 passed its vk-trial
-# on the car (2026-11-08: 32- and 64-bit Direct3D 9 and 11 through DXVK,
-# pixels checked; 19.0.6 can't map a 32-bit game's GPU memory). STEAM_MESA_VER
-# / STEAM_DXVK_VER build a candidate's vulkan.tgz for a try, by hand
-# (19.0.6; 22.3.7 + 2.x: Vulkan 1.3, and wl-sink --dmabuf, which the tool
-# gives when lib/mesa says 20+).
-MESA_VER=${STEAM_MESA_VER:-19.1.8}
-DXVK_VER=${STEAM_DXVK_VER:-1.9.4}
+# Steam ships patched 22.3.7 and DXVK 2.6.2 from 0.1.15: every vk-trial
+# stage and DXVK 2.6.2's 32- and 64-bit Direct3D 9 and 11 programs passed
+# on the car (2026-11-09, pixels checked), and Slay the Spire 2 got past the
+# enemy turn Mesa 19 hung on. (0.1.14: 19.1.8 + DXVK 1.9.4; 19.0.6 before.)
+# 20+ needs wl-sink --dmabuf, which the tool gives when lib/mesa says so.
+# STEAM_MESA_VER / STEAM_DXVK_VER build another one's vulkan.tgz, by hand.
+MESA_VER=${STEAM_MESA_VER:-22.3.7}
+DXVK_VER=${STEAM_DXVK_VER:-2.6.2}
 case $DXVK_VER in   # as tools/vk-trial/dxvk/bench.sh
     1.9.4) DXVK_SHA=854f564c3b58a4cdf7b16eb9a4b6bc6ddc0f83d68c4f979a529fc23f7a770502 ;;
     1.10.3) DXVK_SHA=8d1a3c912761b450c879f98478ae64f6f6639e40ce6848170a0f6b8596fd53c6 ;;

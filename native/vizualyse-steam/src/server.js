@@ -700,12 +700,13 @@ let restartNote = null;
 })();
 
 /* ---- Vulkan (per game) -------------------------------------------------------
- * DXVK 1.9.4 for Direct3D 9-11, a Godot 4 game's own Vulkan renderer, on
- * Mesa 19.1.8's ANV (vulkan.tgz, env.VK; 19.0.6 up to 0.1.13). The default
+ * DXVK 2.6.2 for Direct3D 9-11, a Godot 4 game's own Vulkan renderer, on
+ * Mesa 22.3.7's ANV, Vulkan 1.3 (vulkan.tgz, env.VK; 19.1.8 and DXVK 1.9.4
+ * in 0.1.14, 19.0.6 up to 0.1.13). The default
  * for 64-bit games (seen on the car 2026-11-08: Direct3D 9 / 11 test
  * programs, Slay the Spire 2 on Forward+); 32-bit games stay on OpenGL
- * (WineD3D) by default, Vulkan a choice: 19.1.8 runs 32-bit DXVK through
- * WoW64 (vk-trial on the car, 2026-11-08), no real 32-bit game has yet. A choice made on the phone page stays
+ * (WineD3D) by default, Vulkan a choice: 32-bit DXVK runs through WoW64
+ * (vk-trial on the car; Don't Starve on 19.1.8, 2026-11-09). A choice made on the phone page stays
  * (g.vulkan); a restart of the unit during a game on Vulkan turns it off for
  * that game. While one runs: ANV's ICD in RUN_DIR (tmpfs: gone at any
  * restart), removed at its end; DXVK in the prefix (native only with Vulkan

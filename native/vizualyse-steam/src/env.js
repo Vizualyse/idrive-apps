@@ -63,7 +63,8 @@ const WINSTON_SOCKET = process.env.STEAM_WINSTON || '/run/wayland/wayland-0';
 const UNIT_GL = ['libEGL.so.1', 'libgbm.so.1', 'libglapi.so.0', 'libGLESv2.so.2'];
 
 /* Vulkan for the games (per game; the default for 64-bit ones): Mesa
- * 19.1.8's ANV (19.0.6 up to 0.1.13), its loader, vk_crumbs.so and DXVK 1.9.4 from vulkan.tgz
+ * 22.3.7's ANV, patched for the unit's kernel (19.1.8 in 0.1.14, 19.0.6 up to
+ * 0.1.13), its loader, vk_crumbs.so and DXVK 2.6.2 (1.9.4 before) from vulkan.tgz
  * (tools/vulkan.sh, unpacked into VULKAN; runtime.tgz still carries no GPU
  * driver: bundle.sh checks). STEAM_VK_TRIAL: tools/vk-trial's install
  * instead (its layout). Its ICD exists only in RUN_DIR (tmpfs) while such a
@@ -81,7 +82,7 @@ const VK = {
 };
 
 /* DXVK's options for every game on Vulkan (VK.conf while one runs; DXVK
- * 1.9.4's names, all seen in its DLLs):
+ * names, all seen in 1.9.4's and 2.6.2's DLLs):
  * - the frame rate the tool shows (fps): no frame drawn that would be thrown
  *   away, its time left to the HMI and the passively cooled unit;
  * - one frame queued ahead, not three: less memory, less input lag;
@@ -146,7 +147,7 @@ function vulkanMissing() {
 function vulkanMesaMajor() {
     try { return parseInt(fs.readFileSync(VK.mesa, 'utf8'), 10) || 19; } catch (e) { return 19; }
 }
-/* "DXVK 1.9.4 / ANV 19.1.8": what the unpacked vulkan.tgz holds, for the journal */
+/* "DXVK 2.6.2 / ANV 22.3.7": what the unpacked vulkan.tgz holds, for the journal */
 function vulkanLabel() {
     const read = (f, d) => { try { return fs.readFileSync(f, 'utf8').trim() || d; } catch (e) { return d; } };
     return 'DXVK ' + read(VK.dxvk + '/VERSION', '?') + ' / ANV ' + read(VK.mesa, '19.0.6');
