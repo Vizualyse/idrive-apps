@@ -542,11 +542,16 @@ function added(appId, dir) {
     const eng = exe ? steam.engine(dir, exe) : null;
     library[appId] = { name: name, dir: dir, exe: exe, args: old.args || steam.defaultArgs(eng), engine: eng,
         sizeMb: Math.round(steam.du(dir) / 1048576), installedAt: old.installedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
-        noSteam: !!old.noSteam, steamApi: steamApiFiles(dir).length, arch: exe ? steam.arch(dir, exe) : null };
-    /* Vulkan: a choice made by hand stays; none, the default (vulkanOn) */
+        noSteam: !!old.noSteam, steamApi: steamApiFiles(dir).length, arch: exe ? steam.arch(dir, exe) : null,
+        steamStub: exe ? steam.steamStub(dir, exe) : null };
+    /* Vulkan: a choice made by hand stays; none, the default (vulkanOn). iris
+     * and Detail stay too (an update or a check of the files kept neither) */
     if (old.vulkan === true || old.vulkan === false) library[appId].vulkan = old.vulkan;
+    if (old.iris) library[appId].iris = true;
+    if (old.detail) library[appId].detail = old.detail;
     saveLibrary();
-    log('library: ' + name + ' (' + appId + '): ' + (exe || 'no program found') + (eng ? ', ' + eng : '') + ', ' + library[appId].sizeMb + ' MB');
+    log('library: ' + name + ' (' + appId + '): ' + (exe || 'no program found') + (eng ? ', ' + eng : '') + ', ' + library[appId].sizeMb + ' MB' +
+        (library[appId].steamStub ? ', Steam\'s DRM wrapper (SteamStub) on its program: it won\'t start without the Steam client' : ''));
     /* an update or a check put Steam's own steam_api back: the emulator again */
     if (old.noSteam) { const e = noSteam(appId, true); if (e) log('no-steam: ' + e); }
 }
@@ -618,6 +623,13 @@ function noSteam(appId, on) {
                     fs.writeFileSync(path.join(sd, 'steam_appid.txt'), String(appId) + '\n');
                     fs.writeFileSync(path.join(sd, 'configs.user.ini'), '[user::general]\naccount_name=' + acct + '\nlanguage=english\n');
                     fs.writeFileSync(path.join(sd, 'configs.main.ini'), '[main::connectivity]\ndisable_networking=1\n');
+                    /* the interface versions Steam's own DLL was built with (steam.steamInterfaces):
+                     * an older game (Teslagrad) otherwise calls gbe's newest ISteamClient through
+                     * its own, older slots */
+                    let itfs = [];
+                    try { itfs = steam.steamInterfaces(fs.readFileSync(f + ORIG)); } catch (e) { /* no original kept */ }
+                    if (itfs.length) fs.writeFileSync(path.join(sd, 'steam_interfaces.txt'), itfs.join('\n') + '\n');
+                    else { try { fs.unlinkSync(path.join(sd, 'steam_interfaces.txt')); } catch (e) { /* none */ } }
                     ownIfCan(sd);
                     fs.readdirSync(sd).forEach((n) => ownIfCan(path.join(sd, n)));
                 }
@@ -668,6 +680,7 @@ function setGameOptions(appId, b) {
         g.exe = b.exe;
         g.engine = steam.engine(g.dir, g.exe);
         g.arch = steam.arch(g.dir, g.exe);
+        g.steamStub = steam.steamStub(g.dir, g.exe);
     }
     if (b.args !== undefined) {
         const a = String(b.args).trim();
@@ -768,6 +781,11 @@ bus.on('asks', () => {
 function gameArch(g) {
     if (g.arch === undefined && g.exe) { g.arch = steam.arch(g.dir, g.exe); saveLibrary(); }
     return g.arch || null;
+}
+/* SteamStub on its program, read once (a game added before 0.2.0 too) */
+function gameStub(g) {
+    if (g.steamStub === undefined && g.exe) { g.steamStub = steam.steamStub(g.dir, g.exe); saveLibrary(); }
+    return !!g.steamStub;
 }
 function vulkanDefault(g) { return gameArch(g) === 'x64' && env.vulkanMissing().length === 0; }
 function vulkanOn(g) { return g.vulkan === true || g.vulkan === false ? g.vulkan : vulkanDefault(g); }
@@ -974,13 +992,14 @@ function status() {
                 usb: gameStick(x), present: present(x),
                 /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
                 noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
-                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), iris: !!x.iris, arch: gameArch(x), detail: x.detail || 'normal' };
+                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), iris: !!x.iris, arch: gameArch(x), detail: x.detail || 'normal',
+                steamStub: gameStub(x) };
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
             buffers: { drm: game.stats.drm, shm: game.stats.shm, fwd: game.stats.fwd || 0, scaled: game.stats.scaled || 0, commits: game.stats.commits || 0, ms: game.stats.ms }, note: game.note,
-            /* FSR in wl-sink: pictures drawn (in all), skipped, its GPU time (ms, the newest measured), its size */
-            fsr: game.stats.fsr ? { pictures: game.stats.fsr, skipped: game.stats.fsrSkipped || 0, gpuMs: game.stats.fsrGpuMs, size: game.stats.fsrSize } : null,
+            /* FSR in wl-sink: pictures drawn (in all; now: in the last second), skipped, its GPU time (ms, the newest measured), its size */
+            fsr: game.stats.fsr ? { pictures: game.stats.fsr, now: game.stats.fsrNow || 0, skipped: game.stats.fsrSkipped || 0, gpuMs: game.stats.fsrGpuMs, size: game.stats.fsrSize } : null,
             fsrWhy: game.stats.fsrWhy || null,
             /* the controllers in use: [{ player, name }] (steam-pads) */
             pads: Object.keys(game.pads || {}).map((k) => ({ player: Number(k) + 1, name: game.pads[k] })) } : null,
@@ -1037,6 +1056,13 @@ const web = http.createServer((req, res) => {
     if (!settings.enabled) return send(res, 503, 'text/plain', 'Steam is off: turn it on on the iDrive Steam page.\n');
     if (req.method === 'GET' && u.pathname === '/') return send(res, 200, 'text/html; charset=utf-8', PAGE);
     if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, status());
+    /* the phone page's graphs: the running (or last) game's perf windows as numbers
+     * (perf.point, the last hour), only when asked: nothing more on the unit otherwise */
+    if (req.method === 'GET' && u.pathname === '/api/perf') {
+        const since = Number(u.searchParams.get('since')) || 0;
+        return json(res, 200, game ? { name: game.o.name, started: game.since, running: game.state !== 'ended', frame: game.o.frame,
+            points: (game.points || []).filter((p) => p.t > since) } : { name: null, running: false, points: [] });
+    }
     if (req.method === 'GET' && u.pathname === '/api/exes') {
         const g = library[u.searchParams.get('appId')];
         return json(res, g ? 200 : 404, g ? steam.findExes(g.dir, g.name) : { error: 'not installed' });

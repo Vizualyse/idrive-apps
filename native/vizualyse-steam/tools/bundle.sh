@@ -13,8 +13,9 @@
 #                      the tool), fontconfig's, the CA bundle.
 #   build/proton.tgz   proton/: GE-Proton trimmed to what runs here (WineD3D on
 #                      OpenGL, Wayland, 64-bit with new WoW64): no DXVK / VKD3D-
-#                      Proton (no Vulkan on the unit's 4.14 kernel), no Mono or
-#                      Gecko, no 32-bit Unix side, no text-to-speech. Every ELF
+#                      Proton (the tool's own vulkan.tgz instead), Wine Mono
+#                      without its debug files, no Gecko, no 32-bit Unix
+#                      side, no text-to-speech. Every ELF
 #                      program of it asks for the runtime's loader.
 #   build/prefix.tgz   prefix/: the Windows prefix (Proton's "compatdata"),
 #                      made here by Proton itself and wineboot: making one
@@ -105,12 +106,17 @@ cp -a "$G/files/lib/x86_64-linux-gnu" "$F/lib/"
 # NVIDIA's API bridges
 ( cd "$F/lib/x86_64-linux-gnu" && rm -rf libonnxruntime* libpiper* libespeak* libVkLayer_* libdxvk_* \
       libopenxr* liblsteamclient_overlay_bridge* cmake pkgconfig )
-# share/ whole (the prefix setup copies from many corners of it), less Wine's
-# Mono (.NET Framework games need it: not in this version) and Gecko (HTML
-# views), and the text-to-speech data: ~500 MB
+# share/ whole (the prefix setup copies from many corners of it), less Gecko
+# (HTML views) and the text-to-speech data. Wine Mono stays (11.3.0, with FNA
+# for XNA games: Terraria, .NET Framework games), less its debug symbols
+# (.dbg, 55 MB of its 276): Wine's mscoree finds it here, in share/wine/mono,
+# without installing it into the prefix (whose wineboot below still runs
+# with mscoree off: the cars' kept prefixes needn't change).
 rm -rf "$F/share"
 cp -a "$G/files/share" "$F/"
-rm -rf "$F/share/wine/mono" "$F/share/wine/gecko" "$F/share/espeak-ng-data" "$F/share/libtashkeel_model.ort"
+rm -rf "$F/share/wine/gecko" "$F/share/espeak-ng-data" "$F/share/libtashkeel_model.ort"
+find "$F/share/wine/mono" -name '*.dbg' -type f -delete
+[ -d "$F/share/wine/mono/wine-mono-11.3.0" ] || { echo "bundle: no Wine Mono 11.3.0 in $GE" >&2; exit 1; }
 # Every ELF program asks for the runtime's loader (the unit has no /lib64).
 # wine-preloader is static: it maps the interpreter `wine` names.
 n=0

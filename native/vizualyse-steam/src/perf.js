@@ -136,6 +136,26 @@ function frameStats(ft) {
         p99: sorted[Math.min(sorted.length - 1, Math.floor(ft.length * 0.01))], worst: sorted[0] };
 }
 
+/* A window as numbers, for the phone page's graphs (server.js /api/perf):
+ * the same figures as its "perf:" line, null where not measured. */
+function point(a, mode, at) {
+    const f = frameStats(a.ft), r1 = (x) => Math.round(x * 10) / 10;
+    return {
+        t: at, mode: mode, s: a.s,
+        fps: f ? r1(f.fps) : null, low1: f ? r1(f.low1) : null, worstMs: f ? r1(f.worst) : null,
+        pictures: a.s ? r1(a.pictures / a.s) : null,
+        sinkMs: a.pictures ? Math.round(100 * a.sinkMsW / a.pictures) / 100 : null,
+        fsrMs: a.fsrN ? Math.round(100 * a.fsrMsW / a.fsrN) / 100 : null,
+        gpuBusy: a.busySpan ? Math.round(100 * a.busyMs / a.busySpan) : null,
+        gpuMhz: a.mhzN ? Math.round(a.mhzSum / a.mhzN) : null,
+        cpu: a.cpuTotal ? Math.round(100 * a.cpuBusy / a.cpuTotal) : null,
+        gameCpu: a.wallMs ? Math.round(100 * (a.gameTicks / HZ) / (a.wallMs / 1000)) : null,
+        gameMb: a.gameN ? Math.round(a.gameSum / a.gameN) : null,
+        availMb: a.memN && a.availMin !== Infinity ? Math.round(a.availSum / a.memN) : null,
+        swapMb: a.memN ? Math.round(a.swapSum / a.memN) : null,
+    };
+}
+
 function fmt(a, mode, frame) {
     const r = (x, d) => (a.s ? x / a.s : 0).toFixed(d === undefined ? 1 : d);
     const f = frameStats(a.ft);
@@ -225,6 +245,7 @@ class Perf {
         }
         if (a.s) {
             this.o.log('perf: ' + fmt(a, this.m, this.o.frame));
+            if (this.o.point) this.o.point(point(a, this.m, now));
             if (!this.totals[this.m]) { this.totals[this.m] = emptyAcc(); this.order.push(this.m); }
             add(this.totals[this.m], a);
         }
@@ -248,4 +269,19 @@ class Perf {
     }
 }
 
-module.exports = { Perf, fmt, frameStats };
+/* The perf lines in a file of the tool's own too (state/perf.log): the
+ * unit's journal keeps only the last 10-15 minutes of the tool's lines, too
+ * short to read a long run afterwards. Each line with its time; at maxBytes
+ * the file becomes perf.log.1 (one kept), so about 2 MB in all (about ten
+ * hours of 10 s lines). Failures are ignored: the journal still has them. */
+function keepLine(file, line, maxBytes) {
+    maxBytes = maxBytes || 1048576;
+    try {
+        let size = 0;
+        try { size = fs.statSync(file).size; } catch (e) { /* new */ }
+        if (size >= maxBytes) fs.renameSync(file, file + '.1');
+        fs.appendFileSync(file, new Date().toISOString() + ' ' + line + '\n', { mode: 0o644 });
+    } catch (e) { /* the journal has it */ }
+}
+
+module.exports = { Perf, fmt, point, frameStats, keepLine };

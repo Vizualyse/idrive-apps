@@ -26,7 +26,9 @@ const { spawn, execFileSync } = require('child_process');
 const EventEmitter = require('events');
 const env = require('./env.js');
 const screen = require('./screen.js');
-const { Perf } = require('./perf.js');
+const { Perf, keepLine } = require('./perf.js');
+/* the perf lines kept beside the journal's (perf.keepLine) */
+const PERF_FILE = path.join(env.STATE_DIR, 'perf.log');
 
 const DISPLAY = 'wayland-vzs';
 const PYTHON = process.env.STEAM_PYTHON || '/var/opt/mgu-python/current/bin/python3';
@@ -83,6 +85,8 @@ class Game extends EventEmitter {
         this.py = null;
         this.pcm = null;
         this.stats = { pictures: 0, fps: 0, drm: 0, shm: 0, ms: 0 };
+        /* its perf windows as numbers (perf.point), the last hour: the phone page's graphs */
+        this.points = [];
         this.title = null;
         this.note = null;
         this.since = Date.now();
@@ -139,9 +143,10 @@ class Game extends EventEmitter {
                 } else if (e.ev === 'stats') {
                     this.stats = { pictures: this.stats.pictures + e.pictures, fps: e.pictures, drm: e.drm, shm: e.shm, fwd: e.fwd || 0,
                         scaled: e.scaled || 0, commits: e.commits || 0, ms: e.ms,
-                        fsr: e.fsr || 0, fsrSkipped: e.fsrSkipped || 0, fsrGpuMs: e.fsrGpuMs, fsrSize: e.fsrSize, fsrWhy: e.fsrWhy || null };
+                        fsr: e.fsr || 0, fsrNow: e.fsrNow || 0, fsrSkipped: e.fsrSkipped || 0, fsrGpuMs: e.fsrGpuMs, fsrSize: e.fsrSize, fsrWhy: e.fsrWhy || null };
                     /* the journal's "perf:" lines (src/perf.js) */
-                    if (!this.perf) this.perf = new Perf({ log: (s) => this._log(s), label: o.name, frame: Object.assign({}, o.frame, { detail: o.detail }), mode: o.upscale || 'off', cgroup: o.cgroup });
+                    if (!this.perf) this.perf = new Perf({ log: (s) => { this._log(s); keepLine(PERF_FILE, s); },
+                        point: (p) => { this.points.push(p); if (this.points.length > 360) this.points.shift(); }, label: o.name, frame: Object.assign({}, o.frame, { detail: o.detail }), mode: o.upscale || 'off', cgroup: o.cgroup });
                     this.perf.sample(e);
                     if (this.state === 'starting' && (e.drm || e.shm)) this._set('running');
                     this.emit('stats', this.stats);

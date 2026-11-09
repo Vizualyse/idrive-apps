@@ -361,6 +361,9 @@ async function main() {
      * installer in a window nobody can press */
     ok('no Wine Mono installer window (no prefix update)', !/window "Wine Mono Installer"/.test(serverLog));
 
+    await dotnetGame();
+    ok('still no Wine Mono installer window after a .NET program', !/window "Wine Mono Installer"/.test(serverLog));
+
     await controller();
     await usbStick();
     await irisMode();
@@ -385,6 +388,41 @@ async function main() {
     if (process.env.GREP_LOG) console.log(serverLog.split('\n').filter((l) => new RegExp(process.env.GREP_LOG).test(l)).join('\n'));
     console.log(failed ? failed + ' failed' : 'all passed');
     process.exit(failed ? 1 : 0);
+}
+
+/* A .NET Framework program as the game's program (test/net/t_net.cs, built
+ * by build_win.sh): Wine Mono from proton/share/wine/mono runs it, 64-bit
+ * and 32-bit, and its window draws. Then the test game's own program back. */
+async function dotnetGame() {
+    const gd = ROOT + '/games/' + APP;
+    for (const [exe, bits] of [['t_net.exe', '64-bit'], ['t_net32.exe', '32-bit']]) {
+        fs.copyFileSync(T + '/build/win/' + exe, gd + '/' + exe);
+        fs.chownSync(gd + '/' + exe, UID, UID);
+        let r = await api('/api/game', { appId: APP, exe: exe, vulkan: false, iris: false });
+        ok('.NET (' + bits + '): ' + exe + ' as the game\'s program', r.code === 200, r.body && r.body.error);
+        try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
+        r = await api('/api/play', { appId: APP });
+        ok('.NET (' + bits + '): play starts', r.code === 200, r.body && r.body.error);
+        let s = await until('the .NET program drawing', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+        ok('.NET (' + bits + '): its window draws', s.game.state === 'running', s.game.note);
+        /* this run's lines: from its own first line on (the log keeps earlier ones) */
+        const own = new RegExp('t_net: \\.NET [0-9.]+, ' + bits + ', Wine Mono');
+        let tl = '';
+        for (let i = 0; i < 60 && !/t_net: drew 40 frames/.test(tl); i++) {
+            await sleep(1000);
+            let all = '';
+            try { all = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+            const m = all.match(own);
+            tl = m ? all.slice(all.lastIndexOf(m[0])) : '';
+        }
+        ok('.NET (' + bits + '): on Wine Mono, ' + bits + ', drawing from its timer',
+            own.test(tl) && /t_net: drew 40 frames/.test(tl), tl.trim().split('\n').join(' | ') || 'no line of its own');
+        await api('/api/stop', {});
+        await until('the .NET program ending', (x) => x.game && x.game.state === 'ended', 60000);
+        fs.unlinkSync(gd + '/' + exe);
+    }
+    const r = await api('/api/game', { appId: APP, exe: 'TestGame.exe' });
+    ok('the test game\'s own program back', r.code === 200, r.body && r.body.error);
 }
 
 /* iris, per game: the test game with Vulkan off on iris from the bundled
@@ -550,6 +588,17 @@ async function vulkan() {
     let crumbs = '';
     try { crumbs = fs.readFileSync(CRUMBS, 'utf8'); } catch (e) { /* none */ }
     ok('its DRM calls in state/vulkan-crumbs.log', /> GEM_EXECBUFFER2/.test(crumbs), crumbs.split('\n').length + ' lines');
+    /* the phone page's graphs: its perf windows as numbers; the lines kept in state/perf.log */
+    let pf = null;
+    for (let i = 0; i < 30 && !(pf && pf.points && pf.points.length); i++) { await sleep(1000); pf = (await api('/api/perf')).body; }
+    const p0 = pf && pf.points && pf.points[0];
+    ok('/api/perf: the running game\'s windows as numbers', pf && pf.running === true && pf.name === 'App ' + APP && p0 && p0.pictures > 0 && typeof p0.t === 'number' && 'gpuBusy' in p0,
+        JSON.stringify(pf).slice(0, 300));
+    const pf2 = (await api('/api/perf?since=' + (p0 ? p0.t : 0))).body;
+    ok('/api/perf?since: only newer ones', pf2 && pf2.points.every((p) => p.t > p0.t), JSON.stringify(pf2).slice(0, 200));
+    let kept = '';
+    try { kept = fs.readFileSync(ROOT + '/state/perf.log', 'utf8'); } catch (e) { /* none */ }
+    ok('the perf lines kept in state/perf.log, dated', /^\d{4}-\d\d-\d\dT[\d:.]+Z perf: /m.test(kept), kept.split('\n')[0]);
     await api('/api/stop', {});
     await until('the Vulkan game ending', (x) => x.game && x.game.state === 'ended', 60000);
     ok('the ICD gone after it', !fs.existsSync(ICD));

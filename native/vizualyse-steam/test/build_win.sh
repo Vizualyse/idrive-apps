@@ -28,3 +28,12 @@ docker run --rm -v "$SRC:/src:ro" -v "$OUT:/out" idrive-steam-mingw:trixie sh -e
             ${arch%:*}-w64-mingw32-gcc -O2 -Wall -Werror -mwindows -o "$out" "$c" $libs
         done
     done'
+# The .NET Framework test program (test/net/t_net.cs, for Wine Mono): Mono's
+# C# compiler, as build/win/t_net.exe (AnyCPU: 64-bit under Wine) and
+# t_net32.exe (x86)
+NET=$(cd "$HERE/test/net" && (pwd -W 2>/dev/null || pwd))
+if [ ! "$HERE/build/win/t_net.exe" -nt "$HERE/test/net/t_net.cs" ] || [ ! "$HERE/build/win/t_net32.exe" -nt "$HERE/test/net/t_net.cs" ]; then
+    docker run --rm -v "$NET:/src:ro" -v "$OUT:/out" mono:6.12.0.182 sh -euc '
+        mcs -nologo -target:winexe -sdk:4.5 -r:System.Windows.Forms.dll -r:System.Drawing.dll -out:/out/t_net.exe /src/t_net.cs
+        mcs -nologo -target:winexe -sdk:4.5 -platform:x86 -r:System.Windows.Forms.dll -r:System.Drawing.dll -out:/out/t_net32.exe /src/t_net.cs'
+fi

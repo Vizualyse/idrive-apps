@@ -87,6 +87,38 @@ assert.strictEqual(we(true, false, 'godot').force_glsl_extensions_warn, undefine
 assert.strictEqual(we(false, false, 'unity').force_glsl_extensions_warn, undefined, 'Godot only');
 console.log('ok   Godot on OpenGL: force_glsl_extensions_warn');
 
+/* gbe_fork's steam_interfaces.txt from a game's own steam_api.dll: Teslagrad's
+ * (Steamworks 2013) strings, between binary bytes and lookalikes */
+const dll = Buffer.concat([Buffer.from([0x4d, 0x5a, 0, 0, 0x90]),
+    Buffer.from('SteamClient012\0SteamUser017\0SteamFriends013\0SteamUtils006\0SteamMatchMaking009\0SteamMatchMakingServers002\0' +
+        'STEAMUSERSTATS_INTERFACE_VERSION011\0STEAMAPPS_INTERFACE_VERSION005\0SteamNetworking005\0STEAMREMOTESTORAGE_INTERFACE_VERSION011\0' +
+        'STEAMSCREENSHOTS_INTERFACE_VERSION002\0STEAMHTTP_INTERFACE_VERSION002\0STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001\0SteamUser017\0' +
+        'SteamAPI_Init\0xSteamClient012\0SteamClient0123\0Steam\0', 'latin1'), Buffer.from([0xff, 0xfe, 0])]);
+assert.deepStrictEqual(steam.steamInterfaces(dll), ['STEAMAPPS_INTERFACE_VERSION005', 'STEAMHTTP_INTERFACE_VERSION002',
+    'STEAMREMOTESTORAGE_INTERFACE_VERSION011', 'STEAMSCREENSHOTS_INTERFACE_VERSION002', 'STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001',
+    'STEAMUSERSTATS_INTERFACE_VERSION011', 'SteamClient012', 'SteamFriends013', 'SteamMatchMaking009', 'SteamMatchMakingServers002',
+    'SteamNetworking005', 'SteamUser017', 'SteamUtils006']);
+assert.deepStrictEqual(steam.steamInterfaces(Buffer.from('a stand-in')), []);
+console.log('ok   steam_interfaces.txt: the old interface versions of a game\'s own steam_api.dll');
+
+/* SteamStub: a .bind section in the program's section table */
+const pe = (sections) => {
+    const h = Buffer.alloc(1024);
+    h.writeUInt16LE(0x5a4d, 0); h.writeUInt32LE(0x80, 0x3c);
+    h.writeUInt32LE(0x00004550, 0x80); h.writeUInt16LE(0x14c, 0x84);
+    h.writeUInt16LE(sections.length, 0x86); h.writeUInt16LE(0xe0, 0x94);   /* the optional header's size */
+    sections.forEach((s, i) => h.write(s, 0x80 + 24 + 0xe0 + i * 40, 'latin1'));
+    return h;
+};
+fs.writeFileSync(path.join(root, 'stub.exe'), pe(['.text', '.rdata', '.data', '.bind']));
+fs.writeFileSync(path.join(root, 'plain.exe'), pe(['.text', '.rdata', '.data', '.rsrc']));
+fs.writeFileSync(path.join(root, 'junk.exe'), Buffer.from('not a program'));
+assert.strictEqual(steam.steamStub(root, 'stub.exe'), true);
+assert.strictEqual(steam.steamStub(root, 'plain.exe'), false);
+assert.strictEqual(steam.steamStub(root, 'junk.exe'), null);
+assert.strictEqual(steam.arch(root, 'stub.exe'), 'x86', 'the same header arch reads');
+console.log('ok   SteamStub: a .bind section on the program');
+
 const rm = (d) => { fs.readdirSync(d).forEach((n) => { const f = path.join(d, n); if (fs.statSync(f).isDirectory()) rm(f); else fs.unlinkSync(f); }); fs.rmdirSync(d); };
 rm(root);
 console.log('all detail tests passed');

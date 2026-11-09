@@ -32,6 +32,11 @@
   .bar > div { height: 100%; background: var(--acc); width: 0; }
   details summary { color: var(--dim); font-size: 14px; margin-top: 6px; }
   .hidden { display: none; }
+  .chart { margin-top: 12px; }
+  .chart .head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--dim); }
+  .chart svg { display: block; width: 100%; height: 96px; background: #000; border-radius: 6px; margin-top: 4px; }
+  .chart .legend { font-size: 13px; margin-top: 2px; }
+  .chart .legend span { margin-right: 10px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -45,6 +50,13 @@
   <div class="row"><button id="winston">Compatibility mode: off</button></div>
   <p class="dim">The game's pictures go straight to the car's own screen compositor (Winston), in full colour. Compatibility mode sends them through mgu-render instead, as older versions did; Steam does that by itself if Winston can't be reached. From the next Show.</p>
   <p class="dim">Only while parked. A hidden game keeps running; Stop ends it. Games can't be controlled yet (no touch or gamepad input in this version).</p>
+</div>
+
+<div class="card">
+  <details id="perfBox"><summary>Performance graphs</summary>
+    <p class="dim" id="perfNote">The running game's (or the last one's) measurements, a point every 10 seconds, the last hour. Read only while this is open.</p>
+    <div id="perfGraphs"></div>
+  </details>
 </div>
 
 <div class="card">
@@ -110,6 +122,92 @@ function opts(sel, list, cur) {
   sel.innerHTML = list.map((o) => '<option value="' + esc(o.v) + '"' + (String(o.v) === String(cur) ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('');
 }
 
+/* ---- the performance graphs: /api/perf's points (one each 10 s), read
+ * only while their panel is open; inline SVG, nothing fetched from outside */
+const CHARTS = [
+  { title: 'Frames a second', unit: '', series: [['fps', 'the game', '#4ade80'], ['low1', '1% low', '#fbbf24'], ['pictures', 'shown', '#3b82f6']] },
+  { title: 'GPU busy', unit: ' %', max: 100, series: [['gpuBusy', 'busy (the car\'s screens too)', '#f87171']] },
+  { title: 'GPU clock', unit: ' MHz', series: [['gpuMhz', 'clock', '#a78bfa']] },
+  { title: 'CPU', unit: ' %', series: [['cpu', 'the unit (all 4 cores)', '#3b82f6'], ['gameCpu', 'the game (of one core)', '#4ade80']] },
+  { title: 'Memory', unit: ' MB', series: [['gameMb', 'the game', '#4ade80'], ['availMb', 'available', '#3b82f6'], ['swapMb', 'swapped', '#f87171']] },
+  { title: 'Time a picture', unit: ' ms', series: [['fsrMs', 'FSR (GPU)', '#fbbf24'], ['sinkMs', 'wl-sink', '#3b82f6']] },
+];
+let perf = { key: null, points: [], timer: null, name: null, running: false };
+
+function niceMax(v) {
+  if (!(v > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function chartSvg(c, pts) {
+  const W = 600, H = 96, t0 = pts[0].t, t1 = Math.max(pts[pts.length - 1].t, t0 + 1);
+  const vals = [];
+  c.series.forEach((s) => pts.forEach((p) => { if (p[s[0]] !== null && p[s[0]] !== undefined) vals.push(p[s[0]]); }));
+  if (!vals.length) return null;
+  const top = c.max || niceMax(Math.max.apply(null, vals) * 1.05);
+  const x = (t) => ((t - t0) / (t1 - t0)) * W, y = (v) => H - (Math.min(v, top) / top) * H;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">';
+  [0.25, 0.5, 0.75].forEach((f) => { svg += '<line x1="0" x2="' + W + '" y1="' + H * f + '" y2="' + H * f + '" stroke="#222" vector-effect="non-scaling-stroke"/>'; });
+  /* a change of upscaling: a line where it happened */
+  pts.forEach((p, i) => { if (i && p.mode !== pts[i - 1].mode) svg += '<line x1="' + x(p.t) + '" x2="' + x(p.t) + '" y1="0" y2="' + H + '" stroke="#666" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>'; });
+  c.series.forEach((s) => {
+    let d = '', pen = false;
+    pts.forEach((p) => {
+      const v = p[s[0]];
+      if (v === null || v === undefined) { pen = false; return; }
+      d += (pen ? 'L' : 'M') + x(p.t).toFixed(1) + ' ' + y(v).toFixed(1);
+      pen = true;
+    });
+    if (d) svg += '<path d="' + d + '" fill="none" stroke="' + s[2] + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+  });
+  return { svg: svg + '</svg>', top: top };
+}
+
+function drawPerf() {
+  const pts = perf.points;
+  if (!pts.length) {
+    $('perfGraphs').innerHTML = '<p class="dim">' + (perf.name ? esc(perf.name) + ': no measurements yet (the first after 10 s of pictures).' : 'No game has run since the tool started.') + '</p>';
+    return;
+  }
+  const lastP = pts[pts.length - 1], mins = Math.round((lastP.t - pts[0].t) / 60000);
+  const modes = pts.map((p) => p.mode).filter((m, i, a) => !i || m !== a[i - 1]);
+  let html = '<p class="dim">' + esc(perf.name) + (perf.running ? ' (running)' : ' (ended)') + ': the last ' + (mins || 1) + ' min' +
+    ', upscaling ' + esc(modes.join(' -> ')) + (modes.length > 1 ? ' (dashed lines: where it changed)' : '') + '.</p>';
+  CHARTS.forEach((c) => {
+    const g = chartSvg(c, pts);
+    if (!g) return;
+    html += '<div class="chart"><div class="head"><span>' + esc(c.title) + '</span><span>top: ' + g.top + esc(c.unit) + '</span></div>' + g.svg +
+      '<div class="legend">' + c.series.map((s) => (lastP[s[0]] === null || lastP[s[0]] === undefined) ? '' :
+        '<span style="color:' + s[2] + '">' + esc(s[1]) + ' ' + lastP[s[0]] + esc(c.unit) + '</span>').join('') + '</div></div>';
+  });
+  $('perfGraphs').innerHTML = html;
+}
+
+function perfFetch() {
+  const since = perf.points.length ? perf.points[perf.points.length - 1].t : 0;
+  fetch('/api/perf?since=' + since, { headers: { 'X-Steam-Token': T } }).then((r) => r.json()).then((j) => {
+    const key = (j.name || '') + '@' + (j.started || '');
+    if (key !== perf.key) {
+      /* another game, or the same one again: start over */
+      const fresh = perf.key !== null && since > 0;
+      perf.key = key; perf.points = [];
+      if (fresh) return perfFetch();
+    }
+    perf.name = j.name; perf.running = !!j.running;
+    perf.points = perf.points.concat(j.points || []).slice(-360);
+    drawPerf();
+  }).catch(() => null);
+}
+
+$('perfBox').addEventListener('toggle', () => {
+  clearInterval(perf.timer);
+  perf.timer = null;
+  if (!$('perfBox').open) return;
+  perfFetch();
+  perf.timer = setInterval(perfFetch, 10000);
+});
+
 function render(s) {
   last = s;
   const notes = [];
@@ -123,9 +221,17 @@ function render(s) {
 
   const g = s.game;
   if (g && g.state !== 'ended') {
+    /* FSR's size only while it draws (its pictures are counted in all; its
+     * output, rebuilt after a hide, is 0x0 until it draws again) */
+    const fsrText = (x, shown) => {
+      const f = x.fsr, sz = f && f.size || [];
+      if (f && f.now > 0 && sz[0] > 0 && sz[1] > 0) return ', FSR to ' + sz.join('x') + (f.gpuMs >= 0 ? ' (' + f.gpuMs.toFixed(1) + ' ms a picture)' : '');
+      if (shown && x.fsrWhy) return ', FSR not used: ' + x.fsrWhy;
+      return '';
+    };
     $('playing').textContent = g.name + ': ' + (g.state === 'starting' ? 'starting (this can take a minute)...' :
       'running, ' + g.fps + ' pictures/s' + (g.gpuBuffers ? '' : ' (no GPU buffers)') + (s.shown ? ', on the screen' : ', hidden') +
-      (g.fsr ? ', FSR to ' + (g.fsr.size || []).join('x') + (g.fsr.gpuMs >= 0 ? ' (' + g.fsr.gpuMs.toFixed(1) + ' ms a picture)' : '') : '')) +
+      fsrText(g, s.shown)) +
       (s.memory.usedMb ? ' - ' + s.memory.usedMb + ' of ' + s.memory.capMb + ' MB' : '');
   } else {
     $('playing').textContent = g ? 'Nothing. ' + g.name + ' ended' + (g.note ? ': ' + g.note : '') + '.' : 'Nothing.';
@@ -137,30 +243,53 @@ function render(s) {
   $('hide').disabled = !s.shown;
   $('stop').disabled = !s.running;
 
+  /* the per-game switches' labels: drawn with the library, and while an
+   * Options panel is open (no redraw then: it would close it and lose what
+   * is being typed) put on its buttons as they are, so a switch shows its
+   * new state at once, not after a reload */
+  const label = (act, x) => ({
+    nosteam: 'Run without Steam: ' + (x.noSteam ? 'on' : 'off'),
+    vulkan: 'Vulkan: ' + (x.vulkan ? 'on' : 'off') + (x.vulkan === x.vulkanDefault ? ' (the default)' : ''),
+    iris: 'OpenGL driver: ' + (x.iris ? 'iris' : 'i965 (the default)'),
+    detail: 'Detail: ' + (x.detail || 'normal'),
+  })[act];
+  if (editing) {
+    s.library.forEach((x) => {
+      const card = $('library').querySelector('.game[data-app="' + x.appId + '"]');
+      if (!card) return;
+      card.querySelectorAll('button[data-act]').forEach((b) => {
+        const t = label(b.dataset.act, x);
+        if (t !== undefined && b.textContent !== t) b.textContent = t;
+        if (b.dataset.act === 'play') b.disabled = !!(s.running || !x.present);
+      });
+    });
+  }
   if (!editing) {
     $('library').innerHTML = s.library.length ? s.library.map((x) =>
       '<div class="game" data-app="' + x.appId + '"><div class="row"><b style="flex:1">' + esc(x.name) + '</b>' +
       '<button class="acc" data-act="play"' + (s.running || !x.present ? ' disabled' : '') + '>Play</button></div>' +
       (x.usb && !x.present ? '<div class="err">On the USB stick ' + esc(x.usb) + ': plug it in</div>' : '') +
+      (x.steamStub ? '<div class="err">Steam\'s DRM wrapper (SteamStub) is on this game\'s program: it needs the Steam client to start, ' +
+        'which the car doesn\'t have (Run without Steam can\'t help). It will most likely quit at once.</div>' : '') +
       '<div class="dim">' + x.appId + (x.sizeMb ? ' - ' + (x.sizeMb / 1024).toFixed(1) + ' GB' : '') + (x.usb ? ' - USB ' + esc(x.usb) : '') + (x.engine ? ' - ' + esc(x.engine) : '') +
       ' - ' + (x.exe ? esc(x.exe) : '<span class="err">no program found</span>') + '</div>' +
       '<details><summary>Options</summary>' +
       '<div class="row"><label>Program</label><select data-f="exe"><option>' + esc(x.exe || '') + '</option></select></div>' +
       '<div class="row"><input type="text" data-f="args" value="' + esc(x.args) + '" placeholder="Launch options" autocapitalize="off" spellcheck="false"><button data-act="save">Save</button></div>' +
       (x.steamApi === 0 ? '' :
-        '<div class="row"><button data-act="nosteam">Run without Steam: ' + (x.noSteam ? 'on' : 'off') + '</button></div>' +
+        '<div class="row"><button data-act="nosteam">' + esc(label('nosteam', x)) + '</button></div>' +
         '<p class="dim">For a game that says to start it from Steam: its Steam library is swapped for gbe_fork (Goldberg\'s emulator); ' +
         'achievements and cloud saves stay on the car. Off puts Steam\'s back. Steam\'s DRM wrapper still stops some games.</p>') +
       (s.vulkanAvailable || x.vulkan ?
-        '<div class="row"><button data-act="vulkan">Vulkan: ' + (x.vulkan ? 'on' : 'off') + (x.vulkan === x.vulkanDefault ? ' (the default)' : '') + '</button></div>' +
+        '<div class="row"><button data-act="vulkan">' + esc(label('vulkan', x)) + '</button></div>' +
         '<p class="dim">Direct3D 9-11 through DXVK, or a Godot 4 game\'s own Vulkan renderer, instead of OpenGL: on by default for 64-bit games' +
         (x.arch === 'x86' ? ' (this one is 32-bit: OpenGL by default)' : '') + '. If the unit restarts during the game, Vulkan turns itself off for it. ' +
         'A Godot 4 game\'s default launch options switch to Vulkan by themselves.</p>' : '') +
       (s.irisAvailable || x.iris ?
-        '<div class="row"><button data-act="iris">OpenGL driver: ' + (x.iris ? 'iris' : 'i965 (the default)') + '</button></div>' +
+        '<div class="row"><button data-act="iris">' + esc(label('iris', x)) + '</button></div>' +
         '<p class="dim">With Vulkan off: the game\'s OpenGL (and Direct3D through WineD3D) on iris, Mesa\'s newer Intel driver, ' +
         'instead of the car\'s own i965. Try it where OpenGL is slow. If the unit restarts during the game, it goes back to i965.</p>' : '') +
-      '<div class="row"><button data-act="detail">Detail: ' + esc(x.detail || 'normal') + '</button></div>' +
+      '<div class="row"><button data-act="detail">' + esc(label('detail', x)) + '</button></div>' +
       '<p class="dim">Lite: no anti-aliasing or tessellation, and the game\'s own low settings where the tool knows its engine ' +
       '(Unity, Unreal, Source). Potato: also Direct3D 11 at 10.1, shader model 2 for Direct3D 9, less video memory reported: ' +
       'faster and plainer, and some games won\'t start (then Lite). From the next start.</p>' +

@@ -243,6 +243,22 @@ function engine(dir, exeRel) {
     return null;
 }
 
+/* The Steam interface versions a game's own steam_api DLL was built with
+ * (buf: its bytes), for gbe_fork's steam_settings/steam_interfaces.txt, as
+ * gbe's generate_interfaces finds them: without it gbe hands out its newest
+ * ISteamClient, and an older game calls through the wrong slots. Teslagrad
+ * (Steamworks 2013, SteamClient012) asked GetISteamUnifiedMessages and
+ * reached gbe's GetISteamController: "Missing interface" (the car,
+ * 2026-11-08). */
+function steamInterfaces(buf) {
+    const s = buf.toString('latin1');
+    const re = /(^|[^A-Za-z0-9_])((?:Steam[A-Za-z]+|STEAM[A-Z_]+)[0-9]{3})(?![0-9])/g;
+    const seen = {};
+    let m;
+    while ((m = re.exec(s)) !== null) seen[m[2]] = true;
+    return Object.keys(seen).sort();
+}
+
 /* The smallest screen a game's engine takes, or null. Unity 4 lists only
  * display modes of at least 640x480, and Wine's Wayland driver offers only
  * modes that fit inside its screen: at 896x320 Teslagrad's Unity 4 found "no
@@ -362,6 +378,35 @@ function remembered() {
     return found;
 }
 
+/* Steam's DRM wrapper (SteamStub) on the program: its section table has a
+ * .bind section (the stub's code and the encrypted original's key). Such a
+ * game asks the Steam client to decrypt itself, which neither gbe_fork nor
+ * anything here can stand in for: Castle Crashers quit at once (the car,
+ * 2026-11-08). true / false, or null when the header can't be read. */
+function steamStub(dir, exeRel) {
+    let fd;
+    try {
+        fd = fs.openSync(path.join(dir, exeRel), 'r');
+        const h = Buffer.alloc(4096);
+        const n = fs.readSync(fd, h, 0, h.length, 0);
+        if (n < 64 || h.readUInt16LE(0) !== 0x5a4d) return null;               /* MZ */
+        const pe = h.readUInt32LE(0x3c);
+        if (pe + 24 > n || h.readUInt32LE(pe) !== 0x00004550) return null;    /* PE\0\0 */
+        const count = h.readUInt16LE(pe + 6), optSize = h.readUInt16LE(pe + 20);
+        const table = pe + 24 + optSize;
+        for (let i = 0; i < count; i++) {
+            const at = table + i * 40;
+            if (at + 8 > n) return null;
+            if (h.toString('latin1', at, at + 8).replace(/\0+$/, '') === '.bind') return true;
+        }
+        return false;
+    } catch (e) {
+        return null;
+    } finally {
+        if (fd !== undefined) try { fs.closeSync(fd); } catch (e) { /* closed */ }
+    }
+}
+
 /* The program's bitness from its PE header: 'x64', 'x86', or null when it
  * can't be read. Vulkan is the default for 64-bit games only (32-bit Vulkan
  * through Wine's WoW64 is not yet seen working on the car). */
@@ -383,4 +428,4 @@ function arch(dir, exeRel) {
     }
 }
 
-module.exports = { Download, findExes, engine, arch, minScreen, screenFor, defaultArgs, detailArgs, du, storeName, remembered, KNOWN };
+module.exports = { Download, findExes, engine, arch, steamStub, minScreen, screenFor, steamInterfaces, defaultArgs, detailArgs, du, storeName, remembered, KNOWN };

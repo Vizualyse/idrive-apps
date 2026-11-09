@@ -47,7 +47,8 @@ console.log('ok   fps, 1% and 0.1% lows, worst from frame times');
 
 let now = 0;
 const lines = [];
-const p = new Perf({ log: (s) => lines.push(s), label: 'Game', frame: { w: 896, h: 320 }, mode: 'off', cgroup: cg, now: () => now });
+const points = [];
+const p = new Perf({ log: (s) => lines.push(s), point: (x) => points.push(x), label: 'Game', frame: { w: 896, h: 320 }, mode: 'off', cgroup: cg, now: () => now });
 /* 10 s off: 30 pictures a second, a GPU 60 % busy (4 s of RC6 in 10 s) at
  * 650 MHz, the CPU 80 % busy (800 of 1000 ticks), the game 15 s of CPU in
  * 10 s (150 % of a core) */
@@ -62,6 +63,11 @@ assert(/30\.0 pictures\/s, wl-sink 1\.5 ms a picture/.test(lines[0]), lines[0]);
 assert(/GPU busy 60 % at 650 MHz, CPU 80 %, the game 150 % of a core, memory: the game 1830 MB \(max 1830, peak 1900 of 2560\), available 1200 MB \(min 1200\), swap 300 MB \(max 300\) \(10 s\)$/.test(lines[0]), lines[0]);
 assert(!/FSR/.test(lines[0]), 'no FSR part while off');
 console.log('ok   a window: ' + lines[0]);
+/* the same window as numbers, for the phone page's graphs */
+assert.strictEqual(points.length, 1);
+assert.deepStrictEqual(points[0], { t: 10000, mode: 'off', s: 10, fps: 30, low1: 30, worstMs: 33.3, pictures: 30, sinkMs: 1.5, fsrMs: null,
+    gpuBusy: 60, gpuMhz: 650, cpu: 80, gameCpu: 150, gameMb: 1830, availMb: 1200, swapMb: 300 });
+console.log('ok   and as numbers: ' + JSON.stringify(points[0]));
 
 /* FSR on mid-window: the part so far closes under "off", then FSR's window */
 now += 3000;
@@ -103,4 +109,19 @@ const q = new Perf({ log: (s) => lines.push(s), label: 'Game', frame: { w: 960, 
 for (let i = 0; i < 10; i++) { now += 1000; q.sample({ pictures: 30, ms: 1, ft: [33.3] }); }
 assert(lines.length === 1 && !/GPU busy|CPU|memory/.test(lines[0]), lines[0]);
 console.log('ok   without i915\'s sysfs, /proc or the cgroup: those parts left out');
+
+/* the perf lines kept in the tool's own file: dated, rotated at the size given, one old file kept */
+const { keepLine } = require('../src/perf.js');
+const kd = fs.mkdtempSync(path.join(os.tmpdir(), 'perflog-')), kf = path.join(kd, 'perf.log');
+keepLine(kf, 'perf: one', 200);
+keepLine(kf, 'perf: two', 200);
+const kl = fs.readFileSync(kf, 'utf8').split('\n').filter(Boolean);
+assert(kl.length === 2 && /^\d{4}-\d\d-\d\dT[\d:.]+Z perf: one$/.test(kl[0]) && / perf: two$/.test(kl[1]), kl.join(' | '));
+for (let i = 0; i < 10; i++) keepLine(kf, 'perf: line ' + i + ' ' + 'x'.repeat(40), 200);
+assert(fs.existsSync(kf + '.1'), 'rotated');
+assert(fs.statSync(kf).size < 300 && fs.statSync(kf + '.1').size < 300, 'each about the size given');
+assert(/perf: line 9 /.test(fs.readFileSync(kf, 'utf8')), 'the newest in perf.log');
+keepLine(path.join(kd, 'no', 'such', 'dir', 'perf.log'), 'perf: lost');   /* no folder: ignored, no throw */
+fs.readdirSync(kd).forEach((n) => fs.unlinkSync(path.join(kd, n))); fs.rmdirSync(kd);
+console.log('ok   perf lines kept in state/perf.log, dated, rotated with one old file');
 console.log('all perf tests passed');

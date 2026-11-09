@@ -33,11 +33,17 @@ rebuilt `ntdll.so`, below).
 
 ## Why it is built this way
 
-- **Proton with WineD3D on OpenGL** (`PROTON_USE_WINED3D=1`): the unit's
-  4.14 kernel has no Vulkan, so no DXVK / VKD3D; Direct3D 9 to 11 become
-  OpenGL on the unit's own **Mesa 19 i965** (desktop GL 4.5 core), the
-  driver the HMI uses. No GPU driver of ours (the browser's 0.1.1 hung the
-  kernel with one: knowledge/browser.md); `tools/bundle.sh` refuses one.
+- **Proton with WineD3D on OpenGL** (`PROTON_USE_WINED3D=1`), or Vulkan:
+  Direct3D 9 to 11 become OpenGL on the unit's own **Mesa 19 i965**
+  (desktop GL 4.5 core), the driver the HMI uses, or for a game on Vulkan
+  (the default for 64-bit games) **DXVK 2.6.2 on Mesa 22.3.7's ANV**
+  (Vulkan 1.3; 0.2.0: 19.1.8 and DXVK 1.9.4 before), from `vulkan.tgz`.
+  The unit's kernel is IOTG 4.14: ANV is patched to send nothing it
+  doesn't know (no `I915_QUERY`, no context param after 6: one hung it,
+  knowledge/browser.md). A GPU driver of ours only after it passed
+  `tools/vk-trial`'s gate on the car (the browser's 0.1.1 hung the kernel
+  with an unchecked one); `runtime.tgz` carries none (`tools/bundle.sh`
+  refuses one), and iris for OpenGL is a choice per game (below).
 - **Wine's Wayland driver into wl-sink**: the unit's EGL has no X11, and the
   screen belongs to Winston and the HMI. `wl-sink` (`src/wl_sink.c`) is the
   smallest compositor Wine takes; Mesa's Wayland EGL hands it each frame as a
@@ -111,7 +117,24 @@ rebuilt `ntdll.so`, below).
   swap). Switch modes mid-game, read them after:
   `journalctl -u vizualyse-steam | grep perf:`. With FSR on but not drawing,
   the line says why (`FSR not used: ...`, wl-sink's `fsrWhy`; 0.1.12), and
-  wl-sink's `ready` line says whether FSR is ready.
+  wl-sink's `ready` line says whether FSR is ready. Kept beside the journal
+  (which holds only the last 10-15 minutes of the tool's lines) in
+  `state/perf.log`, each line dated, rotated at 1 MB with one old file kept
+  (0.2.0).
+- **Performance graphs on the phone page (0.2.0):** each 10 s window also as
+  numbers (`perf.point`), the running (or last) game's last hour kept in
+  memory; `GET /api/perf?since=<ms>` hands out the newer ones, and the
+  page's "Performance graphs" panel (fetched every 10 s only while open)
+  draws frames a second with the 1 % low and the pictures shown, the GPU's
+  busy share and clock, the CPU, memory and swap, and FSR's and wl-sink's
+  time a picture, as inline SVG; dashed lines where the upscaling changed.
+  Nothing on the frame path, nothing fetched from outside the car.
+- **iris for OpenGL (0.2.0, per game, off by default):** Mesa 19.3.5's iris
+  (`iris.tgz`, `tools/iris.sh` from `tools/iris-bench`: patched for the
+  unit's 4.14, its own EGL / GBM / GLES set) for a game's OpenGL and
+  WineD3D with Vulkan off, the phone page's "OpenGL driver" button; wl-sink
+  stays on the unit's i965. Its gated try passed on the car (2026-11-09); a
+  restart of the unit during such a game turns iris off for it.
 - **The other tools step back while a game runs (0.1.10):** Steam asks on the
   tools' bus (`native/vizualyse-bus`, `mqtt_bus.js`) for the cluster's and the
   HUD's video off; Cast pauses a stream or CarPlay's second screen there and
@@ -143,7 +166,11 @@ rebuilt `ntdll.so`, below).
   window gets the keyboard focus too (Wine's foreground window). A tap's
   wobble isn't a drag: moves count from 32 screen pixels away from where
   the finger went down, 64 in the first 250 ms (0.1.12; 14 px still
-  scrolled Slay the Spire 2's map on a tap).
+  scrolled Slay the Spire 2's map on a tap). A tap's button is timed for
+  games that read the mouse once a frame (`src/tap.js`, 0.2.0): the pointer
+  moves first, the button goes down a frame later, and it is held at least
+  150 ms or three of the game's frames (at most 600 ms); Don't Starve took
+  quick taps as moves only.
 - **A swap file for games (0.1.12):** 4 GB on the hard disk
   (`/var/opt/hdshare/vizualyse-steam/swapfile`, `src/swap.js`), made once in
   the background two minutes after the tool starts (a game sooner than that
@@ -160,8 +187,22 @@ rebuilt `ntdll.so`, below).
   `<name>.vzs-orig`, with a `steam_settings` folder beside it (the app id,
   the account's name, no networking). Off puts Steam's back; an update or a
   check of the files puts Steam's back and the tool swaps again.
-  Achievements and cloud saves stay on the car; a game wrapped in Steam's
-  DRM (SteamStub) still won't start.
+  Achievements and cloud saves stay on the car. An older game's interface
+  versions, read from Steam's own DLL, go into `steam_settings/
+  steam_interfaces.txt` (0.2.0: Teslagrad's 2013 SDK otherwise reached
+  gbe's newest ISteamClient through its older slots). A game wrapped in
+  Steam's DRM (SteamStub: a `.bind` section on its program) still won't
+  start: spotted at install, the journal and the phone page say so (0.2.0).
+- **Wine Mono (0.2.0):** GE-Proton's Wine Mono 11.3.0 (with FNA for XNA
+  games) stays in `proton/share/wine/mono`, less its debug files: .NET
+  Framework games (Terraria) run on it; the prefix is unchanged.
+- **Older engines' screens (0.2.0):** Unity 4 takes only display modes of
+  640x480 or more, and Wine offers only modes inside its screen, so such a
+  game gets the chosen picture's shape at a size that holds 640x480
+  (896x320 -> 1344x480); the journal's `screen:` line says so.
+- **Godot on OpenGL (0.2.0):** `force_glsl_extensions_warn=true`: its
+  GLSL 330 shaders call `packHalf2x16` without enabling the packing
+  extension, which Mesa 19 refused (its menu never drew).
 - **Its own userland** (`runtime.tgz`): glibc 2.41 and its loader (the unit
   has 2.27, its loader in /lib, no /lib64), Wayland 1.23 (Wine needs >= 1.20;
   the unit has 1.15), xkbcommon, FreeType, GnuTLS, ALSA, OpenSSL. Every ELF
