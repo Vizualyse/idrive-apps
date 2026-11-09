@@ -34,8 +34,9 @@ workflow (Actions > Release, the component ids).
      first: a build and a release), then Slay the Spire 2's
      enemy turn on it (if Mesa 19's shader compiler is the hang, 22.3's
      gets past it).
-  2. iris: the gated try (patched 19.3.5, now without `RECOVERABLE`; its own EGL set; `dmesg` and the
-     HMI drawing right, during and after).
+  2. iris: the gated try passed on the car (2026-11-09, `tools/iris-bench/car`;
+     knowledge/games.md). Next: WineD3D games on iris in the Steam tool
+     (a 32-bit OpenGL path faster than i965?), and the HMI's look during it.
 - [ ] **Steam 0.1.15 (off the car first):** Wine Mono back (GE-Proton's
   11.3.0 with FNA, 276 MB unpacked, about 220 without its `.dbg` files:
   Terraria and the XNA games); Wine's screen at least 640x480 for older

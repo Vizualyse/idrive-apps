@@ -403,6 +403,14 @@ answers). Nothing has run on the car.
   Patched (`image/iris_no_isolation.py`, only when the kernel has no
   isolation), it writes on the stub only CACHE_MODE_1 and GT_MODE with
   the unit's i965's own values, and L3CNTLREG; no ioctl kernel414 flags.
+- **On the car (2026-11-09), through vk-trial's gate (`tools/iris-bench/car`): ok.**
+  The patched iris (no context isolation: CS_DEBUG_MODE2 not written; no
+  context param after 6) through its own EGL set on the real HD 505: GLES
+  3.2, desktop GL 4.6 core and compatibility, the drawn gradient's pixels
+  right; it wrote only CACHE_MODE_1, GT_MODE and L3CNTLREG (as i965 does);
+  Gallium Nine's adapter (VS / PS 3.0); then the unit's i965 drew the same
+  pixels. 3 s, 12 submissions, no GPU hang, no blocked task, no new kernel
+  line. Next: Wine (WineD3D) on iris in the Steam tool, against i965.
 - **The Steam bench's Wine on iris** (`IRIS=1 sh
   native/vizualyse-steam/test/run_unit_test.sh stub`): every check passes,
   64-bit and 32-bit (WoW64) Direct3D 9 through WineD3D, wl-sink on iris
