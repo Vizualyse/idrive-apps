@@ -19,17 +19,17 @@ workflow (Actions > Release, the component ids).
   the app's Upscaling button; 0.1.12's tap deadzone and swap file seen;
   **32-bit DXVK on ANV 19.1.8 through vk-trial** (t_d3d932 / t_d3d1132 and
   the 64-bit pair, pixels checked, no GPU hang): 0.1.14 ships 19.1.8.
-  Next, with 0.1.14 installed:
-  1. Don't Starve with Vulkan on (32-bit DXVK through ANGLE), Picture
-     960x540: runs? fps against WineD3D's 2.5? taps land?
-  2. Slay the Spire 2 and Vampire Survivors on 19.1.8: no worse than 19.0.6.
-  3. Slay the Spire 2: "FSR n/s" in the perf lines and wl-sink under 1 ms
-     a picture (0.1.13's trim of its 898x320 window); the enemy-turn hang
-     on 19.1.8, and with Vulkan off (Compatibility renderer).
-  4. Vulkan 1.3: patched ANV 22.3.7 + DXVK 2.6.2 through the gate (the
+  Done 2026-11-09 on 0.1.14: Don't Starve on Vulkan (about 20 pictures/s,
+  smooth with a pad; taps still miss); Vampire Survivors fine on 19.1.8;
+  Slay the Spire 2's FSR runs (about 21/s at 8 ms GPU, wl-sink 0.6 ms a
+  picture), its enemy-turn hang the same on 19.1.8, its OpenGL renderer
+  broken (both in knowledge/game-compatibility.md). Next:
+  1. Vulkan 1.3: patched ANV 22.3.7 + DXVK 2.6.2 through the gate (the
      off-car `car_test.sh` first). If it runs where unpatched 22.3 hung in
-     0.1.1, `I915_QUERY` was very likely that hang: record it.
-  5. iris: the gated try (patched 19.3.5, its own EGL set; `dmesg` and the
+     0.1.1, `I915_QUERY` was very likely that hang: record it. Then Slay the
+     Spire 2's enemy turn on it (if Mesa 19's shader compiler is the hang,
+     22.3's gets past it).
+  2. iris: the gated try (patched 19.3.5, its own EGL set; `dmesg` and the
      HMI drawing right, during and after).
 - [ ] **Steam 0.1.15 (off the car first):** Wine Mono back (GE-Proton's
   11.3.0 with FNA, 276 MB unpacked, about 220 without its `.dbg` files:
@@ -39,7 +39,14 @@ workflow (Actions > Release, the component ids).
   for 2013-era SDKs (Teslagrad: `STEAMUNIFIEDMESSAGES_INTERFACE_VERSION001`
   through `GetISteamController`); SteamStub (`.bind`) spotted at install and
   said on the phone page (Castle Crashers); perf lines kept in the tool's
-  own file.
+  own file. From 2026-11-09: taps still miss in Don't Starve at 20 pictures/s
+  (they reach it: a tap drops the pad's focus), so the hold matters at any
+  rate; Godot's `opengl3` on Mesa 19 (Slay the Spire 2's Vulkan off) fails
+  its scene shader (`packHalf2x16` in `#version 330`, no
+  `ARB_shading_language_packing` enabled): try `force_glsl_extensions_warn=true`
+  in Godot games' environment on the bench; the phone page's per-game
+  switches (Run without Steam, Detail, Vulkan) take but only show after a
+  reload (a few releases now), and its FSR size says 0x0 after a hide/show.
 
 - [ ] **Winston output on the car** (Browser 0.2.9, Steam 0.1.8, Moonlight 0.2.3; built and
   tested off the car against the unit's own Winston, `tools/winston-bench`,
