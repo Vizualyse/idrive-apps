@@ -4,8 +4,9 @@
 # pins, its frozen versions, the audio player), the Cast page against
 # a fake HMI and the tool's real control socket, the Moonlight page against
 # a fake HMI and a fake tool socket, the Moonlight tool end to end against
-# a real Sunshine (pairing, a stream, a virtual gamepad), Steam's bundles
-# (those two only when their component changed: .github/scripts/changed.sh), the release
+# a real Sunshine (pairing, a stream, a virtual gamepad), the Browser's and
+# Steam's bundles (those three only when their component changed:
+# .github/scripts/changed.sh), the release
 # tooling, every shipped script parsing on Node 8 (the head unit's), and
 # two clean builds of each component compared byte for byte.
 name: Test
@@ -104,6 +105,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           sh .github/scripts/changed.sh moonlight native/vizualyse-moonlight
+          sh .github/scripts/changed.sh browser native/vizualyse-chromium
           sh .github/scripts/changed.sh steam native/vizualyse-steam tools/vk-trial tools/iris-bench tools/build_cache.sh
       # Moonlight's build always (the reproducible-build check packs it from build/)
       - name: Moonlight build
@@ -116,9 +118,11 @@ jobs:
           sudo modprobe uinput || true
           sudo modprobe vhci-hcd || true
           sh native/vizualyse-moonlight/test/run_sunshine_test.sh
+      # the image always: the reproducible-build check builds the Browser in it
       - name: Chromium build image (cached)
         uses: ./.github/actions/chromium-image
       - name: Browser bundle (Chromium for the unit; the sink's colour test)
+        if: steps.changed.outputs.browser == 'true'
         timeout-minutes: 30
         run: sh native/vizualyse-chromium/build.sh
       # the newest saved build cache; the builds take what still matches
