@@ -38,6 +38,7 @@ const env = require('./env.js');
 const unpack = require('./unpack.js');
 const steam = require('./steam.js');
 const { Game } = require('./game.js');
+const { Speakers } = require('./speakers.js');
 const usb = require('./usb.js');
 const { Screen } = require('./screen.js');
 const firewall = require('./firewall.js');
@@ -102,6 +103,9 @@ const MAX_KMH = 3;
 const GAME_RUNNING = path.join(env.STATE_DIR, 'game-running');
 
 const log = (s) => console.log(new Date().toISOString() + ' ' + s);
+/* the car's speakers while a game plays: CarLife's source (the iDrive volume,
+ * no CarPlay phone needed; platform tool/speakers) */
+const speakers = new Speakers({ log: log });
 
 /* ---- small helpers ------------------------------------------------------- */
 
@@ -897,7 +901,7 @@ function play(appId) {
         (vulkan ? ' (DXVK: ' + env.DETAIL_DXVK[detail].join(', ') + ')' : ' (WineD3D: ' + env.DETAIL_WINED3D[detail] + ')'));
     const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch, detail: detail,
         frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
-        sound: settings.sound, volume: () => settings.volume, log: log,
+        sound: settings.sound, volume: () => settings.volume, speakers: speakers, log: log,
         vulkan: vulkan, iris: iris, engine: g.engine, crumbsFd: vulkan ? vulkanCrumbs : undefined });
     log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (' + env.vulkanLabel() + ')' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
         : ' on OpenGL (WineD3D, ' + (iris ? env.irisLabel() : 'the unit\'s i965') + ')') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
@@ -1164,6 +1168,8 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 if (settings.enabled) addFirewall();
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
+/* speakers a previous run (or a head unit restart) left claimed: given back */
+speakers.recover();
 control = startControl({ app: 'vizualyse_steam', status: status, command: command, log: log });
 setInterval(writeDns, 10000);
 writeDns();

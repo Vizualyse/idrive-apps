@@ -82,6 +82,89 @@ from `/etc/oap/someip/someip-interfaces.json` by `tools/someip_iface.py`
   (`SDARS_IP` 286), both entertainment PCM, but neither source is registered
   with the audio manager (coding, `CodingFlags.bin`, IDs 10000+).
 - Moonlight runs `pcm_play.py` as root: a SmartX lock it creates is root's
-  0640 and silences CarPlay until a restart. 0.2.1 makes the lock as the
-  system does (`ent_alsa:mgu_alsa` 0660) first.
+  0640 and silences CarPlay until a restart. 0.2.1 meant to make the lock
+  as the system does first, but looked up a user `ent_alsa`: the account is
+  `ent_alsaroutingadapters` (uid 4032; `ls` shows 8 characters), so it never
+  did. `tool/pcm_play` 1.0.1 takes `/run/smartx`'s own owner and group
+  (`ent_alsaroutingadapters:mgu_alsa`, 2770 from tmpfiles.d), 0660
+  (2026-11-10, emulator).
+- `tool/speakers` ([platform](../platform/tool/speakers/CHANGELOG.md)) is
+  the section below as a module: claim / release CarLife's source for a
+  tool's sound.
+
+## Our own entertainment source: CarLife's (emulator, 2026-11-10)
+
+Not yet tried on the car. Tools: [tools/am-source](../tools/am-source/amsrc.js);
+the emulator's side of it below.
+
+- **`CarLifeMedia` (287) plays our PCM as the front entertainment source,
+  with no phone**, in the emulator: as root, `hookSourceAvailablityStatusChange
+  (287, A_AVAILABLE)` on RoutingControlObserver, then CommandControl
+  `connect(287, 1024)` -> CS_CONNECTED. Its SmartXbar input
+  `smartx:CarLifeMedia_CF_48_STEREO` then reaches the amplifier (a 1 kHz tone
+  arrived intact on the AVB gateway), and every iDrive volume step reaches
+  the amplifier's input as `asyncSetSinkVolume(129, v)`: the amplifier
+  applies the volume, SmartXbar passes our samples unchanged.
+- Why 287: it is entertainment class 1 like CarPlayMedia and the CD, in
+  DOMAIN_MGU, 48 kHz stereo, allowed on 1024, and registered without a coding
+  flag (field 16 of its DOMAIN_MGU.bin entry; the CD's 281 needs 10022, SDARS'
+  286 needs 10124). CarLife is Baidu's, China only; `carlife` runs on our car
+  anyway and owns the slot (`CarLifeSourceDefault`), reporting
+  `SourceAvailabilities` [] without a phone, but **it acknowledges
+  asyncSetSourceState SS_ON with E_OK** (CarPlay's owner, per 2026-11-05, left
+  the connect hanging).
+- How a connect runs (DLT): CommandControl.connect -> the control plugin's
+  `MediaSinkFront` (refuses "is not started" until the Lifecycle power state
+  is FULL_ON_USER_ON or ENTERTAINMENT_MODE_USER_ON, 99/100) -> route 287 ->
+  394 (MGU_GW_2_SINK, SmartXbar, AlsaRoutingAdapters) -> 647 -> 643 (AVB) ->
+  145 -> 129 (InputA_Main, the amplifier) -> CS_CONNECTED -> asyncSetSourceState
+  287 SS_ON, which the routing adapter passes to the owner's AmSourceControl
+  -> a volume control on MainSink 1 for the connection.
+- The audio manager keeps the last heard front source
+  (`LUM_LastHearedSourceMediaSinkFront`) and resumes it after a restart: a
+  test must end on the radio (`connect(1, 1024)`).
+- **Registering a source is refused**: `registerSource` for 281 (as
+  ent_mapp, serving the CD's owner instance) gives E_UNKNOWN, and
+  `peekSource` of an unknown name only reserves an ID (16384+).
+- vsomeip policy: AmSourceControl owners are visible only to the routing
+  adapter (4032) and ent_mapp (4100:4150); root sees none of them. ent_mapp
+  may offer AmSourceControl and RoutingControl and call the routing
+  observer; only ent_avbsourcesinkcontroller (4033:4030) may offer
+  AVBSource / AVBSink.
+- Owners offered in the emulator: ConnectivityHfpSourceInterface,
+  ConnectivitySimpleHandsfreeSourceSink, ICAMProxy, AudioWaveplayer,
+  CarLifeSourceDefault (`amsrc.js owners --uid=4100 --gid=4150`).
+- Decompiling BMW's audio code: Ghidra took `CAmDltControlLogger::instance()`
+  for non-returning and cut every function at its first log call;
+  `re/ghidra/KeepReturns.java` (now in `re/run.sh decompile-all`) fixes it.
+
+### The emulator's car audio
+
+The emulator now runs the whole route ([emu-audio.sh](../tools/am-source/emu-audio.sh),
+then [emu-test.sh](../tools/am-source/emu-test.sh)). What it lacked:
+
+- **The amplifier** (DOMAIN_RAM, another ECU): the audio manager's lifecycle
+  waits for it, and without it MediaSink_Front is never started.
+  `domain-sim.js ram` registers it and acks everything.
+- **mediaapp's DOMAIN_MGU_ENCODED** (where MediaSink_Front lives): the
+  emulator's mediaapp never offers it (it drops to non-verbose logging after
+  reading its config, so it doesn't say why). `domain-sim.js encoded`.
+- **AVB** (masked): the head unit's AVBSourceSinkController and the
+  amplifier's side. `avb-sim.js` registers both sides' gateway ends with the
+  audio manager's AVB routing plugin and acks connect / startStream. BMW's
+  own `AVBSourceSinkControllerRAMsim` ships on the unit but never reports its
+  ends available.
+- **The AVB ALSA devices** SmartXbar plays to the amplifier through
+  (`plug:avb:MGU_GW_*`): snd-aloop cards in the emulator's kernel, one
+  substream per device, each through ALSA's file plugin, so a recorded device
+  is a WAV in `/run/avbcap` ([90-emu-avb.conf](../tools/mgu-emu/overlay/usr/share/alsa/alsa.conf.d/90-emu-avb.conf)).
+- **Power state**: Lifecycle comes from the unit's NodeStateManager, not
+  carsim's copy, derived from the vehicle condition: carsim's default PWF
+  WOHNEN gives WELCOME_SCREEN (media sink stopped); FAHREN gives
+  FULL_ON_USER_ON (carsim's new `set SERVICE FIELD JSON` command).
+- DLT local print for the audio services (`DLT_LOCAL_PRINT_MODE=FORCE_ON`,
+  level 4) needs journald's rate limit off, or the startup is lost.
+- someip.node: a fixed-length array (catalog `arrayLengthWidth` 0, AVB's MAC
+  addresses) is `{"t": "ArrayF", "l": 6}`; as ArrayD every such message
+  fails "Buffer overflow" (`tools/someip_iface.py` emits it now).
 

@@ -11,7 +11,9 @@
  *   the tool's internet uid; mgu-uplink routes only that uid through the
  *   phone. ffmpeg writes I420 frames (stdout) and S16LE 48 kHz audio (fd 3).
  * - Frames go to cluster-render as a video layer; audio to pcm_play.py
- *   (mgu-python), which plays it into SmartXbar's CarPlayMain source.
+ *   (mgu-python), which plays it into SmartXbar: into CarLife's source,
+ *   claimed while it plays (speakers.js: the car's speakers at the iDrive
+ *   volume, no CarPlay phone needed), or CarPlay's input if they can't be had.
  * - The CarPlay second screen: ffmpeg listens on 127.0.0.1:6111 for hook111's
  *   H.264 (carplay_screen.js) and scales it for the cluster map or the HUD.
  *
@@ -29,6 +31,7 @@ const { URL } = require('url');
 const qrcode = require('./qrcode.js');
 const firewall = require('./firewall.js');
 const { ClusterRender } = require('./cluster_render_client.js');
+const { Speakers, CARPLAY } = require('./speakers.js');
 const consoleOut = require('./console_out.js');
 const { startControl } = require('./control.js');
 const carplay = require('./carplay_screen.js');
@@ -62,6 +65,14 @@ const OUTPUTS = {
 };
 
 const log = (s) => console.log(new Date().toISOString() + ' ' + s);
+/* the car's speakers while something plays with sound: CarLife's source
+ * (platform tool/speakers) */
+const speakers = new Speakers({ log: log });
+/* a player's hold on the speakers ends (its sound ended, or it stopped) */
+function releaseSpeakers(p) {
+    p.down = true;
+    if (p.speakers) { p.speakers = false; speakers.release(); }
+}
 
 /* ---- small helpers ------------------------------------------------------- */
 
@@ -263,6 +274,7 @@ function stopPlayer(why, keepPaused) {
     try { p.ff.kill('SIGTERM'); } catch (e) { /* gone */ }
     setTimeout(() => { try { p.ff.kill('SIGKILL'); } catch (e) { /* gone */ } }, 3000);
     if (p.py) try { p.py.kill('SIGTERM'); } catch (e) { /* gone */ }
+    releaseSpeakers(p);
     if (p.video) cr.drop(p.video);
     if (o0(p).console) consoleVideo.stop();
     log('play: stopped (' + why + ') after ' + p.frames + ' frames');
@@ -354,12 +366,19 @@ function play(opts) {
     }
 
     if (opts.audio) {
-        const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--file', '-'], { stdio: ['pipe', 'pipe', 'pipe'] });
-        p.py = py;
-        ff.stdio[3].pipe(py.stdin);
-        py.stdin.on('error', () => { /* python gone: ffmpeg's write fails and it ends */ });
-        py.stdout.on('data', (d) => log(String(d).trim()));
-        py.stderr.on('data', (d) => { const l = String(d).trim(); p.lastErr.push(l); log(l); });
+        /* the speakers first, then the player on the device they give (ffmpeg's sound waits in its pipe) */
+        p.speakers = true;
+        speakers.claimOr(CARPLAY).then((device) => {
+            if (p.down) { releaseSpeakers(p); ff.stdio[3].resume(); return; }
+            const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--device', device, '--file', '-'], { stdio: ['pipe', 'pipe', 'pipe'] });
+            p.py = py;
+            ff.stdio[3].pipe(py.stdin);
+            py.stdin.on('error', () => { /* python gone: ffmpeg's write fails and it ends */ });
+            py.stdout.on('data', (d) => log(String(d).trim()));
+            py.stderr.on('data', (d) => { const l = String(d).trim(); p.lastErr.push(l); log(l); });
+            /* played to the end (stdin ended) or killed */
+            py.on('exit', () => releaseSpeakers(p));
+        });
     } else {
         ff.stdio[3].resume();
     }
@@ -375,6 +394,7 @@ function play(opts) {
         }
         player = null;
         if (p.py) try { p.py.stdin.end(); } catch (e) { /* gone */ }
+        else releaseSpeakers(p);
         if (p.video) cr.drop(p.video);
         if (o.console) consoleVideo.stop();
         last = { state: ok ? 'ended' : 'error', url: opts.shown, output: opts.output, frames: p.frames,
@@ -658,6 +678,8 @@ if (settings.enabled) {
 }
 startProxy();
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
+/* speakers a previous run (or a head unit restart) left claimed: given back */
+speakers.recover();
 control = startControl({ app: 'vizualyse_cast', status: status, command: command, log: log });
 cr.connect();
 /* The address changes with the hotspot: keep the QR code current. hook111's

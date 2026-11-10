@@ -25,7 +25,10 @@
  *   the phone page. For the first 10 s a hint over the picture says so.
  * - Only while parked: the iDrive app reads the car's speed and sends it
  *   over the control socket; above 3 km/h a stream stops and none starts.
- * - pcm_play.py (mgu-python) plays the audio into SmartXbar.
+ * - pcm_play.py (mgu-python) plays the audio into SmartXbar: into CarLife's
+ *   source, claimed for the stream (speakers.js: the car's speakers at the
+ *   iDrive volume, no CarPlay phone needed), or CarPlay's input if the
+ *   speakers can't be had.
  *
  *   node server.js     (root: /dev/input, /dev/dri, the renderer, ALSA, nftables)
  */
@@ -43,6 +46,7 @@ const consoleOut = require('./console_out.js');
 const { startControl } = require('./control.js');
 const { fork } = require('child_process');
 const { ClusterRender } = require('./cluster_render_client.js');
+const { Speakers, CARPLAY } = require('./speakers.js');
 
 const HERE = __dirname;
 const STATE_DIR = process.env.MOONLIGHT_STATE || '/var/opt/vizualyse-moonlight/state';
@@ -92,6 +96,9 @@ const OUTPUTS = {
 };
 
 const log = (s) => console.log(new Date().toISOString() + ' ' + s);
+/* the car's speakers while a stream plays: CarLife's source (the iDrive
+ * volume, no CarPlay phone needed; platform tool/speakers) */
+const speakers = new Speakers({ log: log });
 
 /* ---- small helpers ------------------------------------------------------- */
 
@@ -365,6 +372,9 @@ function stopSession(why, then) {
 
 /* After the core: the audio player goes, the picture comes down. */
 function teardown(s) {
+    s.down = true;
+    /* the speakers back to what played before (a claim still under way releases when it ends) */
+    if (s.speakers) { s.speakers = false; speakers.release(); }
     /* killed, not drained: what it still holds would play after Stop (SmartXbar can take a long
      * time to connect at first, so seconds of buffered sound came out minutes later on the car) */
     if (s.py) {
@@ -440,14 +450,21 @@ function startStream(h, app, launch, retried) {
     }
 
     if (settings.audio) {
-        /* --live: it never falls behind (SmartXbar's first connect can block for many seconds) */
-        const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--file', '-', '--live'], { stdio: ['pipe', 'pipe', 'pipe'] });
-        s.py = py;
-        py.on('error', (e) => log('audio: ' + e.message));
-        py.stdin.on('error', () => { /* python gone */ });
-        py.stdout.on('data', (d) => log(String(d).trim()));
-        py.stderr.on('data', (d) => log(String(d).trim()));
+        /* the speakers first, then the player on the device they give (the sound before that is dropped) */
+        s.speakers = true;
+        speakers.claimOr(CARPLAY).then((device) => {
+            if (s.down) { speakers.release(); return; }
+            /* --live: it never falls behind (SmartXbar's first connect can block for many seconds) */
+            const py = spawn(PYTHON, [path.join(HERE, 'pcm_play.py'), '--device', device, '--file', '-', '--live'], { stdio: ['pipe', 'pipe', 'pipe'] });
+            s.py = py;
+            py.on('error', (e) => log('audio: ' + e.message));
+            py.stdin.on('error', () => { /* python gone */ });
+            py.stdout.on('data', (d) => log(String(d).trim()));
+            py.stderr.on('data', (d) => log(String(d).trim()));
+        });
         core.stdio[3].on('data', (d) => {
+            const py = s.py;
+            if (!py) return;
             /* the player reads all it is given at once; while it can't (blocked opening SmartXbar), don't
              * keep more than 1 s here either: it would only be dropped there */
             const ws = py.stdin._writableState;
@@ -748,6 +765,8 @@ if (settings.enabled && !NO_FIREWALL) {
     try { log('firewall: ' + firewall.add(PORT, IFNAME) + ' rule for ' + IFNAME + ' tcp ' + PORT); } catch (e) { log('firewall: ' + e.message); }
 }
 web.listen(PORT, '0.0.0.0', () => log('web: listening on port ' + PORT));
+/* speakers a previous run (or a head unit restart) left claimed: given back */
+speakers.recover();
 cr.on('ready', () => log('render: cluster-render connected (' + cr.backend + ')'));
 cr.on('disconnected', () => log('render: cluster-render disconnected'));
 cr.on('layer', (ref, state, reason) => log('render: layer ' + ref + ' ' + state + (reason ? ': ' + reason : '')));

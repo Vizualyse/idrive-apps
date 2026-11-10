@@ -223,11 +223,40 @@ workflow (Actions > Release, the component ids).
      dropped: its only Wine front end presents through X11, and 32-bit
      would need a new WoW64 front end and below-4 GB mappings in Gallium.
      Frame generation (lsfg-vk 2.0 needs Vulkan 1.2 and costs GPU we lack).
-- [ ] **Investigate sound deeper: remove the CarPlay limitation.** The car's
-  volume does nothing until a CarPlay phone connects (our sound goes into
-  CarPlay's SmartXbar input; see Moonlight's item below and
-  [knowledge/sound.md](knowledge/sound.md)): our own source and domain
-  through the audio manager's routing interface, studied offline first.
+- [ ] **On the car: Moonlight 0.2.6, Steam 0.2.2 and Cast 0.3.12 play
+  through CarLife's source** (`tool/speakers` 1.0.0, with `tool/pcm_play`
+  1.0.1; released 2026-11-10 without a car test, at the user's word). With
+  sound on, a stream, game or cast should take the speakers from the radio /
+  CarPlay (journal: `speakers: ours`), play at the iDrive volume with no
+  phone, and give them back when it stops (`speakers: given back to source
+  N`). If the claim fails the journal says `playing into
+  smartx:CarPlayMain_CF_48_STEREO instead` (as before). Check: the knob moves
+  the sound; the HMI doesn't switch back or show CarLife; after Stop the
+  radio plays; after a head unit restart the radio, not CarLife
+  (`recover()` at each tool's start); `ls -la /run/smartx` locks
+  `ent_alsa mgu_alsa` 0660; nothing in `/run/vizualyse-speakers.json` once
+  everything stopped. If it goes wrong: a 0.x.y+1 with the speakers off
+  (`claimOr` -> CarPlay's input).
+- [ ] **Sound without CarPlay, on the car: CarLife's media source.** Works
+  end to end in the emulator (2026-11-10, branch `sound-source`,
+  [knowledge/sound.md](knowledge/sound.md) "Our own entertainment source"):
+  root marks `CarLifeMedia` (287) available, connects it to MediaSink_Front,
+  the carlife process acknowledges SS_ON without a phone, our PCM into
+  `smartx:CarLifeMedia_CF_48_STEREO` reaches the amplifier and the iDrive
+  volume steps reach it. **Ask before running anything on the unit.** On the
+  car, once: `tools/am-source/amsrc.js` `list` (read-only), `hook --src=287`,
+  `connect --src=287 --sink=1024` (the radio drops), a 3 s tone through
+  `pcm_play.py`, the knob by hand; then `disconnect`, `hook --src=287 --off`
+  and `connect --src=1 --sink=1024` (the audio manager resumes the last
+  heard source after a restart: leave the radio), and check the SmartX
+  locks. Watch whether the HMI switches back by itself (it did ~10 s after
+  an idle OAP connect) or shows CarLife. (The tools already ship it, item
+  above; this is the by-hand version, for when that goes wrong.)
+- [ ] **Registering a source of our own is refused**: BMW's control plugin
+  answers `registerSource` (a coding-gated slot like the CD's 281) with
+  E_UNKNOWN ("hookSystemRegisterSource not proccessed"); the decompile
+  (`re/run.sh decompile-all ... libPluginControlInterfaceBMW.so`) would say
+  why, if CarLife's slot ever falls short.
 
 ## Emulator (tools/mgu-emu)
 
@@ -318,9 +347,9 @@ unit on the car: recmgr restarts the head unit**
   the Store apps' media source plays only finished files (no pipe, local
   HTTP or growing file); CarPlay's own process reports its sources
   unavailable without a phone, so a connect to them hangs; the owner slots
-  nobody provides (CD, SDARS) have no source registered (coding). Left: our
-  own source and domain through the routing interface (`registerDomain`,
-  `registerSource`, `registerGateway`), studied offline first.
+  nobody provides (CD, SDARS) have no source registered (coding). Next:
+  CarLife's media source, working in the emulator (High priority, "Sound
+  without CarPlay").
 
 ### Moonlight 0.2.0 on the car (built and tested off the car, 2026-11-05)
 

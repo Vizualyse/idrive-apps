@@ -8,7 +8,10 @@
  * memory cgroup, and the sound: Wine's ALSA writes raw PCM into a FIFO
  * (the runtime's asound.conf) that this side holds open read-write (so Wine
  * never blocks opening it, with or without a player) and hands to
- * pcm_play.py (mgu-python), which plays it into SmartXbar as Moonlight does.
+ * pcm_play.py (mgu-python), which plays it into SmartXbar as Moonlight does:
+ * into CarLife's source, claimed for the game (o.speakers, speakers.js: the
+ * car's speakers at the iDrive volume, no CarPlay phone needed), or
+ * CarPlay's input if they can't be had.
  *
  * Events: 'state' ('starting' | 'running' | 'ended'), 'stats' (wl-sink's),
  * 'toplevel' {title}, 'log' line.
@@ -27,6 +30,7 @@ const EventEmitter = require('events');
 const env = require('./env.js');
 const screen = require('./screen.js');
 const { Perf, keepLine } = require('./perf.js');
+const { CARPLAY } = require('./speakers.js');
 /* the perf lines kept beside the journal's (perf.keepLine) */
 const PERF_FILE = path.join(env.STATE_DIR, 'perf.log');
 
@@ -201,16 +205,28 @@ class Game extends EventEmitter {
         }
         pipeSize(env.PCM_FIFO, PCM_PIPE);
         this.pcm = { fd: fd, timer: null };
-        let py = null;
-        if (o.sound && fs.existsSync(PYTHON)) {
+        const play = (device) => {
             /* --live: never falls behind (SmartXbar's first connect can block for many seconds) */
-            py = spawn(PYTHON, [path.join(__dirname, 'pcm_play.py'), '--file', '-', '--live'], { stdio: ['pipe', 'pipe', 'pipe'] });
+            const py = spawn(PYTHON, [path.join(__dirname, 'pcm_play.py'), '--device', device, '--file', '-', '--live'], { stdio: ['pipe', 'pipe', 'pipe'] });
             this.py = py;
             py.on('error', (e) => this._log('sound: ' + e.message));
             py.stdin.on('error', () => { /* gone */ });
             py.stdout.on('data', (d) => this._log(String(d).trim()));
             py.stderr.on('data', (d) => this._log(String(d).trim()));
             py.on('exit', (c, s) => { if (this.py === py) { this.py = null; this._log('sound: player exited (' + (s || c) + ')'); } });
+        };
+        if (o.sound && fs.existsSync(PYTHON)) {
+            if (o.speakers) {
+                /* the car's speakers for the game (CarLife's source: the iDrive volume, no CarPlay phone
+                 * needed), CarPlay's input if they can't be had; the sound before that is dropped */
+                this.speakers = true;
+                o.speakers.claimOr(CARPLAY).then((device) => {
+                    if (this.soundDown) { o.speakers.release(); return; }
+                    play(device);
+                });
+            } else {
+                play(CARPLAY);
+            }
         } else if (o.sound) {
             this._log('sound: no mgu-python at ' + PYTHON + ' (the game is silent)');
         }
@@ -375,6 +391,9 @@ class Game extends EventEmitter {
             this._killLeft();
             if (this.sink) { const s = this.sink; this.sink = null; try { s.kill('SIGTERM'); } catch (e) { /* gone */ } setTimeout(() => { try { s.kill('SIGKILL'); } catch (e) { /* gone */ } }, 2000); }
             if (this.py) { const p = this.py; this.py = null; try { p.kill('SIGTERM'); } catch (e) { /* gone */ } setTimeout(() => { try { p.kill('SIGKILL'); } catch (e) { /* gone */ } }, 500); }
+            /* the speakers back to what played before (a claim still under way releases when it ends) */
+            this.soundDown = true;
+            if (this.speakers) { this.speakers = false; this.o.speakers.release(); }
             if (this.padsProc) {
                 /* its stdin's end: the slots marked unplugged, the pads released */
                 const p = this.padsProc;

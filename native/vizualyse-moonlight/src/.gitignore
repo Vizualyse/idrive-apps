@@ -3,4 +3,5 @@
 # Edit the originals in platform/, never these.
 /cluster_render_client.js
 /pcm_play.py
+/speakers.js
 # end platform

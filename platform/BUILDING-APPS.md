@@ -544,6 +544,24 @@ source.pipe(py.stdin);          // S16LE, 48 kHz, stereo
 - Stopping: SIGTERM, then SIGKILL after a second (it can sit in a blocking
   ALSA write). Check no player of yours outlives the test.
 - Volume: scale the samples yourself (Moonlight's `setVolume`).
+- Use `tool/pcm_play` 1.0.1 or later: 1.0.0's lock fix never applied (it
+  looked up a user the unit doesn't have).
+
+**Sound without CarPlay** (`tool/speakers`, emulator-tested, not yet on the
+car): `claim()` makes CarLife's media source the car's entertainment source,
+so the iDrive volume works with no phone; play into the device it returns,
+and `release()` when done, which gives the radio (or whatever played) back.
+The audio manager resumes the last source after a restart, so never leave
+the speakers claimed.
+
+```js
+const { Speakers } = require('./speakers.js');
+const sp = new Speakers({ log: (s) => console.log(s) });
+sp.on('lost', () => { /* the user picked another source: stop, or claim again */ });
+sp.claim().then((device) => spawn(PYTHON, [path.join(__dirname, 'pcm_play.py'), '--device', device, '--file', '-', '--live'], ...));
+// on stop:
+sp.release();
+```
 
 
 ### 5.8 The internet
@@ -937,7 +955,8 @@ The modules (`node platform/platform.js list` for their versions):
 
 | Module | Files | What it is |
 |---|---|---|
-| `tool/pcm_play` | `pcm_play.py` | PCM into SmartXbar, `--live`, the lock made right (5.7) |
+| `tool/pcm_play` | `pcm_play.py` | PCM into SmartXbar, `--live`, the lock made right (5.7; 1.0.1 and later) |
+| `tool/speakers` | `speakers.js` | the speakers with the iDrive volume, no CarPlay: CarLife's source (5.7) |
 | `tool/cluster_render_client` | `cluster_render_client.js` | cluster-render's Node 8 client, MPL-2.0 (5.6) |
 | `common/qrcode` | `qrcode.js` | Kazuhiko Arase's QR generator, MIT (both sides) |
 | `app/qr_png` | `qr_png.js` | `qrPng(text, maxPx)`, `png(w, h, rgba)` |

@@ -1,7 +1,7 @@
 {
   "id": "vizualyse-steam",
   "kind": "tool",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "GPL-3.0-or-later",
   "title": "Steam",
   "description": "EXPERIMENTAL. Windows games from your Steam library running on the car through Proton (Wine), on the car's own graphics drivers (64-bit Direct3D 9-11 games on Vulkan through DXVK by default, the rest on OpenGL), shown on the central screen while parked, with sound. Sign in to Steam and install games on the phone page (scan the QR code on the iDrive Steam page); play them from the iDrive or the phone. Touch is the mouse (a tap clicks); wired Xbox 360-style (XInput) USB controllers, up to four; no keyboard yet. Games that need the Steam client get an optional Run without Steam (gbe_fork). About 440 MB to download, 1.35 GB on the unit, plus the games.",
@@ -36,7 +36,8 @@
     "native/wayland_drm": { "version": "1.0.0", "files": { "src/protocol/wayland-drm.xml": "wayland-drm.xml" } },
     "native/winston_out": { "version": "1.1.0", "files": { "src/winston_out.c": "winston_out.c", "src/winston_out.h": "winston_out.h", "src/protocol/ivi-application.xml": "ivi-application.xml", "src/protocol/ivi-controller.xml": "ivi-controller.xml", "src/protocol/linux-dmabuf-unstable-v1.xml": "linux-dmabuf-unstable-v1.xml" } },
     "tool/mqtt_bus": { "version": "1.0.0", "files": { "src/mqtt_bus.js": "mqtt_bus.js" } },
-    "tool/pcm_play": { "version": "1.0.0", "files": { "src/pcm_play.py": "pcm_play.py" } }
+    "tool/pcm_play": { "version": "1.0.1", "files": { "src/pcm_play.py": "pcm_play.py" } },
+    "tool/speakers": { "version": "1.0.0", "files": { "src/speakers.js": "speakers.js" } }
   },
   "files": [
     { "path": "server.js", "from": "src/server.js", "mode": "0644" },
@@ -54,6 +55,7 @@
     { "path": "deactivate.js", "from": "src/deactivate.js", "mode": "0644" },
     { "path": "control.js", "from": "src/control.js", "mode": "0644" },
     { "path": "pcm_play.py", "from": "src/pcm_play.py", "mode": "0644" },
+    { "path": "speakers.js", "from": "src/speakers.js", "mode": "0644" },
     { "path": "page.html", "from": "src/page.html", "mode": "0644" },
     { "path": "launch.json", "from": "build/launch.json", "mode": "0644" },
     { "path": "runtime.tgz", "from": "build/runtime.tgz", "mode": "0644" },
