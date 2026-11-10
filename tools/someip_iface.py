@@ -41,11 +41,7 @@ class Gen:
         if k == 'struct':
             return {'t': 'Struct', 'e': [self.named(m) for m in d['members']]}
         if k == 'array':
-            o = {'t': 'ArrayD'}
-            if 'arrayMinLength' in d:
-                o['nl'] = d['arrayMinLength']
-            if 'arrayMaxLength' in d:
-                o['xl'] = d['arrayMaxLength']
+            o = self.array(d)
             o['e'] = self.typ(d['dataRef'], d)
             return o
         if k == 'map':
@@ -53,6 +49,23 @@ class Gen:
         if k == 'union':
             return {'t': 'Union', 'e': [self.named(m) for m in d['members']]}
         raise ValueError('type ' + k)
+
+    @staticmethod
+    def array(d):
+        # an array's length field: 4 bytes unless the catalog says otherwise;
+        # 0 is a fixed-length array (AVB's 6-byte MACAddressByteArray), which
+        # is someip.node's ArrayF with its length in "l" (as ArrayD every such
+        # message fails with "Buffer overflow"; ArrayD lw 0 is invalid)
+        if d.get('arrayLengthWidth') == 0 and d.get('arrayMaxLength') is not None:
+            return {'t': 'ArrayF', 'l': d['arrayMaxLength']}
+        o = {'t': 'ArrayD'}
+        if d.get('arrayLengthWidth', 4) != 4:
+            o['lw'] = d['arrayLengthWidth']
+        if 'arrayMinLength' in d:
+            o['nl'] = d['arrayMinLength']
+        if 'arrayMaxLength' in d:
+            o['xl'] = d['arrayMaxLength']
+        return o
 
     def items(self, d):
         # an enum that extends another: the base's items first
@@ -78,11 +91,7 @@ class Gen:
             o['d'] = m['defaultValue']
         t = self.typ(m['dataRef'], m)
         if m.get('dimension'):
-            a = {'t': 'ArrayD'}
-            if 'arrayMinLength' in m:
-                a['nl'] = m['arrayMinLength']
-            if 'arrayMaxLength' in m:
-                a['xl'] = m['arrayMaxLength']
+            a = self.array(m)
             a['e'] = t
             t = a
         o.update(t)

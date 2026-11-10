@@ -147,6 +147,14 @@ function command(line) {
       st[k] = 'TASTE_KURZ_GEDRUECKT';
       return function (st2) { st2[k] = 'KEINE_BETAETIGUNG'; };
     }, 150);
+  } else if (c === 'set') {
+    // set SERVICE FIELD JSON: change a stand-in's field and fire it (e.g. a
+    // power state change: the audio manager starts MediaSink_Front on one)
+    var s = services[w[1]], f = w[2], val;
+    try { val = JSON.parse(w.slice(3).join(' ')); } catch (e) { return console.error('carsim: set SERVICE FIELD JSON'); }
+    if (!s || !(f in s.state)) return console.error('carsim: no field ' + w[1] + '.' + f);
+    s.state[f] = val;
+    s.service.fire(f, val).catch(function (e) { console.error('carsim: fire ' + f + ': ' + e); });
   } else console.error('carsim: unknown command ' + c);
 }
 

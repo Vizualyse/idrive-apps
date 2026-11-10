@@ -112,6 +112,10 @@ while it has the HMI's focus, follows them too.
   nothing else in the VM reads it (Winston reads only tap2touch's device).
   `--keys none` turns it off, `--keys NAME` reads another input device.
 - By hand, in the VM: `echo "rot 1" > /run/carsim/ctl`.
+- `set SERVICE FIELD JSON` changes any stand-in field and fires it, e.g. the
+  vehicle condition to FAHREN, which the unit's NodeStateManager (not
+  carsim's Lifecycle copy: NSM's is the one read) turns into the power state
+  FULL_ON_USER_ON ("Sound" below).
 - **The buttons** (found by firing each one): button 2 is BACK (the HMI
   walks back through its screens; keycode 2, which CarPlay hooks too). The
   others switch screens (MEDIA, COM and the like); their keycodes, read
@@ -239,6 +243,28 @@ Debugging MainApp: its output goes to oapcontroller through a pipe and its
 log to DLT only (the DLT daemon here has no TCP port and no offline trace).
 A throwaway preload that, in MainApp's process only, sends stdout to a file
 and sets `DLT_LOCAL_PRINT_MODE=FORCE_ON` shows its whole log.
+
+## Sound
+
+The audio manager, SmartXbar (AlsaRoutingAdapters), mediaapp and carlife
+run as on the car; the car around them doesn't. [tools/am-source](../am-source/emu-audio.sh)
+stands in for the amplifier (DOMAIN_RAM), mediaapp's encoded domain and both
+ends of AVB, so an entertainment source routes to the amplifier as on the
+car; the kernel's loopback cards stand in for the AVB devices SmartXbar
+plays to, and [90-emu-avb.conf](overlay/usr/share/alsa/alsa.conf.d/90-emu-avb.conf)
+records what it plays to the amplifier in `/run/avbcap/<NAME>.wav`. In the VM
+(scripts and `iface/` copied to one folder):
+
+```sh
+sh emu-audio.sh /var/amsrc      # restarts the audio manager and SmartXbar, starts the stand-ins
+sh emu-test.sh /var/amsrc       # CarLife's source, a tone to the amplifier, the volume
+```
+
+The audio services' own log: a drop-in with `DLT_LOCAL_PRINT_MODE=FORCE_ON`
+and `DLT_INITIAL_LOG_LEVEL=::4`, and `RateLimitIntervalSec=0` /
+`RateLimitBurst=0` for journald, or their startup is dropped. What was
+missing and why: [knowledge/sound.md](../../knowledge/sound.md), "The
+emulator's car audio".
 
 **No BMW bytes in this repository.** The disk is built from the pull into
 `../idrive-rootfs/<version>/emu/` and the docker volume `mgu-emu-root`.

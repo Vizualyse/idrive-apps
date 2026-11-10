@@ -47,9 +47,11 @@ $run = Join-Path $emu $disks['mgu']
 $runOpt = Join-Path $emu $disks['opt']
 
 # The unit's own kernel line, minus its hardware: services read bootmode /
-# hwtype / hwvariant from /proc/cmdline.
+# hwtype / hwvariant from /proc/cmdline. Four loopback sound cards stand in
+# for the AVB devices SmartXbar plays to the amplifier (90-emu-avb.conf).
 $append = 'root=/dev/vda rw rootfstype=ext4 console=ttyS0,115200 loglevel=4 panic=-1 ' +
-          'video=Virtual-1:1920x720@60 ipv6.disable_ipv6=1 bootmode=APP1 hwtype=MGU hwrevision=D1 hwvariant=HIGH config_version=MGU_A19455A_S9'
+          'video=Virtual-1:1920x720@60 ipv6.disable_ipv6=1 bootmode=APP1 hwtype=MGU hwrevision=D1 hwvariant=HIGH config_version=MGU_A19455A_S9 ' +
+          'snd_aloop.enable=1,1,1,1'
 
 $console = Join-Path $emu 'console.log'
 $journal = Join-Path $emu 'journal.log'

@@ -67,7 +67,8 @@ decompile-all)
     $RUN -v "idrive-rootfs-$NAME:/rootfs:ro" "$IMAGE" sh -c "
         mkdir -p /tmp/proj && cp -L '/rootfs$P' /tmp/target &&
         /opt/ghidra/support/analyzeHeadless /tmp/proj p -import /tmp/target -scriptPath /re/ghidra \
-            -postScript DecompileAll.java '/re/out/$NAME/$(basename "$P").all.c' -deleteProject 2>&1 | grep -E 'DecompileAll:|ERROR|Exception' | tail -5" ;;
+            -preScript KeepReturns.java \
+            -postScript DecompileAll.java '/re/out/$NAME/$(basename "$P").all.c' -deleteProject 2>&1 | grep -E 'KeepReturns:|DecompileAll:|ERROR|Exception' | tail -5" ;;
 harness)
     # screen_b against the unit's own libraries (re/harness/screen_b.c):
     # built for glibc 2.27, run by the unit's own loader from the root file system
