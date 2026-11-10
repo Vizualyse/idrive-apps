@@ -473,11 +473,15 @@ async function openglGame() {
  * fitted into it, not cut off, and a tap lands where it is shown: t_d3d9 as
  * a borderless 1280x720 window on the 960x540 picture (x0.75), a tap three
  * quarters across and down the picture on the screen is a click near
- * 960,540 in the window (cut off, it would be near 720,405). WineD3D. */
+ * 960,540 in the window (cut off, it would be near 720,405). WineD3D.
+ * Its first start calibrates the pointer: Wine kept the pointer on the
+ * picture-sized screen wl-sink gave it, so the tool stores the window's
+ * size for the game and starts it again with that screen (and says so on
+ * the screen until the picture comes); the second start needs nothing. */
 async function oversizedWindow() {
     fs.writeFileSync('/tmp/t_popup', '1280x720+0+0\n');
     try { fs.writeFileSync(T_LOG, ''); } catch (e) { /* new */ }
-    let r = await api('/api/game', { appId: APP, vulkan: false, iris: false });
+    let r = await api('/api/game', { appId: APP, vulkan: false, iris: false, pointer: 'reset' });
     const log0 = serverLog.length;
     r = await api('/api/play', { appId: APP });
     ok('a 1280x720 window: play starts', r.code === 200, r.body && r.body.error);
@@ -485,6 +489,18 @@ async function oversizedWindow() {
     for (let i = 0; i < 20 && !/fitted into the picture/.test(serverLog.slice(log0)); i++) await sleep(500);
     ok('wl-sink fits it into the picture (the journal says so)', /the window 1280x720 fitted into the picture 960x540 \(x0\.75\)/.test(serverLog.slice(log0)),
         serverLog.slice(log0).split('\n').filter((l) => /wl-sink|fit/.test(l)).slice(-3).join(' | '));
+    for (let i = 0; i < 40 && !/pointer: calibrating for/.test(serverLog.slice(log0)); i++) await sleep(500);
+    ok('the first start calibrates the pointer (a 1280x720 screen for the game)', /pointer: calibrating for .* needs a 1280x720 screen/.test(serverLog.slice(log0)),
+        serverLog.slice(log0).split('\n').filter((l) => /pointer:/.test(l)).slice(-2).join(' | '));
+    /* the restart: the game again, drawing, with no calibrating of its own */
+    let log1 = serverLog.length;
+    for (let i = 0; i < 120 && !/game: .* at 960x540/.test(serverLog.slice(log1)); i++) await sleep(500);
+    log1 = serverLog.slice(log1).search(/game: .* at 960x540/) + log1;
+    s = await until('the big window drawing again', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    ok('started again by itself, and draws', s.game && s.game.state === 'running', s.game && s.game.state);
+    await sleep(2000);
+    ok('the second start needs no calibrating', !/pointer: calibrating for/.test(serverLog.slice(log1)),
+        serverLog.slice(log1).split('\n').filter((l) => /pointer:|fit/.test(l)).slice(-2).join(' | '));
     const w = 960, h = 540, sc = Math.min(1790 / w, 638 / h);
     let tl = '';
     try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
@@ -500,10 +516,32 @@ async function oversizedWindow() {
     }
     ok('a tap three quarters across and down the picture: a click near 960,540 in the 1280x720 window',
         ck && Math.abs(Number(ck[1]) - 960) <= 4 && Math.abs(Number(ck[2]) - 540) <= 4, ck ? 'click ' + ck[1] + ',' + ck[2] : 'no click');
+    /* past that: Wine keeps the cursor on its monitors, which wl-sink gave
+     * the picture's size, so the pointer stopped at 960,540 of the window
+     * (FTL on the car, 2026-11-10: its right and bottom quarter out of
+     * reach; the tap above sits right at that edge). A tap at 95% across
+     * and down: a click near 1216,684. */
+    await api('/api/hide', {});
+    try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+    const before2 = (tl.match(/t_d3d9: click/g) || []).length;
+    touchFile(Math.round(108 + (1790 - w * sc) / 2 + w * 0.95 * sc), Math.round(82 + (638 - h * sc) / 2 + h * 0.95 * sc));
+    await api('/api/show', {});
+    ck = null;
+    for (let i = 0; i < 40 && !ck; i++) {
+        await sleep(250);
+        try { tl = fs.readFileSync(T_LOG, 'utf8'); } catch (e) { /* none */ }
+        const all = tl.match(/t_d3d9: click -?\d+ -?\d+/g) || [];
+        if (all.length > before2) ck = /(-?\d+) (-?\d+)$/.exec(all[all.length - 1]);
+    }
+    ok('a tap at 95% across and down: a click near 1216,684, past the picture\'s 960x540',
+        ck && Math.abs(Number(ck[1]) - 1216) <= 6 && Math.abs(Number(ck[2]) - 684) <= 6, ck ? 'click ' + ck[1] + ',' + ck[2] : 'no click');
     await api('/api/hide', {});
     await api('/api/stop', {});
     await until('the big window ending', (x) => x.game && x.game.state === 'ended', 60000);
     fs.unlinkSync('/tmp/t_popup');
+    /* the later cases want the picture-sized screen back */
+    r = await api('/api/game', { appId: APP, pointer: 'reset' });
+    ok('pointer: reset forgets the stored screen', r.code === 200 && /pointer: .* forgets its 1280x720 screen/.test(serverLog), r.body && r.body.error);
 }
 
 /* iris, per game: the test game with Vulkan off on iris from the bundled

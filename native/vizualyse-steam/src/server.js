@@ -40,7 +40,7 @@ const steam = require('./steam.js');
 const { Game } = require('./game.js');
 const { Speakers } = require('./speakers.js');
 const usb = require('./usb.js');
-const { Screen } = require('./screen.js');
+const { Screen, message: screenMessage } = require('./screen.js');
 const firewall = require('./firewall.js');
 const { startControl } = require('./control.js');
 const { Bus } = require('./mqtt_bus.js');
@@ -705,6 +705,14 @@ function setGameOptions(appId, b) {
         if (a.length > 300) return 'too long';
         g.args = a ? a.split(/\s+/) : [];
     }
+    /* pointer: 'reset' forgets the screen stored when its window was seen
+     * bigger than the picture (calibrating the pointer, play()): the next
+     * start has the picture's size again, and calibrates again if needed */
+    if (b.pointer !== undefined) {
+        if (b.pointer !== 'reset') return 'pointer: reset';
+        if (g.output) log('pointer: ' + g.name + ' forgets its ' + g.output.join('x') + ' screen');
+        delete g.output;
+    }
     if (b.vulkan !== undefined) {
         if (b.vulkan) {
             const m = env.vulkanMissing();
@@ -902,7 +910,8 @@ function play(appId) {
     const x = new Game({ appId: appId, name: g.name, dir: g.dir, exe: g.exe, args: args, launch: launch, detail: detail,
         frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, speakers: speakers, log: log,
-        vulkan: vulkan, iris: iris, engine: g.engine, crumbsFd: vulkan ? vulkanCrumbs : undefined });
+        vulkan: vulkan, iris: iris, engine: g.engine, crumbsFd: vulkan ? vulkanCrumbs : undefined,
+        output: Array.isArray(g.output) ? g.output : undefined });
     log('vulkan: ' + g.name + (vulkan ? ' on Vulkan (' + env.vulkanLabel() + ')' + (args.join(' ') !== (g.args || []).join(' ') ? ', ' + args.join(' ') : '')
         : ' on OpenGL (WineD3D, ' + (iris ? env.irisLabel() : 'the unit\'s i965') + ')') + ' (' + (g.vulkan === true || g.vulkan === false ? 'chosen' : 'the default for ' + (gameArch(g) || 'an unknown') + ' program') + ')');
     game = x;
@@ -919,8 +928,33 @@ function play(appId) {
             if (game === x) swap.off(log);
             try { fs.unlinkSync(GAME_RUNNING); } catch (e) { /* gone */ }
             if (game === x) hide('the game ended');
+            /* stopped to calibrate the pointer: again at once, with the screen it needs,
+             * a message on the screen until its first picture (screen.message) */
+            if (game === x && x.calibrating) {
+                const was = x.calibrating;
+                setTimeout(() => {
+                    const e = play(appId);
+                    if (e) { log('pointer: could not start ' + g.name + ' again: ' + e); return; }
+                    screenMessage(['CALIBRATING POINTER', 'THE GAME RESTARTS']);
+                    if (was.shown) show();
+                }, 1000);
+            }
         }
         if (control) control.broadcast();
+    });
+    /* its window bigger than the screen Wine had (wl-sink's output, the
+     * picture's size): Wine keeps the pointer on that screen, so the window's
+     * right and bottom were out of reach (FTL on the car, 2026-11-10). The
+     * screen can't grow under a running game (Wine rescales the window), so
+     * the size is stored for the game and it starts again with it: once, the
+     * first time; from then on at once. */
+    x.on('calibrate', (need) => {
+        if (game !== x || x.calibrating) return;
+        g.output = [need[0], need[1]];
+        saveLibrary();
+        x.calibrating = { shown: screen.shown() };
+        log('pointer: calibrating for ' + g.name + ': its window needs a ' + need.join('x') + ' screen; starting it again with one (kept for the game)');
+        x.stop('calibrating the pointer');
     });
     gameStartedAt = Date.now();
     askedOffNote = null;

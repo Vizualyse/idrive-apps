@@ -122,6 +122,8 @@ class Game extends EventEmitter {
         if (fs.existsSync(env.WINSTON_SOCKET)) args.push('--winston', env.WINSTON_SOCKET);
         /* FSR for a picture Winston would scale up (wl-sink's --fsr: off, or RCAS's stops) */
         if (o.fsr && o.fsr !== 'off') args.push('--fsr', String(o.fsr));
+        /* the screen Wine sees, when the game's window was seen bigger than the picture */
+        if (Array.isArray(o.output) && o.output.length === 2) args.push('--output', o.output[0] + 'x' + o.output[1]);
         /* a Vulkan game on an ANV from Mesa 20+ (a candidate vulkan.tgz: tools/vulkan.sh):
          * its WSI speaks linux-dmabuf, not wl_drm; 19.x (shipped) keeps wl_drm */
         if (o.vulkan && env.vulkanMesaMajor() >= 20) args.push('--dmabuf');
@@ -171,6 +173,15 @@ class Game extends EventEmitter {
                     this.fit = e.k < 1 ? { size: e.size, k: e.k } : null;
                     this._log('wl-sink: ' + (e.k < 1 ? 'the window ' + e.size.join('x') + ' fitted into the picture ' + e.into.join('x') + ' (x' + e.k.toFixed(2) + ')'
                         : 'the window fits the picture again'));
+                    /* Wine keeps the pointer on the screen it was given (wl-sink's output):
+                     * a window that needs more can't be reached past it. Once a game: the
+                     * server stores the size and restarts it with that screen (calibrating
+                     * the pointer); wl-sink can't grow it under a running game. */
+                    if (e.k < 1 && e.need && e.output && (e.need[0] > e.output[0] || e.need[1] > e.output[1]) && !this.calibrateAsked) {
+                        this.calibrateAsked = true;
+                        this._log('pointer: the window needs a ' + e.need.join('x') + ' screen, Wine has ' + e.output.join('x'));
+                        this.emit('calibrate', e.need);
+                    }
                 } else if (e.ev === 'winston-lost') {
                     this.winston = false;
                     this._log('wl-sink: the connection to Winston was lost');

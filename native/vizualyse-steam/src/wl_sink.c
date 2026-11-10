@@ -949,17 +949,28 @@ static void viewporter_bind(struct wl_client *c, void *d, uint32_t v, uint32_t i
 
 /* ---- output and seat ---- */
 
+/* The output's mode, the screen Wine sees: the picture's size, or --output.
+ * Wine keeps the cursor on its monitors (win32u: the virtual screen, and a
+ * window covering its monitor clips the cursor to it), so with the picture's
+ * size the pointer stopped at 960,540 of FTL's 1280x720 window: its right
+ * and bottom quarter out of reach on the car (2026-11-10). Not changed while
+ * a game runs: Wine then rescales its windows to the new screen (1280x720
+ * became 1707x960 on the bench). A window that needs more says so in the
+ * "fit" event ("need"); the tool stores it and restarts the game with it. */
+static struct wl_list outputs;
+static int adv_w, adv_h;
 static void output_release(struct wl_client *c, struct wl_resource *r) { (void)c; wl_resource_destroy(r); }
 static const struct wl_output_interface output_impl = { .release = output_release };
 static void output_bind(struct wl_client *c, void *d, uint32_t v, uint32_t id) {
     (void)d;
     struct wl_resource *res = wl_resource_create(c, &wl_output_interface, v, id);
     if (!res) { wl_client_post_no_memory(c); return; }
-    wl_resource_set_implementation(res, &output_impl, NULL, NULL);
+    wl_resource_set_implementation(res, &output_impl, NULL, remove_cb);
+    wl_list_insert(&outputs, wl_resource_get_link(res));
     /* 1920x720 at ~ 290 x 110 mm: the iDrive 7 centre display's shape */
     wl_output_send_geometry(res, 0, 0, 290, 110, WL_OUTPUT_SUBPIXEL_UNKNOWN, "BMW", "iDrive centre display",
                             WL_OUTPUT_TRANSFORM_NORMAL);
-    wl_output_send_mode(res, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED, out_w, out_h, 60000);
+    wl_output_send_mode(res, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED, adv_w, adv_h, 60000);
     if (v >= 2) wl_output_send_scale(res, 1);
     if (v >= 4) { wl_output_send_name(res, "CENTRE-1"); wl_output_send_description(res, "iDrive centre display"); }
     if (v >= 2) wl_output_send_done(res);
@@ -1467,12 +1478,25 @@ static void compose(void) {
                 k = (double)out_w / pw < (double)out_h / ph ? (double)out_w / pw : (double)out_h / ph;
             }
         }
-        static int said_w = -1, said_h = -1;
-        if (k != fit_k || (k < 1.0 && (pw != said_w || ph != said_h))) {
-            /* the tool's journal: "wl-sink: the window 1280x720 fitted into 896x320 (x0.44)" */
-            printf("{\"ev\":\"fit\",\"size\":[%d,%d],\"into\":[%d,%d],\"k\":%.3f}\n", pw, ph, out_w, out_h, k);
+        /* the screen the pointer needs: the whole fitted window (its frame
+         * too, the pointer is in its coordinates), else the picture's */
+        int nw = out_w, nh = out_h;
+        if (k < 1.0) {
+            int tw = pw, th = ph;
+            if (top) shown_size(top, &tw, &th);
+            if (tw > nw) nw = tw;
+            if (th > nh) nh = th;
+            if (pw > nw) nw = pw;
+            if (ph > nh) nh = ph;
+        }
+        static int said_w = -1, said_h = -1, said_nw = -1, said_nh = -1;
+        if (k != fit_k || (k < 1.0 && (pw != said_w || ph != said_h || nw != said_nw || nh != said_nh))) {
+            /* the tool's journal: "wl-sink: the window 1280x720 fitted into 896x320 (x0.44)";
+             * need > output: the tool restarts the game with that screen (calibrating the pointer) */
+            printf("{\"ev\":\"fit\",\"size\":[%d,%d],\"into\":[%d,%d],\"k\":%.3f,\"need\":[%d,%d],\"output\":[%d,%d]}\n",
+                   pw, ph, out_w, out_h, k, nw, nh, adv_w, adv_h);
             fflush(stdout);
-            said_w = pw; said_h = ph;
+            said_w = pw; said_h = ph; said_nw = nw; said_nh = nh;
         }
         fit_k = k;
     }
@@ -1621,15 +1645,16 @@ static int create_frame(const char *path, int w, int h) {
 
 int main(int argc, char **argv) {
     const char *sock = "wayland-1", *frame = NULL, *device = "/dev/dri/renderD128", *winston = NULL;
-    int create_w = 0, create_h = 0, no_drm = 0, input = 0, with_dmabuf = 0;
+    int create_w = 0, create_h = 0, no_drm = 0, input = 0, with_dmabuf = 0, want_w = 0, want_h = 0;
     long drop_uid = -1, drop_gid = -1;
     static const struct option opts[] = {
         { "socket", 1, 0, 's' }, { "frame", 1, 0, 'f' }, { "create", 1, 0, 'c' }, { "fps", 1, 0, 'r' },
         { "snap", 1, 0, 'p' }, { "device", 1, 0, 'd' }, { "no-drm", 0, 0, 'n' },
         { "uid", 1, 0, 'u' }, { "gid", 1, 0, 'g' }, { "input", 0, 0, 'i' }, { "whole-window", 0, 0, 'w' },
-        { "winston", 1, 0, 'W' }, { "fsr", 1, 0, 'F' }, { "dmabuf", 0, 0, 'B' }, { 0, 0, 0, 0 } };
+        { "winston", 1, 0, 'W' }, { "fsr", 1, 0, 'F' }, { "dmabuf", 0, 0, 'B' }, { "output", 1, 0, 'O' }, { 0, 0, 0, 0 } };
     for (int o; (o = getopt_long(argc, argv, "", opts, NULL)) != -1;) {
         switch (o) {
+        case 'O': if (sscanf(optarg, "%dx%d", &want_w, &want_h) != 2) want_w = want_h = 0; break;
         case 's': sock = optarg; break;
         case 'f': frame = optarg; break;
         case 'c': if (sscanf(optarg, "%dx%d", &create_w, &create_h) != 2) create_w = 0; break;
@@ -1693,6 +1718,11 @@ int main(int argc, char **argv) {
     wl_list_init(&drm_buffers);
     wl_list_init(&pointers);
     wl_list_init(&keyboards);
+    wl_list_init(&outputs);
+    /* the screen Wine sees: the picture's size, or --output (a window the
+     * tool saw bigger than the picture, stored for the game), never smaller */
+    adv_w = want_w > out_w ? want_w : out_w;
+    adv_h = want_h > out_h ? want_h : out_h;
 
     display = wl_display_create();
     if (!display || wl_display_add_socket(display, sock) < 0) {

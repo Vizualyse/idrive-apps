@@ -237,6 +237,22 @@ workflow (Actions > Release, the component ids).
   `ent_alsa mgu_alsa` 0660; nothing in `/run/vizualyse-speakers.json` once
   everything stopped. If it goes wrong: a 0.x.y+1 with the speakers off
   (`claimOr` -> CarPlay's input).
+  **Steam 0.2.2 on the car (2026-11-10, FTL, CarPlay playing): works.** The
+  game took the speakers from CarPlay (`gives back source 266`), sound at the
+  iDrive volume, the locks right; Stop gave them back to CarPlay, the record
+  gone, nothing left running. Left: Moonlight and Cast; a head unit restart
+  during a claim (`recover()`). Seen:
+  - The media manager shows the blue CarLife icon while we play (the HMI
+    takes the source for CarLife's): harmless; a way to hide it?
+  - The iDrive volume pop-up is drawn under the game's picture (our layer
+    is above the HMI's): the volume works, its indicator is hidden.
+  - CarPlay choppy ~30 s after the game, then fine: likely CarPlay's memory
+    paged back in from zram (1.1 GB swapped out after FTL's ~2 GB). A
+    smaller cap for Steam's games would soften it.
+  - Before that, CarPlay was silent: 0.2.0's player (pcm_play 1.0.0) had left
+    `smartx_CarPlayMain_CF_48_STEREO_p.lock` root's 0640 on 2026-11-09 (the
+    lock fix that never applied); set back by hand
+    (`chown ent_alsaroutingadapters:mgu_alsa`, `chmod 660`). 1.0.1 fixes it.
 - [ ] **Sound without CarPlay, on the car: CarLife's media source.** Works
   end to end in the emulator (2026-11-10, branch `sound-source`,
   [knowledge/sound.md](knowledge/sound.md) "Our own entertainment source"):

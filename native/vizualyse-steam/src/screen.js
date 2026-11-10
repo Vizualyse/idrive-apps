@@ -56,6 +56,65 @@ function frameFile(w, h) {
 
 function removeFrameFile() { try { fs.unlinkSync(FILE); } catch (e) { /* none */ } }
 
+/* A message on the screen, white on black, while no game picture is there
+ * (calibrating the pointer: the game restarting). Drawn into the frame
+ * file's next slot and published as wl-sink publishes (slot, then seq): the
+ * game's first picture replaces it. A 5x7 pixel font, capitals only, so
+ * nothing to ship or load. */
+const FONT = {
+    A: '01110100011000111111100011000110001', B: '11110100011000111110100011000111110',
+    C: '01110100011000010000100001000101110', E: '11111100001000011110100001000011111',
+    G: '01110100011000010111100011000101111', H: '10001100011000111111100011000110001',
+    I: '01110001000010000100001000010001110', L: '10000100001000010000100001000011111',
+    M: '10001110111010110101100011000110001', N: '10001110011010110011100011000110001',
+    O: '01110100011000110001100011000101110', P: '11110100011000111110100001000010000',
+    R: '11110100011000111110101001001010001', S: '01111100001000001110000010000111110',
+    T: '11111001000010000100001000010000100', U: '10001100011000110001100011000101110',
+    Y: '10001100010101000100001000010000100', '.': '00000000000000000000000000110001100',
+    ' ': '00000000000000000000000000000000000'
+};
+function message(lines) {
+    let fd;
+    try { fd = fs.openSync(FILE, 'r+'); } catch (e) { return false; }
+    try {
+        const hdr = Buffer.alloc(HEADER);
+        fs.readSync(fd, hdr, 0, HEADER, 0);
+        if (hdr.readUInt32LE(0) !== MAGIC) return false;
+        const w = hdr.readUInt32LE(8), h = hdr.readUInt32LE(12), seq = hdr.readUInt32LE(16);
+        const nslot = hdr.readUInt32LE(24) || NSLOT, slot = hdr.readUInt32LE(20) % nslot;
+        const frame = Buffer.alloc(w * h * 3 / 2, 128);
+        frame.fill(0, 0, w * h);
+        const cols = Math.max.apply(null, lines.map((l) => l.length)) * 6 - 1, rows = lines.length * 9 - 2;
+        const s = Math.max(1, Math.floor(Math.min(w * 0.8 / cols, h * 0.4 / rows)));
+        const top = Math.floor((h - rows * s) / 2);
+        lines.forEach((line, li) => {
+            const left = Math.floor((w - (line.length * 6 - 1) * s) / 2);
+            line.split('').forEach((ch, ci) => {
+                const g = FONT[ch] || FONT[' '];
+                for (let r = 0; r < 7; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        if (g[r * 5 + c] !== '1') continue;
+                        const x0 = left + (ci * 6 + c) * s, y0 = top + (li * 9 + r) * s;
+                        for (let y = y0; y < y0 + s && y < h; y++) frame.fill(235, y * w + x0, y * w + Math.min(x0 + s, w));
+                    }
+                }
+            });
+        });
+        const next = (slot + 1) % nslot;
+        fs.writeSync(fd, frame, 0, frame.length, HEADER + next * frame.length);
+        const words = Buffer.alloc(8);
+        words.writeUInt32LE(next, 0);
+        fs.writeSync(fd, words, 0, 4, 20);                      /* the slot, then the sequence */
+        words.writeUInt32LE((seq + 1) >>> 0, 4);
+        fs.writeSync(fd, words, 4, 4, 16);
+        return true;
+    } catch (e) {
+        return false;
+    } finally {
+        fs.closeSync(fd);
+    }
+}
+
 /* Events: 'state' (the renderer's), 'error'-free (renderer errors are logged). */
 class Screen extends EventEmitter {
     constructor(log) {
@@ -128,4 +187,4 @@ class Screen extends EventEmitter {
     }
 }
 
-module.exports = { Screen, available, frameFile, removeFrameFile, FILE };
+module.exports = { Screen, available, frameFile, removeFrameFile, message, FILE };
