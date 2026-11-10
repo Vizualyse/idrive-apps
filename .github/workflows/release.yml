@@ -29,6 +29,11 @@ jobs:
     # main and v* tags only: work-in-progress branches do not publish
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
+    env:
+      # the builds' finished parts by their inputs' keys (tools/build_cache.sh):
+      # Steam's Mesa builds, ntdll and bundle, ~12 min when rebuilt. main's
+      # own caches only (a branch's are not visible here).
+      BUILD_CACHE: /tmp/build-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,6 +55,15 @@ jobs:
       - name: Pinned downloads
         uses: ./.github/actions/mgu-dl
 
+      # the newest saved build cache (Steam's parts); the builds take what still matches
+      - name: Build cache (restore)
+        if: inputs.components == '' || contains(format(' {0} ', inputs.components), ' vizualyse-steam ')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/build-cache
+          key: build-cache-${{ github.run_id }}
+          restore-keys: build-cache-
+
       # the tools' builds run make target: Docker, preinstalled on the runner
       - name: Publish
         env:
@@ -58,6 +72,22 @@ jobs:
           MGU_PUBLISH_VISIBILITY: any
           COMPONENTS: ${{ inputs.components }}
         run: node release/release.js publish $COMPONENTS
+
+      # saved only when a part was built (build_cache_put leaves .changed)
+      - name: Build cache (anything new?)
+        id: build-cache
+        if: always()
+        run: |
+          if [ -f /tmp/build-cache/.changed ]; then
+            rm -f /tmp/build-cache/.changed
+            echo "save=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build cache (save)
+        if: always() && steps.build-cache.outputs.save == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/build-cache
+          key: build-cache-${{ github.run_id }}
 
       - name: Published catalog
         if: always()

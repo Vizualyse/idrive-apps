@@ -40,8 +40,24 @@ case $DXVK_VER in   # as tools/vk-trial/dxvk/bench.sh
     2.7.1) DXVK_SHA=d85ce7c79f57ecd765aaa1b9e7007cb875e6fde9f6d331df799bce73d513ce87 ;;
     *) echo "vulkan.sh: no hash for DXVK $DXVK_VER" >&2; exit 2 ;;
 esac
-MESA_VER=$MESA_VER sh "$VKT/build.sh" >&2
 mkdir -p "$HERE/build"
+# Kept while its inputs stay (and from BUILD_CACHE on a fresh machine, CI):
+# the ANV image's tag (a hash of its Dockerfile and patches, with
+# MESA_VER), vk_crumbs, DXVK, this script. Not vk-trial's own key, which
+# covers wl-sink's sources too: they change often and aren't in vulkan.tgz.
+. "$HERE/../../tools/build_cache.sh"
+vkey=$( (MESA_VER=$MESA_VER sh "$VKT/build.sh" image-name; echo "$DXVK_VER $DXVK_SHA"
+        cat "$VKT/src/vk_crumbs.c" "$VKT/build.sh" "$HERE/tools/vulkan.sh" "$HERE/tools/dxvk-license.txt") | sha256sum | cut -c1-16)
+if [ -f "$HERE/build/vulkan.tgz" ] && [ "$(cat "$HERE/build/vulkan.key" 2>/dev/null)" = "$vkey" ]; then
+    echo "vulkan.tgz: up to date ($vkey)"
+    exit 0
+fi
+rm -f "$HERE/build/vulkan.key"
+if build_cache_get vulkan "$vkey" "$HERE/build"; then
+    echo "$vkey" > "$HERE/build/vulkan.key"
+    exit 0
+fi
+MESA_VER=$MESA_VER sh "$VKT/build.sh" >&2
 # DXVK's release tarball into the build's download volume (as Proton's), checked
 docker run --rm --platform linux/amd64 -v steam-build-dl:/dl -v "$WIN_VKT/build:/v:ro" -v "$WIN_HERE:/m" -v "$WIN_HERE/tools:/t:ro" \
     "$(cat "$VKT/build/image")" sh -ec "
@@ -61,3 +77,5 @@ docker run --rm --platform linux/amd64 -v steam-build-dl:/dl -v "$WIN_VKT/build:
     cd /tmp/r && tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -cf - var/opt/vizualyse-steam/vulkan | gzip -n -6 > /m/build/vulkan.tgz.tmp
     mv /m/build/vulkan.tgz.tmp /m/build/vulkan.tgz
     echo \"vulkan.tgz: \$(tar tzf /m/build/vulkan.tgz | grep -c -v /\$) files, \$(du -h /m/build/vulkan.tgz | cut -f1)\""
+echo "$vkey" > "$HERE/build/vulkan.key"
+build_cache_put vulkan "$vkey" "$HERE/build" vulkan.tgz

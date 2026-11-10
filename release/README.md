@@ -62,6 +62,17 @@ whether this repository is private or public
 (`MGU_PUBLISH_VISIBILITY=any`). `.github/workflows/test.yml` runs the tests,
 a Node 8 syntax check and `check` on each push to main and pull request.
 
+**Build cache.** A runner starts empty, so a tool build that skips work only
+when its last outputs are still in `build/` redid it on every run (Steam:
+two Mesa builds, Wine's ntdll and the Proton bundle, ~12 min). Both
+workflows set `BUILD_CACHE=/tmp/build-cache` and keep that folder with
+`actions/cache` (restored from the newest save, saved again only when a part
+was built). [`tools/build_cache.sh`](../tools/build_cache.sh) keeps each
+part there under a key made from its inputs only, and a build restores it
+instead of building, also inside the release's `git archive` exports. A
+release takes main's caches only. Without `BUILD_CACHE` (by hand) nothing
+changes.
+
 ## License
 
 GPL-3.0-or-later (`LICENSE` at the repository root). The release tooling is

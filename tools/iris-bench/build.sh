@@ -12,6 +12,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 cp "$HERE/../vk-trial/test/kernel414.c" "$HERE/image/kernel414.c"
 IMG=idrive-iris-bench:mesa19.3.5-$(cat "$HERE"/image/Dockerfile "$HERE"/image/*.py "$HERE"/image/*.c | sha256sum | cut -c1-8)
+# image-name: the image's tag (a hash of its inputs), without building it
+[ "${1:-}" = image-name ] && { echo "$IMG"; exit 0; }
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/iris-bench-image.$$.log
     echo "iris-bench: building $IMG (Mesa 19.3.5 iris, ~10 min the first time)"

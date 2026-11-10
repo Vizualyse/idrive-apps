@@ -20,6 +20,7 @@ IMG=idrive-rootfs:I_21w12.2-1-4
 ROOTFS=${ROOTFS:-$HERE/../../../idrive-rootfs/20.40.2/rootfs.tar}
 docker image inspect $IMG >/dev/null 2>&1 || docker import "$ROOTFS" $IMG >/dev/null
 sh "$HERE/build.sh" >&2
+sh "$HERE/build.sh" image >&2   # its bundles may have come from BUILD_CACHE, without the image
 sh "$HERE/test/build_win.sh" >&2
 sh "$GPU_BENCH/build.sh" >&2
 WIN_GPU_BENCH=$(cd "$GPU_BENCH/build" && (pwd -W 2>/dev/null || pwd))

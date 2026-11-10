@@ -25,6 +25,8 @@ WIN_HERE=$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))
 MESA_VER=${MESA_VER:-19.0.6}
 IMG=idrive-vk-trial:$( (cat "$HERE/image/Dockerfile" "$HERE/image/anv_new.sh" "$HERE/image/mesa-no-i915-query.patch" "$HERE/image/mesa-ctx-params-max-6.patch" "$HERE"/image/*.comp "$HERE"/image/*.vert "$HERE"/image/*.frag) | sha256sum | cut -c1-8)
 [ "$MESA_VER" = 19.0.6 ] || IMG=$IMG-mesa$MESA_VER
+# image-name: the image's tag (a hash of its inputs), without building it
+[ "${1:-}" = image-name ] && { echo "$IMG"; exit 0; }
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     LOG=${TMPDIR:-/tmp}/vk-trial-image.$$.log
     echo "vk-trial: building $IMG (Mesa $MESA_VER ANV, ~5 min the first time)"
