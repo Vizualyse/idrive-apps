@@ -59,7 +59,7 @@ function kit() {
     /* as on the car (/var/opt/<tool>/current): readable by the uplink uid */
     fs.chmodSync(TMP, 0o755);
     fs.chmodSync(k, 0o755);
-    ['server.js', 'gamestream.js', 'gs_worker.js', 'firewall.js', 'console_out.js', 'cluster_render_client.js', 'control.js', 'page.html', 'pcm_play.py']
+    ['server.js', 'gamestream.js', 'gs_worker.js', 'firewall.js', 'console_out.js', 'cluster_render_client.js', 'control.js', 'page.html', 'pcm_play.py', 'speakers.js']
         .forEach((f) => fs.copyFileSync(path.join(HERE, 'src', f), path.join(k, f)));
     fs.copyFileSync(path.join(HERE, 'build', 'hint.rgba'), path.join(k, 'hint.rgba'));
     fs.copyFileSync(path.join(HERE, 'build', 'moonlight-core'), path.join(k, 'moonlight-core'));
