@@ -4,7 +4,8 @@
 # pins, its frozen versions, the audio player), the Cast page against
 # a fake HMI and the tool's real control socket, the Moonlight page against
 # a fake HMI and a fake tool socket, the Moonlight tool end to end against
-# a real Sunshine (pairing, a stream, a virtual gamepad), the release
+# a real Sunshine (pairing, a stream, a virtual gamepad; only when Moonlight
+# or a platform module version it pins changed), the release
 # tooling, every shipped script parsing on Node 8 (the head unit's), and
 # two clean builds of each component compared byte for byte.
 name: Test
@@ -88,12 +89,35 @@ jobs:
         uses: ./.github/actions/mgu-dl
       - name: The tools' bus (Mosquitto built for the unit, the client and Cast on glibc Node 8, as root)
         run: BUS_TEST_IMAGE=ml-unit:18.04-node8 sh native/vizualyse-bus/test/run_test.sh
+      # Moonlight's build always (the reproducible-build check packs it); its
+      # Sunshine test only when Moonlight changed: its folder (pins included)
+      # or a platform module version it pins. No base to compare with (a new
+      # branch, a force push): it runs.
+      - name: Moonlight changed?
+        id: moonlight
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          paths=$(node -e '
+            const c = require("./native/vizualyse-moonlight/component.json");
+            const p = c.platform || {};
+            console.log(["native/vizualyse-moonlight/"].concat(Object.keys(p).map((m) => "platform/" + m + "/" + p[m].version + "/")).join(" "));')
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null && git diff --quiet "$BASE" HEAD -- $paths; then
+            echo "Moonlight unchanged since $BASE ($paths): no Sunshine test"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Moonlight changed (or no base to compare with): $paths"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Moonlight build
+        timeout-minutes: 20
+        run: sh native/vizualyse-moonlight/build.sh
       - name: Moonlight against Sunshine (the head unit in a box, Node 8)
+        if: steps.moonlight.outputs.changed == 'true'
         timeout-minutes: 20
         run: |
           sudo modprobe uinput || true
           sudo modprobe vhci-hcd || true
-          sh native/vizualyse-moonlight/build.sh
           sh native/vizualyse-moonlight/test/run_sunshine_test.sh
       - name: Chromium build image (cached)
         uses: ./.github/actions/chromium-image
