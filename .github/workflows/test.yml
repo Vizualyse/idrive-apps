@@ -68,6 +68,10 @@ jobs:
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/perf_test.js
       - name: Steam's taps (the button a frame after the pointer, held 150 ms or three frames; Node 8)
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/tap_test.js
+      - name: Steam's log of Wine's lines (a repeated message counted, not logged; Node 8)
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/wine_log_test.js
+      - name: Steam's crumbs (a game's DRM calls watched, one that stays away written out; tools/vk-trial)
+        run: sh tools/vk-trial/test/crumbs_watch_test.sh
       - name: Steam's swap file on the hard disk (made once, on during a game; BusyBox, Node 8)
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/swap_test.js
       - name: Steam's Detail (engines, launch options, dxvk.conf, WINE_D3D_CONFIG)

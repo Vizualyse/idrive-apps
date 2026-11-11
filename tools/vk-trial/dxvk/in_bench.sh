@@ -42,6 +42,13 @@ exec 9>/o/crumbs.log
 
 export WAYLAND_DISPLAY=wayland-1
 mkdir -p /tmp/bin && printf '#!/bin/sh\nexit 0\n' > /tmp/bin/xrandr && chmod +x /tmp/bin/xrandr
+# Proton's launcher (Python) closes every fd above 2 before it starts Wine, so
+# the crumbs' fd never reached the programs: crumbs.log held only "crumbs: pid"
+# lines, none of their DRM calls (found 2026-11-11). It runs
+# "steam-runtime-launcher-interface-0 proton WINE ARGS..." when that is on
+# PATH: this stand-in opens the log again and goes on to Wine.
+printf '#!/bin/sh\nshift\nexec 9>>/o/crumbs.log\nexec "$@"\n' > /tmp/bin/steam-runtime-launcher-interface-0
+chmod +x /tmp/bin/steam-runtime-launcher-interface-0
 export PATH=/tmp/bin:$PATH
 export STEAM_COMPAT_DATA_PATH=/pfx STEAM_COMPAT_CLIENT_INSTALL_PATH=/tmp/steam
 # DXVK, not WineD3D: Proton copies its dxvk folder's DLLs (1.10.3, mounted)

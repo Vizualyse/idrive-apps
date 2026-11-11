@@ -21,7 +21,10 @@ TimeoutStopSec=20
 # unit (knowledge/head-unit.md). 1, not 0: the kernel then skips even a
 # piped core handler.
 LimitCORE=1
-# Wine's esync uses an eventfd per object
+# Wine's file descriptors: a game's files and sockets and, where Wine has
+# it, an eventfd per synchronisation object. (GE-Proton 11's has no esync,
+# and the unit's 4.14 kernel neither fsync nor ntsync: wineserver does the
+# synchronising here, knowledge/games.md.)
 LimitNOFILE=524288
 
 [Install]

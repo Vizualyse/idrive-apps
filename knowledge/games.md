@@ -155,7 +155,8 @@ under Proton): a line says which. Index: [index.md](index.md).
   `vulkan.tgz`;** a 64-bit game (the exe's PE machine field) gets Vulkan by
   default: DXVK's `d3d11, d3d10core, d3d9, dxgi` native in the prefix, the
   ICD file only in `/dev/shm/vizualyse-steam` while the game runs, every DRM
-  ioctl logged (O_DSYNC) to `state/vulkan-crumbs.log` by `vk_crumbs.so`. A
+  ioctl logged (O_DSYNC) to `state/vulkan-crumbs.log` by `vk_crumbs.so` (to
+  0.2.3; from 0.2.4 watched, written only when one stays away: below). A
   restart during a Vulkan game turns Vulkan off for it. Proven first with
   `tools/vk-trial` (gated, one start; [bench.md](bench.md)).
 - **DXVK versions:** 1.10.x needs `VK_EXT_host_query_reset`, 2.x and
@@ -233,10 +234,43 @@ under Proton): a line says which. Index: [index.md](index.md).
   understood. Up to 0.1.9 wl-sink read back any surface with a viewport or
   shown at another size than its buffer; if Godot's area is scaled that way,
   0.1.10 forwards it (below). Check `scaled` in wl-sink's stats on the car.
-- **On the stub, DXVK runs at ~17 frames a second** whatever its options
-  (`maxFrameRate` 30 or none, `maxFrameLatency` 1 or the default: 17.8,
-  17.0, 7.0 in one run each, 2026-11-08), probably the crumbs log's
-  synchronous writes: the bench can't show DXVK being held to 30.
+- **The crumbs log's synchronous writes hold a Vulkan game back (bench,
+  2026-11-11).** `vk_crumbs.so` writes a line before and after every DRM
+  call it keeps, and the tool opens the log `O_DSYNC`. DXVK 2.6.2 on ANV
+  22.3.7 makes 8 such calls a frame even for one triangle (4
+  `GEM_EXECBUFFER2`, 3 `GEM_WAIT`, 1 `SYNCOBJ_WAIT`): 16 synchronous writes
+  a frame. On the stub (a GPU that takes no time), 600 frames of `t_d3d9`:
+  0.28 s with the logger not loaded, loaded without a log, logging to tmpfs
+  or to a file on ext4; **26.7 s with that file `O_DSYNC`** (44.5 ms a
+  frame, each write about 3 ms on this PC's disk). Through the tool itself
+  (`test/run_play.sh`, `PLAY_FAKE`): **20.4 fps, 1 % low 3.6, worst frame
+  322 ms as shipped; 31.3 fps, 1 % low 29.5, worst 35 ms with the log off**
+  (`PLAY_CRUMBS=off`), at 2-3 % CPU either way. This was the "~17 frames a
+  second whatever its options" seen here on 2026-11-08. The count a frame
+  is the game's and DXVK's, the same on the car; the time a write takes is
+  the car's disk's, not known yet: its own `state/vulkan-crumbs.log` has it
+  (each line's millisecond stamp).
+- **From 0.2.4 the calls are watched, not written (`vk_crumbs.so`,
+  `VK_TRIAL_CRUMB_MODE=watch`, only for the tool's games):** a process's
+  first 400 lines are written as they happen (the driver starting: every
+  kernel hang so far was there), then the calls that can hang are kept in
+  memory (the last 96 lines) and a thread of the library's writes them
+  out, with the call, when one hasn't come back in a second ("! not back
+  after 1213 ms: > GEM_WAIT ..."), and says when it does ("! back after").
+  A call stuck in the kernel holds only its own thread; a lockup that
+  stopped that thread too would leave the calls after the start unwritten.
+  The thread blocks every signal (Wine's handlers want a Wine thread) and
+  is started again in a forked child. 40000 calls then take 0.9 s on an
+  `O_DSYNC` log, 195 s written one by one
+  (`tools/vk-trial/test/crumbs_watch_test.sh`). vk-trial's gate keeps the
+  old way: it takes a growing log as a trial's sign of life.
+- **vk-trial's DXVK bench never logged the game's calls:** Proton's
+  launcher (Python, `subprocess.call`) closes every fd above 2 before Wine
+  starts, so `dxvk/in_bench.sh`'s `exec 9>` reached only the shell's own
+  processes (`crumbs.log`: 33 "crumbs: pid" lines, no ioctl). The tool
+  hands Wine its fd itself, so its games do log. Now a stand-in for
+  `steam-runtime-launcher-interface-0`, which Proton's launcher runs when
+  it is on PATH, opens the log again (4465 lines for the two programs).
 
 ## Frames nobody sees (Steam 0.1.10, bench 2026-11-08)
 
@@ -344,6 +378,111 @@ under Proton): a line says which. Index: [index.md](index.md).
   that window): its shaders compiled at the first picture. wl-sink now
   compiles them at its start when the GPU has GLES 3, so only the three
   output buffers are made at the switch.
+
+## On the bench: Terraria (2026-11-11)
+
+`test/run_play.sh` (the tool in the unit's root filesystem, the stub GPU:
+every CPU-side step real, the GPU taking no time), Terraria at its menu,
+960x540, one run of 40-45 s each; the PC's load moved the CPU figures by
+half between runs, so read them as sizes, not numbers.
+
+| Renderer, setting | fps (1 % low) | The game's threads, % of a PC core |
+|---|---|---|
+| DXVK, crumbs as shipped | 26.1 (15.4), dips to 4 | main 12 |
+| DXVK, crumbs off | 28.2 (27.3) | main 6-13, wineserver 4 |
+| DXVK, crumbs off, fsync | 28.3 (27.2) | main 10, wineserver 2 |
+| WineD3D on i965 | 27.6-28.7 (23-28) | main 85-102, `wined3d_cs` 18-39 |
+| WineD3D on iris | 27.4-28.7 (21-27) | main 98-105, `wined3d_cs` 11-38 |
+| DXVK, crumbs off, cap 60 | 55.8 (47.4) | main 11-13 |
+| WineD3D on i965, cap 60 | 55.8 (41-52) | main 90-104, `wined3d_cs` 31-38 |
+
+- **It needs Run without Steam:** "Please launch the game from your Steam
+  client" otherwise (a Win32 message box: shared memory, so the frame file
+  shows it even on the stub).
+- **The bundled Wine has no esync.** GE-Proton11 (Wine 11.0) has fsync
+  (`futex_waitv`, Linux 5.16) and ntsync (Linux 6.14) only; on the unit's
+  4.14 Wine says "wineserver: using server-side synchronization". The
+  bench's kernel has fsync, so until `run_play.sh` turned it off the bench
+  ran a faster Wine than the car's. For Terraria's menu the difference is
+  wineserver at 4 % of a PC core against 2 %.
+- **WineD3D's main thread waits at full speed** (the last two rows: twice
+  the frames, still 100 %): a core kept busy by wined3d's command stream.
+- **The frame rate a waiting game gets is 1000 / (wl-sink's tick + its
+  time a picture):** 28.2-28.7 at the 30 cap, 55.8 at 60 (1.8-1.9 ms a
+  picture on the bench's read-back path), since the tick is set 33 (16) ms
+  after the last one ended. 0.2.4 ticks at fixed times: the tool's unit
+  test reads 29.8 frames a second on WineD3D and 29.6 on DXVK, vk-trial's
+  `t_d3d11` presents 60 frames in 1018 ms (1819 before).
+- **WineD3D on iris floods the log** (8.7 million `wined3d_fence_test
+  glClientWaitSync returned 0x501` lines in 45 s) and **WineD3D on the stub
+  loses about 40 MB of available memory a second at 56 fps**, Wine exiting
+  (5) after 76 s; neither on DXVK. Not known whether either is the stub's.
+  From 0.2.4 the tool logs a Wine message its first five times, then
+  counts it and says the count every 10 s (`src/wine_log.js`), and no more
+  than 100 Wine lines a second in all.
+
+## On the bench: Vampire Survivors in play (2026-11-11)
+
+Steered into its first stage by taps found on lavapipe (`GPU=lavapipe`,
+`run_play.sh shot` / `tap`; its buttons take one tap to select and a
+second to go, and the first tap after the warning is taken by the title),
+the player kept alive by the controller (`stick 32767 0`: standing still he
+dies at 0:15); the same taps replayed on the stub and checked in its
+`Player.log` (`GameManager:PostStageInit`). 960x540, 40 s each.
+
+| On the stub (DXVK 2.6.2, ANV 22.3.7) | fps (1 % low), worst frame |
+|---|---|
+| 0.2.3: every DRM call written | 24.9 (18.2), 329 ms |
+| 0.2.3, crumbs off | 28.9 (28.0), 36 ms |
+| 0.2.4: the calls watched, vsync on, wl-sink's ticks at fixed times | 30.0 (28.6), 36 ms |
+
+- **What 0.2.4 changed for it, each seen here:** the crumbs' watch mode
+  (the first row to the second); wl-sink's ticks at fixed times (28.9 to
+  30.0: a tick set 33 ms after the last one ended gave 1000 / (33 + the
+  time of a picture)); and DXVK's own frame limit only a stop at twice the
+  rate: at the rate itself, with ticks at exactly 30, it waited each
+  frame's end out at full speed (`dxvk-queue` 18 % of a core, the game's
+  side 31.7 ms a frame against 20.4 without).
+
+- **Its CPU in play, crumbs off: about 15 ms of a PC core a frame** beside
+  wl-sink: the busiest thread 4.1 ms, Unity's graphics thread 2.4, its six
+  job workers 3.3 together, wineserver 1.5 (server-side synchronisation),
+  DXVK's threads 1.1. On lavapipe the same scene reads 21 ms: lavapipe's
+  own work on the game's threads, so time a game on the stub, not there.
+- The work is the same a frame at the 30 and the 60 cap (9.4 and 9.5 ms
+  for the main group on lavapipe): work, not waiting.
+- **With fsync** (which the car's kernel can't have): wineserver 0.9 ms a
+  frame against 1.5, the rest the same. **Uncapped** (`PLAY_UNCAPPED=1`:
+  no frame limit, vsync off), two runs each: 153.4 fps with the server's
+  synchronisation, 153.2 with fsync (1 % low 113.8 and 114.7); an earlier
+  pair read 124.9 and 134.5, so the PC's swing between runs is bigger than
+  any difference. Uncapped, Unity's graphics thread is the busy one (97 %
+  of a core).
+
+## On the bench: Slay the Spire 2 (2026-11-11)
+
+- **Its first start looped for ever in 0.2.3's pointer calibration** (a
+  maximised window is the screen + 12 each way, whatever the screen): fixed
+  in `src/game.js` (a window no more than 32 pixels bigger than Wine's
+  screen doesn't calibrate). Then it starts: "the window 964x518 fitted
+  into the picture 960x540".
+- **On lavapipe** (Godot's Forward+ on the CPU): 5.5 fps at its menu, 1.5
+  in a fight; enough to steer. The taps (960x540): Proceed 478,427 (the
+  early access note, every start); first time Singleplayer 386,380, the
+  tick 917,390, No 393,362 (tutorials), the first enemy on the map 452,384;
+  afterwards Continue 386,367 goes straight back into the fight. Its
+  `godot.log` (`AppData/Roaming/SlayTheSpire2/logs`) says "Creating
+  NCombatRoom" when a fight begins.
+- **On the stub it stops drawing** a few seconds after its menu (0 frames,
+  the game idle, then exits): Godot logs `fence_wait` failing
+  (`err != VK_SUCCESS`) and `QueuePresentKHR failed with error: 2`. The
+  stub's fences, not the car's: DXVK games don't mind them. So no frame
+  times for it off the car yet.
+- **Its loading can be timed** (its log's "Preloading 'Common' Complete",
+  778 assets): **7.5 s with the crumbs off, 29.4 s as 0.2.3 shipped**,
+  9.0 s with fsync; 28 s the run before, as shipped. From the start to
+  that line: 31 s against 57 s. **0.2.4 (the calls watched): 7.1 s, 31 s
+  from the start.**
 
 ## On the car: Slay the Spire 2 (Steam 0.1.11, 2026-11-08)
 

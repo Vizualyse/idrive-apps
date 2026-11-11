@@ -9,6 +9,87 @@ workflow (Actions > Release, the component ids).
 
 ## High priority
 
+- [ ] **Steam 0.2.4 on the car (built and tested off the car 2026-11-11,
+  nothing of it run on the car yet).** What real games on the bench
+  found and 0.2.4 changes: [knowledge/games.md](knowledge/games.md), "On the
+  bench". There, on the stub GPU, Vampire Survivors in play went from
+  24.9 fps (1 % low 18.2, worst frame 329 ms) to 30.0 (28.6, 36 ms) and
+  Slay the Spire 2's loading from 29.4 s to 7.1 s. Every figure from the
+  car up to 0.2.3 has the old crumbs log in it, and its "GPU busy" said
+  nothing of how full the GPU was: which limit a game is at on the car is
+  open again. **Ask before running anything on the unit**; read the journal
+  and `state/perf.log` after a run, not during.
+  1. Before installing it, read-only, no game running: the last lines of
+     0.2.3's `state/vulkan-crumbs.log` (the time from a `>` to its `<` is
+     one write on the car's disk: what the old log took a frame there),
+     `mount` for `/var/opt`'s device, and `state/perf.log` (the game's
+     memory in the WineD3D runs of 2026-11-09: "WineD3D on the stub" below).
+  2. The crumbs' watch mode: a Vulkan game's `state/vulkan-crumbs.log` has
+     each process's first 400 lines, then "from here a call is written only
+     when it is not back in 1000 ms", then only `! not back after` lines,
+     if any (a wait that is long by rights is one too: note which calls).
+     After a hang the last `! not back after` is the call.
+  3. The games' perf lines against 0.2.3's: Vampire Survivors (13-14 fps
+     in play then), Slay the Spire 2 (19-24, and about 30 s to its menu),
+     Terraria (12), Don't Starve.
+  4. The new parts of a perf line: "GPU awake ... at N MHz (lowest-highest,
+     asked N, limit N)": is the clock asked for above the one it runs at
+     (the unit's power budget holding it), or both low (a GPU with time
+     left)? The busiest thread, wineserver's share, "others:" (who has the
+     other two cores), MB swapped in and out and the major faults in a
+     stall; the summary's spread of frame times.
+  5. vsync on for every DXVK game and wl-sink's ticks at fixed times: 30.0
+     frames a second where the game can, the touch no later than before, a
+     game hidden and shown still drawing.
+  6. Slay the Spire 2 starts (0.2.3's pointer calibration restarted it
+     without end on a new prefix, its window maximised; the car's saved
+     full screen may be why that wasn't seen), and FTL's 1280x720 window
+     still calibrates once.
+  7. A WineD3D game on iris (Terraria with Vulkan off): Wine's lines in the
+     journal counted ("(N more, M in all) err:d3d:wined3d_fence_test ..."),
+     not one a call. Does the car have that message at all?
+- [ ] **Wine without esync: what the server's synchronisation costs on the
+  car.** GE-Proton11's Wine 11 has fsync (`futex_waitv`, Linux 5.16) and
+  ntsync (Linux 6.14) and nothing else, so on the unit's 4.14 it says
+  "wineserver: using server-side synchronization": every wait, event and
+  mutex a round trip to the one-threaded wineserver
+  ([knowledge/games.md](knowledge/games.md), "On the bench: Terraria"). On
+  the bench wineserver does about twice the work for it (Vampire Survivors
+  in play: 0.6-0.8 ms a frame against 0.3 with fsync) and the frame rate
+  uncapped is the same (153.4 against 153.2 fps, two runs each; the PC's
+  swing between runs is bigger than any difference). Not measured: Slay the
+  Spire 2 in a fight (Godot with .NET, the most threads), and a round trip
+  on the Atom. On the car, with 0.2.4: wineserver's share in the perf
+  lines. If it is a core's worth: esync ported onto the tree we already
+  rebuild ntdll from (wineserver rebuilt too), an older GE-Proton that
+  still has it, or a path in fsync for a kernel without `futex_waitv` (a
+  plain futex for a wait on one object).
+- [ ] **Real games on the bench, next (`native/vizualyse-steam/test/run_play.sh`:
+  the tool in the unit's root filesystem, its page on localhost, the stub
+  GPU or lavapipe; README "Off the car").** Terraria, Vampire Survivors and
+  Slay the Spire 2 are in its volume (`steam-play-varopt`, the owner's
+  sign-in). Left:
+  - **Slay the Spire 2 stops drawing on the stub** (Godot: `fence_wait`
+    fails, `QueuePresentKHR failed with error: 2`; DXVK doesn't mind the
+    stub's fences): make the stub's syncobj waits ones Godot takes, to time
+    its fights (on lavapipe they run at 1.5 fps).
+  - Terraria in play (its menu reaches the cap on DXVK and WineD3D alike,
+    so it didn't measure the bench against the car's 12 and 6 fps): a
+    character and a world need a keyboard, which wl-sink hasn't.
+  - **WineD3D keeps a core waiting at full speed:** Terraria's main thread
+    is at 100 % of a core on WineD3D (i965 and iris alike) at the 30 cap
+    and still at 100 % at 60 with twice the frames (wined3d's command
+    stream: the work is in `wined3d_cs`, 18-38 % of a PC core); on DXVK the
+    same thread takes 6-13 %. On the car that is one core of four for a
+    game off Vulkan. Try `WINE_D3D_CONFIG=csmt=0` (`PLAY_ENV`): one thread
+    doing both, no waiting; then on the car.
+  - **WineD3D on the stub: available memory falls about 40 MB a second at
+    56 fps** (half that at 28) and Wine exits (5) after 76 s; flat on DXVK.
+    The stub's (buffers never busy, never reused) or a real leak: the
+    car's `state/perf.log` tells (item 1 above).
+  - A game with Steam's API needs Run without Steam here as on the car
+    (no Steam client): Terraria says "Please launch the game from your
+    Steam client" without it. Turn it on by itself for such a game?
 - [ ] **Steam 0.2.1 on the car.** 0.2.0 on the car (2026-11-09): Vampire
   Survivors and Slay the Spire 2 run on ANV 22.3.7; Teslagrad launches (Vulkan,
   Run without Steam); Terraria on Wine Mono, 12 pictures/s on Vulkan against 6

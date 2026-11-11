@@ -176,7 +176,8 @@ On the car the programs check their read-back pixels (`T_D3D11_CHECK_PIXELS`
 |---|---|
 | `src/vk-trial.c` | the gate (static) |
 | `src/vkprobe.c` | the staged probe (glibc 2.27, the unit's loader) |
-| `src/vk_crumbs.c` | breadcrumbs and the display-node guard, preloaded into the child |
+| `src/vk_crumbs.c` | breadcrumbs and the display-node guard, preloaded into the child. `VK_TRIAL_CRUMB_MODE=watch` (the Steam tool's games, never the gate's trials: the gate takes a growing log as a trial's sign of life): only a process's first 400 lines are written as they happen, then a call is written, with the calls before it, when it hasn't come back in a second |
+| `test/crumbs_watch_test.sh`, `test/crumbs_watch.c`, `test/slowdrm.c` | the watch mode: a game's calls against a stand-in kernel that keeps one for 2.5 s; in its own small image (`test/crumbs/Dockerfile`), no Mesa |
 | `image/Dockerfile` | Ubuntu 18.04 (glibc 2.27): ANV from Mesa 19.0.6 (source from gpu-bench's image), the Khronos loader 1.1.70, strace; the shader through glslang (Debian) |
 | `test/kernel414.c` | bench only: answers like the unit's IOTG 4.14 kernel where the shim would say yes (no param after 49, no context param after 6, ioctl 0x39 flagged) |
 | `test/gate_test.sh`, `test/fake_probe.sh` | the gate's guarantees |

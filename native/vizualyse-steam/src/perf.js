@@ -8,14 +8,32 @@
  * ends. From wl-sink's stats lines (once a second while it shows pictures:
  * the game's frame times, from which fps, the 1 % and 0.1 % lows, the 99th
  * percentile and the worst frame time; FSR's GPU time) and the GPU's own
- * counters in i915's sysfs (read, never the device):
- * busy = the share of the window the GPU was out of RC6 (its idle state),
- * and its actual clock. The whole GPU (the HMI's drawing too), not FSR's.
- * With them, to cross-reference: the CPU (the unit's busy share from
- * /proc/stat; the game's own, its memory cgroup's processes, in % of one
- * core) and memory (the game's cgroup's use, max, peak and cap; the unit's
- * MemAvailable; swap in use), all from /proc and /sys, nothing on the
- * frame path.
+ * counters in i915's sysfs (read, never the device): the whole GPU (the
+ * HMI's drawing too), not FSR's.
+ *
+ * What says which limit a game is at (0.2.4; until then the lines had a
+ * "GPU busy" that read 100 % for any game and nothing about threads):
+ * - "GPU awake": the share of the window the GPU was out of RC6, its idle
+ *   state. It goes there only after tens of milliseconds with nothing to
+ *   do, so a frame every 50 ms keeps it awake all the time however little
+ *   each one is: 100 % here is not a GPU with no time left. Its clock says
+ *   more: the mean, the lowest and highest seen (each second), the clock
+ *   asked for and the limit; a GPU with work waiting is clocked up.
+ * - the CPU: the unit's busy share and its share waiting for the disk
+ *   (/proc/stat); the game's own (its memory cgroup's processes, in % of
+ *   one core), its busiest thread by name (a thread at 100 % is a limit a
+ *   total never shows), wineserver's part (this Wine has no esync: on the
+ *   unit's kernel every wait goes through it) and how many threads; and
+ *   the busiest processes that are not the game's (who has the other
+ *   cores).
+ * - memory: the game's cgroup's use, max, peak and cap; the unit's
+ *   MemAvailable; swap in use, and what moved in and out of it and the
+ *   major faults in the window (/proc/vmstat): a stall with pages coming
+ *   back from swap is memory's.
+ * - the summary's spread of frame times: frames bunched at twice or three
+ *   times the frame rate's time are pacing, a wide spread is load.
+ * All from /proc and /sys, at a window's ends or once a second; nothing on
+ * the frame path.
  *
  *   const p = new Perf({ log, label: 'Game', frame: { w, h }, mode: 'off' });
  *   p.sample(stats); p.mode('fsr'); p.end();
@@ -29,21 +47,31 @@ const SYSFS = process.env.STEAM_GPU_SYSFS || '/sys/class/drm/card0';
 const PROC = process.env.STEAM_PROC || '/proc';
 const WINDOW_MS = Number(process.env.STEAM_PERF_WINDOW_MS) || 10000;
 const HZ = 100;   /* USER_HZ: /proc's clock ticks (100 on Linux x86) */
+const PAGE_MB = 4096 / 1048576;
 
 function readNum(f) {
     try { const v = Number(fs.readFileSync(f, 'utf8').trim()); return isFinite(v) ? v : null; } catch (e) { return null; }
 }
 function readText(f) { try { return fs.readFileSync(f, 'utf8'); } catch (e) { return null; } }
 
-/* the GPU's counters now: RC6 residency (ms), the actual clock (MHz) */
+/* the GPU's counters now: RC6 residency (ms), the clock it runs at and the one asked for (MHz) */
 function gpuNow(now) {
-    return { at: now, rc6: readNum(path.join(SYSFS, 'power', 'rc6_residency_ms')), mhz: readNum(path.join(SYSFS, 'gt_act_freq_mhz')) };
+    return { at: now, rc6: readNum(path.join(SYSFS, 'power', 'rc6_residency_ms')), mhz: readNum(path.join(SYSFS, 'gt_act_freq_mhz')),
+        ask: readNum(path.join(SYSFS, 'gt_cur_freq_mhz')) };
 }
 
-/* The CPU now: the unit's ticks (busy, all) from /proc/stat, and each of
- * the game's processes' (utime + stime; its memory cgroup's cgroup.procs). */
+/* a /proc/<pid>/stat (or a thread's): its name and its CPU ticks so far */
+function procStat(s) {
+    const f = s.slice(s.lastIndexOf(')') + 2).split(' ');   /* after "pid (comm) ": state is f[0], utime f[11], stime f[12] */
+    return { name: s.slice(s.indexOf('(') + 1, s.lastIndexOf(')')), ticks: Number(f[11]) + Number(f[12]) };
+}
+
+/* The CPU now: the unit's ticks (busy, waiting for the disk, all) from
+ * /proc/stat; each of the game's processes (its memory cgroup's
+ * cgroup.procs) and of their threads; with a cgroup, every other process
+ * too; swap's and the major faults' counters (/proc/vmstat). */
 function cpuNow(cgroup) {
-    const out = { busy: null, total: null, procs: {} };
+    const out = { busy: null, total: null, iowait: null, procs: {}, threads: {}, others: {}, vm: null };
     const st = readText(path.join(PROC, 'stat'));
     const m = st && /^cpu\s+(.*)$/m.exec(st);
     if (m) {
@@ -51,15 +79,33 @@ function cpuNow(cgroup) {
         const idle = (v[3] || 0) + (v[4] || 0);
         out.total = v.slice(0, 8).reduce((s, x) => s + (x || 0), 0);
         out.busy = out.total - idle;
+        out.iowait = v[4] || 0;
     }
     const procs = cgroup && readText(path.join(cgroup, 'cgroup.procs'));
     if (procs) {
         procs.split('\n').filter(Boolean).forEach((pid) => {
             const s = readText(path.join(PROC, pid, 'stat'));
             if (!s) return;
-            const f = s.slice(s.lastIndexOf(')') + 2).split(' ');   /* after "pid (comm) ": state is f[0], utime f[11], stime f[12] */
-            out.procs[pid] = Number(f[11]) + Number(f[12]);
+            out.procs[pid] = procStat(s);
+            let tids = [];
+            try { tids = fs.readdirSync(path.join(PROC, pid, 'task')); } catch (e) { /* gone, or no threads to read */ }
+            tids.forEach((tid) => {
+                const t = readText(path.join(PROC, pid, 'task', tid, 'stat'));
+                if (t) out.threads[tid] = procStat(t);
+            });
         });
+        let all = [];
+        try { all = fs.readdirSync(PROC); } catch (e) { /* none */ }
+        all.forEach((pid) => {
+            if (!/^\d+$/.test(pid) || out.procs[pid]) return;
+            const s = readText(path.join(PROC, pid, 'stat'));
+            if (s) out.others[pid] = procStat(s);
+        });
+    }
+    const vm = readText(path.join(PROC, 'vmstat'));
+    if (vm) {
+        const n = (k) => { const r = new RegExp('^' + k + ' (\\d+)', 'm').exec(vm); return r ? Number(r[1]) : 0; };
+        out.vm = { swapIn: n('pswpin'), swapOut: n('pswpout'), majflt: n('pgmajfault') };
     }
     return out;
 }
@@ -88,27 +134,64 @@ function memNow(cgroup) {
 const MAX_FT = 216000;
 
 function emptyAcc() {
-    return { s: 0, pictures: 0, sinkMsW: 0, fsrPictures: 0, fsrMsW: 0, fsrN: 0, fsrMax: 0, skipped: 0, busyMs: 0, busySpan: 0, mhzSum: 0, mhzN: 0, ft: [],
-        cpuBusy: 0, cpuTotal: 0, gameTicks: 0, wallMs: 0, memN: 0, gameN: 0, gameSum: 0, gameMax: 0, peak: 0, cap: 0, availSum: 0, availMin: Infinity, swapSum: 0, swapMax: 0,
+    return { s: 0, pictures: 0, sinkMsW: 0, fsrPictures: 0, fsrMsW: 0, fsrN: 0, fsrMax: 0, skipped: 0, busyMs: 0, busySpan: 0,
+        mhzSum: 0, mhzN: 0, mhzMin: Infinity, mhzMax: 0, askSum: 0, askN: 0, limit: 0, ft: [],
+        cpuBusy: 0, cpuIowait: 0, cpuTotal: 0, gameTicks: 0, wsTicks: 0, wallMs: 0, topPct: 0, topName: '', threads: 0, oth: {},
+        memN: 0, gameN: 0, gameSum: 0, gameMax: 0, peak: 0, cap: 0, availSum: 0, availMin: Infinity, swapSum: 0, swapMax: 0,
+        swapIn: 0, swapOut: 0, majflt: 0,
         why: '' };   /* FSR on but not drawing: wl-sink's last reason (fsrWhy) */
 }
 
-const MAXED = { fsrMax: 1, gameMax: 1, peak: 1, cap: 1, swapMax: 1 };
+const MAXED = { fsrMax: 1, gameMax: 1, peak: 1, cap: 1, swapMax: 1, mhzMax: 1, limit: 1, threads: 1 };
 function add(a, b) {
     Object.keys(b).forEach((k) => {
-        if (k === 'fs') return;   /* a window's own frame statistics: the total's are its own */
+        if (k === 'fs' || k === 'topName') return;   /* a window's own frame statistics: the total's are its own; the name goes with topPct */
         if (k === 'ft') { if (a.ft.length < MAX_FT) a.ft = a.ft.concat(b.ft.slice(0, MAX_FT - a.ft.length)); }
-        else if (k === 'availMin') a[k] = Math.min(a[k], b[k]);
+        else if (k === 'availMin' || k === 'mhzMin') a[k] = Math.min(a[k], b[k]);
         else if (k === 'why') a[k] = b[k] || a[k];
+        else if (k === 'topPct') { if (b.topPct > a.topPct) { a.topPct = b.topPct; a.topName = b.topName; } }   /* the busiest thread of any window */
+        else if (k === 'oth') Object.keys(b.oth).forEach((n) => { a.oth[n] = (a.oth[n] || 0) + b.oth[n]; });
         else a[k] = MAXED[k] ? Math.max(a[k], b[k]) : a[k] + b[k];
     });
+}
+
+/* ticks over the wall time, in % of one core */
+function cores(ticks, wallMs) { return 100 * (ticks / HZ) / (wallMs / 1000); }
+
+/* the GPU's part of a line: awake (out of RC6), its clock */
+function fmtGpu(a) {
+    let t = '';
+    if (a.busySpan) t += ', GPU awake ' + Math.round(100 * a.busyMs / a.busySpan) + ' %';
+    if (a.mhzN) {
+        t += ' at ' + Math.round(a.mhzSum / a.mhzN) + ' MHz';
+        const more = [];
+        if (a.mhzMin !== Infinity && a.mhzMin !== a.mhzMax) more.push(Math.round(a.mhzMin) + '-' + Math.round(a.mhzMax));
+        if (a.askN) more.push('asked ' + Math.round(a.askSum / a.askN));
+        if (a.limit) more.push('limit ' + Math.round(a.limit));
+        if (more.length) t += ' (' + more.join(', ') + ')';
+    }
+    return t;
 }
 
 /* the CPU and memory parts of a line */
 function fmtSys(a) {
     const t = [];
-    if (a.cpuTotal) t.push('CPU ' + Math.round(100 * a.cpuBusy / a.cpuTotal) + ' %');
-    if (a.wallMs) t.push('the game ' + Math.round(100 * (a.gameTicks / HZ) / (a.wallMs / 1000)) + ' % of a core');
+    if (a.cpuTotal) {
+        const io = Math.round(100 * a.cpuIowait / a.cpuTotal);
+        t.push('CPU ' + Math.round(100 * a.cpuBusy / a.cpuTotal) + ' %' + (io >= 1 ? ' (and ' + io + ' % waiting for the disk)' : ''));
+    }
+    if (a.wallMs) {
+        const more = [];
+        if (a.topPct >= 1) more.push('busiest thread ' + a.topName + ' ' + Math.round(a.topPct) + ' %');
+        const ws = cores(a.wsTicks, a.wallMs);
+        if (ws >= 1) more.push('wineserver ' + Math.round(ws) + ' %');
+        if (a.threads) more.push(a.threads + ' threads');
+        t.push('the game ' + Math.round(cores(a.gameTicks, a.wallMs)) + ' % of a core' + (more.length ? ' (' + more.join(', ') + ')' : ''));
+        /* who has the other cores: the busiest processes that are not the game's, from 2 % of a core */
+        const oth = Object.keys(a.oth).map((n) => ({ n: n, pct: cores(a.oth[n], a.wallMs) })).filter((x) => x.pct >= 2)
+            .sort((x, y) => y.pct - x.pct).slice(0, 3);
+        if (oth.length) t.push('others: ' + oth.map((x) => x.n + ' ' + Math.round(x.pct) + ' %').join(', '));
+    }
     if (a.memN) {
         const m = [];
         /* the game's part only when its cgroup was read (none on the bench) */
@@ -116,6 +199,8 @@ function fmtSys(a) {
             (a.peak ? ', peak ' + Math.round(a.peak) : '') + (a.cap ? ' of ' + Math.round(a.cap) : '') + ')');
         if (a.availMin !== Infinity) m.push('available ' + Math.round(a.availSum / a.memN) + ' MB (min ' + Math.round(a.availMin) + ')');
         m.push('swap ' + Math.round(a.swapSum / a.memN) + ' MB (max ' + Math.round(a.swapMax) + ')');
+        if (a.swapIn || a.swapOut) m.push(Math.round(a.swapIn * PAGE_MB) + ' MB swapped in, ' + Math.round(a.swapOut * PAGE_MB) + ' MB out');
+        if (a.majflt) m.push(a.majflt + ' major faults');
         t.push('memory: ' + m.join(', '));
     }
     return t.length ? ', ' + t.join(', ') : '';
@@ -137,6 +222,19 @@ function frameStats(ft) {
         p99: sorted[Math.min(sorted.length - 1, Math.floor(ft.length * 0.01))], worst: sorted[0] };
 }
 
+/* How the frame times spread (the summary): the share of frames up to each
+ * time, those with any. The times are a 30 a second frame (with the few ms
+ * a tick can be late) and a half, two, three and six of them. */
+const SPREAD = [36, 50, 67, 100, 200];
+function spread(ft) {
+    if (!ft.length) return '';
+    const n = SPREAD.map(() => 0).concat([0]);
+    ft.forEach((x) => { let i = 0; while (i < SPREAD.length && x > SPREAD[i]) i++; n[i]++; });
+    /* whole per cents, a tenth at the ends: 99.7 % and 0.3 %, not 100 % and 0 % */
+    const pct = (c) => { const p = 100 * c / ft.length; return (p >= 10 && p <= 99 ? Math.round(p) : Math.round(p * 10) / 10) + ' %'; };
+    return n.map((c, i) => (c ? pct(c) + (i < SPREAD.length ? ' to ' + SPREAD[i] + ' ms' : ' longer') : null)).filter(Boolean).join(', ');
+}
+
 /* A window as numbers, for the phone page's graphs (server.js /api/perf):
  * the same figures as its "perf:" line, null where not measured. */
 function point(a, mode, at) {
@@ -150,19 +248,21 @@ function point(a, mode, at) {
         gpuBusy: a.busySpan ? Math.round(100 * a.busyMs / a.busySpan) : null,
         gpuMhz: a.mhzN ? Math.round(a.mhzSum / a.mhzN) : null,
         cpu: a.cpuTotal ? Math.round(100 * a.cpuBusy / a.cpuTotal) : null,
-        gameCpu: a.wallMs ? Math.round(100 * (a.gameTicks / HZ) / (a.wallMs / 1000)) : null,
+        gameCpu: a.wallMs ? Math.round(cores(a.gameTicks, a.wallMs)) : null,
         gameMb: a.gameN ? Math.round(a.gameSum / a.gameN) : null,
         availMb: a.memN && a.availMin !== Infinity ? Math.round(a.availSum / a.memN) : null,
         swapMb: a.memN ? Math.round(a.swapSum / a.memN) : null,
     };
 }
 
-function fmt(a, mode, frame) {
+/* a line; whole: with the spread of its frame times (the summary) */
+function fmt(a, mode, frame, whole) {
     const r = (x, d) => (a.s ? x / a.s : 0).toFixed(d === undefined ? 1 : d);
     const f = a.fs !== undefined ? a.fs : frameStats(a.ft);
     let t = mode + ' at ' + frame.w + 'x' + frame.h + (frame.detail && frame.detail !== 'normal' ? ' ' + frame.detail : '') + ': ' +
         (f ? f.fps.toFixed(1) + ' fps, 1% low ' + f.low1.toFixed(1) + ', 0.1% low ' + f.low01.toFixed(1) +
-            ', frame time p99 ' + f.p99.toFixed(1) + ' ms, worst ' + f.worst.toFixed(1) + ' ms (' + f.frames + ' frames); ' : '') +
+            ', frame time p99 ' + f.p99.toFixed(1) + ' ms, worst ' + f.worst.toFixed(1) + ' ms (' + f.frames + ' frames' +
+            (whole ? ': ' + spread(a.ft) : '') + '); ' : '') +
         r(a.pictures) + ' pictures/s, wl-sink ' +
         (a.pictures ? (a.sinkMsW / a.pictures).toFixed(1) : '-') + ' ms a picture';
     if (a.fsrPictures) {
@@ -170,9 +270,7 @@ function fmt(a, mode, frame) {
             ', ' + a.fsrN + ' measured)' : ' (no GPU timer)') + ', ' + a.skipped + ' skipped';
     }
     if (a.why && a.fsrPictures < a.pictures) t += ', FSR not used: ' + a.why;
-    if (a.busySpan) t += ', GPU busy ' + Math.round(100 * a.busyMs / a.busySpan) + ' %';
-    if (a.mhzN) t += ' at ' + Math.round(a.mhzSum / a.mhzN) + ' MHz';
-    return t + fmtSys(a) + ' (' + a.s + ' s)';
+    return t + fmtGpu(a) + fmtSys(a) + ' (' + a.s + ' s)';
 }
 
 class Perf {
@@ -187,16 +285,21 @@ class Perf {
         this._open();
     }
 
-    _open() {
+    /* a new window; cpu: the counters just read (the window before's end) */
+    _open(cpu) {
         this.acc = emptyAcc();
         this.started = this.now();
         this.gpu = gpuNow(this.started);
-        this.cpu = cpuNow(this.o.cgroup);
+        this.cpu = cpu || cpuNow(this.o.cgroup);
+        this.acc.limit = readNum(path.join(SYSFS, 'gt_max_freq_mhz')) || 0;
     }
 
-    /* memory once a second (with the stats); cheap reads of two small files */
-    _mem() {
+    /* memory and the GPU's clock once a second (with the stats); cheap reads of a few small files */
+    _second() {
         const m = memNow(this.o.cgroup), a = this.acc;
+        const mhz = readNum(path.join(SYSFS, 'gt_act_freq_mhz')), ask = readNum(path.join(SYSFS, 'gt_cur_freq_mhz'));
+        if (mhz !== null) { a.mhzSum += mhz; a.mhzN++; a.mhzMin = Math.min(a.mhzMin, mhz); a.mhzMax = Math.max(a.mhzMax, mhz); }
+        if (ask !== null) { a.askSum += ask; a.askN++; }
         if (m.game === null && m.avail === null) return;
         a.memN++;
         if (m.game !== null) { a.gameN++; a.gameSum += m.game; a.gameMax = Math.max(a.gameMax, m.game); }
@@ -222,27 +325,46 @@ class Perf {
             if (this.lastSkipped !== null) a.skipped += Math.max(0, e.fsrSkipped - this.lastSkipped);
             this.lastSkipped = e.fsrSkipped;
         }
-        this._mem();
+        this._second();
         if (this.now() - this.started >= WINDOW_MS) this.flush();
     }
 
     /* the window so far into the journal and the mode's total; a new window */
     flush() {
-        const a = this.acc, now = this.now(), g = gpuNow(now);
+        const a = this.acc, now = this.now(), g = gpuNow(now), was = this.cpu;
         if (this.gpu.rc6 !== null && g.rc6 !== null && now > this.gpu.at) {
             const span = now - this.gpu.at, idle = Math.min(span, Math.max(0, g.rc6 - this.gpu.rc6));
             a.busyMs += span - idle; a.busySpan += span;
         }
-        if (g.mhz !== null) { a.mhzSum += g.mhz; a.mhzN++; }
         const c = cpuNow(this.o.cgroup);
-        if (c.total !== null && this.cpu.total !== null && c.total > this.cpu.total) {
-            a.cpuBusy += c.busy - this.cpu.busy; a.cpuTotal += c.total - this.cpu.total;
+        if (c.total !== null && was.total !== null && c.total > was.total) {
+            a.cpuBusy += c.busy - was.busy; a.cpuTotal += c.total - was.total;
+            a.cpuIowait += Math.max(0, c.iowait - was.iowait);
         }
-        const pids = Object.keys(c.procs);
-        if (pids.length && now > this.started) {
-            /* a process started in the window counts whole; one that ended is lost */
-            a.gameTicks += pids.reduce((s, p) => s + Math.max(0, c.procs[p] - (this.cpu.procs[p] || 0)), 0);
-            a.wallMs += now - this.started;
+        const pids = Object.keys(c.procs), wall = now - this.started;
+        if (pids.length && wall > 0) {
+            /* a process (a thread) started in the window counts whole; one that ended is lost */
+            const d = (now_, before, id) => Math.max(0, now_[id].ticks - (before[id] ? before[id].ticks : 0));
+            pids.forEach((p) => {
+                const t = d(c.procs, was.procs, p);
+                a.gameTicks += t;
+                if (c.procs[p].name === 'wineserver') a.wsTicks += t;
+            });
+            a.wallMs += wall;
+            const tids = Object.keys(c.threads);
+            a.threads = tids.length;
+            tids.forEach((tid) => {
+                const pct = cores(d(c.threads, was.threads, tid), wall);
+                if (pct > a.topPct) { a.topPct = pct; a.topName = c.threads[tid].name; }
+            });
+            Object.keys(c.others).forEach((p) => {
+                const t = d(c.others, was.others, p);
+                if (t) a.oth[c.others[p].name] = (a.oth[c.others[p].name] || 0) + t;
+            });
+        }
+        if (c.vm && was.vm) {
+            a.swapIn += Math.max(0, c.vm.swapIn - was.vm.swapIn); a.swapOut += Math.max(0, c.vm.swapOut - was.vm.swapOut);
+            a.majflt += Math.max(0, c.vm.majflt - was.vm.majflt);
         }
         if (a.s) {
             a.fs = frameStats(a.ft);   /* once, for the line and the numbers */
@@ -251,7 +373,7 @@ class Perf {
             if (!this.totals[this.m]) { this.totals[this.m] = emptyAcc(); this.order.push(this.m); }
             add(this.totals[this.m], a);
         }
-        this._open();
+        this._open(c);
     }
 
     /* a change of mode: what ran so far closes under the old one */
@@ -267,7 +389,7 @@ class Perf {
         this.flush();
         if (!this.order.length) return;
         this.o.log('perf: summary for ' + (this.o.label || 'the game') + ': ' +
-            this.order.map((m) => fmt(this.totals[m], m, this.o.frame)).join('; '));
+            this.order.map((m) => fmt(this.totals[m], m, this.o.frame, true)).join('; '));
     }
 }
 
@@ -286,4 +408,4 @@ function keepLine(file, line, maxBytes) {
     } catch (e) { /* the journal has it */ }
 }
 
-module.exports = { Perf, fmt, point, frameStats, keepLine };
+module.exports = { Perf, fmt, point, frameStats, spread, keepLine };

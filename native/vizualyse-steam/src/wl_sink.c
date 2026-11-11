@@ -1561,6 +1561,25 @@ static int fps = 60;
 static long last_stats;
 static struct wl_event_source *tick_timer;
 
+/* The next tick, at fixed times: 1 / fps apart, whatever a tick itself
+ * took. Set a period after the last one ended (33 ms at 30 a second), a
+ * game that waits for its frame callback ran at 1000 / (33 + the time of a
+ * picture): 28.2 a second for 30 on the bench, 55.8 for 60, and 17 to 22
+ * where the pictures were put together on the CPU (2026-11-11). The timer
+ * counts whole milliseconds, so each tick is asked for the one after its
+ * time: late by under one, never adding up. One more than a period late
+ * starts again from now. */
+static long long next_tick_ns;
+static void tick_arm(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    long long now = ts.tv_sec * 1000000000LL + ts.tv_nsec, period = 1000000000LL / fps;
+    if (!next_tick_ns || now - next_tick_ns > period) next_tick_ns = now;
+    next_tick_ns += period;
+    long long ms = (next_tick_ns - now + 999999) / 1000000;
+    wl_event_source_timer_update(tick_timer, ms < 1 ? 1 : (int)ms);
+}
+
 static int tick(void *data) {
     (void)data;
     if (dirty) { compose(); dirty = 0; }
@@ -1622,7 +1641,7 @@ static int tick(void *data) {
         }
         stat_pictures = n_pictures; n_ms_total = 0; last_stats = now;
     }
-    wl_event_source_timer_update(tick_timer, 1000 / fps);
+    tick_arm();
     return 0;
 }
 
@@ -1766,7 +1785,7 @@ int main(int argc, char **argv) {
            gl.es3 ? "true" : "false", fsr ? "true" : "false");
     fflush(stdout);
     last_stats = now_ms();
-    wl_event_source_timer_update(tick_timer, 1000 / fps);
+    tick_arm();
     wl_display_run(display);
     wl_display_destroy_clients(display);
     wl_display_destroy(display);

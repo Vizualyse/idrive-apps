@@ -60,13 +60,14 @@ for (let i = 0; i < 10; i++) {
 assert.strictEqual(lines.length, 1, 'a line at 10 s');
 assert(/^perf: off at 896x320: 30\.0 fps, 1% low 30\.0/.test(lines[0]), lines[0]);
 assert(/30\.0 pictures\/s, wl-sink 1\.5 ms a picture/.test(lines[0]), lines[0]);
-assert(/GPU busy 60 % at 650 MHz, CPU 80 %, the game 150 % of a core, memory: the game 1830 MB \(max 1830, peak 1900 of 2560\), available 1200 MB \(min 1200\), swap 300 MB \(max 300\) \(10 s\)$/.test(lines[0]), lines[0]);
+/* the clock read each second: nine at 300 MHz and the last at 650 */
+assert(/GPU awake 60 % at 335 MHz \(300-650\), CPU 80 %, the game 150 % of a core, memory: the game 1830 MB \(max 1830, peak 1900 of 2560\), available 1200 MB \(min 1200\), swap 300 MB \(max 300\) \(10 s\)$/.test(lines[0]), lines[0]);
 assert(!/FSR/.test(lines[0]), 'no FSR part while off');
 console.log('ok   a window: ' + lines[0]);
 /* the same window as numbers, for the phone page's graphs */
 assert.strictEqual(points.length, 1);
 assert.deepStrictEqual(points[0], { t: 10000, mode: 'off', s: 10, fps: 30, low1: 30, worstMs: 33.3, pictures: 30, sinkMs: 1.5, fsrMs: null,
-    gpuBusy: 60, gpuMhz: 650, cpu: 80, gameCpu: 150, gameMb: 1830, availMb: 1200, swapMb: 300 });
+    gpuBusy: 60, gpuMhz: 335, cpu: 80, gameCpu: 150, gameMb: 1830, availMb: 1200, swapMb: 300 });
 console.log('ok   and as numbers: ' + JSON.stringify(points[0]));
 
 /* FSR on mid-window: the part so far closes under "off", then FSR's window */
@@ -100,6 +101,53 @@ p.end();
 const sum = lines[lines.length - 1];
 assert(/^perf: summary for Game: off at 896x320: 30\.0 fps.*\(11 s\); fsr at 896x320: .*\(20 s\)$/.test(sum), sum);
 console.log('ok   the summary per mode: ' + sum);
+/* off: 330 frames of 33.3 ms; fsr: 270 of 33.3 ms, 10 of 60 and the 180 of 55 ms it didn't draw for */
+assert(/\(330 frames: 100 % to 36 ms\)/.test(sum) && /\(460 frames: 59 % to 36 ms, 41 % to 67 ms\)/.test(sum), sum);
+console.log('ok   with the spread of its frame times');
+
+/* What names the limit: the GPU's clock against the one asked for and the
+ * limit; the unit's wait for the disk; the game's busiest thread,
+ * wineserver's part, its threads; the busiest processes that are not the
+ * game's; what moved in and out of swap, the major faults. */
+{
+    const stat = (name, ticks) => '1 (' + name + ') S 1 2 3 4 5 6 7 8 9 10 ' + ticks + ' 0 0 0\n';
+    const proc_ = (pid, name, ticks) => {
+        try { fs.mkdirSync(path.join(proc, String(pid))); } catch (e) { /* there */ }
+        fs.writeFileSync(path.join(proc, String(pid), 'stat'), stat(name, ticks));
+    };
+    const thread = (pid, tid, name, ticks) => {
+        [path.join(proc, String(pid), 'task'), path.join(proc, String(pid), 'task', String(tid))].forEach((d) => { try { fs.mkdirSync(d); } catch (e) { /* there */ } });
+        fs.writeFileSync(path.join(proc, String(pid), 'task', String(tid), 'stat'), stat(name, ticks));
+    };
+    const cpu = (busy, iowait, total) => fs.writeFileSync(path.join(proc, 'stat'), 'cpu  ' + [busy, 0, 0, total - busy - iowait, iowait, 0, 0, 0, 0, 0].join(' ') + '\n');
+    const vm = (i, o, f) => fs.writeFileSync(path.join(proc, 'vmstat'), 'nr_free_pages 5\npswpin ' + i + '\npswpout ' + o + '\npgmajfault ' + f + '\n');
+    const all = (game, gfx, job, ws, hmi, kswapd, small) => {
+        proc_(42, 'Game.exe', game + gfx + job); thread(42, 42, 'Game.exe', game); thread(42, 50, 'UnityGfxDeviceW', gfx); thread(42, 51, 'Job.Worker 1', job);
+        proc_(43, 'wineserver', ws); thread(43, 43, 'wineserver', ws);
+        proc_(7, 'HmiMain3D', hmi); proc_(8, 'kswapd0', kswapd); proc_(9, 'small', small);
+    };
+    fs.writeFileSync(path.join(cg, 'cgroup.procs'), '42\n43\n');
+    fs.writeFileSync(path.join(sys, 'gt_cur_freq_mhz'), '750\n');
+    fs.writeFileSync(path.join(sys, 'gt_max_freq_mhz'), '750\n');
+    setGpu(20000, 450); cpu(1000, 100, 5000); vm(1000, 2000, 10); all(500, 500, 500, 500, 500, 500, 500);
+    const out = [];
+    const r = new Perf({ log: (s) => out.push(s), label: 'Game', frame: { w: 960, h: 540 }, mode: 'off', cgroup: cg, now: () => now });
+    for (let i = 0; i < 10; i++) {
+        now += 1000;
+        /* in the 10 s: the GPU never in RC6, the CPU 800 of 1000 ticks busy and 50 waiting for the disk, the game 14 s of
+         * CPU (its graphics thread 9.5 s, wineserver 1 s), the HMI 1.8 s, kswapd 1.2 s; 10 MB in from swap, 20 MB out */
+        if (i === 9) { setGpu(20000, 450); cpu(1800, 150, 6000); vm(1000 + 2560, 2000 + 5120, 360); all(800, 1450, 550, 600, 680, 620, 505); }
+        r.sample({ pictures: 30, ms: 0.6, fsrOn: 0, ft: i === 9 ? Array(29).fill(33.3).concat([120]) : Array(30).fill(33.3) });
+    }
+    const l = out[0];
+    assert(/GPU awake 100 % at 450 MHz \(asked 750, limit 750\), CPU 80 % \(and 5 % waiting for the disk\)/.test(l), l);
+    assert(/the game 140 % of a core \(busiest thread UnityGfxDeviceW 95 %, wineserver 10 %, 4 threads\), others: HmiMain3D 18 %, kswapd0 12 %, memory: /.test(l), l);
+    assert(/swap 300 MB \(max 300\), 10 MB swapped in, 20 MB out, 350 major faults \(10 s\)$/.test(l), l);
+    console.log('ok   what names the limit: ' + l.replace(/^.*a picture, /, ''));
+    r.end();
+    assert(/\(300 frames: 99\.7 % to 36 ms, 0\.3 % to 200 ms\)/.test(out[out.length - 1]) && /busiest thread UnityGfxDeviceW 95 %/.test(out[out.length - 1]), out[out.length - 1]);
+    console.log('ok   and in the summary, with the frame times\' spread');
+}
 
 /* nothing to read (the bench without i915, no cgroup, no /proc): those parts left out, nothing breaks */
 const rmTree = (d) => { fs.readdirSync(d).forEach((n) => { const f = path.join(d, n); if (fs.statSync(f).isDirectory()) rmTree(f); else fs.unlinkSync(f); }); fs.rmdirSync(d); };
@@ -107,7 +155,7 @@ rmTree(sys);   /* Node 8: no rmSync */
 lines.length = 0;
 const q = new Perf({ log: (s) => lines.push(s), label: 'Game', frame: { w: 960, h: 540 }, mode: 'off', cgroup: cg, now: () => now });
 for (let i = 0; i < 10; i++) { now += 1000; q.sample({ pictures: 30, ms: 1, ft: [33.3] }); }
-assert(lines.length === 1 && !/GPU busy|CPU|memory/.test(lines[0]), lines[0]);
+assert(lines.length === 1 && !/GPU awake|CPU|memory/.test(lines[0]), lines[0]);
 console.log('ok   without i915\'s sysfs, /proc or the cgroup: those parts left out');
 
 /* the perf lines kept in the tool's own file: dated, rotated at the size given, one old file kept */

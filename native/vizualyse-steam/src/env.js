@@ -70,8 +70,9 @@ const UNIT_GL = ['libEGL.so.1', 'libgbm.so.1', 'libglapi.so.0', 'libGLESv2.so.2'
  * (tools/vulkan.sh, unpacked into VULKAN; runtime.tgz still carries no GPU
  * driver: bundle.sh checks). STEAM_VK_TRIAL: tools/vk-trial's install
  * instead (its layout). Its ICD exists only in RUN_DIR (tmpfs) while such a
- * game runs; every DRM call of the game is logged to VK.crumbsLog so a hang
- * leaves a trace. knowledge/browser.md, "Vulkan on this kernel". */
+ * game runs; the game's DRM calls are watched (vk_crumbs.so, wineEnv below)
+ * so a hang leaves a trace in VK.crumbsLog. knowledge/browser.md, "Vulkan
+ * on this kernel". */
 const VULKAN = ROOT + '/vulkan';
 const VK_BASE = process.env.STEAM_VK_TRIAL || VULKAN;
 const VK = {
@@ -112,7 +113,13 @@ function irisLabel() {
 /* DXVK's options for every game on Vulkan (VK.conf while one runs; DXVK
  * names, all seen in 1.9.4's and 2.6.2's DLLs):
  * - the frame rate the tool shows (fps): no frame drawn that would be thrown
- *   away, its time left to the HMI and the passively cooled unit;
+ *   away, its time left to the HMI and the passively cooled unit. By vsync,
+ *   on whatever the game asks: each frame waits for wl-sink's frame
+ *   callback, which comes at that rate. Not by DXVK's own limiter: it waits
+ *   the end of each frame out at full speed, and its dxvk-queue thread took
+ *   a quarter of a core for one triangle, 18 % in Vampire Survivors (the
+ *   bench, 2026-11-11). The limiter stays only as a stop at twice the rate,
+ *   where it has nothing to wait for unless the callbacks fail;
  * - one frame queued ahead, not three: less memory, less input lag;
  * - two shader compilers, not one per core: the game's threads and the HMI
  *   keep two of the four Atom cores while pipelines compile;
@@ -157,7 +164,8 @@ const DETAIL_WINED3D = {
 function dxvkConf(fps, detail) {
     const mem = detail === 'potato' ? 512 : ADAPTER.memMb;
     return [
-        'dxgi.maxFrameRate = ' + fps, 'd3d9.maxFrameRate = ' + fps,
+        'dxgi.syncInterval = 1', 'd3d9.presentInterval = 1',
+        'dxgi.maxFrameRate = ' + 2 * fps, 'd3d9.maxFrameRate = ' + 2 * fps,
         'dxgi.maxFrameLatency = 1', 'd3d9.maxFrameLatency = 1',
         'dxvk.numCompilerThreads = 2',
         'd3d11.samplerAnisotropy = 0', 'd3d9.samplerAnisotropy = 0',
@@ -294,6 +302,14 @@ function wineEnv(launch, appId, display, vulkan, detail, iris, engine) {
         /* read by DXVK through Windows' file calls: the prefix's Z: is / */
         e.DXVK_CONFIG_FILE = 'Z:' + VK.conf.split('/').join('\\');
         e.VK_TRIAL_CRUMB_FD = '3';
+        /* vk_crumbs.so's watch mode: each process's first DRM calls (the driver
+         * starting) written as they happen, the rest kept in memory and
+         * written only when one doesn't come back within a second. Every call
+         * written, as up to 0.2.3 (the log is O_DSYNC, 16 writes a frame at
+         * the least), held a game with nothing to draw to 20 frames a second
+         * and made Slay the Spire 2 load four times as long (the bench,
+         * 2026-11-11: knowledge/games.md). */
+        e.VK_TRIAL_CRUMB_MODE = 'watch';
     }
     /* OpenGL (WineD3D, a native GL game): Proton's Wine asks Mesa for swap
      * interval 0 ("HACK: Using swap interval 0"), so nothing holds it back and

@@ -40,11 +40,25 @@ console.log('ok   launch options per engine and Detail');
 const conf = (d) => env.dxvkConf(30, d).trim().split('\n');
 assert(!conf('normal').some((l) => /disableMsaa|maxFeatureLevel|maxTessFactor/.test(l)), 'normal adds nothing');
 assert(conf('normal').indexOf('dxgi.maxDeviceMemory = 1024') >= 0);
+/* vsync on whatever the game asks: wl-sink's frame callback paces it, not DXVK's limiter waiting at full speed
+ * (which stays as a stop at twice the rate) */
+assert(conf('normal').indexOf('dxgi.syncInterval = 1') >= 0 && conf('normal').indexOf('d3d9.presentInterval = 1') >= 0);
+assert(conf('normal').indexOf('dxgi.maxFrameRate = 60') >= 0 && conf('normal').indexOf('d3d9.maxFrameRate = 60') >= 0);
 assert(conf('lite').indexOf('d3d11.disableMsaa = True') >= 0 && conf('lite').indexOf('d3d11.maxTessFactor = 8') >= 0);
 assert(conf('potato').indexOf('d3d11.maxFeatureLevel = 10_1') >= 0 && conf('potato').indexOf('dxgi.maxDeviceMemory = 512') >= 0);
 assert(conf('potato').indexOf('d3d9.maxAvailableMemory = 512') >= 0);
 conf('potato').forEach((l) => assert(/^[a-z0-9]+\.[A-Za-z]+ = \S/.test(l), 'a dxvk.conf line: ' + l));
 console.log('ok   dxvk.conf per Detail');
+
+/* a Vulkan game's DRM calls: vk_crumbs.so's watch mode (written only when one doesn't come back), on fd 3 */
+{
+    const v = env.wineEnv({ env: {}, argv: [] }, 1, 'wayland-x', true, 'normal');
+    assert.strictEqual(v.VK_TRIAL_CRUMB_MODE, 'watch');
+    assert.strictEqual(v.VK_TRIAL_CRUMB_FD, '3');
+    assert(v.LD_PRELOAD.indexOf('vk_crumbs.so') >= 0);
+    assert.strictEqual(env.wineEnv({ env: {}, argv: [] }, 1, 'wayland-x', false, 'normal').VK_TRIAL_CRUMB_MODE, undefined);
+    console.log('ok   a Vulkan game\'s crumbs: the watch mode');
+}
 
 const w = (d) => env.wineEnv({ env: {}, argv: [] }, 1, 'wayland-x', false, d).WINE_D3D_CONFIG;
 assert.strictEqual(w('normal'), undefined);

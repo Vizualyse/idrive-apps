@@ -30,6 +30,7 @@ const EventEmitter = require('events');
 const env = require('./env.js');
 const screen = require('./screen.js');
 const { Perf, keepLine } = require('./perf.js');
+const { WineLog } = require('./wine_log.js');
 const { CARPLAY } = require('./speakers.js');
 /* the perf lines kept beside the journal's (perf.keepLine) */
 const PERF_FILE = path.join(env.STATE_DIR, 'perf.log');
@@ -154,6 +155,7 @@ class Game extends EventEmitter {
                     if (!this.perf) this.perf = new Perf({ log: (s) => { this._log(s); keepLine(PERF_FILE, s); },
                         point: (p) => { this.points.push(p); if (this.points.length > 360) this.points.shift(); }, label: o.name, frame: Object.assign({}, o.frame, { detail: o.detail }), mode: o.upscale || 'off', cgroup: o.cgroup });
                     this.perf.sample(e);
+                    if (this.wineLog) this.wineLog.report();   /* counts of repeated Wine lines, when due */
                     if (this.state === 'starting' && (e.drm || e.shm)) this._set('running');
                     this.emit('stats', this.stats);
                 } else if (e.ev === 'toplevel') {
@@ -176,8 +178,14 @@ class Game extends EventEmitter {
                     /* Wine keeps the pointer on the screen it was given (wl-sink's output):
                      * a window that needs more can't be reached past it. Once a game: the
                      * server stores the size and restarts it with that screen (calibrating
-                     * the pointer); wl-sink can't grow it under a running game. */
-                    if (e.k < 1 && e.need && e.output && (e.need[0] > e.output[0] || e.need[1] > e.output[1]) && !this.calibrateAsked) {
+                     * the pointer); wl-sink can't grow it under a running game.
+                     * Not for a window only its frame bigger than the screen: a maximised
+                     * window is, whatever the screen (Slay the Spire 2 on a new prefix: the
+                     * screen + 12 each way), so each restart asked for the next, 12 bigger,
+                     * without end (the bench, 2026-11-11); the pointer still reaches all
+                     * of it but that border. */
+                    const FRAME = 32;
+                    if (e.k < 1 && e.need && e.output && (e.need[0] > e.output[0] + FRAME || e.need[1] > e.output[1] + FRAME) && !this.calibrateAsked) {
                         this.calibrateAsked = true;
                         this._log('pointer: the window needs a ' + e.need.join('x') + ' screen, Wine has ' + e.output.join('x'));
                         this.emit('calibrate', e.need);
@@ -289,6 +297,9 @@ class Game extends EventEmitter {
             stdio: ['ignore', 'pipe', 'pipe'].concat(o.vulkan && o.crumbsFd !== undefined ? [o.crumbsFd] : []) });
         this.wine = wine;
         this.wineEnv = Object.assign({}, e, { LD_LIBRARY_PATH: libs });
+        /* Wine's lines, a message said over and over only counted (wine_log.js) */
+        const wlog = new WineLog((s) => this._log('wine: ' + s));
+        this.wineLog = wlog;
         const lines = (which) => {
             let rest = '';
             return (d) => {
@@ -298,7 +309,7 @@ class Game extends EventEmitter {
                     const l = rest.slice(0, i).trim();
                     rest = rest.slice(i + 1);
                     if (!l || /:fixme:|wayland_process_init Wayland compositor doesn't support|keyboard_handle_keymap/.test(l)) continue;
-                    this._log('wine: ' + l.slice(0, 300));
+                    wlog.line(l);
                 }
             };
         };
@@ -310,6 +321,7 @@ class Game extends EventEmitter {
         wine.on('exit', (code, sig) => {
             if (this.wine !== wine) return;
             this.wine = null;
+            wlog.end();
             this._log('game: Wine exited (' + (sig || code) + ') after ' + Math.round((Date.now() - this.since) / 1000) + ' s');
             this.stop(this.state === 'starting' ? 'the game ended before it drew anything (exit ' + (sig || code) + ')' : null);
         });

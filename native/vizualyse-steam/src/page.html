@@ -126,7 +126,7 @@ function opts(sel, list, cur) {
  * only while their panel is open; inline SVG, nothing fetched from outside */
 const CHARTS = [
   { title: 'Frames a second', unit: '', series: [['fps', 'the game', '#4ade80'], ['low1', '1% low', '#fbbf24'], ['pictures', 'shown', '#3b82f6']] },
-  { title: 'GPU busy', unit: ' %', max: 100, series: [['gpuBusy', 'busy (the car\'s screens too)', '#f87171']] },
+  { title: 'GPU awake', unit: ' %', max: 100, series: [['gpuBusy', 'out of its idle state: not how full it is (the car\'s screens too)', '#f87171']] },
   { title: 'GPU clock', unit: ' MHz', series: [['gpuMhz', 'clock', '#a78bfa']] },
   { title: 'CPU', unit: ' %', series: [['cpu', 'the unit (all 4 cores)', '#3b82f6'], ['gameCpu', 'the game (of one core)', '#4ade80']] },
   { title: 'Memory', unit: ' MB', series: [['gameMb', 'the game', '#4ade80'], ['availMb', 'available', '#3b82f6'], ['swapMb', 'swapped', '#f87171']] },

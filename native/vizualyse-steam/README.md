@@ -44,6 +44,16 @@ rebuilt `ntdll.so`, below).
   `tools/vk-trial`'s gate on the car (the browser's 0.1.1 hung the kernel
   with an unchecked one); `runtime.tgz` carries none (`tools/bundle.sh`
   refuses one), and iris for OpenGL is a choice per game (below).
+  A Vulkan game's DRM calls are watched by `vk_crumbs.so`
+  (`state/vulkan-crumbs.log`, opened `O_DSYNC`): each process's first 400
+  lines written as they happen (the driver starting), then a call only
+  when it hasn't come back in a second, with the calls before it: after a
+  hang, the last `! not back after` line is the call. (To 0.2.3 every call
+  was written as it happened, 16 synchronous writes a frame at the least:
+  on the bench it held a game with nothing to draw to 20 frames a second;
+  0.2.4, knowledge/games.md.) Wine's own lines go to the journal a message
+  five times, then counted (`src/wine_log.js`, 0.2.4: WineD3D on iris wrote
+  one 8.7 million times in 45 s on the bench).
 - **Wine's Wayland driver into wl-sink**: the unit's EGL has no X11, and the
   screen belongs to Winston and the HMI. `wl-sink` (`src/wl_sink.c`) is the
   smallest compositor Wine takes; Mesa's Wayland EGL hands it each frame as a
@@ -73,10 +83,16 @@ rebuilt `ntdll.so`, below).
   swap interval 0, and `vblank_mode=3` makes Mesa 19's EGL take at least 1,
   so each swap waits for wl-sink's frame callback (bench: 29 frames a second
   from a test program that asks for no vsync). DXVK: `dxvk.conf` in the run
-  folder while a Vulkan game runs (`env.dxvkConf`): `maxFrameRate` the tool's,
-  one frame queued, two shader compilers, no anisotropic filtering, and the
-  adapter WineD3D reports (HD Graphics 510, 8086:1902, 1024 MB) so games pick
-  their settings the same on both.
+  folder while a Vulkan game runs (`env.dxvkConf`): vsync on whatever the
+  game asks (0.2.4), so wl-sink's frame callback holds it too; DXVK's own
+  `maxFrameRate` only as a stop at twice the rate (as the limit itself, to
+  0.2.3, it waited each frame's end out at full speed: its `dxvk-queue`
+  thread took 18-28 % of a core on the bench); one frame queued, two shader
+  compilers, no anisotropic filtering, and the adapter WineD3D reports (HD
+  Graphics 510, 8086:1902, 1024 MB) so games pick their settings the same
+  on both. wl-sink's ticks are at fixed times (0.2.4): 30.0 a second, where a
+  tick set 33 ms after the last one ended gave 28 (and 17-22 when wl-sink
+  put pictures together on the CPU).
 - **Upscaling (0.1.11, experimental):** a game drawn smaller than it is shown
   is enlarged by Winston (bilinear, free) or, with **Upscaling: FSR** (phone
   page, or the iDrive app's button; at once, off by default), by AMD's FSR 1
@@ -111,10 +127,20 @@ rebuilt `ntdll.so`, below).
   every 10 s, at each change of upscaling and as a summary per mode when the
   game ends: fps, the 1 % and 0.1 % lows, the 99th percentile and worst
   frame time (wl-sink times the game's new buffers), pictures/s, wl-sink's
-  time, FSR's GPU time and skips, the GPU's busy share and clock from
+  time, FSR's GPU time and skips, the GPU's awake share and clock from
   i915's sysfs, the CPU (the unit's, and the game's in % of a core) and
   memory (the game's cgroup against its cap, the unit's available memory,
-  swap). Switch modes mid-game, read them after:
+  swap). **What names the limit (0.2.4):** "GPU awake" (to 0.2.3 "GPU
+  busy") is time out of RC6, which the GPU enters only after tens of ms
+  idle: any game reads 100 %, so it says nothing of how full the GPU is;
+  its clock does (the mean, lowest and highest of the window, the clock
+  asked for, the limit: a GPU with work waiting is clocked up). With them
+  the game's busiest thread by name (one at 100 % is a limit no total
+  shows), wineserver's part, the thread count, the three busiest processes
+  that aren't the game's, the CPU's share waiting for the disk, what moved
+  in and out of swap and the major faults; and in the summary the spread
+  of frame times (bunched at two or three frames' time: pacing; spread
+  wide: load). Switch modes mid-game, read them after:
   `journalctl -u vizualyse-steam | grep perf:`. With FSR on but not drawing,
   the line says why (`FSR not used: ...`, wl-sink's `fsrWhy`; 0.1.12), and
   wl-sink's `ready` line says whether FSR is ready. Kept beside the journal
@@ -133,7 +159,11 @@ rebuilt `ntdll.so`, below).
   kept, and touches are scaled back (FTL's fixed 1280x720 window showed only
   its top left at 896x320, and its right and bottom couldn't be touched); a
   2-pixel overhang is still trimmed (Godot). The journal: "the window WxH
-  fitted into the picture". With Vulkan on, wl-sink also offers linux-dmabuf
+  fitted into the picture". A window that needs a bigger screen than Wine
+  was given restarts the game once with one (0.2.3: calibrating the
+  pointer); not one that is only its frame bigger (up to 32 pixels: a
+  maximised window is the screen + 12 each way whatever the screen, and
+  0.2.3 restarted Slay the Spire 2 for it without end; 0.2.4). With Vulkan on, wl-sink also offers linux-dmabuf
   (ANV 20+); Wine's EGL (Mesa 19) names its buffers' linear, X- or Y-tiled
   layout there anyway, which is taken (0.2.1: Stardew Valley quit at it).
 - **Defaults (0.2.1):** Vulkan for every game, 32-bit too (Terraria at twice
@@ -323,8 +353,30 @@ the library (`library.json`), `game-running` while a game runs.
   every process of the uid. `VERBOSE=1`, `GREP_LOG=regex` show the tool's log.
 - `sh test/run_bench.sh` runs Windows test programs through Proton in a
   Debian container with the unit's Mesa (the first bench, below).
+- `sh test/run_play.sh` leaves the tool running in the unit's root
+  filesystem for a **real game** (`test/play_main.js`): the internet for
+  DepotDownloader, the phone page on `http://localhost:8494` (it prints the
+  link), `/var/opt` in the Docker volume `steam-play-varopt` (the sign-in,
+  the games and the prefix stay; nothing on the Windows drive), the stub
+  GPU. Every CPU-side step is real and the GPU takes no time, so what holds
+  a game under its frame rate there is ours: read the tool's `perf:` lines
+  (`run_play.sh log`, `perf`) and its `play: cpu:` lines (the busiest
+  threads by name, every 10 s). `PLAY_CRUMBS=off` plays a Vulkan game
+  without the crumbs log; `PLAY_FAKE=t_d3d964.exe` checks the bench itself
+  with the test program as the game, no Steam. Wine's fsync is off there,
+  as on the car's kernel (`PLAY_SYNC=fsync` to compare).
+  **Seeing and steering a game:** `GPU=lavapipe` draws a Vulkan game on
+  Mesa's CPU driver in ANV's place (real pictures, slowly);
+  `run_play.sh shot F.png` is its newest picture, `tap X Y` / `drag` a
+  touch on it (the tool's own touch path, one tap a call), `pad BUTTONS` /
+  `stick LX LY MS` a controller (the pads file our `xinput1_4.dll` reads),
+  `cpu [S]` every thread's share as milliseconds a frame
+  (`test/play_input.js`, `play_cpu.js`). Find the taps into a scene on
+  lavapipe, then replay them on the stub to time it: there are no pictures
+  on the stub, so ask the game's own log whether it got there (Vampire
+  Survivors: `GameManager:PostStageInit` in its `Player.log`).
 - What the bench can't tell: the unit's kernel and GPU (a hang, the real
-  frame rate), the Atom's speed, real games, Steam's servers.
+  frame rate), the Atom's speed.
 
 ### The first bench
 

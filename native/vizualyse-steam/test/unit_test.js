@@ -542,6 +542,24 @@ async function oversizedWindow() {
     /* the later cases want the picture-sized screen back */
     r = await api('/api/game', { appId: APP, pointer: 'reset' });
     ok('pointer: reset forgets the stored screen', r.code === 200 && /pointer: .* forgets its 1280x720 screen/.test(serverLog), r.body && r.body.error);
+    /* A window only its frame bigger than the screen (a maximised window:
+     * the screen + 12 each way at -6,-6, whatever the screen; Slay the Spire
+     * 2 on a new prefix): fitted, and the pointer not calibrated. Up to
+     * 0.2.3 each restart asked for a screen 12 bigger, without end (the
+     * bench, 2026-11-11). */
+    fs.writeFileSync('/tmp/t_popup', '972x552-6-6\n');
+    const log2 = serverLog.length;
+    r = await api('/api/play', { appId: APP });
+    ok('a window the screen + 12 each way (maximised): play starts', r.code === 200, r.body && r.body.error);
+    s = await until('the maximised window drawing', (x) => x.game && x.game.appId === APP && (x.game.state === 'ended' || x.game.pictures > 2), 6 * 60000);
+    await sleep(4000);
+    s = await status();
+    ok('it is fitted and plays on, the pointer not calibrated', s.game && s.game.state === 'running' &&
+        /the window 972x552 fitted into the picture 960x540/.test(serverLog.slice(log2)) && !/pointer: calibrating for/.test(serverLog.slice(log2)),
+        serverLog.slice(log2).split('\n').filter((l) => /pointer:|fit|game: /.test(l)).slice(-3).join(' | '));
+    await api('/api/stop', {});
+    await until('the maximised window ending', (x) => x.game && x.game.state === 'ended', 60000);
+    fs.unlinkSync('/tmp/t_popup');
 }
 
 /* iris, per game: the test game with Vulkan off on iris from the bundled
@@ -611,15 +629,17 @@ async function vulkan() {
         tl.split(/\r?\n/).filter((l) => /adapter|FAIL/.test(l)).join(' | ').slice(0, 200));
     let conf = '';
     try { conf = fs.readFileSync('/dev/shm/vizualyse-steam/dxvk.conf', 'utf8'); } catch (e) { /* none */ }
-    ok('DXVK\'s options in the run folder while it runs, at the tool\'s frame rate', /^d3d9\.maxFrameRate = 30$/m.test(conf) && /^dxvk\.numCompilerThreads = 2$/m.test(conf),
+    ok('DXVK\'s options in the run folder while it runs: vsync on, its own limit only a stop at twice the tool\'s frame rate',
+        /^d3d9\.presentInterval = 1$/m.test(conf) && /^d3d9\.maxFrameRate = 60$/m.test(conf) && /^dxvk\.numCompilerThreads = 2$/m.test(conf),
         conf.split('\n').length + ' lines');
     s = await status();
     const b = (s.game && s.game.buffers) || {};
     ok('its frames reach wl-sink as GPU buffers', b.drm > 0 || b.fwd > 0, JSON.stringify(b));
     const rate = await commitRate();
-    /* at most: on the stub DXVK runs below 30 anyway (17-18 a second, with or
-     * without the cap: the crumbs log's synchronous writes, 2026-11-08) */
-    ok('DXVK draws at most at the tool\'s frame rate (d3d9.maxFrameRate)', rate > 5 && rate <= 36, rate.toFixed(1) + ' frames/s');
+    /* the test program asks for no vsync: DXVK's options turn it on, so wl-sink's
+     * frame callback holds it to the tool's 30 (to 0.2.3 it ran at 17-18 a
+     * second here: every DRM call written to the crumbs log as it happened) */
+    ok('DXVK draws at the tool\'s frame rate (vsync on: wl-sink\'s frame callback)', rate >= 27 && rate <= 33, rate.toFixed(1) + ' frames/s');
     if (process.env.WINSTON_CHECK) {
         /* FSR on a Vulkan game's buffers (ANV's WSI), switched on while it runs
          * as on the car: Slay the Spire 2's fell back to Winston's scaling

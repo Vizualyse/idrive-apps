@@ -98,7 +98,7 @@ docker run --rm --platform linux/amd64 --network none -e HOST_IDS="$(id -u):$(id
         -Wl,--disable-new-dtags,-rpath,\$ORIGIN/../lib/wl
     mkdir -p /m/build/pkg/lib/wl && cp /out/lib/wl/* /m/build/pkg/lib/wl/
     cp /tmp/gen/client/xdg-shell-client-protocol.h /tmp/gen/client/xdg-shell-protocol.c /m/build/bench/   # for test/lavapipe_test.sh
-    gcc $W -shared -fPIC -o /m/build/pkg/lib/vk_crumbs.so /m/src/vk_crumbs.c -ldl
+    gcc $W -shared -fPIC -o /m/build/pkg/lib/vk_crumbs.so /m/src/vk_crumbs.c -ldl -lpthread   # its watch mode has a thread
     gcc $W -shared -fPIC -o /m/build/bench/kernel414.so /m/test/kernel414.c -ldl
     cp /out/lib/libvulkan_intel.so /out/lib/libvulkan.so.1 /m/build/pkg/lib/
     echo "$MESA_VER" > /m/build/pkg/lib/mesa   # which ANV: vkprobe offers wl-sink --dmabuf for 20+
