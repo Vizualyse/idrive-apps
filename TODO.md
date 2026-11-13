@@ -731,6 +731,43 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).
 
+## Cluster themes (vizualyse-cluster 0.1.0)
+
+Built and tested off the car (2026-11-13): shader library version 2, 16
+themes (8 families, Sport and Comfort), the theme build, the WebGL preview,
+every theme's logic, the tool against a fake cluster-render on Node 8. No
+iDrive app yet. How it works: [native/vizualyse-cluster/THEMES.md](native/vizualyse-cluster/THEMES.md).
+
+- [ ] **First time on the KOMBI (bench, then the car).** A theme on the
+  panel with the demo drive, parked (`bench: true` on the bench): does the
+  panel show; the start upload (6-7 MB) through the governor; the effect
+  layers' cost on the KOMBI's GPU (about 40 layers, 2-2.7 Mpx a frame:
+  watch for a cluster restart and stop at once); `highp` in fragment
+  shaders; straight-alpha blending as on the test unit; a Sport/Comfort
+  switch.
+- [ ] **The iDrive app** `vizualyse_cluster`: on/off, the family, the mode,
+  demo on the bench; the speed for the parked gate; the readings it can
+  get, sent as `signals` (with `driveMode` for the switch).
+- [ ] **Which readings iDrive 7 gives an app** (rpm, gear, drive mode, oil
+  and coolant, tyres, power, battery, limit, cruise, guidance, economy):
+  `someip-interfaces.json` on the unit. A theme shows `--` for any it
+  doesn't get.
+- [ ] **The glass and cowl mask**: measure what the cluster's glass and the
+  driver camera's cowl hide, and keep themes clear of it (several put
+  readings in the top corners and the top centre).
+- [ ] **A smaller start**: the art (5 MB of each theme's 6-7) as tiles of
+  only its non-black parts, a black rect under them; a Sport/Comfort pair
+  could also share one art with its differences on top.
+- [ ] **Shader library version 3** (the ports' wishes): sub-pixel distance
+  in fields (smooth diagonals), a separate glow value, corner (mitred) paths,
+  a second needle, hollow needles, a colour stop along the band, text with
+  a second colour or a y scale (fewer fonts), padded glyph cells (`j`).
+- [ ] **Renderer-side smoothing** (`animate` on uniforms between ticks):
+  fewer sends, once the KOMBI's clock is known to drive animations.
+- [ ] **A phone page** (theme, source, the readings arriving).
+- [ ] **`tool/cluster_render_client` 1.1.0**: upstream's newer client
+  (the target event's guide/disabled fields).
+
 ## Platform (platform/<side>/<module>/<version>)
 
 The shared code as modules, each versioned on its own:

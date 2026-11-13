@@ -1,0 +1,608 @@
+{
+ "id": "g20i2c",
+ "title": "G20 inspired 2 · Comfort",
+ "family": "g20i2",
+ "mode": "comfort",
+ "version": 2,
+ "bottom": 646,
+ "signals": ["kmh", "rpm", "gear", "gearMode", "engineHp", "elecHp", "socPct", "evRangeKm", "fuelPct", "rangeKm", "oilC", "outsideC", "clock", "limitKmh", "cruiseKmh", "instL100", "turnDir", "turnM", "road", "destKm", "eta", "tripKm", "avgL100"],
+ "params": {
+  "speedT0": 0.07738,
+  "scaleLen": 1292.34,
+  "speedMap": [
+   [0, 0],
+   [20, 0.17],
+   [40, 0.3],
+   [60, 0.42],
+   [80, 0.54],
+   [100, 0.66],
+   [120, 0.78],
+   [160, 1]
+  ],
+  "tachMap": [
+   [0, 0],
+   [1, 0.17],
+   [2, 0.31],
+   [3, 0.44],
+   [4, 0.57],
+   [5, 0.71],
+   [6, 0.855],
+   [7, 1]
+  ],
+  "barT": {
+   "eng0": 0,
+   "eng1": 0.36662,
+   "eleTop": 0.57851,
+   "eleBottom": 1
+  },
+  "driveZero": 0.07332,
+  "pwrZero": 0.2,
+  "ecoMax": 0.35,
+  "driveHp": 300,
+  "regenHp": 40,
+  "mpgMax": 80,
+  "setPos": [
+   [600, 600],
+   [549.3, 600],
+   [498.6, 600],
+   [448, 600],
+   [392.5, 595.9],
+   [350.2, 584],
+   [311, 564.7],
+   [277.4, 541.4],
+   [245.9, 518.9],
+   [215.1, 495.8],
+   [186.6, 460.9],
+   [171.9, 417.9],
+   [170, 377.8],
+   [171.7, 338.1],
+   [184.5, 295.9],
+   [209.2, 259.6],
+   [237.5, 233.4],
+   [264.2, 209.7],
+   [291, 185.9],
+   [318.5, 161.7],
+   [350.1, 138.5],
+   [384.4, 119.3],
+   [421, 104.8],
+   [459, 95],
+   [496.3, 89.7],
+   [528.9, 85.8],
+   [561.5, 81.9],
+   [594, 78],
+   [626.6, 74],
+   [659.1, 70.1],
+   [691.7, 66.2],
+   [724.2, 62.3],
+   [756.8, 58.4]
+  ],
+  "setStep": 5,
+  "oil": {
+   "cx": 1588,
+   "cy": 432,
+   "r": 223,
+   "a0": 19,
+   "a1": -19,
+   "from": 50,
+   "to": 150
+  },
+  "colors": {
+   "ink": [0.945, 0.941, 0.925, 1],
+   "ink2": [0.706, 0.698, 0.675, 1],
+   "ink3": [0.541, 0.533, 0.51, 1],
+   "ink4": [0.227, 0.224, 0.212, 1],
+   "sport": [1, 0.227, 0.11, 1],
+   "needle": [1, 0.784, 0.541, 1],
+   "calm": [0.941, 0.647, 0.314, 1],
+   "edrive": [0.227, 0.635, 1, 1],
+   "regen": [0.624, 0.824, 1, 1],
+   "none": [0, 0, 0, 0]
+  }
+ },
+ "fonts": {
+  "speed": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 156,
+   "cell": [80, 124],
+   "dy": -6,
+   "glyphs": "0123456789 -"
+  },
+  "big": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 120,
+   "cell": [80, 100],
+   "dy": -2,
+   "glyphs": "DMSNRP-"
+  },
+  "f35": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 35,
+   "cell": [30, 40],
+   "dy": 0,
+   "glyphs": "0123456789 .-ydmiEVN"
+  },
+  "mid": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 26,
+   "cell": [22, 30],
+   "dy": 0,
+   "glyphs": "0123456789 -−+.:%°Cmi"
+  },
+  "small": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 19,
+   "cell": [18, 24],
+   "dy": 0,
+   "glyphs": "0123456789 -.:·°+ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  },
+  "cap": {
+   "file": "../fonts/BarlowSemiCondensed-600.woff2",
+   "weight": 600,
+   "size": 16,
+   "cell": [18, 20],
+   "dy": 0,
+   "glyphs": "ECOPWRHAGD %0123456789-",
+   "tracking": 1.92
+  }
+ },
+ "paths": {
+  "speed": {
+   "path": [
+    ["M", 700, 572],
+    ["L", 438, 572],
+    ["Q", 368, 572, 311.1, 531.2],
+    ["L", 243.5, 482.7],
+    ["Q", 198, 450, 198, 394],
+    ["L", 198, 362],
+    ["Q", 198, 306, 239.9, 268.8],
+    ["L", 328.7, 189.8],
+    ["Q", 396, 130, 485.4, 119.2],
+    ["L", 760.1, 86.2]
+   ],
+   "inward": -1,
+   "rect": [147, 35, 665, 588],
+   "maxd": 127
+  },
+  "tach": {
+   "mirror": "speed"
+  },
+  "bars": {
+   "path": [
+    ["A", 682, 380, 521, 13, -16],
+    ["L", 1257.8, 214.9],
+    ["A", 682, 380, 599, -16, 13]
+   ],
+   "inward": 1,
+   "rect": [1169, 201, 125, 327],
+   "maxd": 12
+  },
+  "fuel": {
+   "path": [
+    ["A", 332, 432, 222, 161, 199]
+   ],
+   "inward": 1,
+   "rect": [104, 353, 25, 158],
+   "maxd": 5
+  },
+  "arrowR": {
+   "path": [
+    ["M", 852, 498],
+    ["L", 852, 470],
+    ["Q", 852, 460, 862, 460],
+    ["L", 886, 460],
+    ["L", 874, 448],
+    ["L", 886, 460],
+    ["L", 874, 472]
+   ],
+   "inward": 1,
+   "rect": [847, 443, 44, 60],
+   "maxd": 4,
+   "ends": true
+  },
+  "arrowL": {
+   "path": [
+    ["M", 886, 498],
+    ["L", 886, 470],
+    ["Q", 886, 460, 876, 460],
+    ["L", 852, 460],
+    ["L", 864, 448],
+    ["L", 852, 460],
+    ["L", 864, 472]
+   ],
+   "inward": 1,
+   "rect": [847, 443, 44, 60],
+   "maxd": 4,
+   "ends": true
+  }
+ },
+ "layers": [
+  {
+   "name": "speed",
+   "shader": "gauge",
+   "field": "speed",
+   "uniforms": {
+    "u_v": [0, 0, 2, 0.2321],
+    "u_band": [0, 0, 2, 36],
+    "u_shape": [100, 4.5, 2, 0.15],
+    "u_fill": [0, 0, 0, 0],
+    "u_red": [0, 0, 0, 0],
+    "u_glow": [1, 0.66, 0.3, 0.42],
+    "u_needle": [1, 0.784, 0.541, 1],
+    "u_pool": [100, 0.3, 30, 0],
+    "u_seg": [0, 0, 0.07738, 1],
+    "u_look": [0.3, 0.25, 1, 0]
+   }
+  },
+  {
+   "name": "tach",
+   "shader": "gauge",
+   "field": "tach",
+   "uniforms": {
+    "u_v": [0, 0, 2, 0.2321],
+    "u_band": [0, 0, 2, 36],
+    "u_shape": [100, 4.5, 2, 0.15],
+    "u_fill": [0, 0, 0, 0],
+    "u_red": [0, 0, 0, 0],
+    "u_glow": [1, 0.66, 0.3, 0.42],
+    "u_needle": [1, 0.784, 0.541, 1],
+    "u_pool": [100, 0.3, 30, 0],
+    "u_seg": [0, 0, 0.07738, 1],
+    "u_look": [0.3, 0.25, 1, 0]
+   }
+  },
+  {
+   "name": "limitTick",
+   "shader": "gauge",
+   "field": "speed",
+   "art": false,
+   "uniforms": {
+    "u_v": [0, 0, 2, 0],
+    "u_band": [0, 0, -17, -5],
+    "u_shape": [1, 1.75, 1.75, 0],
+    "u_fill": [0, 0, 0, 0],
+    "u_red": [0, 0, 0, 0],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [1, 0.227, 0.11, 1],
+    "u_seg": [0, 0, 0, 1],
+    "u_look": [0, 0, 1, 0]
+   }
+  },
+  {
+   "name": "drive",
+   "shader": "gauge",
+   "field": "bars",
+   "art": false,
+   "uniforms": {
+    "u_v": [0, 0, 2, 1],
+    "u_band": [-11, 11, 0, 0],
+    "u_shape": [1, 0, 0, 1],
+    "u_fill": [0.941, 0.647, 0.314, 1],
+    "u_red": [0.941, 0.647, 0.314, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0.07332, 1]
+   }
+  },
+  {
+   "name": "econ",
+   "shader": "gauge",
+   "field": "bars",
+   "art": false,
+   "uniforms": {
+    "u_v": [0, 0, 2, 1],
+    "u_band": [-11, 11, 0, 0],
+    "u_shape": [1, 0, 0, 1],
+    "u_fill": [0.706, 0.698, 0.675, 1],
+    "u_red": [0.706, 0.698, 0.675, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 1, 1]
+   }
+  },
+  {
+   "name": "fuel",
+   "shader": "gauge",
+   "field": "fuel",
+   "art": false,
+   "uniforms": {
+    "u_v": [0, 0, 2, 1],
+    "u_band": [-3.5, 3.5, 0, 0],
+    "u_shape": [1, 0, 0, 1],
+    "u_fill": [0.945, 0.941, 0.925, 1],
+    "u_red": [0.945, 0.941, 0.925, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0, 1]
+   }
+  },
+  {
+   "name": "arrowR",
+   "shader": "gauge",
+   "field": "arrowR",
+   "art": false,
+   "uniforms": {
+    "u_v": [1, 0, 2, 1],
+    "u_band": [-2.5, 2.5, 0, 0],
+    "u_shape": [1, 0, 0, 1],
+    "u_fill": [0.945, 0.941, 0.925, 1],
+    "u_red": [0.945, 0.941, 0.925, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0, 1]
+   }
+  },
+  {
+   "name": "arrowL",
+   "shader": "gauge",
+   "field": "arrowL",
+   "art": false,
+   "uniforms": {
+    "u_v": [1, 0, 2, 1],
+    "u_band": [-2.5, 2.5, 0, 0],
+    "u_shape": [1, 0, 0, 1],
+    "u_fill": [0.945, 0.941, 0.925, 1],
+    "u_red": [0.945, 0.941, 0.925, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0, 1]
+   }
+  },
+  {
+   "name": "soc",
+   "shader": "leds",
+   "x": 482,
+   "y": 447,
+   "w": 220,
+   "h": 16,
+   "uniforms": {
+    "u_led": [20, 0, 0, 0],
+    "u_geom": [0, 0, 7.5, 16],
+    "u_split": [99, 99, 0, 1],
+    "u_c0": [0.227, 0.635, 1, 1],
+    "u_c1": [0.227, 0.635, 1, 1],
+    "u_c2": [0.227, 0.635, 1, 1],
+    "u_off": [0.227, 0.224, 0.212, 1]
+   }
+  },
+  {
+   "name": "oilMark",
+   "shader": "rect",
+   "x": 1800,
+   "y": 430,
+   "w": 20,
+   "h": 7,
+   "uniforms": {
+    "u_shape": [0, 0, 0, 0],
+    "u_color": [0.945, 0.941, 0.925, 1]
+   }
+  },
+  {
+   "name": "setMark",
+   "shader": "rect",
+   "x": 0,
+   "y": 0,
+   "w": 10,
+   "h": 10,
+   "uniforms": {
+    "u_shape": [0, 0, 5, 0],
+    "u_color": [0.945, 0.941, 0.925, 1]
+   }
+  },
+  {
+   "name": "kmh",
+   "shader": "text",
+   "font": "speed",
+   "x": 380,
+   "y": 274,
+   "w": 240,
+   "cells": 3,
+   "align": "right"
+  },
+  {
+   "name": "mode",
+   "shader": "text",
+   "font": "big",
+   "x": 1400,
+   "y": 296,
+   "w": 80,
+   "cells": 1,
+   "align": "center"
+  },
+  {
+   "name": "gearSub",
+   "shader": "text",
+   "font": "f35",
+   "x": 1484,
+   "y": 358,
+   "w": 60,
+   "cells": 2,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.706, 0.698, 0.675, 1]
+   }
+  },
+  {
+   "name": "rpm",
+   "shader": "text",
+   "font": "mid",
+   "x": 1440,
+   "y": 437,
+   "w": 80,
+   "cells": 6,
+   "align": "right"
+  },
+  {
+   "name": "driveWord",
+   "shader": "text",
+   "font": "cap",
+   "x": 1146,
+   "y": 232,
+   "w": 100,
+   "cells": 6,
+   "align": "center",
+   "uniforms": {
+    "u_color": [0.941, 0.647, 0.314, 1]
+   }
+  },
+  {
+   "name": "mpg",
+   "shader": "text",
+   "font": "mid",
+   "x": 1242,
+   "y": 206,
+   "w": 60,
+   "cells": 3,
+   "align": "center"
+  },
+  {
+   "name": "evMi",
+   "shader": "text",
+   "font": "mid",
+   "x": 712,
+   "y": 438,
+   "w": 90,
+   "cells": 6,
+   "align": "left"
+  },
+  {
+   "name": "socPct",
+   "shader": "text",
+   "font": "cap",
+   "x": 712,
+   "y": 474,
+   "w": 60,
+   "cells": 5,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.706, 0.698, 0.675, 1]
+   }
+  },
+  {
+   "name": "limit",
+   "shader": "text",
+   "font": "f35",
+   "x": 700,
+   "y": 314,
+   "w": 56,
+   "cells": 3,
+   "align": "center"
+  },
+  {
+   "name": "set",
+   "shader": "text",
+   "font": "mid",
+   "x": 672,
+   "y": 367,
+   "w": 50,
+   "cells": 3,
+   "align": "left"
+  },
+  {
+   "name": "guideDist",
+   "shader": "text",
+   "font": "f35",
+   "x": 908,
+   "y": 440,
+   "w": 180,
+   "cells": 7,
+   "align": "left"
+  },
+  {
+   "name": "road",
+   "shader": "text",
+   "font": "small",
+   "x": 908,
+   "y": 482,
+   "w": 180,
+   "cells": 16,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.706, 0.698, 0.675, 1]
+   }
+  },
+  {
+   "name": "eta",
+   "shader": "text",
+   "font": "small",
+   "x": 868,
+   "y": 530,
+   "w": 220,
+   "cells": 16,
+   "align": "right"
+  },
+  {
+   "name": "oilC",
+   "shader": "text",
+   "font": "small",
+   "x": 1781,
+   "y": 578,
+   "w": 70,
+   "cells": 6,
+   "align": "center",
+   "uniforms": {
+    "u_color": [0.706, 0.698, 0.675, 1]
+   }
+  },
+  {
+   "name": "range",
+   "shader": "text",
+   "font": "mid",
+   "x": 238,
+   "y": 599,
+   "w": 100,
+   "cells": 7,
+   "align": "left"
+  },
+  {
+   "name": "clock",
+   "shader": "text",
+   "font": "mid",
+   "x": 480,
+   "y": 599,
+   "w": 80,
+   "cells": 5,
+   "align": "center"
+  },
+  {
+   "name": "trip",
+   "shader": "text",
+   "font": "small",
+   "x": 820,
+   "y": 604,
+   "w": 150,
+   "cells": 14,
+   "align": "right",
+   "uniforms": {
+    "u_color": [0.706, 0.698, 0.675, 1]
+   }
+  },
+  {
+   "name": "avg",
+   "shader": "text",
+   "font": "small",
+   "x": 976,
+   "y": 604,
+   "w": 110,
+   "cells": 9,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.706, 0.698, 0.675, 1]
+   }
+  },
+  {
+   "name": "outside",
+   "shader": "text",
+   "font": "mid",
+   "x": 1574,
+   "y": 599,
+   "w": 110,
+   "cells": 8,
+   "align": "right"
+  }
+ ]
+}

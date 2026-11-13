@@ -1,0 +1,708 @@
+{
+ "id": "tri2c",
+ "title": "Three-dial 2 · Comfort",
+ "family": "tri2",
+ "mode": "comfort",
+ "version": 2,
+ "bottom": 646,
+ "signals": ["kmh", "rpm", "gear", "gearMode", "engineHp", "elecHp", "socPct", "evRangeKm", "fuelPct", "rangeKm", "oilC", "coolantC", "outsideC", "odoKm", "clock", "tyres", "tripKm", "avgL100", "limitKmh", "cruiseKmh", "turnDir", "turnM", "road", "destKm", "eta"],
+ "params": {
+  "tach": {
+   "max": 8000,
+   "red": 7200
+  },
+  "power": {
+   "lo": -60,
+   "hi": 240,
+   "a0": -135,
+   "a1": 135,
+   "start": -81.5,
+   "span": 359,
+   "eco": 100
+  },
+  "cols": {
+   "t1": 0.3592085235920852,
+   "t2": 0.6407914764079148
+  },
+  "colX": {
+   "fuel": 132,
+   "batt": 213,
+   "oil": 1707,
+   "cool": 1788
+  },
+  "tempFrom": 40,
+  "tempTo": 160,
+  "oilHot": 120,
+  "coolHot": 110,
+  "tyres": {
+   "target": [2.4, 2.4, 2.6, 2.6],
+   "low": 0.2,
+   "cold": 60,
+   "hot": 100,
+   "x": [1326, 1450, 1326, 1450]
+  },
+  "tint": [-0.3, 0.09, 0.12, 10],
+  "colors": {
+   "z0": [0.003, 0.006, 0.008, 1],
+   "z1": [0.019, 0.035, 0.044, 1],
+   "z2": [0.052, 0.078, 0.09, 1],
+   "z3": [0.107, 0.137, 0.151, 1],
+   "z4": [0.173, 0.205, 0.22, 1],
+   "z5": [0.266, 0.297, 0.312, 1],
+   "z6": [0.387, 0.417, 0.431, 1],
+   "z7": [0.526, 0.555, 0.568, 1],
+   "z8": [0.675, 0.698, 0.71, 1],
+   "z9": [0.823, 0.842, 0.85, 1],
+   "z10": [0.957, 0.97, 0.976, 1],
+   "electric": [0.223, 0.833, 0.893, 1],
+   "signal": [0.952, 0.26, 0.206, 1],
+   "caution": [0.989, 0.708, 0.257, 1],
+   "shift": [0.751, 0.974, 0.284, 1],
+   "eco": [0.448, 0.841, 0.598, 1],
+   "none": [0, 0, 0, 0]
+  },
+  "fonts": {
+   "speed": {
+    "glyphs": "0123456789- ",
+    "adv": [108, 108, 108, 108, 108, 108, 108, 108, 108, 108, 62, 39],
+    "cellW": 114
+   },
+   "v30": {
+    "glyphs": "0123456789.-– miydEV",
+    "adv": [18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 9, 11, 16, 7, 27, 8, 16, 18, 21, 21],
+    "cellW": 30
+   },
+   "sign": {
+    "glyphs": "0123456789- ",
+    "adv": [15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 8, 5],
+    "cellW": 18
+   },
+   "mpg": {
+    "glyphs": "0123456789.- ",
+    "adv": [34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 16, 19, 13],
+    "cellW": 38
+   },
+   "val": {
+    "glyphs": "0123456789 .-−%°Cmi",
+    "adv": [13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 5, 7, 8, 14, 22, 9, 17, 20, 6],
+    "cellW": 24
+   },
+   "small": {
+    "glyphs": "0123456789 -−°%:·,./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    "adv": [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 3, 5, 10, 6, 15, 5, 5, 4, 4, 5, 11, 11, 11, 11, 10, 9, 12, 11, 4, 9, 10, 8, 13, 11, 12, 10, 12, 11, 10, 9, 11, 10, 14, 11, 10, 10, 9, 9, 8, 9, 9, 5, 9, 9, 4, 4, 8, 4, 13, 9, 9, 9, 9, 5, 8, 5, 9, 8, 11, 8, 8, 8],
+    "cellW": 17
+   },
+   "zone": {
+    "glyphs": "ECOHARGPWN ",
+    "adv": [9, 10, 11, 10, 10, 10, 11, 9, 13, 10, 4],
+    "cellW": 14
+   }
+  },
+  "lay": {
+   "speed": {
+    "x": 789,
+    "w": 342,
+    "font": "speed"
+   },
+   "setV": {
+    "x": 960,
+    "w": 90,
+    "font": "v30"
+   },
+   "limit": {
+    "x": 889,
+    "w": 54,
+    "font": "sign"
+   },
+   "gearN": {
+    "x": 1009,
+    "w": 60,
+    "font": "v30"
+   },
+   "zoneOn": {
+    "x": 427,
+    "w": 98,
+    "font": "zone"
+   },
+   "mpg": {
+    "x": 381,
+    "w": 190,
+    "font": "mpg"
+   },
+   "evMi": {
+    "x": 370,
+    "w": 192,
+    "font": "val"
+   },
+   "trip": {
+    "x": 370,
+    "w": 192,
+    "font": "val"
+   },
+   "storeVal": {
+    "x": 62,
+    "w": 221,
+    "font": "val"
+   },
+   "storeUnit": {
+    "x": 62,
+    "w": 221,
+    "font": "small"
+   },
+   "storeSub": {
+    "x": 62,
+    "w": 221,
+    "font": "small"
+   },
+   "tempVal": {
+    "x": 1637,
+    "w": 221,
+    "font": "val"
+   },
+   "tempSub": {
+    "x": 1637,
+    "w": 221,
+    "font": "small"
+   },
+   "navDist": {
+    "x": 1402,
+    "w": 240,
+    "font": "v30"
+   },
+   "road": {
+    "x": 1402,
+    "w": 190,
+    "font": "small"
+   },
+   "etaA": {
+    "x": 1300,
+    "w": 290,
+    "font": "small"
+   },
+   "etaB": {
+    "x": 1300,
+    "w": 290,
+    "font": "small"
+   },
+   "tyresA": {
+    "x": 1300,
+    "w": 290,
+    "font": "small"
+   },
+   "tyresB": {
+    "x": 1300,
+    "w": 290,
+    "font": "small"
+   },
+   "metaA": {
+    "x": 744,
+    "w": 221,
+    "font": "small"
+   },
+   "metaB": {
+    "x": 965,
+    "w": 204,
+    "font": "small"
+   }
+  },
+  "gearY": 0,
+  "zoneB": 12,
+  "modeLetter": "D",
+  "zones": {
+   "charge": [326, 500],
+   "eco": [476, 238],
+   "power": [626, 500]
+  },
+  "mode": "comfort"
+ },
+ "fonts": {
+  "speed": {
+   "file": "../tri2/fonts/Archivo-gear.woff2",
+   "weight": 600,
+   "size": 178,
+   "cell": [114, 134],
+   "dy": 3.55,
+   "glyphs": "0123456789- ",
+   "tracking": 0
+  },
+  "v30": {
+   "file": "../tri2/fonts/Archivo-val.woff2",
+   "weight": 560,
+   "size": 30,
+   "cell": [30, 28],
+   "dy": 0.98,
+   "glyphs": "0123456789.-– miydEV",
+   "tracking": 0
+  },
+  "sign": {
+   "file": "../tri2/fonts/Archivo-sign.woff2",
+   "weight": 700,
+   "size": 27,
+   "cell": [18, 24],
+   "dy": -0.02,
+   "glyphs": "0123456789- ",
+   "tracking": 0
+  },
+  "mpg": {
+   "file": "../tri2/fonts/Archivo-num.woff2",
+   "weight": 560,
+   "size": 54,
+   "cell": [38, 42],
+   "dy": 0.96,
+   "glyphs": "0123456789.- ",
+   "tracking": 0
+  },
+  "val": {
+   "file": "../tri2/fonts/Archivo-val.woff2",
+   "weight": 560,
+   "size": 22,
+   "cell": [24, 20],
+   "dy": 0.65,
+   "glyphs": "0123456789 .-−%°Cmi",
+   "tracking": 0
+  },
+  "small": {
+   "file": "../tri2/fonts/Archivo-small.woff2",
+   "weight": 460,
+   "size": 16,
+   "cell": [17, 20],
+   "dy": -0.34,
+   "glyphs": "0123456789 -−°%:·,./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+   "tracking": 0
+  },
+  "zone": {
+   "file": "../tri2/fonts/Archivo-tc.woff2",
+   "weight": 600,
+   "size": 14,
+   "cell": [14, 13],
+   "dy": 0.82,
+   "glyphs": "ECOHARGPWN ",
+   "tracking": 1.4
+  }
+ },
+ "paths": {
+  "tach": {
+   "path": [
+    ["A", 960, 332, 248, -225, 45]
+   ],
+   "inward": -1,
+   "rect": [687, 59, 546, 467],
+   "maxd": 24
+  },
+  "power": {
+   "path": [
+    ["A", 476, 342, 154, -171.5, -530.5]
+   ],
+   "inward": 1,
+   "rect": [305, 171, 342, 342],
+   "maxd": 16
+  },
+  "stores": {
+   "path": [
+    ["M", 132, 232],
+    ["L", 132, 468],
+    ["L", 132, 520],
+    ["L", 213, 520],
+    ["L", 213, 468],
+    ["L", 213, 232]
+   ],
+   "inward": 1,
+   "rect": [123, 232, 100, 236],
+   "maxd": 10
+  },
+  "temps": {
+   "mirror": "stores"
+  },
+  "arrow": {
+   "path": [
+    ["M", 1352, 436],
+    ["L", 1352, 414],
+    ["A", 1361, 414, 9, 180, 270],
+    ["L", 1382, 405],
+    ["L", 1371, 394],
+    ["L", 1382, 405],
+    ["L", 1371, 416]
+   ],
+   "inward": 1,
+   "rect": [1347, 389, 40, 52],
+   "maxd": 3,
+   "ends": true
+  }
+ },
+ "layers": [
+  {
+   "name": "tach",
+   "shader": "gauge",
+   "field": "tach",
+   "uniforms": {
+    "u_v": [0, 0, 2, 0],
+    "u_band": [-17, 17, -22, 22],
+    "u_shape": [127, 1.5, 1.5, 0],
+    "u_fill": [0.008, 0.024, 0.035, 0.9],
+    "u_red": [0.008, 0.024, 0.035, 0.9],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0.823, 0.842, 0.85, 1],
+    "u_seg": [0, 0, 1, 1],
+    "u_look": [0, 0, 1, 0]
+   }
+  },
+  {
+   "name": "pwTint",
+   "shader": "gauge",
+   "field": "power",
+   "uniforms": {
+    "u_v": [0, 0, 2, 1],
+    "u_band": [-12, 12, 0, 0],
+    "u_shape": [127, 0, 0, 1],
+    "u_fill": [0, 0, 0, 0],
+    "u_red": [0, 0, 0, 0],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0, 1],
+    "u_look": [1, 0, 1, 0]
+   }
+  },
+  {
+   "name": "pwDim",
+   "shader": "gauge",
+   "field": "power",
+   "art": false,
+   "uniforms": {
+    "u_v": [0, 0, 2, 0],
+    "u_band": [-12, 12, -16, 14],
+    "u_shape": [127, 1.5, 1.5, 0],
+    "u_fill": [0.008, 0.016, 0.02, 0.9],
+    "u_red": [0.008, 0.016, 0.02, 0.9],
+    "u_glow": [0.008, 0.016, 0.02, 0],
+    "u_needle": [0.957, 0.97, 0.976, 1],
+    "u_seg": [0, 0, 0, 1],
+    "u_look": [0, 0, 1, 0]
+   }
+  },
+  {
+   "name": "stores",
+   "shader": "gauge",
+   "field": "stores",
+   "art": false,
+   "uniforms": {
+    "u_v": [0.6407914764079148, 0, 0.5, 0],
+    "u_band": [-9, 9, 0, 0],
+    "u_shape": [1, 0, 0, 0],
+    "u_fill": [0.823, 0.842, 0.85, 1],
+    "u_red": [0.223, 0.833, 0.893, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0.3592085235920852, 1],
+    "u_look": [0, 0, 1, 0]
+   }
+  },
+  {
+   "name": "temps",
+   "shader": "gauge",
+   "field": "temps",
+   "art": false,
+   "uniforms": {
+    "u_v": [0.6407914764079148, 0, 2, 0],
+    "u_band": [-9, 9, 0, 0],
+    "u_shape": [1, 0, 0, 0],
+    "u_fill": [0.526, 0.555, 0.568, 1],
+    "u_red": [0.526, 0.555, 0.568, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0.3592085235920852, 1],
+    "u_look": [0, 0, 1, 0]
+   }
+  },
+  {
+   "name": "arrow",
+   "shader": "gauge",
+   "field": "arrow",
+   "art": false,
+   "uniforms": {
+    "u_v": [1, 0, 2, 0],
+    "u_band": [-2.25, 2.25, 0, 0],
+    "u_shape": [1, 0, 0, 0],
+    "u_fill": [0.957, 0.97, 0.976, 1],
+    "u_red": [0.957, 0.97, 0.976, 1],
+    "u_glow": [0, 0, 0, 0],
+    "u_needle": [0, 0, 0, 0],
+    "u_seg": [0, 0, 0, 1],
+    "u_look": [0, 0, 1, 0]
+   }
+  },
+  {
+   "name": "gmMask",
+   "shader": "rect",
+   "x": 962,
+   "y": 454,
+   "w": 46,
+   "h": 44,
+   "uniforms": {
+    "u_shape": [0, 0, 0, 0],
+    "u_color": [0.02, 0.043, 0.055, 1]
+   }
+  },
+  {
+   "name": "speed",
+   "shader": "text",
+   "font": "speed",
+   "x": 789,
+   "y": 264,
+   "cells": 3,
+   "align": "center",
+   "uniforms": {
+    "u_color": [0.957, 0.97, 0.976, 1]
+   }
+  },
+  {
+   "name": "setV",
+   "shader": "text",
+   "font": "v30",
+   "x": 960,
+   "y": 201,
+   "cells": 3,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.387, 0.417, 0.431, 1]
+   }
+  },
+  {
+   "name": "limit",
+   "shader": "text",
+   "font": "sign",
+   "x": 889,
+   "y": 465,
+   "cells": 3,
+   "align": "center",
+   "uniforms": {
+    "u_color": [0.035, 0.056, 0.065, 1]
+   }
+  },
+  {
+   "name": "gearN",
+   "shader": "text",
+   "font": "v30",
+   "x": 1009,
+   "y": 469,
+   "cells": 2,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.675, 0.698, 0.71, 1]
+   }
+  },
+  {
+   "name": "zoneOn",
+   "shader": "text",
+   "font": "zone",
+   "x": 427,
+   "y": 226,
+   "cells": 7,
+   "align": "center",
+   "uniforms": {
+    "u_color": [0.957, 0.97, 0.976, 1]
+   }
+  },
+  {
+   "name": "mpg",
+   "shader": "text",
+   "font": "mpg",
+   "x": 381,
+   "y": 300,
+   "cells": 5,
+   "align": "center",
+   "uniforms": {
+    "u_color": [0.823, 0.842, 0.85, 1]
+   }
+  },
+  {
+   "name": "evMi",
+   "shader": "text",
+   "font": "val",
+   "x": 370,
+   "y": 395,
+   "cells": 8,
+   "align": "right",
+   "uniforms": {
+    "u_color": [0.957, 0.97, 0.976, 1]
+   }
+  },
+  {
+   "name": "trip",
+   "shader": "text",
+   "font": "val",
+   "x": 370,
+   "y": 429,
+   "cells": 8,
+   "align": "right",
+   "uniforms": {
+    "u_color": [0.957, 0.97, 0.976, 1]
+   }
+  },
+  {
+   "name": "storeVal",
+   "shader": "text",
+   "font": "val",
+   "x": 62,
+   "y": 488,
+   "cells": 10,
+   "align": "left",
+   "w": 221,
+   "uniforms": {
+    "u_color": [0.957, 0.97, 0.976, 1]
+   }
+  },
+  {
+   "name": "storeUnit",
+   "shader": "text",
+   "font": "small",
+   "x": 62,
+   "y": 491,
+   "cells": 4,
+   "align": "left",
+   "w": 221,
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  },
+  {
+   "name": "storeSub",
+   "shader": "text",
+   "font": "small",
+   "x": 62,
+   "y": 515,
+   "cells": 10,
+   "align": "left",
+   "w": 221,
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  },
+  {
+   "name": "tempVal",
+   "shader": "text",
+   "font": "val",
+   "x": 1637,
+   "y": 488,
+   "cells": 13,
+   "align": "left",
+   "w": 221,
+   "uniforms": {
+    "u_color": [0.675, 0.698, 0.71, 1]
+   }
+  },
+  {
+   "name": "tempSub",
+   "shader": "text",
+   "font": "small",
+   "x": 1637,
+   "y": 515,
+   "cells": 15,
+   "align": "left",
+   "w": 221,
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  },
+  {
+   "name": "navDist",
+   "shader": "text",
+   "font": "v30",
+   "x": 1402,
+   "y": 392,
+   "cells": 8,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.957, 0.97, 0.976, 1]
+   }
+  },
+  {
+   "name": "road",
+   "shader": "text",
+   "font": "small",
+   "x": 1402,
+   "y": 427,
+   "cells": 16,
+   "align": "left",
+   "w": 190,
+   "uniforms": {
+    "u_color": [0.675, 0.698, 0.71, 1]
+   }
+  },
+  {
+   "name": "etaA",
+   "shader": "text",
+   "font": "small",
+   "x": 1300,
+   "y": 461,
+   "cells": 14,
+   "align": "left",
+   "w": 290,
+   "uniforms": {
+    "u_color": [0.675, 0.698, 0.71, 1]
+   }
+  },
+  {
+   "name": "etaB",
+   "shader": "text",
+   "font": "small",
+   "x": 1300,
+   "y": 461,
+   "cells": 12,
+   "align": "left",
+   "w": 290,
+   "uniforms": {
+    "u_color": [0.675, 0.698, 0.71, 1]
+   }
+  },
+  {
+   "name": "tyresA",
+   "shader": "text",
+   "font": "small",
+   "x": 1300,
+   "y": 487,
+   "cells": 14,
+   "align": "left",
+   "w": 290,
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  },
+  {
+   "name": "tyresB",
+   "shader": "text",
+   "font": "small",
+   "x": 1300,
+   "y": 487,
+   "cells": 15,
+   "align": "left",
+   "w": 290,
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  },
+  {
+   "name": "metaA",
+   "shader": "text",
+   "font": "small",
+   "x": 744,
+   "y": 587,
+   "cells": 13,
+   "align": "right",
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  },
+  {
+   "name": "metaB",
+   "shader": "text",
+   "font": "small",
+   "x": 965,
+   "y": 587,
+   "cells": 12,
+   "align": "left",
+   "uniforms": {
+    "u_color": [0.526, 0.555, 0.568, 1]
+   }
+  }
+ ]
+}

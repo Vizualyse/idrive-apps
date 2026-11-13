@@ -1,0 +1,118 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan -->
+<!-- perf1 "Performance 1": the static art, 1920 x 646, drawn with the mockup's
+     own geometry (perf-fable index.html) and every moving part left out: the
+     dials' tracks, red zone, ticks, numerals, shift mark and centre discs; the
+     unlit shift lights, the status row's fixed words; the power bar's track,
+     scale and zero line; labels, bar tracks and scales; the car outline. The
+     layers (theme.src.json, written by gen.js) draw the rest. Numbers that are
+     parameters come from the query string gen.js does not need: they are
+     fixed here and in gen.js (SHIFT). Archivo (OFL), the mockup's subset. -->
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-stretch:62% 125%;src:url(fonts/Archivo-subset-VF.woff2) format("woff2")}
+:root{--ground:#000;--disc:#0b0d12;--line:#272b34;--track:#171a20;--ink:#f3f5f8;--ink2:#a6aebb;--ink3:#7f8896;--tick:#5c6473;
+  --sport:#ff3a22;--sport-deep:#b9141a;--amber:#ffb224;--elec:#3d9bff;--font:"Archivo",sans-serif}
+html,body{margin:0;background:#000;width:1920px;height:646px;overflow:hidden}
+svg{display:block}
+text{font-family:var(--font);fill:var(--ink)}
+.lab{font-size:18px;font-weight:500;letter-spacing:.06em;fill:var(--ink3);font-stretch:100%}
+.unit{font-size:20px;font-weight:500;fill:var(--ink2)}
+.num{font-weight:600;font-stretch:108%;fill:var(--ink)}
+.dialnum{font-size:23px;font-weight:500;font-stretch:104%;fill:var(--tick);text-anchor:middle}
+.dialnum.on{fill:var(--ink)}
+.dialnum.red{fill:var(--sport)}
+.scale{font-size:16px;font-weight:500;fill:var(--ink3)}
+</style>
+<body>
+<svg id="art" width="1920" height="646" viewBox="0 0 1920 646"></svg>
+<script>
+(function () {
+const SHIFT = 6400;   /* the shift point: gen.js params.shiftRpm */
+const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('art');
+const css = n => 'var(--' + n + ')';
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; }
+function T(x, y, str, cls, anchor, parent) { const t = el('text', { x, y, class: cls || '', 'text-anchor': anchor || 'start' }, parent); t.textContent = str; return t; }
+const pol = (cx, cy, r, a) => { const k = a * Math.PI / 180; return [cx + r * Math.sin(k), cy - r * Math.cos(k)]; };
+function arc(cx, cy, r, a0, a1) { const p = pol(cx, cy, r, a0), q = pol(cx, cy, r, a1);
+    return 'M' + p[0].toFixed(2) + ' ' + p[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 ' + ((a1 - a0) > 180 ? 1 : 0) + ' 1 ' + q[0].toFixed(2) + ' ' + q[1].toFixed(2); }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- dials (the value arc, swept band, needle: the gauge layers) ---------- */
+const A0 = -120, A1 = 120;
+function Dial(cx, cy, o) {
+    const ang = v => A0 + clamp(v / o.max, 0, 1) * (A1 - A0);
+    el('path', { d: arc(cx, cy, 272, A0, A1), fill: 'none', stroke: css('track'), 'stroke-width': 8 });
+    if (o.redFrom != null) el('path', { d: arc(cx, cy, 278, ang(o.redFrom), A1), fill: 'none', stroke: css('sport-deep'), 'stroke-width': 20 });
+    for (let v = 0; v <= o.max + 1e-6; v += o.minor) {
+        const major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6, a = ang(v), red = o.redFrom != null && v >= o.redFrom;
+        const p = pol(cx, cy, 262, a), q = pol(cx, cy, major ? 240 : 251, a);
+        el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: red ? css('sport') : major ? css('ink') : css('tick'), 'stroke-width': major ? 3 : 1.5 });
+        /* the numerals at rest: the needle has passed 0 */
+        if (major) { const c = pol(cx, cy, 205, a); T(c[0], c[1] + 8, o.label(v), 'dialnum' + (red ? ' red' : v === 0 ? ' on' : ''), 'middle'); }
+    }
+    if (o.mark != null) el('path', { d: 'M0 -264 L-9 -292 L9 -292 Z', fill: css('amber'), transform: 'translate(' + cx + ' ' + cy + ') rotate(' + ang(o.mark) + ')' });
+    el('circle', { cx, cy, r: 158, fill: css('disc'), stroke: css('line'), 'stroke-width': 1.5 });
+}
+const SX = 330, TX = 1590, CY = 318;
+Dial(SX, CY, { max: 180, major: 20, minor: 10, label: v => v });
+Dial(TX, CY, { max: 8000, major: 1000, minor: 250, label: v => v / 1000, redFrom: 7000, mark: SHIFT });
+T(SX, CY + 80, 'mph', 'unit', 'middle').setAttribute('font-size', 22);
+
+/* ---------- under the dials ---------- */
+const track = (x, y, w) => el('rect', { x, y, width: w, height: 8, rx: 1, fill: css('track') });
+function barScale(x, lo, hi) {
+    [0, .25, .5, .75, 1].forEach(k => el('line', { x1: x + 150 * k, y1: 568, x2: x + 150 * k, y2: k % .5 === 0 ? 576 : 573, stroke: css('tick'), 'stroke-width': 1.5 }));
+    T(x, 596, lo, 'scale', 'start'); T(x + 150, 596, hi, 'scale', 'end');
+}
+T(170, 498, 'FUEL', 'lab'); track(170, 556, 150); barScale(170, '0', '1/1');
+T(350, 498, 'RANGE', 'lab');
+T(1430, 498, 'OIL', 'lab'); track(1430, 556, 150);
+T(1610, 498, 'COOLANT', 'lab'); track(1610, 556, 150);
+barScale(1430, '70', '150'); barScale(1610, '50', '130');
+el('rect', { x: 1467.5, y: 566, width: 56.2, height: 3, fill: css('ink2') }); el('rect', { x: 1666.2, y: 566, width: 46.9, height: 3, fill: css('ink2') });
+
+/* ---------- top centre: unlit shift lights, the mode and the shift point ---------- */
+for (let i = 0; i < 12; i++) el('rect', { x: 747 + i * 36, y: 35, width: 30, height: 20, rx: 2, fill: css('track') });
+const mode = T(1198, 53, 'SPORT', 'num'); mode.setAttribute('font-size', 24); mode.style.fill = css('sport'); mode.style.fontWeight = 700; mode.style.letterSpacing = '.08em';
+el('path', { d: 'M1312 37 L1328 37 L1320 53 Z', fill: css('amber') });
+const sp = T(1336, 53, SHIFT.toLocaleString('en-GB'), 'num'); sp.setAttribute('font-size', 24); sp.style.fill = css('ink2'); sp.style.fontWeight = 500;
+
+/* ---------- centre: power balance (its fills are layers) ---------- */
+const PX0 = 648, PX1 = 1272, PMIN = -100, PMAX = 400, px = v => PX0 + (clamp(v, PMIN, PMAX) - PMIN) / (PMAX - PMIN) * (PX1 - PX0);
+el('rect', { x: PX0, y: 106, width: 10, height: 10, fill: css('sport') }); T(PX0 + 18, 116, 'ENGINE', 'lab');
+T(960, 116, 'SYSTEM POWER', 'lab', 'middle');
+T(PX1 - 18, 116, 'ELECTRIC', 'lab', 'end'); el('rect', { x: PX1 - 10, y: 106, width: 10, height: 10, fill: css('elec') });
+T(1032, 190, 'hp', 'unit').setAttribute('font-size', 24);
+T(PX1, 174, 'hp', 'unit', 'end');
+el('rect', { x: PX0, y: 214, width: PX1 - PX0, height: 22, rx: 1, fill: css('track') });
+for (let v = PMIN; v <= PMAX; v += 50) {
+    const major = v % 100 === 0;
+    el('line', { x1: px(v), y1: 242, x2: px(v), y2: major ? 250 : 246, stroke: v === 0 ? css('ink') : css('tick'), 'stroke-width': v === 0 ? 2 : 1.5 });
+    if (major) T(px(v), 272, v < 0 ? '−' + (-v) : v, 'scale', 'middle');
+}
+el('line', { x1: px(0), y1: 208, x2: px(0), y2: 242, stroke: css('ink'), 'stroke-width': 2 });
+
+/* ---------- centre: boost, 12 V | tyres | HV battery, electric range ---------- */
+const LX = 648, RX = 1112, CW = 160;
+T(LX, 318, 'BOOST', 'lab'); el('rect', { x: LX, y: 376, width: CW, height: 8, rx: 1, fill: css('track') });
+T(LX, 408, '0', 'scale', 'start'); T(LX + CW, 408, '1.5', 'scale', 'end');
+T(LX, 440, 'PEAK', 'lab');
+T(LX, 500, '12 V BATTERY', 'lab');
+T(RX, 318, 'HV BATTERY', 'lab');
+for (let i = 0; i < 10; i++) el('rect', { x: RX + i * 16.2, y: 376, width: 14.2, height: 8, rx: 1, fill: css('track') });
+T(RX, 408, '0', 'scale', 'start'); T(RX + CW, 408, '100', 'scale', 'end');
+T(RX, 500, 'E-RANGE', 'lab');
+
+/* the car, seen from above; its tyres are layers */
+const car = el('g', { fill: 'none', stroke: css('tick'), 'stroke-width': 2, 'stroke-linejoin': 'round' });
+el('path', { d: 'M930 330 Q960 318 990 330 Q1004 338 1004 364 L1004 536 Q1004 560 990 566 Q960 574 930 566 Q916 560 916 536 L916 364 Q916 338 930 330 Z', fill: '#0c0e13' }, car);
+el('path', { d: 'M928 404 Q960 392 992 404 L986 436 Q960 430 934 436 Z' }, car);
+el('path', { d: 'M934 500 Q960 506 986 500 L990 524 Q960 532 930 524 Z' }, car);
+el('path', { d: 'M934 436 L934 500 M986 436 L986 500', 'stroke-width': 1.5 }, car);
+el('path', { d: 'M926 340 Q934 334 944 333 M994 340 Q986 334 976 333', stroke: css('ink2') }, car);
+T(960, 600, 'PSI', 'lab', 'middle').style.fill = css('ink'); T(960, 622, '°C', 'lab', 'middle').style.fill = css('ink2');
+})();
+</script>
+</body>

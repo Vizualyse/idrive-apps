@@ -1,0 +1,118 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     Three-dial 1 · Comfort: everything that never moves, drawn as the Comfort
+     mockup draws it: the rings' tracks and stops, the silver bezel, the
+     speedometer's ribs (all lit: the theme's layer dims those past the
+     speed), disc, ticks and 0-160 numerals, the limit sign's ring, the map
+     panel (left empty), the turn arrow both ways (a layer covers the way not
+     taken), labels and units. A number whose unit is static is set here
+     invisibly, so the unit sits where the mockup puts it. The moving parts
+     are the theme's layers (theme.src.json, written by gen.js). -->
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Barlow";src:url(../tri1/fonts/Barlow-400.woff2) format("woff2");font-weight:400;font-display:block}
+@font-face{font-family:"Barlow";src:url(../tri1/fonts/Barlow-500.woff2) format("woff2");font-weight:500;font-display:block}
+@font-face{font-family:"Barlow";src:url(../tri1/fonts/Barlow-600.woff2) format("woff2");font-weight:600;font-display:block}
+:root{--ink:#f3f5f8;--ink-2:#a3abb7;--line:#565e6a;--line-dim:#252a32;--limit:#ff3b2e;--elec:#36d1ea}
+html,body{margin:0;background:#000;width:1920px;height:646px;overflow:hidden}
+svg{position:absolute;left:0;top:0;width:1920px;height:720px}
+svg text{font-family:"Barlow",sans-serif;font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1;fill:var(--ink)}
+.mid{text-anchor:middle}
+.end{text-anchor:end}
+.lbl{font-size:24px;fill:var(--ink-2);font-weight:400}
+.val{font-size:34px;font-weight:600}
+.unit{font-size:24px;fill:var(--ink-2);font-weight:400}
+.stop{stroke:var(--ink-2);stroke-width:2}
+.track{fill:none;stroke:var(--line);stroke-width:4;stroke-linecap:round}
+.rib-lit{fill:none;stroke:var(--ink-2);stroke-width:1.8}
+.hair{stroke:var(--line-dim);stroke-width:1.5}
+.hid{fill-opacity:0}
+</style>
+<body>
+<svg id="c" viewBox="0 0 1920 720" xmlns="http://www.w3.org/2000/svg">
+  <text x="1770" y="70" class="end" font-size="32" font-weight="500"><tspan class="hid">14</tspan><tspan class="unit" dx="6">°C</tspan></text>
+
+  <!-- LEFT RING: economy -->
+  <g id="left">
+    <path id="l-trackA" class="track"/><path id="l-trackB" class="track"/>
+    <text x="372" y="300" class="mid unit">mpg average</text>
+    <text x="270" y="178" class="mid lbl">Engine</text>
+    <text x="474" y="178" class="mid lbl">Electric</text>
+    <text x="290" y="364" class="mid" font-size="40" font-weight="600"><tspan class="hid">75</tspan><tspan class="unit" dx="5">mpg</tspan></text>
+    <text x="290" y="390" class="mid lbl">Now</text>
+    <text x="454" y="364" class="mid" font-size="40" font-weight="600"><tspan class="hid">0</tspan><tspan class="unit" dx="5">%</tspan></text>
+    <line x1="222" y1="416" x2="522" y2="416" class="hair"/>
+    <text x="254" y="462" class="mid val"><tspan class="hid">92</tspan><tspan class="unit" dx="4">°C</tspan></text>
+    <text x="254" y="488" class="mid lbl">Coolant</text>
+    <!-- the mockup's EV share (no such reading): the average speed -->
+    <text x="382.12" y="462" class="unit">mph</text>
+    <text x="372" y="488" class="mid lbl">Average</text>
+    <text x="490" y="462" class="mid val"><tspan class="hid">54.1</tspan><tspan class="unit" dx="4">mi</tspan></text>
+    <text x="490" y="488" class="mid lbl">Trip</text>
+  </g>
+
+  <!-- RIGHT RING: map panel, guidance, range -->
+  <g id="right">
+    <path id="r-trackA" class="track"/><path id="r-trackB" class="track"/>
+    <path id="r-reserve" fill="none" stroke="#ff3b2e" stroke-width="4"/>
+    <circle cx="1548" cy="232" r="100" fill="#07090c" stroke="#252a32" stroke-width="1.5"/>
+    <!-- the next turn, left and (mirrored about the stem) right -->
+    <path transform="translate(28 0)" d="M1483 384 V366 Q1483 356 1473 356 H1456 M1465 347 L1456 356 L1465 365" fill="none" stroke="#f3f5f8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path transform="translate(3022 0) scale(-1 1) translate(28 0)" d="M1483 384 V366 Q1483 356 1473 356 H1456 M1465 347 L1456 356 L1465 365" fill="none" stroke="#f3f5f8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="1398" y1="424" x2="1698" y2="424" class="hair"/>
+    <text x="1466" y="468" class="mid val"><tspan class="hid">254</tspan><tspan class="unit" dx="5">mi</tspan></text>
+    <text x="1630" y="468" class="mid val"><tspan class="hid">24</tspan><tspan class="unit" dx="5">mi</tspan></text>
+  </g>
+
+  <!-- CENTRE RING: speedometer -->
+  <g id="centre" transform="translate(960 330) scale(0.96) translate(-960 -322)">
+    <path id="bezel" fill="none" stroke="#a3abb7" stroke-width="3" stroke-linecap="round"/>
+    <g id="ribs"></g>
+    <circle cx="960" cy="322" r="222" fill="#07090c" stroke="#252a32" stroke-width="1.5"/>
+    <g id="ticks"></g>
+    <circle cx="866" cy="222" r="29" fill="none" stroke="#ff3b2e" stroke-width="5"/>
+    <text x="1054" y="256" class="mid lbl">Set</text>
+    <text x="960" y="430" class="mid unit" font-size="26">mph</text>
+    <text x="960" y="574" class="mid" font-size="26" font-weight="600" letter-spacing="6">COMFORT</text>
+    <text x="960" y="616" class="mid" font-size="30" font-weight="600"><tspan class="unit" dx="0">Range</tspan><tspan class="hid" dx="8">278</tspan><tspan class="unit" dx="6">mi</tspan></text>
+  </g>
+</svg>
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+  function $(id) { return document.getElementById(id); }
+  function pt(cx, cy, r, deg) { var a = deg * Math.PI / 180; return [cx + r * Math.sin(a), cy - r * Math.cos(a)]; }
+  function arc(cx, cy, r, a1, a2) {
+    var p1 = pt(cx, cy, r, a1), p2 = pt(cx, cy, r, a2), large = Math.abs(a2 - a1) > 180 ? 1 : 0, sweep = a2 > a1 ? 1 : 0;
+    return "M" + p1[0].toFixed(2) + " " + p1[1].toFixed(2) + " A" + r + " " + r + " 0 " + large + " " + sweep + " " + p2[0].toFixed(2) + " " + p2[1].toFixed(2);
+  }
+  var CX = 960, CY = 322, A0 = -135, SPAN = 270, VMAX = 160;
+  function ang(v) { return A0 + Math.max(0, Math.min(VMAX, v)) / VMAX * SPAN; }
+
+  $("bezel").setAttribute("d", arc(CX, CY, 296, -135, 135));
+  for (var r = 240; r <= 286; r += 5.75) el("path", { d: arc(CX, CY, r, A0, 135), "class": "rib-lit" }, $("ribs"));
+  for (var i = 0; i <= 16; i++) {
+    var a = ang(i * 10), major = i % 2 === 0, far = i * 10 > 100, p1 = pt(CX, CY, 222, a), p2 = pt(CX, CY, major ? 234 : 229, a);
+    el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], stroke: major ? (far ? "#a3abb7" : "#f3f5f8") : "#565e6a", "stroke-width": major ? 3 : 2 }, $("ticks"));
+    if (major) {
+      var q = pt(CX, CY, 196, a), t = el("text", { x: q[0], y: q[1] + 10, "class": "mid", "font-size": 28, "font-weight": 400 }, $("ticks"));
+      t.textContent = i * 10; t.style.fill = "var(--ink-2)"; if (far) t.style.opacity = 0.62;
+    }
+  }
+  function ring(cx, cy, ids) {
+    $(ids[0]).setAttribute("d", arc(cx, cy, 236, -150, -30));
+    $(ids[1]).setAttribute("d", arc(cx, cy, 236, 150, 30));
+    var host = $(ids[0]).parentNode;
+    [-150, -120, -90, -60, -30, 30, 60, 90, 120, 150].forEach(function (a) {
+      var end = Math.abs(a) === 150 || Math.abs(a) === 30, p1 = pt(cx, cy, 244, a), p2 = pt(cx, cy, end ? 258 : 251, a);
+      el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], "class": "stop" }, host);
+    });
+  }
+  $("r-reserve").setAttribute("d", arc(1548, 330, 247, -150, -135.6));
+  ring(372, 330, ["l-trackA", "l-trackB"]);
+  ring(1548, 330, ["r-trackA", "r-trackB"]);
+})();
+</script>
+</body>

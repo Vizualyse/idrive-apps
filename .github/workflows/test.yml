@@ -76,12 +76,17 @@ jobs:
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/swap_test.js
       - name: Steam's Detail (engines, launch options, dxvk.conf, WINE_D3D_CONFIG)
         run: node native/vizualyse-steam/test/detail_test.js
+      - name: Cluster themes (shader rules; every theme on Node 8; the tool against a fake cluster-render on Node 8)
+        run: |
+          node native/vizualyse-cluster/test/shader_lint.js
+          docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-cluster/test/themes_test.js
+          docker run --rm -v "$PWD:/repo" -w /repo node:8.16.2-alpine node native/vizualyse-cluster/test/tool_test.js
       - name: Release tooling
         run: node release/test/release_test.js
       - name: Node 8 syntax (the head unit's)
         run: |
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine sh -c '
-            for f in native/vizualyse-cast/src/*.js native/vizualyse-cast/test/bus_test.js platform/tool/mqtt_bus/*/*.js platform/tool/mqtt_bus/*/test/*.js apps/vizualyse_cast/src/*.js apps/vizualyse_moonlight/src/*.js native/vizualyse-moonlight/src/*.js apps/vizualyse_chromium/src/*.js native/vizualyse-chromium/src/*.js native/vizualyse-chromium/test/*.js apps/vizualyse_steam/src/*.js native/vizualyse-steam/src/*.js native/vizualyse-steam/test/*.js samples/*/*.js; do node -c "$f" || exit 1; done'
+            for f in native/vizualyse-cast/src/*.js native/vizualyse-cast/test/bus_test.js platform/tool/mqtt_bus/*/*.js platform/tool/mqtt_bus/*/test/*.js apps/vizualyse_cast/src/*.js apps/vizualyse_moonlight/src/*.js native/vizualyse-moonlight/src/*.js apps/vizualyse_chromium/src/*.js native/vizualyse-chromium/src/*.js native/vizualyse-chromium/test/*.js apps/vizualyse_steam/src/*.js native/vizualyse-steam/src/*.js native/vizualyse-steam/test/*.js native/vizualyse-cluster/src/*.js native/vizualyse-cluster/test/*.js native/vizualyse-cluster/themes/built/*.logic.js samples/*/*.js; do node -c "$f" || exit 1; done'
       - name: CarPlay second screen source (Node 8, the kit's ffmpeg)
         run: |
           node native/vizualyse-cast/tools/fetch_ffmpeg.js

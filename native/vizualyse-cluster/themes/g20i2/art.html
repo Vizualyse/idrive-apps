@@ -1,0 +1,282 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     G20 inspired 2: everything that never moves, drawn as the mockup draws it
+     (frames, scales, numerals, unlit lamps, the car plan, bar outlines, labels
+     and units). The moving parts are the theme's layers (theme.src.json, made
+     by gen.js from the same geometry). -->
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Cluster";src:url(../fonts/BarlowSemiCondensed-400.woff2) format("woff2");font-weight:400;font-display:block}
+@font-face{font-family:"Cluster";src:url(../fonts/BarlowSemiCondensed-500.woff2) format("woff2");font-weight:500;font-display:block}
+@font-face{font-family:"Cluster";src:url(../fonts/BarlowSemiCondensed-600.woff2) format("woff2");font-weight:600;font-display:block}
+:root{--ink:#f1f0ec;--ink-2:#b4b2ac;--ink-3:#8a8882;--ink-4:#3a3936;--frame:#e9e7e2;--sport:#ff3a1c;--sport-deep:#9c1608;
+  --edrive:#3aa2ff;--cold:#4a8fd8}
+html,body{margin:0;background:#000;width:1920px;height:646px;overflow:hidden}
+.haze{position:absolute;left:0;top:0;width:1920px;height:646px;
+  -webkit-mask-image:linear-gradient(#000 586px,transparent 646px);mask-image:linear-gradient(#000 586px,transparent 646px);
+  background:radial-gradient(520px 260px at 470px 560px, rgba(150,18,4,.22), transparent 70%),
+    radial-gradient(520px 260px at 1450px 560px, rgba(150,18,4,.22), transparent 70%)}
+svg{position:absolute;left:0;top:0;width:1920px;height:646px}
+svg text{font-family:"Cluster",sans-serif;font-variant-numeric:tabular-nums;fill:var(--ink)}
+.num{font-size:31px;font-weight:500}
+.num.red{fill:var(--sport)}
+.unit{font-size:16px;font-weight:500;fill:var(--ink-2);letter-spacing:.02em}
+.cap{font-size:16px;font-weight:600;fill:var(--ink-3);letter-spacing:.12em}
+.val{font-size:26px;font-weight:500}
+.small{font-size:19px;font-weight:500;fill:var(--ink-2)}
+.status{font-size:25px;font-weight:500}
+.sportword{font-size:25px;font-weight:600;fill:var(--sport);letter-spacing:.1em}
+</style>
+<body>
+<div class="haze"></div>
+<svg id="g" viewBox="0 0 1920 646" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lineFadeR" x1="0" x2="1">
+      <stop offset="0" stop-color="#f1f0ec" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#f1f0ec" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="bodyShade" x1="0" x2="1">
+      <stop offset="0" stop-color="#121212"/><stop offset=".5" stop-color="#2c2c2b"/><stop offset="1" stop-color="#121212"/>
+    </linearGradient>
+  </defs>
+  <g id="static"></g>
+</svg>
+<script>
+'use strict';
+const W = 1920, NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent, text) => {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  if (parent) parent.appendChild(n);
+  return n;
+};
+const lerp = (a, b, t) => a + (b - a) * t;
+const RAD = Math.PI / 180;
+
+/* the mockup's frame geometry (gen.js has the same) */
+function frame(points, radii, step = 2) {
+  const prims = []; let cur = points[0];
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i];
+    if (i < points.length - 1 && radii[i] > 0) {
+      const a = points[i - 1], b = points[i + 1];
+      const li = Math.hypot(p.x - a.x, p.y - a.y), lo = Math.hypot(b.x - p.x, b.y - p.y);
+      const di = { x: (p.x - a.x) / li, y: (p.y - a.y) / li }, dout = { x: (b.x - p.x) / lo, y: (b.y - p.y) / lo };
+      const c = Math.min(radii[i], li / 2, lo / 2);
+      const p1 = { x: p.x - di.x * c, y: p.y - di.y * c }, p2 = { x: p.x + dout.x * c, y: p.y + dout.y * c };
+      prims.push({ q: 0, a: cur, b: p1 }, { q: 1, a: p1, c: p, b: p2 }); cur = p2;
+    } else { prims.push({ q: 0, a: cur, b: p }); cur = p; }
+  }
+  const pts = [];
+  const push = (x, y) => { const l = pts[pts.length - 1]; if (!l || Math.hypot(l.x - x, l.y - y) > 0.01) pts.push({ x, y }); };
+  for (const pr of prims) {
+    if (!pr.q) {
+      const n = Math.max(1, Math.ceil(Math.hypot(pr.b.x - pr.a.x, pr.b.y - pr.a.y) / step));
+      for (let i = 0; i <= n; i++) push(lerp(pr.a.x, pr.b.x, i / n), lerp(pr.a.y, pr.b.y, i / n));
+    } else {
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40, u = 1 - t;
+        push(u * u * pr.a.x + 2 * u * t * pr.c.x + t * t * pr.b.x, u * u * pr.a.y + 2 * u * t * pr.c.y + t * t * pr.b.y);
+      }
+    }
+  }
+  let s = 0;
+  pts.forEach((p, i) => { if (i) s += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y); p.s = s; });
+  pts.forEach((p, i) => {
+    const a = pts[Math.max(0, i - 2)], b = pts[Math.min(pts.length - 1, i + 2)];
+    const l = Math.hypot(b.x - a.x, b.y - a.y) || 1, tx = (b.x - a.x) / l, ty = (b.y - a.y) / l;
+    p.nx = -ty; p.ny = tx;
+  });
+  return { pts, len: s };
+}
+const mirror = (f) => ({ len: f.len, pts: f.pts.map(p => ({ x: W - p.x, y: p.y, s: p.s, nx: -p.nx, ny: p.ny })) });
+function at(f, s) {
+  const P = f.pts; s = Math.max(0, Math.min(f.len, s));
+  let lo = 0, hi = P.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (P[m].s < s) lo = m; else hi = m; }
+  const a = P[lo], b = P[hi], t = (s - a.s) / ((b.s - a.s) || 1);
+  const nx = lerp(a.nx, b.nx, t), ny = lerp(a.ny, b.ny, t), nl = Math.hypot(nx, ny) || 1;
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), nx: nx / nl, ny: ny / nl };
+}
+const off = (f, s, d) => { const p = at(f, s); return [p.x + p.nx * d, p.y + p.ny * d]; };
+function pathD(f, s0, s1, d, step = 3) {
+  let out = '';
+  for (let s = s0; s <= s1 + 0.001; s += step) {
+    const [x, y] = off(f, Math.min(s, s1), d);
+    out += (out ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+  }
+  return out;
+}
+const LEFT = frame([{ x: 812, y: 572 }, { x: 368, y: 572 }, { x: 198, y: 450 }, { x: 198, y: 306 }, { x: 396, y: 130 }, { x: 778, y: 84 }],
+  [0, 70, 56, 56, 90, 0]);
+const RIGHT = mirror(LEFT);
+function stopsMap(stops) {
+  return v => {
+    for (let i = 1; i < stops.length; i++) if (v <= stops[i][0]) {
+      const [v0, f0] = stops[i - 1], [v1, f1] = stops[i];
+      return lerp(f0, f1, (v - v0) / (v1 - v0));
+    }
+    return stops[stops.length - 1][1];
+  };
+}
+const SPD = { f: LEFT, s0: 812 - 600, s1: LEFT.len - 18, map: stopsMap([[0, 0], [20, .17], [40, .3], [60, .42], [80, .54], [100, .66], [120, .78], [160, 1]]) };
+const TAC = { f: RIGHT, s0: 812 - 600, s1: RIGHT.len - 18, map: stopsMap([[0, 0], [1, .17], [2, .31], [3, .44], [4, .57], [5, .71], [6, .855], [7, 1]]) };
+const sOf = (g, v) => lerp(g.s0, g.s1, g.map(v));
+const S = document.getElementById('static');
+
+/* frames and the deep red track */
+for (const f of [LEFT, RIGHT])
+  el('path', { d: pathD(f, 0, f.len, 0, 2), fill: 'none', stroke: 'var(--frame)', 'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: .92 }, S);
+for (const g of [SPD, TAC])
+  el('path', { d: pathD(g.f, g.s0, g.s1, 15, 2), fill: 'none', stroke: 'var(--sport-deep)', 'stroke-width': 2, opacity: .95 }, S);
+{ /* tach red zone 6.5-7k on the frame */
+  const a = sOf(TAC, 6.5), b = sOf(TAC, 7);
+  let d = '';
+  for (let s = a; s <= b; s += 2) { const [x, y] = off(RIGHT, s, 1.5); d += (d ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }
+  for (let s = b; s >= a; s -= 2) { const [x, y] = off(RIGHT, s, 11); d += 'L' + x.toFixed(1) + ' ' + y.toFixed(1); }
+  el('path', { d: d + 'Z', fill: 'var(--sport)' }, S);
+}
+function tick(g, v, d0, d1, w, col) {
+  const s = sOf(g, v), [x0, y0] = off(g.f, s, d0), [x1, y1] = off(g.f, s, d1);
+  el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: col, 'stroke-width': w }, S);
+}
+for (let v = 0; v <= 160; v += 10) {
+  const major = [0, 20, 40, 60, 80, 100, 120, 160].includes(v);
+  tick(SPD, v, 15, major ? 33 : 24, major ? 3 : 1.6, major ? 'var(--ink)' : 'var(--ink-3)');
+}
+for (let v = 0; v <= 7; v += .5) {
+  const major = v % 1 === 0;
+  tick(TAC, v, 15, major ? 33 : 24, major ? 3 : 1.6, v >= 6.5 ? 'var(--sport)' : major ? 'var(--ink)' : 'var(--ink-3)');
+}
+function label(g, v, txt, d, cls) {
+  const [x, y] = off(g.f, sOf(g, v), d);
+  el('text', { x, y: y + 11, 'text-anchor': 'middle', class: cls }, S, txt);
+}
+[0, 20, 40, 60, 80, 100, 120, 160].forEach(v => label(SPD, v, String(v), 58, 'num'));
+for (let v = 0; v <= 7; v++) label(TAC, v, String(v), 56, v === 7 ? 'num red' : 'num');
+{
+  const [x, y] = off(LEFT, sOf(SPD, 0), 58);
+  el('text', { x: x + 26, y: y + 11, class: 'unit' }, S, 'mph');
+  const [tx, ty] = off(RIGHT, sOf(TAC, 0), 56);
+  el('text', { x: tx + 24, y: ty - 4, class: 'unit' }, S, '1/min');
+  el('text', { x: tx + 24, y: ty + 14, class: 'unit' }, S, '×1000');
+}
+
+/* shift lamps, unlit */
+{
+  /* 10 equal lengths of the line 19 px outside the frame, 6 px gaps, 12 px thick: as the lamps
+   * layers cut them (gauge u_seg, gen.js), so a lit lamp covers its unlit one exactly */
+  const n = 10, sa = sOf(TAC, 4.6), sb = sOf(TAC, 6.25);
+  const P = [];
+  for (let s = sa; ; s += 3) { P.push(off(RIGHT, Math.min(s, sb), -19)); if (s >= sb) break; }
+  const cum = [0];
+  for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const cell = cum[cum.length - 1] / n;
+  const ptAt = (l) => {
+    let i = 1; while (i < P.length - 1 && cum[i] < l) i++;
+    const k = (l - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
+    return [lerp(P[i - 1][0], P[i][0], k), lerp(P[i - 1][1], P[i][1], k)];
+  };
+  for (let i = 0; i < n; i++) {
+    let d = '';
+    for (let l = i * cell + 3; ; l += 2) {
+      const q = ptAt(Math.min(l, (i + 1) * cell - 3));
+      d += (d ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+      if (l >= (i + 1) * cell - 3) break;
+    }
+    el('path', { d, fill: 'none', stroke: '#2e2622', 'stroke-width': 13 }, S);
+    el('path', { d, fill: 'none', stroke: '#1c1512', 'stroke-width': 11 }, S);
+  }
+}
+
+/* fuel (far left) and oil (far right) */
+function sideArc(cx, cy, R) {
+  const pt = (a, r = R) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+  const d = (from, to, r = R) => {
+    let o = '';
+    for (let i = 0; i <= 40; i++) { const [x, y] = pt(lerp(from, to, i / 40), r); o += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }
+    return o;
+  };
+  return { pt, d };
+}
+const FUEL = sideArc(332, 432, 222), FA0 = 161 * RAD, FA1 = 199 * RAD;
+el('path', { d: FUEL.d(FA0, FA1), fill: 'none', stroke: 'var(--ink-4)', 'stroke-width': 7 }, S);
+[[0, '0'], [.5, '½'], [1, '1']].forEach(([f, t]) => {
+  const a = lerp(FA0, FA1, f);
+  const [x0, y0] = FUEL.pt(a, 228), [x1, y1] = FUEL.pt(a, 242), [lx, ly] = FUEL.pt(a, 256);
+  el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: 'var(--ink)', 'stroke-width': 2.5 }, S);
+  el('text', { x: lx, y: ly + 8, 'text-anchor': 'middle', class: 'small' }, S, t);
+});
+const PUMP = 'M0 0h11a2 2 0 0 1 2 2v18H-2V2a2 2 0 0 1 2-2zM1 3v6h9V3zM13 7l4 3v8a1.6 1.6 0 0 0 3.2 0V8l-3-4';
+el('path', { d: PUMP, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(96 548)' }, S);
+const OIL = sideArc(W - 332, 432, 222), OA0 = 19 * RAD, OA1 = -19 * RAD;
+el('path', { d: OIL.d(OA0, OA1), fill: 'none', stroke: 'var(--ink-4)', 'stroke-width': 7 }, S);
+el('path', { d: OIL.d(OA0, lerp(OA0, OA1, .2)), fill: 'none', stroke: 'var(--cold)', 'stroke-width': 7, opacity: .9 }, S);
+el('path', { d: OIL.d(lerp(OA0, OA1, .8), OA1), fill: 'none', stroke: 'var(--sport)', 'stroke-width': 7, opacity: .9 }, S);
+[[0, '50'], [.5, '100'], [1, '150']].forEach(([f, t]) => {
+  const a = lerp(OA0, OA1, f);
+  const [x0, y0] = OIL.pt(a, 228), [x1, y1] = OIL.pt(a, 242), [lx, ly] = OIL.pt(a, 262);
+  el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: 'var(--ink)', 'stroke-width': 2.5 }, S);
+  el('text', { x: lx, y: ly + 7, 'text-anchor': 'middle', class: 'small', style: 'font-size:16px' }, S, t);
+});
+el('text', { x: W - 104, y: 566, 'text-anchor': 'middle', class: 'cap' }, S, 'OIL');
+
+/* left interior: speed unit, rule, HV battery */
+el('text', { x: 634, y: 296, class: 'unit', style: 'font-size:22px' }, S, 'mph');
+el('rect', { x: 372, y: 418, width: 400, height: 2.5, fill: 'url(#lineFadeR)' }, S);
+el('path', { d: 'M0 3h26v16H0zM26 8h3v6h-3M9 7l-3 5h6l-3 5', fill: 'none', stroke: 'var(--edrive)', 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(440 444)' }, S);
+el('text', { x: 484, y: 490, class: 'cap' }, S, 'HV BATTERY');
+
+/* centre: the car plan and its tyres */
+el('text', { x: 960, y: 184, 'text-anchor': 'middle', class: 'cap' }, S, 'TYRES  ·  psi  ·  °C');
+[[892, 240], [1012, 240], [892, 386], [1012, 386]].forEach(([x, y]) =>
+  el('rect', { x, y, width: 16, height: 46, rx: 4, fill: '#2a2a29', stroke: 'var(--ink-3)', 'stroke-width': 1.2 }, S));
+el('path', {
+  d: 'M960 212C984 212 1004 215 1009 226C1013 236 1014 246 1014 254C1018 262 1019 272 1018 290C1016 300 1013 306 1013 316L1013 370' +
+     'C1013 380 1018 388 1019 400C1020 418 1018 428 1015 438C1011 452 996 460 960 461' +
+     'C924 460 909 452 905 438C902 428 900 418 901 400C902 388 907 380 907 370L907 316' +
+     'C907 306 904 300 902 290C901 272 902 262 906 254C906 246 907 236 911 226C916 215 936 212 960 212Z',
+  fill: 'url(#bodyShade)', stroke: 'var(--ink-2)', 'stroke-width': 1.5 }, S);
+el('path', { d: 'M924 300C940 288 980 288 996 300L998 402C982 414 938 414 922 402Z', fill: '#050505', stroke: 'var(--ink-3)', 'stroke-width': 1.2 }, S);
+el('path', { d: 'M928 330C948 324 972 324 992 330L993 386C974 391 946 391 927 386Z', fill: 'url(#bodyShade)' }, S);
+el('path', { d: 'M940 222C936 250 930 272 926 294M980 222C984 250 990 272 994 294', fill: 'none', stroke: '#3a3a38', 'stroke-width': 1.5 }, S);
+el('path', { d: 'M1012 302L1025 298L1027 309L1013 313ZM908 302L895 298L893 309L907 313Z', fill: '#222', stroke: 'var(--ink-3)', 'stroke-width': 1 }, S);
+el('path', { d: 'M917 224L938 217M1003 224L982 217', stroke: 'var(--ink-2)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, S);
+el('path', { d: 'M914 450L934 457M1006 450L986 457', stroke: 'var(--sport-deep)', 'stroke-width': 3, 'stroke-linecap': 'round' }, S);
+
+/* right interior: power bars (scales: engine 0..400 hp, electric -80..+120 hp), gear, revs */
+function bar(cx, cy, R, w, a0, a1) {
+  const pt = (a, r) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+  const band = (f0, f1) => {
+    const A0 = lerp(a0, a1, f0), A1 = lerp(a0, a1, f1); let o = '';
+    for (let i = 0; i <= 30; i++) { const [x, y] = pt(lerp(A0, A1, i / 30), R); o += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }
+    for (let i = 30; i >= 0; i--) { const [x, y] = pt(lerp(A0, A1, i / 30), R - w); o += 'L' + x.toFixed(1) + ' ' + y.toFixed(1); }
+    return o + 'Z';
+  };
+  return { pt, band, R, w, a0, a1 };
+}
+const ENG = bar(682, 380, 532, 22, 13 * RAD, -13 * RAD), ELE = bar(682, 380, 610, 22, 13 * RAD, -13 * RAD);
+const ELE_ZERO = 80 / 200;
+for (const b of [ENG, ELE]) el('path', { d: b.band(0, 1), fill: '#0d0d0d', stroke: 'var(--ink-3)', 'stroke-width': 1.5 }, S);
+{
+  const a = lerp(ELE.a0, ELE.a1, ELE_ZERO), [x0, y0] = ELE.pt(a, ELE.R + 6), [x1, y1] = ELE.pt(a, ELE.R - ELE.w - 6);
+  el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: 'var(--ink)', 'stroke-width': 2 }, S);
+}
+function barLabels(b, top, name) {
+  const [tx, ty] = b.pt(b.a1, b.R - b.w / 2), [bx, by] = b.pt(b.a0, b.R - b.w / 2);
+  el('text', { x: tx + 6, y: ty - 44, 'text-anchor': 'middle', class: 'unit', style: 'fill:var(--ink-3)' }, S, top + ' hp');
+  el('text', { x: bx - 2, y: by + 32, 'text-anchor': 'middle', class: 'cap', style: 'letter-spacing:.06em' }, S, name);
+}
+barLabels(ENG, '400', 'ENGINE');
+barLabels(ELE, '120', 'ELECTRIC');
+el('path', { d: 'M1426 214l24-18 24 18', fill: 'none', stroke: '#2a2420', 'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, S);
+el('rect', { x: 1340, y: 418, width: 220, height: 2.5, fill: 'var(--ink-4)' }, S);
+el('text', { x: 1530, y: 462, class: 'unit' }, S, 'rpm');
+
+/* status row, above the car's strip */
+el('path', { d: PUMP, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(204 603)' }, S);
+el('text', { x: 1400, y: 624, 'text-anchor': 'middle', class: 'sportword' }, S, 'SPORT');
+</script>
+</body>

@@ -1,0 +1,214 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     lci1 "LCI inspired 1": the static art of the LCI Sport mockup (its SVG,
+     geometry and colours), without what moves. The lit bands, tints, traces,
+     needles, shift lights, bars, tyres, the g dot and every reading are the
+     theme's layers (theme.src.json, written by gen.js). A value tspan kept
+     here with fill-opacity 0 only holds its unit where the mockup puts it;
+     gen.js reads those positions with #measure.
+     Scale numerals are drawn dim: the numerals layer brightens the ones
+     the band has reached. -->
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; src: url(fonts/Archivo.woff2) format("woff2"); }
+html, body { margin: 0; background: #000; }
+svg { display: block; }
+text { font-family: "Archivo", sans-serif; fill: #f5f8ff; font-variant-numeric: tabular-nums lining-nums; }
+.big   { font-size: 112px; font-weight: 600; font-stretch: 108%; letter-spacing: -0.02em; }
+.val   { font-size: 44px; font-weight: 600; font-stretch: 108%; }
+.val-s { font-size: 24px; font-weight: 600; font-stretch: 108%; }
+.unit  { font-size: 18px; font-weight: 500; fill: #b4c8ff; }
+.lab   { font-size: 18px; font-weight: 600; letter-spacing: 0.08em; fill: #b4c8ff; }
+.sub   { font-size: 22px; font-weight: 500; fill: #b4c8ff; }
+.scale { font-size: 30px; font-weight: 500; font-stretch: 108%; fill: #7f8fb8; }
+.corner { font-size: 20px; font-weight: 500; fill: #7f8fb8; }
+.clock  { font-size: 32px; font-weight: 500; font-stretch: 108%; }
+.hid { fill-opacity: 0; }
+.ico path { fill: none; stroke: #b4c8ff; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#out { position: absolute; left: 0; top: 0; color: #fff; font: 10px monospace; white-space: pre; }
+</style>
+<svg id="stage" width="1920" height="646" viewBox="0 0 1920 646" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="hexclip"><polygon points="430,30 1490,30 1668,320 1490,610 430,610 252,320"/></clipPath>
+    <linearGradient id="fieldg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1340d2"/><stop offset=".5" stop-color="#0d33bd"/><stop offset="1" stop-color="#071b72"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="646" fill="#020308"/>
+
+  <!-- hexagonal field -->
+  <polygon points="430,30 1490,30 1668,320 1490,610 430,610 252,320" fill="url(#fieldg)"/>
+  <g clip-path="url(#hexclip)">
+    <path d="M430,610 L252,320 L430,30" transform="translate(54 0)" fill="none" stroke="#2c5cf0" stroke-opacity=".4" stroke-width="34" stroke-linejoin="miter"/>
+    <path d="M1490,610 L1668,320 L1490,30" transform="translate(-54 0)" fill="none" stroke="#2c5cf0" stroke-opacity=".4" stroke-width="34" stroke-linejoin="miter"/>
+    <path d="M430,610 L252,320 L430,30" transform="translate(11 0)" fill="none" stroke="#0c4560" stroke-width="18"/>
+    <path d="M1490,610 L1668,320 L1490,30" transform="translate(-11 0)" fill="none" stroke="#4a0b1a" stroke-width="18"/>
+    <path d="M1490,610 L1668,320 L1490,30" pathLength="1000" transform="translate(-11 0)" fill="none" stroke="#ff2a45" stroke-opacity=".5" stroke-width="18" stroke-dasharray="0 929 71 0"/>
+    <path d="M1490,610 L1668,320 L1490,30" pathLength="1000" transform="translate(-11 0)" fill="none" stroke="#020308" stroke-width="18" stroke-dasharray="0 927 3 70"/>
+    <path d="M1490,610 L1668,320 L1490,30" pathLength="1000" transform="translate(-11 0)" fill="none" stroke="#ffb224" stroke-width="18" stroke-dasharray="0 854 6 140"/>
+    <path d="M430,610 L252,320 L430,30" transform="translate(31 0)" fill="none" stroke="#5b86ff" stroke-opacity=".55" stroke-width="2"/>
+    <path d="M1490,610 L1668,320 L1490,30" transform="translate(-31 0)" fill="none" stroke="#5b86ff" stroke-opacity=".55" stroke-width="2"/>
+  </g>
+
+  <g id="scaleL"></g>
+  <g id="scaleR"></g>
+
+  <!-- inner panel -->
+  <polygon points="746,66 1174,66 1330,320 1174,574 746,574 590,320" fill="#040a28" stroke="#5b86ff" stroke-opacity=".6" stroke-width="1.5"/>
+
+  <!-- power -->
+  <text class="lab" x="940" y="106" text-anchor="end">ENGINE</text>
+  <text x="940" y="156" text-anchor="end"><tspan id="mEng" class="val hid">291</tspan><tspan class="unit" dx="6">hp</tspan></text>
+  <text x="980" y="156"><tspan id="mEle" class="val hid">109</tspan><tspan id="mEleUnit" class="unit hid" dx="6">hp</tspan></text>
+  <rect x="730" y="172" width="220" height="8" fill="#12235e"/>
+  <rect x="970" y="172" width="220" height="8" fill="#12235e"/>
+  <rect x="959" y="164" width="2" height="24" fill="#b4c8ff"/>
+  <text id="mSys" class="sub hid" x="960" y="214" text-anchor="middle">System <tspan id="mSysN" fill="#f5f8ff" font-weight="600">400</tspan> hp</text>
+
+  <!-- car, plan view -->
+  <g fill="none" stroke="#5b86ff" stroke-width="1.5" stroke-linejoin="round">
+    <path d="M920,246 Q960,236 1000,246 Q1016,252 1018,282 L1020,500 Q1020,538 1004,546 Q960,554 916,546 Q900,538 900,500 L902,282 Q904,252 920,246 Z" fill="#0a1a5c"/>
+    <path d="M912,330 Q960,312 1008,330 L1000,372 Q960,362 920,372 Z" fill="#040a28"/>
+    <path d="M918,480 Q960,488 1002,480 L1008,506 Q960,518 912,506 Z" fill="#040a28"/>
+    <path d="M920,378 L918,472 M1000,378 L1002,472" stroke-opacity=".6"/>
+    <path d="M902,326 L890,332 L890,340 L902,338 M1018,326 L1030,332 L1030,340 L1018,338"/>
+    <path d="M916,262 Q930,254 944,256 M1004,262 Q990,254 976,256" stroke-opacity=".7"/>
+    <path d="M934,264 Q941,296 937,321 M986,264 Q979,296 983,321 M914,526 Q960,536 1006,526" stroke-opacity=".5"/>
+  </g>
+  <text x="862" y="300" text-anchor="end"><tspan id="mPFL" class="val-s hid" style="font-size:36px">36</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="1058" y="300"><tspan id="mPFR" class="val-s hid" style="font-size:36px">36</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="862" y="486" text-anchor="end"><tspan id="mPRL" class="val-s hid" style="font-size:36px">38</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="1058" y="486"><tspan id="mPRR" class="val-s hid" style="font-size:36px">38</tspan><tspan class="unit" dx="5">psi</tspan></text>
+
+  <!-- upper left wing: boost -->
+  <text class="lab" x="470" y="112">BOOST</text>
+  <text x="470" y="160"><tspan id="mBoost" class="val hid">1.3</tspan><tspan class="unit" dx="6">bar</tspan></text>
+  <rect x="470" y="178" width="160" height="6" fill="#0a1d6a"/>
+
+  <!-- upper right wing: g-force -->
+  <text class="lab" x="1376" y="112" text-anchor="end">G-FORCE</text>
+  <text x="1376" y="160" text-anchor="end"><tspan id="mG" class="val hid">0.5</tspan><tspan class="unit" dx="6">g</tspan></text>
+  <g stroke="#b4c8ff" fill="none">
+    <circle cx="1432" cy="142" r="40" fill="#061552" stroke-opacity=".8" stroke-width="1.5"/>
+    <circle cx="1432" cy="142" r="20" stroke-opacity=".35"/>
+    <path d="M1392,142 H1472 M1432,102 V182" stroke-opacity=".35"/>
+  </g>
+
+  <!-- speed and gear boxes -->
+  <polygon points="338,320 378,254 586,254 600,268 600,386 378,386" fill="#00030a" stroke="#b4c8ff" stroke-opacity=".4"/>
+  <text class="unit" x="584" y="377" text-anchor="end" style="font-size:18px">mph</text>
+  <polygon points="1582,320 1542,254 1334,254 1320,268 1320,386 1542,386" fill="#00030a" stroke="#b4c8ff" stroke-opacity=".4"/>
+  <text x="1420" y="352" text-anchor="middle"><tspan id="mM" class="val" style="font-size:52px" fill="#b4c8ff">M</tspan><tspan id="mGear" class="big hid" dx="4">2</tspan></text>
+
+  <!-- lower wings -->
+  <g id="bars"></g>
+  <g id="iFuel" class="ico"><path d="M4,22 V5 a2,2 0 0 1 2,-2 h7 a2,2 0 0 1 2,2 V22 M2,22 H17 M6.5,7 h6 v5 h-6 z M15,11 h1.5 a2,2 0 0 1 2,2 v5 a1.75,1.75 0 0 0 3.5,0 V9 l-3,-3"/></g><text id="wFuel"><tspan id="mFuel" class="val-s hid">58</tspan><tspan class="unit" dx="4">%</tspan></text><text class="sub hid" id="sFuel">286 mi</text>
+  <g id="iBat" class="ico"><path d="M2,8 h20 v12 h-20 z M6,8 V5 h4 v3 M14,8 V5 h4 v3 M5.5,14 h5 M13.5,14 h5 M16,11.5 v5"/></g><text id="wBat"><tspan id="mBat" class="val-s hid">64</tspan><tspan class="unit" dx="4">%</tspan></text><text class="sub hid" id="sBat">21 mi</text>
+  <g id="iOil" class="ico"><path d="M2,10 l5,1.5 v-1.5 h9 l5,-3.5 l1.5,1.5 l-5.5,6.5 v3.5 h-10 v-4.5 l-5,-1.5 z M11,10 V7 M8.5,7 h5 M22,14 v3"/></g><text id="wOil" text-anchor="end"><tspan id="mOil" class="val-s hid">108</tspan><tspan class="unit" dx="4">°C</tspan></text>
+  <g id="iCool" class="ico"><path d="M12,2 v11.5 M12,5 h4.5 M12,9 h4.5 M9,16.5 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0 M1.5,20.5 q2.75,-2.5 5.5,0 M17,20.5 q2.75,-2.5 5.5,0"/></g><text id="wCool" text-anchor="end"><tspan id="mCool" class="val-s hid">94</tspan><tspan class="unit" dx="4">°C</tspan></text>
+
+  <!-- corners -->
+  <text class="corner" x="64" y="58">mph</text>
+  <text class="corner" x="1856" y="58" text-anchor="end">1/min × 1000</text>
+  <text class="clock" x="1856" y="596" text-anchor="end" style="letter-spacing:.06em">SPORT</text>
+</svg>
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  }
+  /* the mockup's own builders, unchanged in geometry */
+  var K = 178 / 290, NX = 0.8523, NY = 0.5231;
+  function edgePt(f, side) {
+    var y = 610 - f * 580, dx = 178 - Math.abs(y - 320) * K;
+    return { x: side < 0 ? 430 - dx : 1490 + dx, y: y, upper: f > 0.5 };
+  }
+  var numerals = [];
+  function buildScale(g, side, majors, minors, toF) {
+    minors.concat(majors).forEach(function (v, i) {
+      var major = i >= minors.length;
+      if (!major && majors.indexOf(v) >= 0) return;
+      var p = edgePt(toF(v), side), f = toF(v);
+      var nx = side * NX, ny = f === 0.5 ? 0 : (p.upper ? -NY : NY);
+      if (f === 0.5) nx = side;
+      var a = 5, b = major ? 20 : 12;
+      el('line', { x1: p.x + nx * a, y1: p.y + ny * a, x2: p.x + nx * b, y2: p.y + ny * b,
+        stroke: major ? '#b4c8ff' : '#56648c', 'stroke-width': major ? 2.5 : 1.5 }, g);
+      if (major) {
+        var t = el('text', { 'class': 'scale', x: p.x + side * 34, y: p.y + 10, 'text-anchor': side < 0 ? 'end' : 'start' }, g);
+        t.textContent = v >= 1000 ? v / 1000 : v;
+        numerals.push({ side: side, v: v, t: t, y: p.y + 10 });
+      }
+    });
+  }
+  var i, mM = [], mm = [], rM = [], rm = [];
+  for (i = 0; i <= 180; i += 20) mM.push(i);
+  for (i = 0; i <= 180; i += 10) mm.push(i);
+  for (i = 0; i <= 7000; i += 1000) rM.push(i);
+  for (i = 0; i <= 7000; i += 500) rm.push(i);
+  buildScale($('scaleL'), -1, mM, mm, function (v) { return v / 180; });
+  buildScale($('scaleR'), 1, rM, rm, function (v) { return v / 7000; });
+
+  var Y0 = 590, Y1 = 424;
+  function barX(y, side, off) {
+    var edge = side < 0 ? 252 + (y - 320) * K : 1668 - (y - 320) * K;
+    return edge + (side < 0 ? off : -off - 10);
+  }
+  function barPts(side, off, ya, yb) {
+    var xa = barX(ya, side, off), xb = barX(yb, side, off);
+    return xa + ',' + ya + ' ' + (xa + 10) + ',' + ya + ' ' + (xb + 10) + ',' + yb + ' ' + xb + ',' + yb;
+  }
+  function makeBar(side, off, track, warnFrom, warnCol) {
+    var g = $('bars');
+    el('polygon', { points: barPts(side, off, Y0, Y1), fill: track }, g);
+    if (warnFrom != null) {
+      var yw = Y0 - warnFrom * (Y0 - Y1);
+      el('polygon', { points: warnFrom > 0.5 ? barPts(side, off, yw, Y1) : barPts(side, off, Y0, yw), fill: warnCol, opacity: 0.45 }, g);
+    }
+  }
+  makeBar(-1, 92, '#0a1d6a', 0.12, '#ffb224');
+  makeBar(-1, 216, '#0a1d6a', null);
+  makeBar(1, 92, '#0a1d6a', 0.82, '#ff2a45');
+  makeBar(1, 216, '#0a1d6a', 0.82, '#ff2a45');
+  function place(id, side, off, y) {
+    var x = barX(y, side, off) + (side < 0 ? 26 : -16);
+    $(id).setAttribute('x', x); $(id).setAttribute('y', y);
+  }
+  function icon(id, side, off) {
+    var x = barX(440, side, off) + (side < 0 ? 26 : -16 - 24);
+    $(id).setAttribute('transform', 'translate(' + x.toFixed(1) + ' 430)');
+  }
+  icon('iFuel', -1, 92); place('wFuel', -1, 92, 490); place('sFuel', -1, 92, 518);
+  icon('iBat', -1, 216); place('wBat', -1, 216, 490); place('sBat', -1, 216, 518);
+  icon('iOil', 1, 92); place('wOil', 1, 92, 490);
+  icon('iCool', 1, 216); place('wCool', 1, 216, 490);
+
+  /* #measure: where the mockup puts each reading, for gen.js */
+  if (location.hash !== '#measure') return;
+  document.fonts.ready.then(function () {
+    var out = { spans: {}, numerals: [] };
+    ['mEng', 'mEle', 'mEleUnit', 'mSysN', 'mPFL', 'mPFR', 'mPRL', 'mPRR', 'mBoost', 'mG', 'mM', 'mGear', 'mFuel', 'mBat', 'mOil', 'mCool'].forEach(function (id) {
+      var e = $(id), n = e.textContent.length;
+      var a = e.getStartPositionOfChar(0), b = e.getEndPositionOfChar(n - 1), bb = e.getBBox();
+      out.spans[id] = { x0: a.x, x1: b.x, y: a.y, bx: bb.x, bw: bb.width };
+    });
+    ['mSys', 'sFuel', 'sBat'].forEach(function (id) {
+      var e = $(id), n = e.textContent.length;
+      out.spans[id] = { x0: e.getStartPositionOfChar(0).x, x1: e.getEndPositionOfChar(n - 1).x, y: e.getStartPositionOfChar(0).y };
+    });
+    numerals.forEach(function (n) {
+      var b = n.t.getBBox();
+      out.numerals.push({ side: n.side, v: n.v, x: b.x, w: b.width, y: n.y });
+    });
+    var pre = document.createElement('div'); pre.id = 'out';
+    pre.textContent = 'MEASURE' + JSON.stringify(out) + 'END';
+    document.body.appendChild(pre);
+  });
+})();
+</script>

@@ -1,0 +1,125 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan -->
+<!-- perf1c "Performance 1 · Comfort": the static art, 1920 x 646, drawn with
+     the Comfort mockup's own geometry (comfort/perf-fable index.src.html) and
+     every moving part left out: the dials' tracks, red zone, ticks, numerals
+     and centre discs; the speed-limit sign's disc; the mode word; the drive
+     meter's track, ticks, ECO rule and words; labels, bar tracks and scales;
+     the map area (an empty panel the car fills); the fixed parts of the
+     sub-lines ("Average", the tyre line's "/" and "psi"). The layers
+     (theme.src.json, written by gen.js) draw the rest. Archivo (OFL), the
+     mockup's subset, from the Sport theme's folder. -->
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-stretch:62% 125%;src:url(../perf1/fonts/Archivo-subset-VF.woff2) format("woff2")}
+:root{--ground:#000;--disc:#0b0d12;--line:#272b34;--track:#171a20;--ink:#f3f5f8;--ink2:#a6aebb;--ink3:#7f8896;--tick:#5c6473;
+  --calm:#c4d3e6;--limit:#ff3a22;--limit-deep:#8f1418;--map:#0c0e13;--elec:#3d9bff;--font:"Archivo",sans-serif}
+html,body{margin:0;background:#000;width:1920px;height:646px;overflow:hidden}
+svg{display:block}
+text{font-family:var(--font);fill:var(--ink)}
+.lab{font-size:18px;font-weight:500;letter-spacing:.06em;fill:var(--ink3);font-stretch:100%}
+.unit{font-size:20px;font-weight:500;fill:var(--ink2)}
+.num{font-weight:600;font-stretch:108%;fill:var(--ink)}
+.dialnum{font-size:23px;font-weight:500;font-stretch:104%;fill:var(--tick);text-anchor:middle}
+.dialnum.on{fill:var(--ink)}
+.dialnum.red{fill:var(--limit);opacity:.75}
+.scale{font-size:16px;font-weight:500;fill:var(--ink3)}
+.sub{font-size:20px;font-weight:500;fill:var(--ink2)}
+</style>
+<body>
+<svg id="art" width="1920" height="646" viewBox="0 0 1920 646"></svg>
+<script>
+(function () {
+const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('art');
+const css = n => 'var(--' + n + ')';
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; }
+function T(x, y, str, cls, anchor, parent) { const t = el('text', { x, y, class: cls || '', 'text-anchor': anchor || 'start' }, parent); t.textContent = str; return t; }
+const pol = (cx, cy, r, a) => { const k = a * Math.PI / 180; return [cx + r * Math.sin(k), cy - r * Math.cos(k)]; };
+function arc(cx, cy, r, a0, a1) { const p = pol(cx, cy, r, a0), q = pol(cx, cy, r, a1);
+    return 'M' + p[0].toFixed(2) + ' ' + p[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 ' + ((a1 - a0) > 180 ? 1 : 0) + ' 1 ' + q[0].toFixed(2) + ' ' + q[1].toFixed(2); }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- dials (value arc, swept band, needle, cruise pointer: the gauge layers) ---------- */
+const A0 = -120, A1 = 120;
+function Dial(cx, cy, o) {
+    const ang = v => A0 + clamp(v / o.max, 0, 1) * (A1 - A0);
+    el('path', { d: arc(cx, cy, 272, A0, A1), fill: 'none', stroke: css('track'), 'stroke-width': 8 });
+    if (o.redFrom != null) el('path', { d: arc(cx, cy, 272, ang(o.redFrom), A1), fill: 'none', stroke: css('limit-deep'), 'stroke-width': 8 });
+    for (let v = 0; v <= o.max + 1e-6; v += o.minor) {
+        const major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6, a = ang(v), red = o.redFrom != null && v >= o.redFrom;
+        const p = pol(cx, cy, 262, a), q = pol(cx, cy, major ? 240 : 251, a);
+        el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: red ? css('limit-deep') : major && !o.dim ? css('ink2') : css('tick'), 'stroke-width': major ? 3 : 1.5 });
+        if (major) { const c = pol(cx, cy, 205, a); T(c[0], c[1] + 8, o.label(v), 'dialnum' + (red ? ' red' : v === 0 ? ' on' : ''), 'middle'); }
+    }
+    el('circle', { cx, cy, r: 158, fill: css('disc'), stroke: css('line'), 'stroke-width': 1.5 });
+}
+const SX = 330, TX = 1590, CY = 318;
+Dial(SX, CY, { max: 180, major: 20, minor: 10, label: v => v });
+Dial(TX, CY, { max: 8000, major: 1000, minor: 250, label: v => v / 1000, redFrom: 7000, dim: .55 });
+
+/* speedometer centre: the limit sign's disc (its figure is a layer), the unit */
+el('circle', { cx: SX, cy: CY - 100, r: 25, fill: css('ink'), stroke: css('limit'), 'stroke-width': 6 });
+T(SX, CY + 78, 'mph', 'unit', 'middle').setAttribute('font-size', 22);
+
+/* ---------- under the dials ---------- */
+const track = (x, y, w) => el('rect', { x, y, width: w, height: 8, rx: 1, fill: css('track') });
+function barScale(x, lo, hi) {
+    [0, .25, .5, .75, 1].forEach(k => el('line', { x1: x + 150 * k, y1: 568, x2: x + 150 * k, y2: k % .5 === 0 ? 576 : 573, stroke: css('tick'), 'stroke-width': 1.5 }));
+    T(x, 596, lo, 'scale', 'start'); T(x + 150, 596, hi, 'scale', 'end');
+}
+T(170, 498, 'FUEL', 'lab'); track(170, 556, 150); barScale(170, '0', '1/1');
+T(350, 498, 'TRIP', 'lab');
+T(350, 596, 'Average', 'sub');
+T(1430, 498, 'COOLANT', 'lab'); track(1430, 556, 150); barScale(1430, '50', '130');
+el('rect', { x: 1486.2, y: 566, width: 46.9, height: 3, fill: css('ink2') });
+T(1610, 498, 'TYRES', 'lab');
+/* the tyre line "35 35 / 38 38 psi": the pressures are a layer in four 2-digit slots
+ * (logic.js lays them out the same way); the "/" and "psi" stay where the full line puts them */
+document.fonts.ready.then(() => {
+    const line = '35 35 / 38 38 psi', probe = T(1610, 596, line, 'sub');
+    const at = (i) => 1610 + (i ? probe.getSubStringLength(0, i) : 0);
+    T(at(line.indexOf('/')), 596, '/', 'sub'); T(at(line.indexOf('psi')), 596, 'psi', 'sub');
+    probe.remove();
+});
+
+/* ---------- top centre: the mode word (time, temperature and guidance are layers) ---------- */
+const mode = T(1198, 53, 'COMFORT', 'num'); mode.setAttribute('font-size', 24); mode.style.fill = css('calm'); mode.style.fontWeight = 700; mode.style.letterSpacing = '.08em';
+
+/* ---------- centre: the range split's labels over the drive meter ---------- */
+const PX0 = 648, PX1 = 1272, PMIN = -40, PMAX = 120, ECO = 60, px = v => PX0 + (clamp(v, PMIN, PMAX) - PMIN) / (PMAX - PMIN) * (PX1 - PX0);
+el('rect', { x: PX0, y: 106, width: 10, height: 10, fill: css('calm') }); T(PX0 + 18, 116, 'FUEL', 'lab');
+T(960, 116, 'RANGE', 'lab', 'middle');
+T(PX1 - 18, 116, 'ELECTRIC', 'lab', 'end'); el('rect', { x: PX1 - 10, y: 106, width: 10, height: 10, fill: css('elec') });
+T(1024, 184, 'mi', 'unit').setAttribute('font-size', 24);
+T(PX1, 174, 'mi', 'unit', 'end');
+el('rect', { x: PX0, y: 214, width: PX1 - PX0, height: 16, rx: 1, fill: css('track') });
+for (let v = PMIN; v <= PMAX; v += 10) {
+    const major = v % 40 === 0;
+    el('line', { x1: px(v), y1: 238, x2: px(v), y2: major ? 246 : 242, stroke: v === 0 ? css('ink') : css('tick'), 'stroke-width': v === 0 ? 2 : 1.5 });
+}
+el('line', { x1: px(0), y1: 208, x2: px(0), y2: 238, stroke: css('ink'), 'stroke-width': 2 });
+el('rect', { x: px(0), y: 234, width: px(ECO) - px(0), height: 3, fill: css('ink2') });
+T(PX0, 272, 'CHARGE', 'scale', 'start'); T((px(0) + px(ECO)) / 2, 272, 'ECO', 'scale', 'middle'); T(PX1, 272, 'POWER', 'scale', 'end');
+
+/* ---------- centre: economy, electric miles | map area | HV battery, arrival ---------- */
+const LX = 648, RX = 1112, CW = 160;
+T(LX, 318, 'AVERAGE', 'lab'); el('rect', { x: LX, y: 376, width: CW, height: 8, rx: 1, fill: css('track') });
+T(LX, 408, '0', 'scale', 'start'); T(LX + CW, 408, '100', 'scale', 'end');
+T(LX, 440, 'NOW', 'lab');
+T(LX, 500, 'ELECTRIC TRIP', 'lab');
+T(RX, 318, 'HV BATTERY', 'lab');
+for (let i = 0; i < 10; i++) el('rect', { x: RX + i * 16.2, y: 376, width: 14.2, height: 8, rx: 1, fill: css('track') });
+T(RX, 408, '0', 'scale', 'start'); T(RX + CW, 408, '100', 'scale', 'end');
+T(RX, 500, 'ARRIVE', 'lab');
+
+/* the map area: flat ground the car's own map fills */
+const MX = 834, MY = 306, MW = 252, MH = 296;
+el('rect', { x: MX, y: MY, width: MW, height: MH, rx: 2, fill: css('map'), stroke: css('line'), 'stroke-width': 1.5 });
+[[MX, MY, 1, 1], [MX + MW, MY, -1, 1], [MX, MY + MH, 1, -1], [MX + MW, MY + MH, -1, -1]].forEach(([x, y, a, b]) =>
+    el('path', { d: 'M' + x + ' ' + (y + b * 18) + ' L' + x + ' ' + y + ' L' + (x + a * 18) + ' ' + y, fill: 'none', stroke: css('tick'), 'stroke-width': 2 }));
+T(MX + 14, MY + 30, 'MAP AREA', 'lab');
+T(MX + 14, MY + MH - 16, 'The car’s own map', 'scale').style.fill = css('ink3');
+})();
+</script>
+</body>

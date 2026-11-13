@@ -1,0 +1,2 @@
+// written by ../perf2/gen.js
+window.GEOM = {"mode":"comfort","R":240,"SPD":[340,300],"TAC":[1580,300],"maxMph":180,"maxRpm":8000,"redRpm":7000,"quietRpm":4000,"eco":0.45,"PAL":{"ground":"#04060a","ink":"#eef2f6","ink2":"#9ba6b2","ink3":"#7a8592","cool":"#d9e6f2","well":"#0d1218","track":"#18202a","trackDim":"#121820","red":"#ff3b2f","redDeep":"#b8180f","amber":"#ffb224","blue":"#3f9cff","hatch":"#2a74c4","flashOff":"#2a0d0b","signInk":"#0a0d12"}};

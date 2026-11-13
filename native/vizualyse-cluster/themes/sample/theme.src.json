@@ -1,0 +1,221 @@
+{
+ "id": "sample",
+ "title": "Sample (pipeline check)",
+ "ship": false,
+ "signals": [
+  "kmh",
+  "rpm",
+  "gear"
+ ],
+ "params": {
+  "shiftRpm": 6600,
+  "maxRpm": 8000
+ },
+ "fonts": {
+  "big": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 120,
+   "cell": [
+    62,
+    130
+   ],
+   "glyphs": "0123456789 -"
+  },
+  "small": {
+   "file": "../fonts/BarlowSemiCondensed-500.woff2",
+   "weight": 500,
+   "size": 40,
+   "cell": [
+    30,
+    48
+   ],
+   "glyphs": "0123456789 -.MDSNPR°"
+  }
+ },
+ "paths": {
+  "rpm": {
+   "path": [
+    [
+     "A",
+     960,
+     380,
+     260,
+     135,
+     405
+    ]
+   ],
+   "inward": -1,
+   "rect": [
+    640,
+    60,
+    640,
+    586
+   ],
+   "maxd": 110
+  }
+ },
+ "layers": [
+  {
+   "name": "rpm",
+   "shader": "gauge",
+   "field": "rpm",
+   "uniforms": {
+    "u_v": [
+     0,
+     0,
+     0.875,
+     0.25
+    ],
+    "u_band": [
+     4,
+     14,
+     -6,
+     90
+    ],
+    "u_shape": [
+     100,
+     4,
+     1.2,
+     0.25
+    ],
+    "u_fill": [
+     1,
+     0.36,
+     0.2,
+     1
+    ],
+    "u_red": [
+     1,
+     0.15,
+     0.1,
+     1
+    ],
+    "u_glow": [
+     1,
+     0.25,
+     0.08,
+     0.9
+    ],
+    "u_needle": [
+     1,
+     0.5,
+     0.15,
+     1
+    ],
+    "u_pool": [
+     70,
+     0.9,
+     20,
+     0
+    ]
+   }
+  },
+  {
+   "name": "kmh",
+   "shader": "text",
+   "font": "big",
+   "x": 867,
+   "y": 300,
+   "cells": 3,
+   "align": "right"
+  },
+  {
+   "name": "gear",
+   "shader": "text",
+   "font": "small",
+   "x": 938,
+   "y": 450,
+   "cells": 6,
+   "align": "center",
+   "uniforms": {
+    "u_color": [
+     1,
+     0.45,
+     0.25,
+     1
+    ]
+   }
+  },
+  {
+   "name": "shift",
+   "shader": "leds",
+   "x": 760,
+   "y": 40,
+   "w": 440,
+   "h": 24,
+   "uniforms": {
+    "u_led": [
+     10,
+     0,
+     0,
+     1
+    ],
+    "u_geom": [
+     0,
+     0,
+     30,
+     10
+    ],
+    "u_split": [
+     2,
+     4,
+     4,
+     10
+    ],
+    "u_c0": [
+     0.2,
+     0.85,
+     0.4,
+     1
+    ],
+    "u_c1": [
+     1,
+     0.75,
+     0.2,
+     1
+    ],
+    "u_c2": [
+     1,
+     0.2,
+     0.15,
+     1
+    ],
+    "u_off": [
+     0.09,
+     0.1,
+     0.12,
+     1
+    ],
+    "u_lean": [
+     10,
+     24,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "chip",
+   "shader": "rect",
+   "x": 1500,
+   "y": 300,
+   "w": 120,
+   "h": 40,
+   "uniforms": {
+    "u_shape": [
+     0,
+     0,
+     8,
+     0
+    ],
+    "u_color": [
+     0.2,
+     0.7,
+     1,
+     1
+    ]
+   }
+  }
+ ]
+}

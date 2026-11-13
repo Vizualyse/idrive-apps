@@ -1,0 +1,227 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     g20i1 "G20 inspired 1": the static art of the G20 Sport mockup (its SVG,
+     geometry and colours), without what moves. Needles, lit bands, wedges,
+     bars, lights and figures are the theme's layers (theme.src.json); the gauge layers add
+     their light to this art (shader library v2). -->
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 400; src: url(../fonts/BarlowSemiCondensed-400.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; src: url(../fonts/BarlowSemiCondensed-500.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 600; src: url(../fonts/BarlowSemiCondensed-600.woff2) format("woff2"); }
+:root {
+  --ground: #000000; --ink: #f6efe8; --dim: #a89d95; --line: #ffd2ad; --sport: #ff2b1c;
+  --ember: #6b0e08; --amber: #ffa033; --volt: #4db8ff; --track: #2c2624;
+  --face: "Barlow Semi Condensed", sans-serif;
+}
+html, body { margin: 0; background: #000; }
+svg { display: block; }
+svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: var(--ink); }
+.dim { fill: var(--dim); }
+.lbl { font-size: 22px; font-weight: 500; letter-spacing: 0.06em; fill: var(--dim); }
+.val { font-size: 30px; font-weight: 500; }
+.unit { font-size: 22px; font-weight: 500; fill: var(--dim); }
+.g-outline { fill: none; stroke: var(--line); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.g-halo { fill: none; stroke: var(--sport); stroke-width: 14; opacity: 0.22; stroke-linecap: round; }
+.g-band { fill: none; stroke: var(--ember); stroke-width: 22; opacity: 0.55; }
+.g-red { fill: none; stroke: var(--sport); stroke-width: 7; }
+.g-tick { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
+.g-tick.minor { stroke-width: 2; opacity: 0.7; }
+.g-num { font-size: 34px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
+.bar-track { fill: none; stroke: var(--track); stroke-width: 14; stroke-linecap: butt; }
+.mini-track { stroke: var(--track); stroke-width: 7; stroke-linecap: round; fill: none; }
+.mini-mark { stroke: var(--sport); stroke-width: 3; stroke-linecap: round; fill: none; }
+.car { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.car.glass { stroke-width: 1.5; opacity: 0.7; }
+.tyre { fill: var(--track); stroke: var(--ground); stroke-width: 2; }
+.icon { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mode { font-size: 30px; font-weight: 600; letter-spacing: 0.3em; fill: var(--sport); text-anchor: middle; }
+.gforce-ring { fill: none; stroke: var(--dim); stroke-width: 1.5; opacity: 0.7; }
+.chev { fill: none; stroke: var(--sport); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+<svg id="cluster" width="1920" height="646" viewBox="0 0 1920 646" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="wash" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" style="stop-color:var(--sport);stop-opacity:0.36"/>
+      <stop offset="1" style="stop-color:var(--sport);stop-opacity:0"/>
+    </radialGradient>
+    <linearGradient id="ruleL" x1="0" x2="1">
+      <stop offset="0" style="stop-color:var(--ink);stop-opacity:0"/>
+      <stop offset="0.25" style="stop-color:var(--ink);stop-opacity:1"/>
+      <stop offset="1" style="stop-color:var(--ink);stop-opacity:0.5"/>
+    </linearGradient>
+    <linearGradient id="ruleR" x1="1" x2="0">
+      <stop offset="0" style="stop-color:var(--ink);stop-opacity:0"/>
+      <stop offset="0.25" style="stop-color:var(--ink);stop-opacity:1"/>
+      <stop offset="1" style="stop-color:var(--ink);stop-opacity:0.5"/>
+    </linearGradient>
+    <!-- a soft hole in the right wash where the shift chevrons sit, so the
+         black layer that hides them when not shifting matches the art -->
+    <radialGradient id="holeG" gradientUnits="userSpaceOnUse" cx="1450" cy="302" r="110">
+      <stop offset="0.5" stop-color="#000"/>
+      <stop offset="1" stop-color="#fff"/>
+    </radialGradient>
+    <mask id="hole" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="646">
+      <rect x="0" y="0" width="1920" height="646" fill="#fff"/>
+      <rect x="1300" y="150" width="300" height="300" fill="url(#holeG)"/>
+    </mask>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+
+  <ellipse cx="250" cy="424" rx="330" ry="216" fill="url(#wash)"/>
+  <ellipse cx="1670" cy="424" rx="330" ry="216" fill="url(#wash)" mask="url(#hole)"/>
+
+  <g id="gSpeed"></g>
+  <g id="gTach"></g>
+
+  <!-- speed readout: the figures are layers -->
+  <text class="unit" x="654" y="350" style="font-size:28px">mph</text>
+  <rect x="372" y="371" width="348" height="2" fill="url(#ruleL)"/>
+  <text class="unit" x="592" y="414">km/h</text>
+
+  <!-- gear and revs readout -->
+  <polyline class="chev" points="1420,300 1450,268 1480,300"/>
+  <polyline class="chev" points="1420,336 1450,304 1480,336"/>
+  <rect x="1200" y="371" width="348" height="2" fill="url(#ruleR)"/>
+  <text class="unit" x="1326" y="414">rpm</text>
+  <text class="lbl" x="1392" y="414">BOOST</text>
+  <text class="unit" x="1518" y="414">psi</text>
+
+  <!-- power bars: tracks, maxima, units -->
+  <text class="lbl" x="800" y="106" text-anchor="middle">184</text>
+  <path class="bar-track" d="M800 420 Q762 270 800 120"/>
+  <text class="unit" x="812" y="458">hp</text>
+  <text class="lbl" x="800" y="486" text-anchor="middle">ENGINE</text>
+  <text class="lbl" x="1120" y="106" text-anchor="middle">113</text>
+  <path class="bar-track" d="M1120 420 Q1158 270 1120 120"/>
+  <line stroke-width="2" style="stroke:var(--ink)" x1="1127" y1="348" x2="1151" y2="344"/>
+  <text class="unit" x="1132" y="458">hp</text>
+
+  <!-- car plan, tyre tracks, g-force ring -->
+  <path class="car" d="M934 152 C946 147 974 147 986 152 C1000 157 1006 170 1007 186 L1009 238 L1010 256 L1010 362 C1010 386 1004 398 990 402 C974 407 946 407 930 402 C916 398 910 386 910 362 L910 256 L911 238 L913 186 C914 170 920 157 934 152 Z"/>
+  <path class="car" d="M1009 240 l11 -4 l2 7 l-12 3"/>
+  <path class="car" d="M911 240 l-11 -4 l-2 7 l12 3"/>
+  <path class="car glass" d="M921 240 Q960 224 999 240 L992 266 Q960 257 928 266 Z"/>
+  <path class="car glass" d="M928 352 Q960 359 992 352 L997 372 Q960 383 923 372 Z"/>
+  <path class="car glass" d="M928 266 L928 352 M992 266 L992 352"/>
+  <path class="car glass" d="M926 176 Q960 166 994 176"/>
+  <rect class="tyre" x="899" y="176" width="18" height="50" rx="6"/>
+  <rect class="tyre" x="1003" y="176" width="18" height="50" rx="6"/>
+  <rect class="tyre" x="899" y="330" width="18" height="50" rx="6"/>
+  <rect class="tyre" x="1003" y="330" width="18" height="50" rx="6"/>
+  <circle class="gforce-ring" cx="960" cy="309" r="26"/>
+  <line class="gforce-ring" x1="960" y1="277" x2="960" y2="341"/>
+  <line class="gforce-ring" x1="928" y1="309" x2="992" y2="309"/>
+  <text class="unit" x="969" y="214" style="font-size:20px">g</text>
+  <text class="lbl" x="960" y="440" text-anchor="middle">TYRES  psi / °C</text>
+
+  <!-- battery -->
+  <g class="icon" transform="translate(800 507)"><rect x="0" y="0" width="30" height="16" rx="2"/><path d="M30 5 h4 v6 h-4"/></g>
+  <text class="lbl" x="846" y="524">BATTERY</text>
+  <text class="unit" x="1027" y="525">%</text>
+  <text class="unit" x="1096" y="525">mi</text>
+
+  <!-- fuel and oil: tracks, ticks, marks, pictograms -->
+  <g id="miniFuel"></g>
+  <g class="icon" transform="translate(236 566)"><rect x="0" y="2" width="13" height="20" rx="2"/><path d="M3 9 h7"/><path d="M13 8 l5 4 v8 a2.5 2.5 0 0 0 5 0 v-11 l-4 -4"/></g>
+  <g id="miniOil"></g>
+  <g class="icon" transform="translate(1654 568)"><path d="M6 8 h12 l3 3 v9 h-17 v-9 z"/><path d="M9 8 v-4 h6 v4"/><path d="M21 13 l9 -5"/><path d="M4 12 l-3 -3"/><path d="M31 13 v4"/></g>
+
+  <!-- info line -->
+  <text class="unit" x="289" y="616">mi</text>
+  <text class="lbl" x="530" y="616">0–60</text>
+  <text class="unit" x="638" y="616">s</text>
+  <text class="mode" x="960" y="616">SPORT</text>
+  <text class="lbl" x="1232" y="616">COOLANT</text>
+  <text class="unit" x="1392" y="616">°C</text>
+  <text class="unit" x="1546" y="616">°C</text>
+  <text class="unit" x="1662" y="616">°C</text>
+</svg>
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function $(id) { return document.getElementById(id); }
+  function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+  function unit(x, y) { var m = Math.hypot(x, y) || 1; return [x / m, y / m]; }
+  function roundedPath(pts, r) {
+    var d = 'M' + pts[0][0] + ' ' + pts[0][1];
+    for (var i = 1; i < pts.length - 1; i++) {
+      var p = pts[i], a = unit(pts[i - 1][0] - p[0], pts[i - 1][1] - p[1]), b = unit(pts[i + 1][0] - p[0], pts[i + 1][1] - p[1]);
+      d += ' L' + (p[0] + a[0] * r) + ' ' + (p[1] + a[1] * r) + ' Q' + p[0] + ' ' + p[1] + ' ' + (p[0] + b[0] * r) + ' ' + (p[1] + b[1] * r);
+    }
+    var l = pts[pts.length - 1];
+    return d + ' L' + l[0] + ' ' + l[1];
+  }
+
+  // The mockup's bracket gauge, static parts only: halo, unlit band,
+  // outline, redline, ticks, numerals (at the mockup's resting 0.58).
+  function Gauge(g, o) {
+    var d = roundedPath(o.pts, 70);
+    el('path', { d: d, 'class': 'g-halo', filter: 'url(#soft)' }, g);
+    var bandEl = el('polyline', { 'class': 'g-band' }, g);
+    var path = el('path', { d: d, 'class': 'g-outline' }, g);
+    var total = path.getTotalLength();
+    var STEP = 2, S = [];
+    for (var L = 0; L <= total; L += STEP) {
+      var p = path.getPointAtLength(L), q = path.getPointAtLength(Math.min(total, L + 1)), q0 = path.getPointAtLength(Math.max(0, L - 1));
+      var t = unit(q.x - q0.x, q.y - q0.y), nx = -t[1], ny = t[0];
+      if (nx * (o.C[0] - p.x) + ny * (o.C[1] - p.y) < 0) { nx = -nx; ny = -ny; }
+      S.push([p.x, p.y, nx, ny]);
+    }
+    function at(L) {
+      var f = clamp(L, 0, total - STEP) / STEP, i = Math.floor(f), k = f - i, a = S[i], b = S[Math.min(S.length - 1, i + 1)];
+      return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k];
+    }
+    var La = o.startAt, Lb = total - o.endPad;
+    function lenOf(v) { return La + (clamp(v, o.min, o.max) - o.min) / (o.max - o.min) * (Lb - La); }
+    var INSET = 16, pts = [];
+    for (var L2 = La; L2 <= Lb + 0.01; L2 += STEP) {
+      var s = at(L2);
+      pts.push((s[0] + s[2] * INSET).toFixed(1) + ',' + (s[1] + s[3] * INSET).toFixed(1));
+    }
+    bandEl.setAttribute('points', pts.join(' '));
+    if (o.red != null) {
+      var a0 = lenOf(o.red);
+      el('path', { d: d, 'class': 'g-red', 'stroke-dasharray': '0 ' + a0.toFixed(1) + ' ' + (Lb - a0 + 6).toFixed(1) + ' 9999' }, g);
+    }
+    for (var v = o.min; v <= o.max + 1e-6; v += o.minor) {
+      var major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6;
+      var s2 = at(lenOf(v)), len = major ? 20 : 10;
+      el('line', { 'class': 'g-tick' + (major ? '' : ' minor'), x1: s2[0], y1: s2[1], x2: s2[0] + s2[2] * len, y2: s2[1] + s2[3] * len }, g);
+      if (major) {
+        var tx = el('text', { 'class': 'g-num', x: s2[0] + s2[2] * 64, y: s2[1] + s2[3] * 64, opacity: o.numOpacity }, g);
+        tx.textContent = String(Math.round(v));
+      }
+    }
+  }
+  Gauge($('gSpeed'), { pts: [[690, 560], [300, 560], [120, 330], [270, 96], [720, 70]], C: [480, 320],
+    min: 0, max: 160, major: 20, minor: 10, startAt: 290, endPad: 40, numOpacity: 0.58 });
+  Gauge($('gTach'), { pts: [[1230, 560], [1620, 560], [1800, 330], [1650, 96], [1200, 70]], C: [1440, 320],
+    min: 0, max: 7, major: 1, minor: 0.5, startAt: 290, endPad: 40, red: 6.5, numOpacity: 0.58 });
+
+  // the mini bars' tracks, ticks and the red mark at the end that matters
+  function Mini(g, a, b, out, mark) {
+    var off = 36, A = [a[0] + out[0] * off, a[1] + out[1] * off], B = [b[0] + out[0] * off, b[1] + out[1] * off];
+    function along(k) { return [A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k]; }
+    var p0 = along(0.14), p1 = along(0.84);
+    function on(k) { return [p0[0] + (p1[0] - p0[0]) * k, p0[1] + (p1[1] - p0[1]) * k]; }
+    el('line', { 'class': 'mini-track', x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1] }, g);
+    [0, 0.5, 1].forEach(function (k) {
+      var p = on(k);
+      el('line', { 'class': 'g-tick minor', x1: p[0] + out[0] * 8, y1: p[1] + out[1] * 8, x2: p[0] + out[0] * 18, y2: p[1] + out[1] * 18 }, g);
+    });
+    var m0 = on(mark[0]), m1 = on(mark[1]);
+    el('line', { 'class': 'mini-mark', x1: m0[0] + out[0] * 10, y1: m0[1] + out[1] * 10, x2: m1[0] + out[0] * 10, y2: m1[1] + out[1] * 10 }, g);
+  }
+  Mini($('miniFuel'), [300, 560], [120, 330], [-0.788, 0.616], [0, 0.14]);
+  Mini($('miniOil'), [1620, 560], [1800, 330], [0.788, 0.616], [0.8, 1]);
+})();
+</script>

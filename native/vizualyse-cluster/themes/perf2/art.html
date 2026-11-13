@@ -1,0 +1,226 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     Performance 2: everything that never moves, as the Performance mockup
+     draws it (the dials' bezels, wells, scales and numerals, the red zone
+     and shift notch, labels and units, bar tracks, the car plan in its
+     friction circle). The dials' numbers come from geom.js (written by
+     gen.js with the layers'); the text sits where the mockup's layout puts
+     it, measured from its DOM. The scale is drawn lit: the gauge layers
+     brighten it near the needle (u_look), so it is drawn at the mockup's
+     dim colours. -->
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Cluster";src:url(../fonts/BarlowSemiCondensed-500.woff2) format("woff2");font-weight:500;font-display:block}
+@font-face{font-family:"Cluster";src:url(../fonts/BarlowSemiCondensed-600.woff2) format("woff2");font-weight:600;font-display:block}
+@font-face{font-family:"Cluster";src:url(../perf2/BarlowSemiCondensed-700.woff2) format("woff2");font-weight:700;font-display:block}
+:root{--ground:#04060a;--ink:#eef2f6;--ink-2:#9ba6b2;--ink-3:#7a8592;--red:#ff3b2f;--track:#18202a;--hair:rgba(196,214,232,.10)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:646px;overflow:hidden;background:#000}
+body{font-family:"Cluster",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;left:0;top:0;width:1920px;height:720px;
+  background:
+    radial-gradient(400px 360px at 340px 300px,#0b1118 0%,rgba(11,17,24,0) 70%),
+    radial-gradient(400px 360px at 1580px 300px,#0b1118 0%,rgba(11,17,24,0) 70%),
+    radial-gradient(700px 420px at 960px 330px,#080c12 0%,rgba(8,12,18,0) 75%),
+    var(--ground)}
+svg{position:absolute;left:0;top:0;width:1920px;height:646px}
+.t{position:absolute;white-space:pre;line-height:normal}
+.lbl{font-size:18px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.unit{font-weight:500;color:var(--ink-2)}
+.r{text-align:right}
+.c{text-align:center}
+.bar{position:absolute;background:var(--track);border-radius:1px}
+</style>
+<body>
+<div id="stage"></div>
+<svg id="g" viewBox="0 0 1920 646" xmlns="http://www.w3.org/2000/svg"></svg>
+<div id="txt"></div>
+<script src="geom.js"></script>
+<script>
+'use strict';
+const G = window.GEOM, NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('g');
+const el = (tag, attrs, parent, text) => {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  (parent || svg).appendChild(n);
+  return n;
+};
+const CF = G.mode === 'comfort';
+const R = G.R, A0 = 135, SWEEP = 270, D = Math.PI / 180;
+const ang = (f) => A0 + SWEEP * Math.min(1, Math.max(0, f));
+const pt = (c, a, r) => [c[0] + Math.cos(a * D) * r, c[1] + Math.sin(a * D) * r];
+function arc(c, r, a1, a2, w, col) {
+  const p = pt(c, a1, r), q = pt(c, a2, r);
+  el('path', { d: `M${p[0]} ${p[1]}A${r} ${r} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${q[0]} ${q[1]}`, fill: 'none', stroke: col, 'stroke-width': w });
+}
+function tick(c, a, r1, r2, w, col) {
+  const p = pt(c, a, r1), q = pt(c, a, r2);
+  el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: col, 'stroke-width': w, 'stroke-linecap': 'butt' });
+}
+/* the mockup's drawDial + drawScale(dim) + drawNumerals(dim) */
+function dial(c, o) {
+  arc(c, R + 18, A0, A0 + SWEEP, 1.25, 'rgba(196,214,232,.16)');
+  arc(c, R, A0, A0 + SWEEP, 12, '#0d1218');
+  arc(c, R - 96, A0, A0 + SWEEP, 1, 'rgba(196,214,232,.06)');
+  if (o.red) {
+    const a1 = ang(o.red / o.max), a2 = ang(1);
+    /* Comfort: the limit zone dimmer */
+    arc(c, R, a1, a2, 12, CF ? 'rgba(184,24,15,.38)' : 'rgba(184,24,15,.55)');
+    arc(c, R + 18, a1, a2, CF ? 2 : 3, CF ? 'rgba(255,59,47,.8)' : '#ff3b2f');
+  }
+  for (let v = 0; v <= o.max + 1e-6; v += o.minor) {
+    const a = ang(v / o.max), major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6, inRed = o.red && v >= o.red;
+    /* Comfort: the rev scale past quietRpm stays dim */
+    const far = o.quiet && v > o.quiet && !inRed;
+    if (major) tick(c, a, R - 34, R - 8, 3, inRed ? (CF ? 'rgba(255,59,47,.8)' : '#ff3b2f') : far ? '#5a646f' : '#8f9aa6');
+    else tick(c, a, R - 20, R - 8, 1.5, inRed ? (CF ? 'rgba(255,59,47,.5)' : 'rgba(255,59,47,.7)') : far ? '#343d47' : '#4a5460');
+  }
+  for (let v = 0; v <= o.max + 1e-6; v += o.label) {
+    const a = ang(v / o.max), p = pt(c, a, R - 64), inRed = o.red && v >= o.red;
+    /* canvas textBaseline middle: the alphabetic baseline (ascent 1.0, descent 0.2 em) 0.4 em below */
+    el('text', { x: p[0], y: p[1] + 1 + 0.4 * 28, 'text-anchor': 'middle', 'font-size': 28, 'font-weight': 600,
+      fill: inRed ? (CF ? 'rgba(255,59,47,.85)' : '#ff3b2f') : o.quiet && v > o.quiet ? '#69737e' : '#9aa5b1', 'font-family': 'Cluster' }, null, o.fmt(v));
+  }
+  if (o.shift) {
+    const a = ang(o.shift / o.max), p0 = pt(c, a, R + 22), p1 = pt(c, a - 1.26, R + 38), p2 = pt(c, a + 1.26, R + 38);
+    el('path', { d: `M${p0}L${p1}L${p2}Z`, fill: '#ff3b2f' });
+  }
+}
+dial(G.SPD, { max: G.maxMph, major: 20, minor: 5, label: 20, fmt: String });
+dial(G.TAC, { max: G.maxRpm, major: 1000, minor: 250, label: 1000, red: G.redRpm, shift: CF ? 0 : G.shiftRpm, quiet: G.quietRpm, fmt: (v) => String(v / 1000) });
+el('text', { x: G.TAC[0], y: G.TAC[1] - R + 96, 'text-anchor': 'middle', 'font-size': 17, 'font-weight': 600, fill: '#7a8592',
+  'letter-spacing': 2, 'font-family': 'Cluster' }, null, '× 1000');
+
+/* bars and hairlines */
+const rect = (x, y, w, h, fill, rx) => el('rect', { x, y, width: w, height: h, fill, rx: rx || 0 });
+rect(660, 251, 600, 1, 'rgba(196,214,232,.10)'); rect(660, 510, 600, 1, 'rgba(196,214,232,.10)');
+rect(1110, 163, 150, 6, '#18202a', 1);
+if (!CF) {
+  rect(1410, 578, 150, 6, '#18202a', 1); rect(1470, 578, 45, 6, 'rgba(196,214,232,.22)');
+  rect(1600, 578, 150, 6, '#18202a', 1); rect(1656.3, 578, 46.9, 6, 'rgba(196,214,232,.22)');
+  rect(1159, 159, 2, 14, '#7a8592');
+  rect(660, 185, 600, 12, '#121820', 1); rect(759, 179, 2, 24, '#eef2f6');
+  /* the shift cue (covered by the cueCover layer until the cue) */
+  el('path', { d: 'M1530.6 200 1542.6 188l12 12', fill: 'none', stroke: '#ff3b2f', 'stroke-width': 4.5, 'stroke-linecap': 'square' });
+} else {
+  rect(1410, 578, 150, 6, '#18202a', 1); rect(1466.3, 578, 46.9, 6, 'rgba(196,214,232,.22)');
+  /* the demand bar: -0.5 .. 1, the eco window from zero to G.eco, its end tick, zero */
+  const dx = (v) => 660 + (v + 0.5) / 1.5 * 600;
+  rect(660, 185, 600, 12, '#121820', 1); rect(dx(0), 185, dx(G.eco) - dx(0), 12, 'rgba(196,214,232,.13)');
+  rect(dx(G.eco) - 1, 182, 2, 18, '#7a8592'); rect(dx(0) - 1, 179, 2, 24, '#eef2f6');
+  /* the speed limit sign: a 62 px disc, 6 px red ring */
+  el('circle', { cx: 340, cy: 431, r: 28, fill: '#eef2f6', stroke: '#d6362b', 'stroke-width': 6 });
+  /* the map area: the car draws its own map here */
+  el('rect', { x: 886.5, y: 268.5, width: 373, height: 225, rx: 3, fill: '#090e15', stroke: 'rgba(196,214,232,.18)', 'stroke-width': 1 });
+}
+
+/* the car plan in its friction circle, wheels drawn cold (the wheel layers fill them warm) */
+const car = el('g', { transform: 'translate(850 258)' });
+if (!CF) car.innerHTML = `
+  <circle cx="110" cy="110" r="100" fill="none" stroke="rgba(196,214,232,.16)" stroke-width="1"/>
+  <circle cx="110" cy="110" r="50" fill="none" stroke="rgba(196,214,232,.10)" stroke-width="1" stroke-dasharray="2 4"/>
+  <path d="M6 110h22M192 110h22M110 6v22M110 192v22" stroke="rgba(196,214,232,.22)" stroke-width="1"/>
+  <g transform="translate(70 18)">
+    <rect x="-2.25" y="30.75" width="10.5" height="30.5" rx="3" fill="#04060a" stroke="#9ba6b2" stroke-width="1.5"/>
+    <rect x="71.75" y="30.75" width="10.5" height="30.5" rx="3" fill="#04060a" stroke="#9ba6b2" stroke-width="1.5"/>
+    <rect x="-2.25" y="122.75" width="10.5" height="30.5" rx="3" fill="#04060a" stroke="#9ba6b2" stroke-width="1.5"/>
+    <rect x="71.75" y="122.75" width="10.5" height="30.5" rx="3" fill="#04060a" stroke="#9ba6b2" stroke-width="1.5"/>
+    <path d="M40 2C25 2 13 5 9 13 6 19 5 26 5 30v4c-2 2-2 4-2 7v22c0 3 0 5 2 7v46c-2 2-2 4-2 7v24c0 3 0 5 2 7v6c0 9 3 14 10 16 7 3 16 4 25 4s18-1 25-4c7-2 10-7 10-16v-6c2-2 2-4 2-7v-24c0-3 0-5-2-7V70c2-2 2-4 2-7V41c0-3 0-5-2-7v-4c0-4-1-11-4-17C67 5 55 2 40 2Z" fill="rgba(11,16,23,.5)" stroke="rgba(196,214,232,.2)" stroke-width="1.25"/>
+    <path d="M3 50l-5-3M77 50l5-3" stroke="rgba(196,214,232,.2)" stroke-width="2" stroke-linecap="round"/>
+    <path d="M14 58c12-6 40-6 52 0l-5 20c-12-3-30-3-42 0Z" fill="rgba(196,214,232,.04)" stroke="rgba(196,214,232,.14)" stroke-width="1"/>
+    <path d="M19 80c11-2 31-2 42 0v42c-11 2-31 2-42 0Z" fill="none" stroke="rgba(196,214,232,.08)" stroke-width="1"/>
+    <path d="M19 124c11 3 31 3 42 0l4 18c-14 4-36 4-50 0Z" fill="rgba(196,214,232,.03)" stroke="rgba(196,214,232,.12)" stroke-width="1"/>
+    <path d="M16 14c8-4 40-4 48 0" fill="none" stroke="rgba(196,214,232,.16)" stroke-width="1"/>
+  </g>
+  <circle cx="110" cy="110" r="2.5" fill="rgba(238,242,246,.5)"/>`;
+
+/* text: [left, top, class, size, text, style] at the mockup's measured boxes (line-height normal) */
+const T = CF ? [
+  [818, 26.5, 'unit', 26, ' °C'],
+  [876.6, 29, '', 22, 'COMFORT', 'font-weight:700;letter-spacing:4.4px'],
+  [1073.4, 30, 'unit', 20, 'Cruise ', 'font-weight:600'],
+  [190, 350, 'unit c', 24, 'mph', 'width:300px'],
+  [160, 496, 'lbl c', 18, 'Fuel', 'width:360px'],
+  [222, 543, '', 16, 'E', 'color:var(--ink-3);font-weight:600'],
+  [334.3, 543, '', 16, '½', 'color:var(--ink-3);font-weight:600'],
+  [450.2, 543, '', 16, 'F', 'color:var(--ink-3);font-weight:600'],
+  [327.9, 594, 'unit', 20, 'miles range'],
+  [1430, 182.2, 'c', 18, 'ELECTRIC', 'width:300px;font-weight:700;letter-spacing:3.6px;color:#3f9cff'],
+  [1602.7, 367, 'unit', 18, 'rpm'],
+  [1410, 496, 'lbl', 18, 'Coolant'],
+  [1454.6, 542, 'unit', 20, '°C'],
+  [1600, 496, 'lbl', 18, 'Tyres'],
+  [660, 87, 'lbl', 18, 'Average'],
+  [773.8, 142, 'unit', 24, 'mpg'],
+  [1103.2, 86, 'lbl r', 18, 'Electric share', 'width:156.8px'],
+  /* no electric-share reading: shown missing */
+  [1103.2, 110, 'r', 40, '--', 'width:136.6px;font-weight:600;letter-spacing:3px'],
+  [1243.8, 130, 'unit', 20, '%'],
+  [660, 451.3, 'unit', 18, 'Arrive '],
+  [900, 466, '', 14, "MAP AREA · THE CAR'S OWN MAP", 'font-weight:600;letter-spacing:1.96px;color:var(--ink-3)'],
+  [660, 523, 'lbl', 18, 'Battery'],
+  [704.6, 565, 'unit', 22, '%'],
+  [778.7, 569, 'unit', 18, 'mi electric'],
+  [1025.1, 523, 'lbl', 18, 'Trip'],
+  [1099.6, 565, 'unit', 22, 'mi'],
+] : [
+  [724.4, 26.5, 'unit', 26, ' °C'],
+  [1167, 29, '', 22, 'SPORT', 'font-weight:700;letter-spacing:4.4px'],
+  [1267.6, 31, 'unit', 20, 'Shift ', 'font-weight:600'],
+  [190, 350, 'unit c', 24, 'mph', 'width:300px'],
+  [160, 496, 'lbl c', 18, 'Fuel', 'width:360px'],
+  [222, 543, '', 16, 'E', 'color:var(--ink-3);font-weight:600'],
+  [334.3, 543, '', 16, '½', 'color:var(--ink-3);font-weight:600'],
+  [450.2, 543, '', 16, 'F', 'color:var(--ink-3);font-weight:600'],
+  [327.9, 594, 'unit', 20, 'miles range'],
+  [1565.6, 181, '', 20, 'SHIFT', 'font-weight:700;letter-spacing:4px;color:var(--red)'],
+  [1602.7, 384.9, 'unit', 18, 'rpm'],
+  [1410, 496, 'lbl', 18, 'Oil'],
+  [1600, 496, 'lbl', 18, 'Coolant'],
+  [1474.8, 542, 'unit', 20, '°C'],
+  [1644.6, 542, 'unit', 20, '°C'],
+  [660, 87, 'lbl', 18, 'System power'],
+  [759.3, 142, 'unit', 24, 'hp'],
+  [1110, 86, 'lbl r', 18, 'Boost', 'width:150px'],
+  [1233.9, 130, 'unit', 20, 'bar'],
+  [660, 215, 'lbl', 18, 'Engine'],
+  [776.2, 217, 'unit', 16, 'hp'],
+  [1096.6, 215, 'lbl', 18, 'Electric'],
+  [1244.3, 217, 'unit', 16, 'hp'],
+  [820.2, 306, 'unit', 17, 'psi'], [1137.9, 306, 'unit', 17, 'psi'],
+  [820.2, 412, 'unit', 17, 'psi'], [1137.9, 412, 'unit', 17, 'psi'],
+  [822.4, 334, 'unit', 16, ' °C'], [1100.3, 334, 'unit', 16, ' °C'],
+  [822.4, 440, 'unit', 16, ' °C'], [1100.3, 440, 'unit', 16, ' °C'],
+  [800.8, 478, 'r', 18, 'G ', 'width:150px;font-weight:600;color:var(--ink-2)'],
+  [660, 523, 'lbl', 18, 'High-voltage battery'],
+  [704.6, 565, 'unit', 22, '%'],
+  [1025.1, 523, 'lbl', 18, '12 V battery'],
+  /* no 12 V reading on iDrive 7: shown missing */
+  [1025.1, 547, '', 40, '--', 'font-weight:600;letter-spacing:3px'],
+];
+const txt = document.getElementById('txt');
+T.forEach((t) => {
+  const d = document.createElement('div');
+  d.className = 't ' + t[2];
+  d.style.cssText = `left:${t[0]}px;top:${t[1]}px;font-size:${t[3]}px;` + (t[5] || '');
+  d.textContent = t[4];
+  txt.appendChild(d);
+});
+if (!CF) {
+/* the shift point's number, after "Shift " */
+const sp = document.createElement('div');
+sp.className = 't';
+sp.style.cssText = 'left:1267.6px;top:31px;font-size:20px;font-weight:600';
+sp.innerHTML = '<span style="color:transparent">Shift </span>' + G.shiftRpm.toLocaleString('en-GB');
+txt.appendChild(sp);
+/* "V" after the 12 V "--" */
+const vv = document.createElement('div');
+vv.className = 't';
+vv.style.cssText = 'left:1025.1px;top:547px;font-size:40px;font-weight:600';
+vv.innerHTML = '<span style="color:transparent;letter-spacing:3px">--</span><span class="unit" style="font-size:22px;margin-left:4px">V</span>';
+txt.appendChild(vv);
+}
+</script>
+</body>

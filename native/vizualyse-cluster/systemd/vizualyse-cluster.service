@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Yousaf Khan
+[Unit]
+Description=vizualyse-cluster: whole-cluster themes through cluster-render's panel
+RequiresMountsFor=/var/opt
+After=cluster-render.socket
+
+[Service]
+# Root: its state folder and the control socket's group. It draws only
+# through cluster-render's socket.
+ExecStart=/usr/bin/node /var/opt/vizualyse-cluster/current/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+TimeoutStopSec=20
+# 1, not 0: the kernel then skips even a piped core handler
+LimitCORE=1
+
+[Install]
+WantedBy=multi-user.target

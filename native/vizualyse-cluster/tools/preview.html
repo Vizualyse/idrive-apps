@@ -1,0 +1,215 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluster theme preview</title>
+<style>
+  html, body { margin: 0; background: #111; color: #ccc; font: 14px system-ui, sans-serif; }
+  #stage { position: relative; width: 100vw; aspect-ratio: 1920 / 720; max-height: calc(100vh - 44px); margin: 0 auto; }
+  canvas, #ref { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #ref { opacity: 0; pointer-events: none; object-fit: fill; }
+  #bar { display: flex; gap: 16px; align-items: center; padding: 10px 16px; flex-wrap: wrap; }
+  #bar select, #bar button, #bar input { font: inherit; }
+  #stats { margin-left: auto; font-variant-numeric: tabular-nums; color: #8a8; }
+  .still #bar { display: none; }
+  .still #stage { width: 1920px; height: 720px; max-height: none; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <label>Theme <select id="theme"></select></label>
+  <button id="pause" type="button">Pause</button>
+  <label>Mockup overlay <input id="refop" type="range" min="0" max="100" value="0"></label>
+  <span id="stats"></span>
+</div>
+<div id="stage">
+  <canvas id="c" width="1920" height="720"></canvas>
+  <img id="ref" alt="">
+</div>
+<script src="/src/theme_core.js"></script>
+<script src="/src/sim.js"></script>
+<script>
+'use strict';
+/* Draws a built theme as cluster-render would on the panel: the art image,
+ * then each effect layer at its rectangle, z order, straight-alpha blending,
+ * the same GLSL ES 1.00 shaders and textures; the theme's logic driven by the
+ * bench simulation through theme_core, the code the tool runs. The strip
+ * below the theme's bottom is drawn as the car's (hatched): nothing of ours
+ * may reach it. ?theme=<id>  ?t=<seconds>&still (one frame, for screenshots)
+ * ?ref=<image url> (a mockup to compare with; the slider fades it in). */
+const q = new URLSearchParams(location.search);
+const still = q.has('still');
+if (still) document.body.classList.add('still');
+const gl = document.getElementById('c').getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true, antialias: false });
+const VS = '#version 100\nattribute vec2 a_position;\nuniform vec4 u_rect;\nvarying vec2 v_uv;\n' +
+    'void main() { v_uv = a_position; vec2 p = u_rect.xy + a_position * u_rect.zw;\n' +
+    '  gl_Position = vec4(p.x / 960.0 - 1.0, 1.0 - p.y / 360.0, 0.0, 1.0); }';
+const BLIT = '#version 100\nprecision mediump float;\nuniform sampler2D u_img;\nvarying vec2 v_uv;\nvoid main() { gl_FragColor = texture2D(u_img, v_uv); }';
+const STRIP = '#version 100\nprecision mediump float;\nvarying vec2 v_uv;\nvoid main() { float s = step(0.5, fract((v_uv.x * 1920.0 + v_uv.y * 74.0) / 20.0));\n' +
+    '  gl_FragColor = vec4(vec3(0.03 + 0.03 * s), 1.0); }';
+
+function compile(fs) {
+    const p = gl.createProgram();
+    [[gl.VERTEX_SHADER, VS], [gl.FRAGMENT_SHADER, fs]].forEach(([k, src]) => {
+        const s = gl.createShader(k);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('shader: ' + gl.getShaderInfoLog(s));
+        gl.attachShader(p, s);
+    });
+    gl.bindAttribLocation(p, 0, 'a_position');
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(p));
+    return p;
+}
+async function gunzip(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(url + ': ' + r.status);
+    const ds = r.body.pipeThrough(new DecompressionStream('gzip'));
+    return new Uint8Array(await new Response(ds).arrayBuffer());
+}
+function texture(px, w, h, format, sampling) {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    const f = format === 'r8' ? gl.LUMINANCE : gl.RGBA;
+    gl.texImage2D(gl.TEXTURE_2D, 0, f, w, h, 0, f, gl.UNSIGNED_BYTE, px);
+    const s = sampling === 'bilinear' ? gl.LINEAR : gl.NEAREST;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, s);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, s);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+}
+function setUniform(prog, name, v) {
+    const loc = gl.getUniformLocation(prog, name) || gl.getUniformLocation(prog, name + '[0]');
+    if (!loc) return;
+    if (v.length === 1) gl.uniform1f(loc, v[0]);
+    else if (v.length === 16 && name === 'u_text') gl.uniform4fv(loc, v);
+    else if (v.length % 4 === 0) gl.uniform4fv(loc, v);
+    else if (v.length === 3) gl.uniform3fv(loc, v);
+    else if (v.length === 2) gl.uniform2fv(loc, v);
+}
+
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+let theme = null, layers = [], logic = null, differ = null, ctx = null;
+let paused = false, t0 = performance.now(), tPaused = 0, last = 0;
+let sentBytes = 0, sentWindow = [];
+
+async function load(id) {
+    theme = await (await fetch('/themes/built/' + id + '.theme.json')).json();
+    const problems = ThemeCore.check(theme);
+    if (problems.length) throw new Error(problems.join('; '));
+    const tex = {};
+    for (const k of Object.keys(theme.assets)) {
+        const a = theme.assets[k];
+        tex[k] = texture(await gunzip('/themes/built/' + a.file), a.w, a.h, a.format, a.sampling);
+    }
+    const shaders = {};
+    layers = [];
+    for (const l of theme.layers) {
+        let prog;
+        if (l.kind === 'image') {
+            prog = shaders.__blit || (shaders.__blit = compile(BLIT));
+            tex['__' + l.name] = texture(await gunzip('/themes/built/' + l.file), l.w, l.h, 'rgba8', 'nearest');
+        } else {
+            if (!shaders[l.shader]) shaders[l.shader] = compile(await (await fetch('/src/shaders/' + l.shader + '.frag')).text());
+            prog = shaders[l.shader];
+        }
+        layers.push({ spec: l, prog, uniforms: JSON.parse(JSON.stringify(l.uniforms || {})), visible: 1, x: l.x, y: l.y,
+            binds: l.kind === 'image' ? { u_img: '__' + l.name } : (l.binds || {}) });
+    }
+    layers.sort((a, b) => (a.spec.z || 0) - (b.spec.z || 0));
+    layers.tex = tex;
+    layers.strip = compile(STRIP);
+    const code = await (await fetch('/themes/built/' + id + '.logic.js')).text();
+    const module = { exports: {} };
+    new Function('module', 'exports', 'require', code)(module, module.exports, (n) => n.indexOf('theme_core') >= 0 ? ThemeCore : null);
+    logic = module.exports;
+    differ = new ThemeCore.Differ(theme);
+    ctx = { params: theme.params, fonts: theme.fonts || {}, core: ThemeCore, state: {}, t: 0, dt: 0 };
+    document.title = theme.title + ' · preview';
+}
+
+function frame(now) {
+    const t = q.has('t') ? Number(q.get('t')) : ((paused ? tPaused : now - t0) / 1000);
+    ctx.dt = still ? 0 : Math.min(0.1, Math.max(0, t - ctx.t));
+    ctx.t = t;
+    const sig = ClusterSim.at(t, theme.mode);
+    sig.source = 'demo';
+    let said = logic.update(sig, ctx);
+    if (still) for (let i = 0; i < 40; i++) { ctx.dt = 0.04; said = logic.update(sig, ctx); }   /* springs settle */
+    const changes = differ.changes(said);
+    changes.forEach((c) => {
+        const L = layers.find((x) => x.spec === c.layer);
+        Object.keys(c.uniforms).forEach((k) => {
+            L.uniforms[k] = c.uniforms[k];
+            sentBytes += JSON.stringify({ op: 'uniform', ref: 99, name: k, v: c.uniforms[k].join(' ') }).length + 5;
+        });
+        if (c.set) { Object.assign(L, c.set); sentBytes += JSON.stringify(Object.assign({ op: 'set', ref: 99 }, c.set)).length + 5; }
+    });
+
+    gl.viewport(0, 0, 1920, 720);
+    gl.clearColor(0.08, 0.08, 0.09, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    /* colour by alpha; the canvas itself stays opaque under translucent layers */
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    for (const L of layers) {
+        if (!L.visible) continue;
+        gl.useProgram(L.prog);
+        gl.uniform4f(gl.getUniformLocation(L.prog, 'u_rect'), L.x, L.y, L.spec.w, L.spec.h);
+        let unit = 0;
+        Object.keys(L.binds).forEach((s) => {
+            gl.activeTexture(gl.TEXTURE0 + unit);
+            gl.bindTexture(gl.TEXTURE_2D, layers.tex[L.binds[s]]);
+            gl.uniform1i(gl.getUniformLocation(L.prog, s), unit++);
+        });
+        Object.keys(L.uniforms).forEach((k) => setUniform(L.prog, k, L.uniforms[k]));
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    gl.useProgram(layers.strip);
+    gl.uniform4f(gl.getUniformLocation(layers.strip, 'u_rect'), 0, theme.bottom, 1920, 720 - theme.bottom);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    sentWindow.push([now, sentBytes]);
+    while (sentWindow.length > 2 && now - sentWindow[0][0] > 1000) sentWindow.shift();
+    if (now - last > 250) {
+        last = now;
+        const rate = sentWindow.length > 1 ? (sentWindow[sentWindow.length - 1][1] - sentWindow[0][1]) / ((sentWindow[sentWindow.length - 1][0] - sentWindow[0][0]) / 1000) : 0;
+        document.getElementById('stats').textContent = 't ' + t.toFixed(1) + ' s · ' + sig.rpm + ' rpm · uniforms ' + (rate / 1024).toFixed(1) +
+            ' KB/s · start upload ' + (theme.upload / 1048576).toFixed(2) + ' MB';
+    }
+    if (still) { document.title = 'ready'; return; }
+    requestAnimationFrame(frame);
+}
+
+document.getElementById('pause').onclick = () => {
+    paused = !paused;
+    if (paused) tPaused = performance.now() - t0; else t0 = performance.now() - tPaused;
+    document.getElementById('pause').textContent = paused ? 'Play' : 'Pause';
+};
+document.getElementById('refop').oninput = (e) => { document.getElementById('ref').style.opacity = e.target.value / 100; };
+if (q.get('ref')) { document.getElementById('ref').src = q.get('ref'); if (q.has('refop')) document.getElementById('ref').style.opacity = q.get('refop'); }
+
+(async () => {
+    const list = await (await fetch('/themes')).json();
+    const sel = document.getElementById('theme');
+    list.forEach((id) => { const o = document.createElement('option'); o.value = o.textContent = id; sel.appendChild(o); });
+    const id = q.get('theme') || list[0];
+    sel.value = id;
+    sel.onchange = () => { q.set('theme', sel.value); location.search = q.toString(); };
+    try { await load(id); requestAnimationFrame(frame); }
+    catch (e) { document.getElementById('stats').textContent = e.message; document.title = 'error: ' + e.message; console.error(e); }
+})();
+</script>
+</body>
+</html>
