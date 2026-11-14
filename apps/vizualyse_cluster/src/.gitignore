@@ -1,0 +1,5 @@
+# platform: copies of platform/<side>/<module>/<version>/ files, pinned in
+# this component's component.json or release.json; written by `node platform/platform.js sync`.
+# Edit the originals in platform/, never these.
+/vehicle_speed.js
+# end platform

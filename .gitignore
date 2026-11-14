@@ -12,3 +12,4 @@ release/published/
 # reverse engineering: results hold BMW/Cinemo-derived data
 re/out/
 tools/vk-trial/car-logs/
+__pycache__/

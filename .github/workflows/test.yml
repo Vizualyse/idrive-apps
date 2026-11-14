@@ -68,6 +68,8 @@ jobs:
         run: node apps/vizualyse_chromium/tools/test_page.js
       - name: Steam page
         run: node apps/vizualyse_steam/tools/test_page.js
+      - name: Cluster themes page
+        run: node apps/vizualyse_cluster/tools/test_page.js
       - name: Steam's perf lines (fps, lows, FSR's GPU time; the unit's Node 8)
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/perf_test.js
       - name: Steam's taps (the button a frame after the pointer, held 150 ms or three frames; Node 8)
@@ -80,17 +82,19 @@ jobs:
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-steam/test/swap_test.js
       - name: Steam's Detail (engines, launch options, dxvk.conf, WINE_D3D_CONFIG)
         run: node native/vizualyse-steam/test/detail_test.js
-      - name: Cluster themes (shader rules; every theme on Node 8; the tool against a fake cluster-render on Node 8)
+      - name: Cluster themes (shader rules; every theme on Node 8; the tool against a fake cluster-render on Node 8; the picker on Node 8; the touch reader on mgu-python's Python, as root)
         run: |
           node native/vizualyse-cluster/test/shader_lint.js
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine node native/vizualyse-cluster/test/themes_test.js
           docker run --rm -v "$PWD:/repo" -w /repo node:8.16.2-alpine node native/vizualyse-cluster/test/tool_test.js
+          docker run --rm -v "$PWD:/repo" -w /repo node:8.16.2-alpine node native/vizualyse-cluster/test/picker_test.js
+          docker run --rm -v "$PWD:/r:ro" -w /r python:3.12-slim python3 native/vizualyse-cluster/test/touch_reader_test.py
       - name: Release tooling
         run: node release/test/release_test.js
       - name: Node 8 syntax (the head unit's)
         run: |
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:8.16.2-alpine sh -c '
-            for f in native/vizualyse-cast/src/*.js native/vizualyse-cast/test/bus_test.js platform/tool/mqtt_bus/*/*.js platform/tool/mqtt_bus/*/test/*.js apps/vizualyse_cast/src/*.js apps/vizualyse_moonlight/src/*.js native/vizualyse-moonlight/src/*.js apps/vizualyse_chromium/src/*.js native/vizualyse-chromium/src/*.js native/vizualyse-chromium/test/*.js apps/vizualyse_steam/src/*.js native/vizualyse-steam/src/*.js native/vizualyse-steam/test/*.js native/vizualyse-cluster/src/*.js native/vizualyse-cluster/test/*.js native/vizualyse-cluster/themes/built/*.logic.js samples/*/*.js; do node -c "$f" || exit 1; done'
+            for f in native/vizualyse-cast/src/*.js native/vizualyse-cast/test/bus_test.js platform/tool/mqtt_bus/*/*.js platform/tool/mqtt_bus/*/test/*.js apps/vizualyse_cast/src/*.js apps/vizualyse_moonlight/src/*.js native/vizualyse-moonlight/src/*.js apps/vizualyse_chromium/src/*.js native/vizualyse-chromium/src/*.js native/vizualyse-chromium/test/*.js apps/vizualyse_steam/src/*.js native/vizualyse-steam/src/*.js native/vizualyse-steam/test/*.js native/vizualyse-cluster/src/*.js native/vizualyse-cluster/test/*.js native/vizualyse-cluster/themes/built/*.logic.js apps/vizualyse_cluster/src/*.js samples/*/*.js; do node -c "$f" || exit 1; done'
       - name: CarPlay second screen source (Node 8, the kit's ffmpeg)
         run: |
           node native/vizualyse-cast/tools/fetch_ffmpeg.js
@@ -102,7 +106,8 @@ jobs:
             node native/vizualyse-cast/test/control_test.js &&
             node native/vizualyse-cast/test/control_test.js native/vizualyse-moonlight/src/control.js vizualyse_moonlight &&
             node native/vizualyse-cast/test/control_test.js native/vizualyse-chromium/src/control.js vizualyse_chromium &&
-            node native/vizualyse-cast/test/control_test.js native/vizualyse-steam/src/control.js vizualyse_steam'
+            node native/vizualyse-cast/test/control_test.js native/vizualyse-steam/src/control.js vizualyse_steam &&
+            node native/vizualyse-cast/test/control_test.js native/vizualyse-cluster/src/control.js vizualyse_cluster'
       - name: Pinned downloads (cached)
         uses: ./.github/actions/mgu-dl
       - name: The tools' bus (Mosquitto built for the unit, the client and Cast on glibc Node 8, as root)

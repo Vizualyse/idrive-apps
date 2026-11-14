@@ -43,7 +43,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const sha1 = (b) => crypto.createHash('sha1').update(b).digest('hex');
 const { spawnSync } = require('child_process');
-const { readPng, writePng } = require('./png.js');
+const { readPng, writePng } = require('../src/png.js');
 const { makeField } = require('./field.js');
 const tiles = require('./tiles.js');
 const core = require('../src/theme_core.js');
@@ -351,4 +351,4 @@ if (require.main === module) {
     } catch (e) { console.error(e.message); process.exit(1); }
 }
 
-module.exports = { build, listFiles };
+module.exports = { build, listFiles, fontAtlas, shoot };

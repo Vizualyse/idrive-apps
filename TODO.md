@@ -731,12 +731,17 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
   where the CPU goes per picture (wl-sink reads each frame back and converts
   it to I420 on the CPU: a dmabuf handed to mgu-render would save that).
 
-## Cluster themes (vizualyse-cluster 0.1.0)
+## Cluster themes (vizualyse-cluster 0.2.0, vizualyse_cluster 0.1.0)
 
 Built and tested off the car (2026-11-13): shader library version 2, 16
 themes (8 families, Sport and Comfort), the theme build, the WebGL preview,
-every theme's logic, the tool against a fake cluster-render on Node 8. No
-iDrive app yet. How it works: [native/vizualyse-cluster/THEMES.md](native/vizualyse-cluster/THEMES.md).
+every theme's logic, the tool against a fake cluster-render on Node 8.
+2026-11-14, branch `cluster-app`: the iDrive app and the touch picker on the
+central screen, tested off the car (the picker against a fake mgu-render
+client with scripted touches on Node 8, the touch reader in Python 3.12 as
+root, the page against a fake HMI); not released. How it works:
+[native/vizualyse-cluster/THEMES.md](native/vizualyse-cluster/THEMES.md),
+the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-central-screen).
 
 - [ ] **First time on the KOMBI (bench, then the car).** A theme on the
   panel with the demo drive, parked (`bench: true` on the bench): does the
@@ -745,21 +750,33 @@ iDrive app yet. How it works: [native/vizualyse-cluster/THEMES.md](native/vizual
   watch for a cluster restart and stop at once); `highp` in fragment
   shaders; straight-alpha blending as on the test unit; a Sport/Comfort
   switch.
-- [ ] **The iDrive app** `vizualyse_cluster`: on/off, the family, the mode,
-  demo on the bench; the speed for the parked gate; the readings it can
-  get, sent as `signals` (with `driveMode` for the switch).
-- [ ] **A cluster picker with previews.** In that app (or its own page): a
-  list of the themes where each shows a preview before you choose it: a
-  picture of the theme in Sport and Comfort (the preview's own screenshots,
-  `tools/preview_shot.js`, shipped as small PNGs), and how the HUD will look
-  with it, shown on the central screen (the app area, through mgu-render,
-  as Browser and Steam draw there), not on the cluster. Choosing one sends
-  `theme`; a "Try" shows it on the cluster for a few seconds, parked. Touch
-  and the iDrive controller both work (see "All apps: touch" below).
+- [ ] **Release the app and the picker** (tool 0.2.0, app 0.1.0, branch
+  `cluster-app`): merge, then the Release workflow for `vizualyse-cluster`
+  and `vizualyse_cluster`.
+- [ ] **The picker and the app on the car**, parked, after the KOMBI item
+  above. Ask before anything on the unit; read the journal after
+  (`journalctl -u vizualyse-cluster | grep picker:`), don't poll during.
+  The tile installs and opens; Choose opens the empty screen state and the
+  picker fills the app area (title bar and back arrow still the HMI's);
+  taps land where they look (the AF_PACKET reader under mgu-python, as
+  root, then nobody); a tile, < >, a swipe; Use and a theme row put the
+  family on the cluster once; Try for 10 s then back; BACK, HOME and a
+  pop-up take it down; moving hides it. How long the first picture takes
+  (16 PNGs decoded on the Atom) and a press after.
+- [ ] **The picker, next:** the iDrive knob on the picker too (the app's
+  manifest with FrontCCU `statusRotaryEncoderState`, as robertn_store reads
+  it, forwarded to the tool: focus and press; check the installer takes
+  that manifest on our firmware first, or the app won't install); a HUD
+  preview once themes draw on the HUD; a check that the previews are
+  current (`picker_test.js` checks every shipped theme has one, not that
+  it matches the theme: rerun `tools/picker_build.js` after a theme's look
+  changes).
 - [ ] **Which readings iDrive 7 gives an app** (rpm, gear, drive mode, oil
   and coolant, tyres, power, battery, limit, cruise, guidance, economy):
   `someip-interfaces.json` on the unit. A theme shows `--` for any it
-  doesn't get.
+  doesn't get. Then the app sends them as `signals` (with `driveMode` for
+  the Sport / Comfort switch); today it sends only the speed, once a second,
+  which the tool also shows as the theme's speed.
 - [ ] **The glass and cowl mask**: measure what the cluster's glass and the
   driver camera's cowl hide, and keep themes clear of it (several put
   readings in the top corners and the top centre).
@@ -818,7 +835,10 @@ iDrive app yet. How it works: [native/vizualyse-cluster/THEMES.md](native/vizual
   ([knowledge/idrive-app-ui.md](knowledge/idrive-app-ui.md),
   [knowledge/input.md](knowledge/input.md)); where it can't, draw our own
   page in the app area through mgu-render. A shared module for it in the
-  platform once two apps need it.
+  platform once two apps need it: Cluster themes' picker (tool 0.2.0) is
+  the first such page (`ui_draw.js` a small canvas with atlas text,
+  `touch_reader.py` the passive reader in mgu-python, taps and swipes in
+  `picker.js`).
 
 ## Platform (platform/<side>/<module>/<version>)
 
