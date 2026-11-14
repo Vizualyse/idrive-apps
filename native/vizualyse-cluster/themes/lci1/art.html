@@ -2,11 +2,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      lci1 "LCI inspired 1": the LCI Sport mockup as a design (DESIGNS.md),
-     re-laid out for the whole 1920 x 720 panel. The hexagon keeps its slope
-     and grows taller (y 54-698, its legs longer, nothing stretched); the
-     inner panel, the car, the wings and the fluid bars spread into the extra
-     height; the clock, outside temperature, SPORT and the odometer sit in the
-     old bottom strip's corners. Nothing important in the top 40 px.
+     fitted to the car's panel (DESIGNS.md "The car's panel"). The hexagon
+     keeps its slope and runs from the top edge (y 20) to y 616, clear of the
+     gear's plate; its top corners sit inside the glass's cut, its vertices
+     clear of the warning lights on the left and the parking brake. The clock,
+     outside temperature, SPORT, the odometer and the scales' units sit
+     outside it: under the left warning lights and in the bottom corners.
      Several readings share one text layer: logic.extra.js lays them out with
      the font's advances (as the hand port did).
      Build: node tools/design_build.js themes/lci1 -->
@@ -19,7 +20,7 @@
 <meta name="theme-mode" content="sport">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values the bindings use -->
 <meta name="let:vMph" content="smooth(mph(kmh), 14)">
@@ -55,11 +56,11 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
 .vs    { font-family: "Archivo108"; font-size: 24px; font-weight: 600; }
 .psi   { font-family: "Archivo108"; font-size: 36px; font-weight: 600; }
 .scale { font-family: "Archivo108"; font-size: 30px; font-weight: 500; fill: var(--dim); }
-.clock { font-family: "Archivo108"; font-size: 32px; font-weight: 500; }
+.clock { font-family: "Archivo108"; font-size: 40px; font-weight: 500; }
 .unit  { font-size: 18px; font-weight: 500; fill: var(--text-2); }
 .lab   { font-size: 18px; font-weight: 600; letter-spacing: 1.44px; fill: var(--text-2); }
 .sub   { font-size: 22px; font-weight: 500; fill: var(--text-2); }
-.corner { font-size: 20px; font-weight: 500; fill: var(--dim); }
+.corner { font-size: 24px; font-weight: 500; fill: var(--dim); }
 .hid { fill-opacity: 0; }
 .ico path { fill: none; stroke: var(--text-2); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .seg { fill: var(--track); }
@@ -84,11 +85,11 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
     </pattern>
   </defs>
   <!-- a guide (not drawn by the theme): the top keep-clear zone -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
 
   <rect width="1920" height="720" fill="#020308"/>
 
-  <!-- the hexagonal field (y 54-698), its slanted edges the two scales -->
+  <!-- the hexagonal field (y 20-616), its slanted edges the two scales -->
   <polygon id="hex" fill="url(#fieldg)"/>
   <g clip-path="url(#hexclip)">
     <path class="edgeL" transform="translate(54 0)" fill="none" stroke="#2c5cf0" stroke-opacity=".4" stroke-width="34" stroke-linejoin="miter"/>
@@ -107,18 +108,18 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
   <g id="scaleR"></g>
 
   <!-- inner panel: the hexagon's slope, taller -->
-  <polygon points="765.5,90 1154.5,90 1330,376 1154.5,662 765.5,662 590,376" fill="#040a28" stroke="#5b86ff" stroke-opacity=".6" stroke-width="1.5"/>
+  <polygon points="773,52 1147,52 1310,318 1147,584 773,584 610,318" fill="#040a28" stroke="#5b86ff" stroke-opacity=".6" stroke-width="1.5"/>
 
   <!-- power: engine left of centre, electric right; values are layers, these hold the units -->
-  <text class="lab" x="940" y="130" text-anchor="end">ENGINE</text>
-  <text x="940" y="180" text-anchor="end"><tspan id="mEng" class="val hid">291</tspan><tspan class="unit" dx="6">hp</tspan></text>
-  <text x="980" y="180"><tspan id="mEle" class="val hid">109</tspan></text>
-  <rect x="730" y="196" width="220" height="8" fill="#12235e"/>
-  <rect x="970" y="196" width="220" height="8" fill="#12235e"/>
-  <rect x="959" y="188" width="2" height="24" fill="#b4c8ff"/>
+  <text class="lab" x="940" y="94" text-anchor="end">ENGINE</text>
+  <text x="940" y="144" text-anchor="end"><tspan id="mEng" class="val hid">291</tspan><tspan class="unit" dx="6">hp</tspan></text>
+  <text x="980" y="144"><tspan id="mEle" class="val hid">109</tspan></text>
+  <rect x="730" y="160" width="220" height="8" fill="#12235e"/>
+  <rect x="970" y="160" width="220" height="8" fill="#12235e"/>
+  <rect x="959" y="152" width="2" height="24" fill="#b4c8ff"/>
 
   <!-- car, plan view -->
-  <g transform="translate(0 56)" fill="none" stroke="#5b86ff" stroke-width="1.5" stroke-linejoin="round">
+  <g transform="translate(0 -8)" fill="none" stroke="#5b86ff" stroke-width="1.5" stroke-linejoin="round">
     <path d="M920,246 Q960,236 1000,246 Q1016,252 1018,282 L1020,500 Q1020,538 1004,546 Q960,554 916,546 Q900,538 900,500 L902,282 Q904,252 920,246 Z" fill="#0a1a5c"/>
     <path d="M912,330 Q960,312 1008,330 L1000,372 Q960,362 920,372 Z" fill="#040a28"/>
     <path d="M918,480 Q960,488 1002,480 L1008,506 Q960,518 912,506 Z" fill="#040a28"/>
@@ -127,30 +128,30 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
     <path d="M916,262 Q930,254 944,256 M1004,262 Q990,254 976,256" stroke-opacity=".7"/>
     <path d="M934,264 Q941,296 937,321 M986,264 Q979,296 983,321 M914,526 Q960,536 1006,526" stroke-opacity=".5"/>
   </g>
-  <text x="862" y="356" text-anchor="end"><tspan id="mPFL" class="psi hid">36</tspan><tspan class="unit" dx="5">psi</tspan></text>
-  <text x="1058" y="356"><tspan id="mPFR" class="psi hid">36</tspan><tspan class="unit" dx="5">psi</tspan></text>
-  <text x="862" y="542" text-anchor="end"><tspan id="mPRL" class="psi hid">38</tspan><tspan class="unit" dx="5">psi</tspan></text>
-  <text x="1058" y="542"><tspan id="mPRR" class="psi hid">38</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="862" y="292" text-anchor="end"><tspan id="mPFL" class="psi hid">36</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="1058" y="292"><tspan id="mPFR" class="psi hid">36</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="862" y="478" text-anchor="end"><tspan id="mPRL" class="psi hid">38</tspan><tspan class="unit" dx="5">psi</tspan></text>
+  <text x="1058" y="478"><tspan id="mPRR" class="psi hid">38</tspan><tspan class="unit" dx="5">psi</tspan></text>
 
   <!-- upper left wing: boost -->
-  <text class="lab" x="470" y="136">BOOST</text>
-  <text x="470" y="184"><tspan id="mBoost" class="val hid">1.3</tspan><tspan class="unit" dx="6">bar</tspan></text>
-  <rect x="470" y="202" width="160" height="6" fill="#0a1d6a"/>
+  <text class="lab" x="488" y="100">BOOST</text>
+  <text x="488" y="148"><tspan id="mBoost" class="val hid">1.3</tspan><tspan class="unit" dx="6">bar</tspan></text>
+  <rect x="488" y="166" width="160" height="6" fill="#0a1d6a"/>
 
   <!-- upper right wing: g-force -->
-  <text class="lab" x="1376" y="136" text-anchor="end">G-FORCE</text>
-  <text x="1376" y="184" text-anchor="end"><tspan id="mG" class="val hid">0.5</tspan><tspan class="unit" dx="6">g</tspan></text>
+  <text class="lab" x="1358" y="100" text-anchor="end">G-FORCE</text>
+  <text x="1358" y="148" text-anchor="end"><tspan id="mG" class="val hid">0.5</tspan><tspan class="unit" dx="6">g</tspan></text>
   <g stroke="#b4c8ff" fill="none">
-    <circle cx="1432" cy="166" r="40" fill="#061552" stroke-opacity=".8" stroke-width="1.5"/>
-    <circle cx="1432" cy="166" r="20" stroke-opacity=".35"/>
-    <path d="M1392,166 H1472 M1432,126 V206" stroke-opacity=".35"/>
+    <circle cx="1414" cy="130" r="40" fill="#061552" stroke-opacity=".8" stroke-width="1.5"/>
+    <circle cx="1414" cy="130" r="20" stroke-opacity=".35"/>
+    <path d="M1374,130 H1454 M1414,90 V170" stroke-opacity=".35"/>
   </g>
 
   <!-- speed and gear boxes at the vertices -->
-  <polygon points="338,376 378,310 586,310 600,324 600,442 378,442" fill="#00030a" stroke="#b4c8ff" stroke-opacity=".4"/>
-  <text class="unit" x="584" y="433" text-anchor="end">mph</text>
-  <polygon points="1582,376 1542,310 1334,310 1320,324 1320,442 1542,442" fill="#00030a" stroke="#b4c8ff" stroke-opacity=".4"/>
-  <text x="1420" y="408" text-anchor="middle"><tspan id="mM" class="val" style="font-size:52px;fill:#b4c8ff">M</tspan><tspan id="mGear" class="big hid" dx="4">2</tspan></text>
+  <polygon points="358,318 398,252 606,252 620,266 620,384 398,384" fill="#00030a" stroke="#b4c8ff" stroke-opacity=".4"/>
+  <text class="unit" x="604" y="375" text-anchor="end">mph</text>
+  <polygon points="1562,318 1522,252 1314,252 1300,266 1300,384 1522,384" fill="#00030a" stroke="#b4c8ff" stroke-opacity=".4"/>
+  <text x="1400" y="350" text-anchor="middle"><tspan id="mM" class="val" style="font-size:52px;fill:#b4c8ff">M</tspan><tspan id="mGear" class="big hid" dx="4">2</tspan></text>
 
   <!-- lower wings: slanted bars (tracks by the script) and the units of their readings -->
   <g id="bars"></g>
@@ -163,22 +164,22 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
   <g id="iCool" class="ico"><path d="M12,2 v11.5 M12,5 h4.5 M12,9 h4.5 M9,16.5 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0 M1.5,20.5 q2.75,-2.5 5.5,0 M17,20.5 q2.75,-2.5 5.5,0"/></g>
   <text id="wCool" text-anchor="end"><tspan id="mCool" class="vs hid">94</tspan><tspan class="unit" dx="4">°C</tspan></text>
 
-  <!-- corners; the clock, outside, SPORT and the odometer in the old bottom strip's corners -->
-  <text class="corner" x="64" y="66">mph</text>
-  <text class="corner" x="1856" y="66" text-anchor="end">1/min × 1000</text>
-  <text class="clock" x="1856" y="664" text-anchor="end" style="letter-spacing:1.92px">SPORT</text>
+  <!-- the scales' units and the clock, outside, SPORT and the odometer: outside the hexagon, in the bottom corners -->
+  <text class="corner" x="48" y="604">mph</text>
+  <text class="corner" x="1872" y="604" text-anchor="end">1/min × 1000</text>
+  <text class="clock" x="1872" y="684" text-anchor="end" style="letter-spacing:2.4px">SPORT</text>
 
   <!-- ===================== the moving parts, bottom to top ===================== -->
 
   <!-- numerals: a path 96 px outside each edge, numerals inward of it; the
        glow brightens the art's dim numerals up to the last one reached. Its
        field is the one every scale layer reuses (copies of this path moved). -->
-  <path id="speedNum" data-gauge="speedNum" data-ends fill="none" stroke="none"
-        data-needle="-31 78 0 0" data-needle-color="C.none" data-band="0 0" data-band-color="C.none"
+  <path id="speedNum" data-gauge="speedNum" fill="none" stroke="none"
+        data-needle="-10 78 0 0" data-needle-color="C.none" data-band="0 0" data-band-color="C.none"
         data-glow="58 0 1" data-glow-color="rgb(-1.86, -2.79, -7.44, 1)" data-look="0 0.93 0.01"
         data-value="P.nA + P.nB * (floor((vMph + 0.5) / 20) * 20 + 10) / P.maxMph"/>
   <path id="tachNum" data-gauge="tachNum" data-reuse="speedNum" fill="none" stroke="none"
-        data-needle="-31 78 0 0" data-needle-color="C.none" data-band="0 0" data-band-color="C.none"
+        data-needle="-10 78 0 0" data-needle-color="C.none" data-band="0 0" data-band-color="C.none"
         data-glow="58 0 1" data-glow-color="rgb(-1.86, -2.79, -7.44, 1)" data-look="0 0.93 0.01"
         data-value="P.nA + P.nB * (floor((vRpm + 20) / 1000) * 1000 + 500) / P.maxRpm"/>
   <!-- the tint (a band 54 px in) and the lit trace (31 px in, the glow) -->
@@ -206,7 +207,7 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
      data-c0="C.text" data-c1="C.amber" data-c2="C.red" data-off="when(cue, C.redDark, C.track)"
      data-lit="when(cue, 0, when(ok(vRpm) &amp;&amp; pull, clamp(ceil((vRpm - P.shiftFrom) / (P.shiftAt - P.shiftFrom) * 9), 0, 9), 0))"
      data-flash="blink">
-    <rect x="529" y="63" width="862" height="18" fill="none"/>
+    <rect x="529" y="27" width="862" height="18" fill="none"/>
   </g>
 
   <!-- the gear box: two upshift chevrons, a connector, then its outline: one path -->
@@ -218,9 +219,9 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
 
   <!-- boost; engine (leftward from the divider) and electric (rightward) on one row of lights -->
   <g data-leds="boostBar" data-count="64" data-light="4 6" data-c0="C.text" data-off="C.none"
-     data-lit="round(clamp(boost / P.boostMax) * 64)"><rect x="470" y="202" width="160" height="6" fill="none"/></g>
+     data-lit="round(clamp(boost / P.boostMax) * 64)"><rect x="488" y="166" width="160" height="6" fill="none"/></g>
   <g data-leds="powerBar" data-count="64" data-light="6.875 8" data-lean="0 20 0" data-split="32 32"
-     data-c0="C.none" data-c1="C.text" data-c2="C.ice" data-off="C.none" data-lit="32"><rect x="730" y="196" width="460" height="8" fill="none"/></g>
+     data-c0="C.none" data-c1="C.text" data-c2="C.ice" data-off="C.none" data-lit="32"><rect x="730" y="160" width="460" height="8" fill="none"/></g>
 
   <!-- the slanted fluid bars: fuel and battery left, oil and coolant right (one field) -->
   <path id="fuelBar" data-gauge="fuelBar" data-art="off" fill="none" stroke="none" data-band="-4.26 4.26" data-start="3" data-end="3"
@@ -233,44 +234,44 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
         data-band-color="when(coolantC > P.coolRed, C.red, C.text)" data-value="clamp((coolantC - 40) / 80, 0.02, 1)"/>
 
   <!-- g dot, tyres (ice cold, amber hot), the M hidden out of manual -->
-  <circle cx="1432" cy="166" r="6" fill="#f5f8ff" data-rect="gDot"
+  <circle cx="1414" cy="130" r="6" fill="#f5f8ff" data-rect="gDot"
           data-dx="clamp(smooth(gLat, 10) / P.gMax, -1, 1) * P.gR" data-dy="clamp(smooth(gLon, 10) / P.gMax, -1, 1) * P.gR"/>
   <g data-leds="tyresF" data-count="2" data-light="20 54" data-split="1 2" data-lean="0 116 0" data-radius="4" data-lit="2" data-rate="10"
      data-c0="when(ok(tyres) &amp;&amp; ok(tyres[0]) &amp;&amp; ok(tyres[0].c), step(tyres[0].c, C.ice, P.tyreCold, C.tyre, P.tyreHot + 0.5, C.amber), C.tyre)"
      data-c1="when(ok(tyres) &amp;&amp; ok(tyres[1]) &amp;&amp; ok(tyres[1].c), step(tyres[1].c, C.ice, P.tyreCold, C.tyre, P.tyreHot + 0.5, C.amber), C.tyre)">
-    <rect x="882" y="326" width="156" height="54" fill="none"/>
-    <rect x="882" y="326" width="20" height="54" rx="4" fill="#dfe8ff"/><rect x="1018" y="326" width="20" height="54" rx="4" fill="#dfe8ff"/>
+    <rect x="882" y="262" width="156" height="54" fill="none"/>
+    <rect x="882" y="262" width="20" height="54" rx="4" fill="#dfe8ff"/><rect x="1018" y="262" width="20" height="54" rx="4" fill="#dfe8ff"/>
   </g>
   <g data-leds="tyresR" data-count="2" data-light="20 54" data-split="1 2" data-lean="0 116 0" data-radius="4" data-lit="2" data-rate="10"
      data-c0="when(ok(tyres) &amp;&amp; ok(tyres[2]) &amp;&amp; ok(tyres[2].c), step(tyres[2].c, C.ice, P.tyreCold, C.tyre, P.tyreHot + 0.5, C.amber), C.tyre)"
      data-c1="when(ok(tyres) &amp;&amp; ok(tyres[3]) &amp;&amp; ok(tyres[3].c), step(tyres[3].c, C.ice, P.tyreCold, C.tyre, P.tyreHot + 0.5, C.amber), C.tyre)">
-    <rect x="882" y="512" width="156" height="54" fill="none"/>
-    <rect x="882" y="512" width="20" height="54" rx="4" fill="#dfe8ff"/><rect x="1018" y="512" width="20" height="54" rx="4" fill="#dfe8ff"/>
+    <rect x="882" y="448" width="156" height="54" fill="none"/>
+    <rect x="882" y="448" width="20" height="54" rx="4" fill="#dfe8ff"/><rect x="1018" y="448" width="20" height="54" rx="4" fill="#dfe8ff"/>
   </g>
-  <rect id="modeMask" data-rect="modeMask" x="1360" y="360" width="40" height="44" fill="#00030a" data-show="gearMode !== 'M'"/>
+  <rect id="modeMask" data-rect="modeMask" x="1340" y="302" width="40" height="44" fill="#00030a" data-show="gearMode !== 'M'"/>
 
   <!-- readings -->
-  <text class="big" x="584" y="408" text-anchor="end" data-text="speedText" data-text-expr="fmt(vMph)">188</text>
+  <text class="big" x="604" y="350" text-anchor="end" data-text="speedText" data-text-expr="fmt(vMph)">188</text>
   <!-- the gear: after the M in manual, else centred in the box (logic.extra.js places it) -->
-  <text class="big" x="1300" y="408" data-text="gearText" data-width="260" data-cells="3" data-glyphs="PRNDS"
+  <text class="big" x="1280" y="350" data-text="gearText" data-width="260" data-cells="3" data-glyphs="PRNDS"
         data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(/^[DS]$/.test(gearMode), gearMode + when(gear > 0, fmt(gear), ''), when(gear === 0, 'N', fmt(gear))))">4</text>
   <!-- boost (left) and g (right) on one layer; engine and electric on another -->
-  <text class="val" x="466" y="184" data-text="val160" data-width="914" data-rate="10"
+  <text class="val" x="484" y="148" data-text="val160" data-width="914" data-rate="10"
         data-text-expr="fmt(max(0, boost), 1) + ' ' + fmt(Math.hypot(gLat, gLon), 1)">1.3 0.5</text>
-  <text class="val" x="820" y="180" data-text="val156" data-width="290" data-rate="10" data-glyphs="−"
+  <text class="val" x="820" y="144" data-text="val156" data-width="290" data-rate="10" data-glyphs="−"
         data-text-expr="fmt(max(0, eng)) + ' ' + when(ele &lt; -0.5, '−', '') + fmt(abs(ele))">291 −109</text>
-  <text class="lab" x="980" y="180" data-text="eleUnit" data-width="150" data-rate="10" data-text-expr="'hp'">hp</text>
-  <text class="lab" x="980" y="130" data-text="eleLabel" data-rate="10" data-text-expr="when(ele &lt; -1, 'RECOVERING', 'ELECTRIC')">RECOVERING</text>
-  <text class="sub" x="850" y="238" data-text="sysWords" data-width="220" data-rate="10" data-text-expr="'System hp'">System hp</text>
-  <text class="vs" x="900" y="238" data-text="sysNum" data-width="120" data-rate="10" data-text-expr="fmt(max(0, eng) + max(0, ele))">400</text>
+  <text class="lab" x="980" y="144" data-text="eleUnit" data-width="150" data-rate="10" data-text-expr="'hp'">hp</text>
+  <text class="lab" x="980" y="94" data-text="eleLabel" data-rate="10" data-text-expr="when(ele &lt; -1, 'RECOVERING', 'ELECTRIC')">RECOVERING</text>
+  <text class="sub" x="850" y="202" data-text="sysWords" data-width="220" data-rate="10" data-text-expr="'System hp'">System hp</text>
+  <text class="vs" x="900" y="202" data-text="sysNum" data-width="120" data-rate="10" data-text-expr="fmt(max(0, eng) + max(0, ele))">400</text>
   <!-- tyres: psi and temperatures, front and rear rows -->
-  <text class="psi" x="780" y="356" data-text="psiF" data-width="330" data-rate="10"
+  <text class="psi" x="780" y="292" data-text="psiF" data-width="330" data-rate="10"
         data-text-expr="fmt(psi(tyres[0].bar)) + ' ' + fmt(psi(tyres[1].bar))">36 36</text>
-  <text class="psi" x="780" y="542" data-text="psiR" data-width="330" data-rate="10"
+  <text class="psi" x="780" y="478" data-text="psiR" data-width="330" data-rate="10"
         data-text-expr="fmt(psi(tyres[2].bar)) + ' ' + fmt(psi(tyres[3].bar))">38 38</text>
-  <text class="sub" x="780" y="382" data-text="tempF" data-width="350" data-rate="10"
+  <text class="sub" x="780" y="318" data-text="tempF" data-width="350" data-rate="10"
         data-text-expr="fmt(tyres[0].c) + ' °C ' + fmt(tyres[1].c) + ' °C'">70 °C 72 °C</text>
-  <text class="sub" x="780" y="568" data-text="tempR" data-width="350" data-rate="10"
+  <text class="sub" x="780" y="504" data-text="tempR" data-width="350" data-rate="10"
         data-text-expr="fmt(tyres[2].c) + ' °C ' + fmt(tyres[3].c) + ' °C'">67 °C 69 °C</text>
   <!-- the fluids beside their bars (x and width set by the script), the ranges under fuel and battery -->
   <text id="fluids" class="vs" x="440" y="546" data-text="fluids" data-width="1040" data-rate="10"
@@ -278,11 +279,11 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
   <text id="ranges" class="sub" x="460" y="574" data-text="ranges" data-width="260" data-rate="10"
         data-text-expr="fmt(miles(rangeKm)) + ' mi ' + fmt(miles(evRangeKm)) + ' mi'">286 mi 21 mi</text>
   <!-- corners -->
-  <text class="clock" x="64" y="664" data-text="clock" data-rate="10"
+  <text class="clock" x="48" y="670" data-text="clock" data-rate="10"
         data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">18:05</text>
-  <text class="corner" x="64" y="694" data-text="outside" data-rate="10" data-glyphs="−"
+  <text class="corner" x="48" y="704" data-text="outside" data-rate="10" data-glyphs="−"
         data-text-expr="when(ok(outsideC), when(outsideC &lt; 0, '−', '+') + fmt(abs(outsideC), 1), '--') + ' °C'">+11.5 °C</text>
-  <text class="corner" x="1856" y="694" text-anchor="end" data-text="odo" data-rate="10" data-null="-- mi"
+  <text class="corner" x="1128" y="690" text-anchor="middle" data-text="odo" data-rate="10" data-null="-- mi"
         data-text-expr="when(floor(miles(odoKm)) >= 1000, floor(miles(odoKm) / 1000) + ' ' + String(floor(miles(odoKm)) % 1000 + 1000).slice(1), fmt(floor(miles(odoKm)))) + ' mi'">24 816 mi</text>
 </svg>
 <script>
@@ -301,16 +302,16 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
 
   /* ---- the hexagon: the mockup's slope (178 across per 290 down), y 54 to 698 ---- */
   var K = 178 / 290, NX = 0.8523, NY = 0.5231;
-  var YT = 56, YB = 696, CY = 376, LV = 430 - (CY - YT) * K;
+  var YT = 22, YB = 616, CY = 319, TX = 448, LV = TX - (CY - YT) * K;
   function edgeL(y) { return LV + Math.abs(y - CY) * K; }
   function edgePt(f, side) {
     var y = YB - f * (YB - YT), x = edgeL(y);
     return { x: side < 0 ? x : 1920 - x, y: y, upper: f > 0.5 };
   }
-  var hex = [[430, YT], [1490, YT], [1920 - LV, CY], [1490, YB], [430, YB], [LV, CY]].map(function (p) { return r2(p[0]) + ',' + p[1]; }).join(' ');
+  var hex = [[TX, YT], [1920 - TX, YT], [1920 - LV, CY], [1920 - TX, YB], [TX, YB], [LV, CY]].map(function (p) { return r2(p[0]) + ',' + p[1]; }).join(' ');
   $('hex').setAttribute('points', hex);
   $('hexClipPoly').setAttribute('points', hex);
-  var dL = 'M430,' + YB + ' L' + r2(LV) + ',' + CY + ' L430,' + YT, dR = 'M1490,' + YB + ' L' + r2(1920 - LV) + ',' + CY + ' L1490,' + YT;
+  var dL = 'M' + TX + ',' + YB + ' L' + r2(LV) + ',' + CY + ' L' + TX + ',' + YT, dR = 'M' + (1920 - TX) + ',' + YB + ' L' + r2(1920 - LV) + ',' + CY + ' L' + (1920 - TX) + ',' + YT;
   Array.prototype.forEach.call(document.querySelectorAll('.edgeL'), function (e) { e.setAttribute('d', dL); });
   Array.prototype.forEach.call(document.querySelectorAll('.edgeR'), function (e) { e.setAttribute('d', dR); });
 
@@ -341,7 +342,7 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
       el('line', { x1: p.x + nx * a, y1: p.y + ny * a, x2: p.x + nx * b, y2: p.y + ny * b,
         stroke: major ? '#b4c8ff' : '#56648c', 'stroke-width': major ? 2.5 : 1.5 }, g);
       if (major) {
-        var t = el('text', { 'class': 'scale', x: p.x + side * 34, y: p.y + 10, 'text-anchor': side < 0 ? 'end' : 'start' }, g);
+        var t = el('text', { 'class': 'scale', x: p.x + side * 34, y: Math.max(p.y + 10, 35), 'text-anchor': side < 0 ? 'end' : 'start' }, g);
         t.textContent = v >= 1000 ? v / 1000 : v;
       }
     });
@@ -356,14 +357,14 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
 
   /* ---- shift lights as the design shows them (the leds layer draws the real ones) ---- */
   for (i = 0; i < 9; i++) {
-    el('rect', { 'class': 'seg', x: 532 + i * 46, y: 63, width: 40, height: 18 }, $('shift'));
-    el('rect', { 'class': 'seg', x: 1388 - 40 - i * 46, y: 63, width: 40, height: 18 }, $('shift'));
+    el('rect', { 'class': 'seg', x: 532 + i * 46, y: 27, width: 40, height: 18 }, $('shift'));
+    el('rect', { 'class': 'seg', x: 1388 - 40 - i * 46, y: 27, width: 40, height: 18 }, $('shift'));
   }
 
   /* ---- the gear box path: lead-in, chevron, connector, chevron, then the outline ---- */
   var leg = Math.hypot(14, 16), CH = 2 * leg, GAP = Math.hypot(28, 18), LEAD = GAP / 2;
-  var gp = [[1498 - LEAD * 14 / leg, 356 + LEAD * 16 / leg], [1498, 356], [1512, 340], [1526, 356], [1498, 374], [1512, 358], [1526, 374],
-    [1582, 376], [1542, 310], [1334, 310], [1320, 324], [1320, 442], [1542, 442], [1582, 376]];
+  var gp = [[1478 - LEAD * 14 / leg, 298 + LEAD * 16 / leg], [1478, 298], [1492, 282], [1506, 298], [1478, 316], [1492, 300], [1506, 316],
+    [1562, 318], [1522, 252], [1314, 252], [1300, 266], [1300, 384], [1522, 384], [1562, 318]];
   var gd = 'M' + gp.map(function (p) { return r2(p[0]) + ',' + r2(p[1]); }).join(' L');
   var glen = 0, gToOutline = 0;
   for (i = 1; i < gp.length; i++) { glen += Math.hypot(gp[i][0] - gp[i - 1][0], gp[i][1] - gp[i - 1][1]); if (i === 7) gToOutline = glen; }
@@ -373,7 +374,7 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
   $('chevrons').setAttribute('data-end', r2(glen - 2 * (CH + GAP)));
 
   /* ---- the slanted fluid bars: tracks, warning zones, the gauges' paths ---- */
-  var Y0 = 676, Y1 = 480;
+  var Y0 = 596, Y1 = 422;
   function barX(y, side, off) { return side < 0 ? edgeL(y) + off : 1920 - edgeL(y) - off - 10; }
   function barPts(side, off, ya, yb) {
     var xa = barX(ya, side, off), xb = barX(yb, side, off);
@@ -400,14 +401,14 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
   icon('iCool', 1, 216); place('wCool', 1, 216, YV);
   /* the readings' layers: from left of the fuel reading to the right of the oil one */
   var fx = Math.floor(barX(YV, -1, 92) + 26) - 30, fr = Math.ceil(barX(YV, 1, 92) - 16) + 2;
-  $('fluids').setAttribute('x', fx); $('fluids').setAttribute('data-width', fr - fx);
+  $('fluids').setAttribute('x', fx); $('fluids').setAttribute('y', YV); $('fluids').setAttribute('data-width', fr - fx);
   var rx = Math.floor(barX(YS, -1, 92) + 26) - 2;
-  $('ranges').setAttribute('x', rx); $('ranges').setAttribute('data-width', Math.ceil(barX(YS, -1, 216) + 26) + 100 - rx);
+  $('ranges').setAttribute('x', rx); $('ranges').setAttribute('y', YS); $('ranges').setAttribute('data-width', Math.ceil(barX(YS, -1, 216) + 26) + 100 - rx);
 
   /* the text layers logic.extra.js lays out: their x, width and font */
   P.text = {
-    gearText: { x: 1300, w: 260, font: 'f112w600' },
-    val160: { x: 466, w: 914, font: 'f44w600' }, val156: { x: 820, w: 290, font: 'f44w600' },
+    gearText: { x: 1280, w: 260, font: 'f112w600' },
+    val160: { x: 484, w: 914, font: 'f44w600' }, val156: { x: 820, w: 290, font: 'f44w600' },
     eleUnit: { x: 980, w: 150, font: 'f18w600' },
     sysWords: { x: 850, w: 220, font: 'f22w500' }, sysNum: { x: 900, w: 120, font: 'f24w600' },
     psiF: { x: 780, w: 330, font: 'f36w600' }, psiR: { x: 780, w: 330, font: 'f36w600' },
@@ -427,7 +428,7 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
     document.fonts.ready.then(function () {
       P.at = {
         boost: r2(span('mBoost').x0), gEnd: r2(span('mG').x1), engEnd: r2(span('mEng').x1), ele: r2(span('mEle').x0),
-        gearM: r2(span('mGear').x0), gearMid: 1420,
+        gearM: r2(span('mGear').x0), gearMid: 1400,
         psiFLEnd: r2(span('mPFL').x1), psiFR: r2(span('mPFR').x0), psiRLEnd: r2(span('mPRL').x1), psiRR: r2(span('mPRR').x0),
         tempLEnd: 862, tempR: 1058, sysMid: 960,
         fuelEnd: r2(span('mFuel').x1), batEnd: r2(span('mBat').x1), oilEnd: r2(span('mOil').x1), coolEnd: r2(span('mCool').x1),
@@ -435,7 +436,7 @@ text { font-family: "ArchivoN"; fill: var(--text); font-variant-numeric: tabular
       };
       saveParams();
       var b = $('mM').getBBox(), m = $('modeMask');
-      m.setAttribute('x', Math.floor(b.x) - 1); m.setAttribute('y', 408 - 40);
+      m.setAttribute('x', Math.floor(b.x) - 1); m.setAttribute('y', 350 - 40);
       m.setAttribute('width', Math.ceil(b.width) + 2); m.setAttribute('height', 43);
     });
   });

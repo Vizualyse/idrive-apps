@@ -80,7 +80,7 @@ module.exports = {
         lines(ctx, P, out, ['storeVal', 'storeUnit'],
             [[{ s: r(sig.rangeKm), l: 0 }, { s: unit(sig.rangeKm), l: 1 }], [{ s: r(sig.evRangeKm), l: 0 }, { s: unit(sig.evRangeKm), l: 1 }]], [X.fuel, X.batt]);
         const pct = (v) => (ok(v) ? Math.round(v) + ' %' : '--');
-        const deg = (v) => (ok(v) ? Math.round(v) + ' °C' : '--');
+        const deg = (v) => (ok(v) ? Math.round(v) + '°C' : '--');
         const state = (c, hot) => (!ok(c) ? '' : c < 80 ? 'Warming' : c > hot ? 'Hot' : 'Normal');
         lines(ctx, P, out, ['storeSub'], [[{ s: pct(sig.fuelPct), l: 0 }], [{ s: pct(sig.socPct), l: 0 }]], [X.fuel, X.batt]);
         lines(ctx, P, out, ['tempVal'], [[{ s: deg(sig.oilC), l: 0 }], [{ s: deg(sig.coolantC), l: 0 }]], [X.oil, X.cool]);

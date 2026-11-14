@@ -2,11 +2,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      tri1 "Three-dial 1" (Sport): the three-ring Sport mockup as a design
-     (DESIGNS.md), re-laid out for the whole 1920 x 720 panel. The rings move
-     down 54 px (their centres at y 384) so the shift segments clear the top
-     keep-clear zone, the rev counter grows from 0.96 to 1.04 of the mockup's
-     size (still round), the side rings move 6 px in, and the corners' info
-     line (odometer, average, trip) sits in the old bottom strip.
+     (DESIGNS.md), refitted to the car's panel (2026-11-14): the rev counter
+     1.08 of the mockup's size about (960, 368) (the shift segments reach
+     y 26; safe-top 8), the side rings about (374, 400) and (1546, 400), clear
+     of the left warning lights, the clock and outside temperature above them
+     (out of the cut corners), the info line (odometer, average, trip) in the
+     bottom strip clear of the warning lights and the gear window.
      Centre: the rev band's ribs lit to the revs (white, red past 7000), the
      needle, the shift segments closing to the middle, then all red with the
      bezel white and the gear red at the cue; speed, M + gear and its
@@ -23,7 +24,7 @@
 <meta name="theme-mode" content="sport">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values the bindings use -->
 <meta name="let:vRpm" content="smooth(rpm, 18)">
@@ -36,7 +37,7 @@
 <meta name="let:tc2" content="tyres[2].c">
 <meta name="let:tc3" content="tyres[3].c">
 <script type="application/json" id="theme-params">
-{ "rmax": 8000, "red": 7000, "a0": 0.5, "redT": 0.75092, "ribLen": 676.37, "segRedT": 0.09225,
+{ "rmax": 8000, "red": 7000, "a0": 0.5, "redT": 0.75092, "ribLen": 702.38, "segRedT": 0.09225,
   "segFrom": 5300, "cue": 6400, "engMaxHp": 400, "elMaxHp": 120, "tyreCold": 60, "tyreHot": 94 }
 </script>
 
@@ -85,11 +86,11 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
     </pattern>
   </defs>
   <!-- a guide (not drawn by the theme): the top keep-clear zone -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
 
   <!-- ============ CENTRE RING: the rev counter (the mockup's ring, drawn
-       about (960, 322), placed at (960, 384) and 1.04 of its size) ============ -->
-  <g id="centre" transform="translate(960 384) scale(1.04) translate(-960 -322)">
+       about (960, 322), placed at (960, 368) and 1.08 of its size) ============ -->
+  <g id="centre" transform="translate(960 368) scale(1.08) translate(-960 -322)">
     <g id="segs"></g>
     <path id="bezel" fill="none" stroke="#ff3b2e" stroke-width="3" stroke-linecap="round"/>
     <!-- the ribs, all lit: the rib layers dim those above the revs -->
@@ -104,49 +105,49 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
          (6 px wide, round caps), segments r 305.5..314.5, the bezel's flash
          r 293..299. logic.extra.js moves the ribs' band and needle past the
          halves' ends (the bindings' 0..1 can't). -->
-    <path id="ribsL" class="field" data-gauge="ribsL" data-inward="left" data-maxd="60" data-pool="60 0 0"
+    <path id="ribsL" class="field" data-gauge="ribsL" data-inward="left" data-maxd="62" data-pool="62 0 0"
           data-value="clamp((P.a0 + (1 - vRpm / 4000) * 135) / 135.5)" data-from="0"
-          data-band="-13.29 38.25" data-band-color="#000000e0"
-          data-needle="-27.04 58.24 5.70 7.84" data-needle-color="C.sport"/>
+          data-band="-13.80 39.72" data-band-color="#000000e0"
+          data-needle="-28.08 60.48 5.92 8.14" data-needle-color="C.sport"/>
     <path id="ribsR" class="field" data-gauge="ribsR" data-reuse="ribsL"
           data-value="clamp((P.a0 + (vRpm / 4000 - 1) * 135) / 135.5)" data-from="1"
-          data-band="-13.29 38.25" data-band-color="#000000e0" data-red="0.75092" data-red-color="#000000a3"
-          data-needle="-27.04 58.24 5.70 7.84" data-needle-color="C.sport"/>
+          data-band="-13.80 39.72" data-band-color="#000000e0" data-red="0.75092" data-red-color="#000000a3"
+          data-needle="-28.08 60.48 5.92 8.14" data-needle-color="C.sport"/>
     <!-- the shift segments: 8-degree cells from 44 degrees each side of the
          top, lit from the outer ends in (white, the inner two ranks red); at
          the cue all red and the bezel white (the "needle", as wide as the half) -->
     <path id="segsL" class="field" data-gauge="segsL" data-reuse="ribsL" data-art="off"
           data-show="segN > 0" data-value="(44.5 - 8 * segN) / 135.5" data-from="0.32841"
-          data-segments="11.375 8.985" data-band="-41.08 -31.72"
+          data-segments="11.375 9.33" data-band="-42.66 -32.94"
           data-band-color="C.sport" data-red="0.09225" data-red-color="when(cue, C.sport, C.ink)"
-          data-needle="-24.96 -18.72 40000" data-needle-color="when(cue, C.ink, alpha(C.ink, 0))"/>
+          data-needle="-25.92 -19.44 40000" data-needle-color="when(cue, C.ink, alpha(C.ink, 0))"/>
     <path id="segsR" class="field" data-gauge="segsR" data-reuse="ribsL" data-art="off"
           data-show="segN > 0" data-value="(44.5 - 8 * segN) / 135.5" data-from="0.32841"
-          data-segments="11.375 8.985" data-band="-41.08 -31.72"
+          data-segments="11.375 9.33" data-band="-42.66 -32.94"
           data-band-color="C.sport" data-red="0.09225" data-red-color="when(cue, C.sport, C.ink)"
-          data-needle="-24.96 -18.72 40000" data-needle-color="when(cue, C.ink, alpha(C.ink, 0))"/>
+          data-needle="-25.92 -19.44 40000" data-needle-color="when(cue, C.ink, alpha(C.ink, 0))"/>
   </g>
 
-  <!-- centre readouts (screen px: the mockup's places through the ring's 1.04) -->
-  <text class="mid32" x="883.04" y="296.64" text-anchor="middle" style="fill:var(--line)" data-text="gPrev"
+  <!-- centre readouts (screen px: the mockup's places through the ring's 1.08) -->
+  <text class="mid32" x="880.08" y="277.28" text-anchor="middle" style="fill:var(--line)" data-text="gPrev"
         data-text-expr="when(gear > 1, fmt(gear - 1), '')">7</text>
-  <text class="mid32" x="1053.6" y="296.64" text-anchor="middle" style="fill:var(--line)" data-text="gNext"
+  <text class="mid32" x="1057.2" y="277.28" text-anchor="middle" style="fill:var(--line)" data-text="gNext"
         data-text-expr="when(gear > 0 &amp;&amp; gear &lt; 8, fmt(gear + 1), '')">8</text>
-  <text x="947.54" y="298.72" text-anchor="end" style="font-size:47.84px;font-weight:500;fill:var(--ink-2)" data-text="mode"
+  <text x="947.06" y="279.44" text-anchor="end" style="font-size:49.68px;font-weight:500;fill:var(--ink-2)" data-text="mode"
         data-glyphs="MDS" data-null=" " data-text-expr="when(gear > 0 &amp;&amp; /^[MDS]$/.test(gearMode), gearMode, ' ')">M</text>
-  <text x="951.76" y="298.72" style="font-size:101.92px;font-weight:600" data-text="gear" data-glyphs="NR"
+  <text x="951.45" y="279.44" style="font-size:105.84px;font-weight:600" data-text="gear" data-glyphs="NR"
         data-text-expr="when(gear === 0, 'N', when(gear &lt; 0, 'R', fmt(gear)))"
         data-color="when(cue, C.sport, C.ink)">8</text>
-  <text x="960" y="458.88" text-anchor="middle" style="font-size:178.88px;font-weight:500;letter-spacing:-3.12px"
+  <text x="960" y="445.76" text-anchor="middle" style="font-size:185.76px;font-weight:500;letter-spacing:-3.24px"
         data-text="speed" data-text-expr="fmt(mph(kmh))">188</text>
-  <text class="unit" x="960" y="496.32" text-anchor="middle" style="font-size:27px">mph</text>
-  <text class="mid32" x="971.5" y="558.72" text-anchor="end" data-text="rpm" data-rate="10"
+  <text class="unit" x="960" y="484.64" text-anchor="middle" style="font-size:28px">mph</text>
+  <text class="mid32" x="972.14" y="549.44" text-anchor="end" data-text="rpm" data-rate="10"
         data-text-expr="fmt(round(rpm, 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')">8 000</text>
-  <text class="unit" x="977.7" y="558.72" style="font-size:25px">rpm</text>
-  <text x="960" y="646.08" text-anchor="middle" style="font-size:27px;font-weight:600;letter-spacing:6.24px;fill:var(--sport)">SPORT</text>
+  <text class="unit" x="978.34" y="549.44" style="font-size:25px">rpm</text>
+  <text x="960" y="640.16" text-anchor="middle" style="font-size:28px;font-weight:600;letter-spacing:6.48px;fill:var(--sport)">SPORT</text>
 
-  <!-- ============ LEFT RING: power (the mockup's, 6 px in and 54 down) ============ -->
-  <g id="left" transform="translate(-6 54)">
+  <!-- ============ LEFT RING: power (the mockup's, centred on (374, 400)) ============ -->
+  <g id="left" transform="translate(2 70)">
     <path id="l-trackA" class="track"/><path id="l-trackB" class="track"/>
     <!-- the bars: engine on the left arc, electric on the right (its field the engine's, flipped) -->
     <path id="engArc" class="fill" style="stroke:var(--ink)" data-gauge="eng"
@@ -176,8 +177,8 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
     <text x="490" y="488" class="mid lbl">Boost</text>
   </g>
 
-  <!-- ============ RIGHT RING: tyres, fuel, battery (6 px in, 54 down) ============ -->
-  <g id="right" transform="translate(6 54)">
+  <!-- ============ RIGHT RING: tyres, fuel, battery (centred on (1546, 400)) ============ -->
+  <g id="right" transform="translate(-2 70)">
     <path id="r-trackA" class="track"/><path id="r-trackB" class="track"/>
     <path id="fuelArc" class="fill" style="stroke:var(--ink)" data-gauge="fuel" data-reuse="eng"
           data-value="clamp(fuelPct / 100)"/>
@@ -224,19 +225,19 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
     <text x="1630" y="494" class="mid lbl">Battery</text>
   </g>
 
-  <!-- ============ corners and the info line (the old bottom strip) ============ -->
-  <text class="mid32" x="150" y="84" data-text="clock" data-rate="10"
+  <!-- ============ the top band above the side rings, and the info line (the bottom strip, clear of the warning lights) ============ -->
+  <text class="mid32" x="374" y="128" text-anchor="middle" data-text="clock" data-rate="10"
         data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">18:42</text>
-  <text class="mid32" x="1740.28" y="84" text-anchor="end" data-text="outside" data-rate="10" data-glyphs="−"
+  <text class="mid32" x="1552" y="128" text-anchor="end" data-text="outside" data-rate="10" data-glyphs="−"
         data-text-expr="fmt(outsideC).replace('-', '−')">−14</text>
-  <text class="unit" x="1746.28" y="84">°C</text>
-  <text class="small" x="150" y="690" data-text="odo" data-rate="10"
+  <text class="unit" x="1558" y="128">°C</text>
+  <text class="mid32" x="160" y="694" style="fill:var(--ink-2)" data-text="odo" data-rate="10"
         data-text-expr="fmt(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' mi'">188 888 mi</text>
   <!-- the mockup's lap time (the car gives none): the trip's average speed -->
-  <text class="unit" x="933.5" y="690" text-anchor="end">Avg</text>
-  <text class="mid32" x="977" y="690" text-anchor="end" data-text="avg" data-rate="10" data-text-expr="fmt(mph(avgKmh))">188</text>
-  <text class="unit" x="983" y="690">mph</text>
-  <text class="small" x="1770" y="690" text-anchor="end" data-text="trip" data-rate="10"
+  <text class="unit" x="958" y="694" style="font-size:26px" text-anchor="end">Avg</text>
+  <text class="mid32" x="1016" y="694" text-anchor="end" data-text="avg" data-rate="10" data-text-expr="fmt(mph(avgKmh))">188</text>
+  <text class="unit" x="1022" y="694" style="font-size:26px">mph</text>
+  <text class="mid32" x="1760" y="694" style="fill:var(--ink-2)" text-anchor="end" data-text="trip" data-rate="10"
         data-text-expr="'Trip ' + fmt(miles(tripKm), 1) + ' mi'">Trip 888.8 mi</text>
 </svg>
 <script>

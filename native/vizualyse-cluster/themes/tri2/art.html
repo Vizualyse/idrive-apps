@@ -2,11 +2,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      tri2 "Three-dial 2": the three-dial Sport mockup as a design (DESIGNS.md),
-     re-laid out for the whole 1920 x 720 panel. The rev counter is 1.08x the
-     mockup's (its shift ladder now starts at the 40 px keep-clear line), the
-     side dials keep their size and sit 35 px lower, the four columns are 28 %
-     taller, and the clock / outside / odometer line sits in the old bottom
-     strip. Fuel, battery, oil and coolant on the outside; power on the left;
+     fitted to the car's panel (DESIGNS.md, "The car's panel"). The rev counter
+     is 1.16x the mockup's, its shift ladder at the top edge; the side dials
+     keep their size and sit low beside it (clear of the warning lights at the
+     bottom left and the gear's plate), the four columns run from 170 to 590
+     inside the left lights and the parking brake light, and the clock /
+     outside and the odometer head the side dials in the top band.
+     Fuel, battery, oil and coolant on the outside; power on the left;
      revs, gear and speed in the middle; the tyres as a pit board on the right.
      Archivo: SIL OFL 1.1, fonts/OFL.txt (the art uses the variable font, the
      changing figures static cuts of it: fonts/make_fonts.py).
@@ -20,7 +22,7 @@
 <meta name="theme-mode" content="sport">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values -->
 <meta name="let:vRpm" content="smooth(rpm, 18)">
@@ -41,11 +43,11 @@
   "ladTint": [-0.467, -0.597, -0.129, 100],
   "target": [2.4, 2.4, 2.6, 2.6], "low": 0.2, "cold": 60, "hot": 100,
   "tempFrom": 40, "tempTo": 160, "oilHot": 120, "coolHot": 110,
-  "colX": { "fuel": 126, "batt": 205, "oil": 1715, "cool": 1794 },
-  "slatX": [1349, 1473, 1349, 1473],
-  "lay": { "storeVal": { "x": 76, "w": 180, "font": "f24w560" }, "storeSub": { "x": 76, "w": 180, "font": "f16w460" },
-           "tempVal": { "x": 1660, "w": 190, "font": "f24w560" }, "tempSub": { "x": 1660, "w": 190, "font": "f16w460" },
-           "flagF": { "x": 1349, "w": 236, "font": "f13w600" }, "flagR": { "x": 1349, "w": 236, "font": "f13w600" } } }
+  "colX": { "fuel": 138, "batt": 208, "oil": 1686, "cool": 1766 },
+  "slatX": [1354, 1478, 1354, 1478],
+  "lay": { "storeVal": { "x": 86, "w": 180, "font": "f26w560" }, "storeSub": { "x": 86, "w": 180, "font": "f17w460" },
+           "tempVal": { "x": 1640, "w": 200, "font": "f26w560" }, "tempSub": { "x": 1640, "w": 200, "font": "f17w460" },
+           "flagF": { "x": 1354, "w": 236, "font": "f13w600" }, "flagR": { "x": 1354, "w": 236, "font": "f13w600" } } }
 </script>
 
 <style>
@@ -83,8 +85,8 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
 .f-gearnr { font-family: "ArchivoGearNR"; font-size: 236px; font-weight: 600; fill: var(--z10); }
 .f-num { font-family: "ArchivoNum"; font-weight: 560; fill: var(--z10); }
 .f-tp { font-family: "ArchivoVal"; font-size: 36px; font-weight: 560; fill: var(--z10); }
-.f-val { font-family: "ArchivoVal"; font-size: 24px; font-weight: 560; fill: var(--z10); }
-.f-small { font-family: "ArchivoSmall"; font-size: 16px; font-weight: 460; fill: var(--z7); }
+.f-val { font-family: "ArchivoVal"; font-size: 26px; font-weight: 560; fill: var(--z10); }
+.f-small { font-family: "ArchivoSmall"; font-size: 17px; font-weight: 460; fill: var(--z7); }
 .f-tc { font-family: "ArchivoTc"; font-size: 13px; font-weight: 600; letter-spacing: 1.04px; fill: var(--z6); }
 </style>
 <style data-design-build>[data-gauge]:not([data-keep]), [data-gauge]:not([data-keep]) *,
@@ -113,50 +115,56 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
   </defs>
 
   <!-- a guide (not drawn by the theme): the top keep-clear zone -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
+  <!-- guides: the car's warning lights, the gear window and the corners the glass cuts (DESIGNS.md) -->
+  <g data-guide fill="#f0f" opacity="0.25">
+    <rect x="0" y="200" width="120" height="270"/><rect x="560" y="660" width="340" height="60"/>
+    <rect x="1790" y="200" width="130" height="100"/><rect x="1356" y="640" width="116" height="80"/>
+    <path d="M0 0H325L0 190Z"/><path d="M1650 0H1920V200Z"/>
+  </g>
 
   <!-- ============ the columns: fuel and battery left, oil and coolant right (drawn by the script) ============ -->
   <g id="cols"></g>
   <!-- the fills: one field, copied to each column; lit from the bottom up to the reading -->
-  <path id="fuelFill" d="M126 504 L126 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="fuel" data-art="off"
+  <path id="fuelFill" d="M138 590 L138 170" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="fuel" data-art="off"
         data-value="clamp(fuelPct / 100)"/>
-  <path d="M205 504 L205 200" fill="none" stroke="var(--electric)" stroke-width="18" data-gauge="batt" data-reuse="fuel" data-art="off"
+  <path d="M208 590 L208 170" fill="none" stroke="var(--electric)" stroke-width="18" data-gauge="batt" data-reuse="fuel" data-art="off"
         data-value="clamp(socPct / 100)"/>
-  <path d="M1715 504 L1715 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="oil" data-reuse="fuel" data-art="off"
+  <path d="M1686 590 L1686 170" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="oil" data-reuse="fuel" data-art="off"
         data-value="clamp((oilC - P.tempFrom) / (P.tempTo - P.tempFrom))"/>
-  <path d="M1794 504 L1794 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="cool" data-reuse="fuel" data-art="off"
+  <path d="M1766 590 L1766 170" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="cool" data-reuse="fuel" data-art="off"
         data-value="clamp((coolantC - P.tempFrom) / (P.tempTo - P.tempFrom))"/>
   <!-- two figures a layer, each centred under its column (laid out in logic.extra.js) -->
-  <text class="f-val" x="76" y="544" data-text="storeVal" data-text-expr="''" data-width="180" data-glyphs="0123456789 %-">46 %  71 %</text>
-  <text class="f-small" x="76" y="568" data-text="storeSub" data-text-expr="''" data-width="180" data-glyphs="0123456789 mi-">307 mi  24 mi</text>
-  <text class="f-val" x="1660" y="544" data-text="tempVal" data-text-expr="''" data-width="190" data-glyphs="0123456789 °C-">99 °C  95 °C</text>
-  <text class="f-small" x="1660" y="568" data-text="tempSub" data-text-expr="''" data-width="190" data-glyphs="NormalWarmingHot -">Warming  Normal</text>
+  <text class="f-val" x="86" y="636" data-text="storeVal" data-text-expr="''" data-width="180" data-glyphs="0123456789 %-">46 %  71 %</text>
+  <text class="f-small" x="86" y="662" data-text="storeSub" data-text-expr="''" data-width="180" data-glyphs="0123456789 mi-">307 mi  24 mi</text>
+  <text class="f-val" x="1640" y="636" data-text="tempVal" data-text-expr="''" data-width="200" data-glyphs="0123456789 °C-">100°C  97°C</text>
+  <text class="f-small" x="1640" y="662" data-text="tempSub" data-text-expr="''" data-width="200" data-glyphs="NormalWarmingHot -">Warming  Normal</text>
 
-  <!-- ============ left dial: power (the mockup's, moved 23 left and 35 down) ============ -->
-  <g id="power" transform="translate(-23 35)">
+  <!-- ============ left dial: power (the mockup's, moved 28 left and 90 down, under the clock) ============ -->
+  <g id="power" transform="translate(-28 90)">
     <circle cx="476" cy="342" r="184" fill="url(#faceSm)"/>
     <g id="pArt"></g>
     <!-- grooves white from zero up, teal below: one layer dims all but the reading, tints the electric share teal -->
     <path id="pwPath" fill="none" stroke="none" data-gauge="pw" data-maxd="12"
           data-band="-12 12" data-band-color="P.pwDim" data-red-color="'transparent'"
           data-glow="127 0 0" data-glow-color="'transparent'" data-look="1 0 1"/>
-    <text class="f-num" x="476" y="340" text-anchor="middle" style="font-size:64px" data-text="pTotal" data-glyphs="−"
+    <text class="f-num" x="476" y="340" text-anchor="middle" style="font-size:69px" data-text="pTotal" data-glyphs="−"
           data-text-expr="(round(max(0, vEng) + vEle) &lt; 0 ? '−' : '') + fmt(abs(round(max(0, vEng) + vEle)))">−439</text>
     <text class="unit" x="476" y="368" text-anchor="middle">hp</text>
-    <circle cx="401" cy="406" r="5" fill="var(--z10)"/>
-    <text class="row-lbl" x="414" y="412">Engine</text>
-    <text class="f-val" x="552" y="413" text-anchor="end" data-text="pEng" data-text-expr="fmt(max(0, vEng))" data-rate="10">387</text>
-    <circle cx="401" cy="440" r="5" fill="var(--electric)"/>
-    <text class="f-small" x="414" y="446" style="fill:var(--z8)" data-text="pEleLbl" data-text-expr="when(vEle &lt; -0.5, 'Recovering', 'Electric')">Recovering</text>
-    <text class="f-val" x="552" y="447" text-anchor="end" data-text="pEle" data-glyphs="−" data-rate="10"
+    <circle cx="391" cy="406" r="5" fill="var(--z10)"/>
+    <text class="row-lbl" x="403" y="412">Engine</text>
+    <text class="f-val" x="562" y="413" text-anchor="end" data-text="pEng" data-text-expr="fmt(max(0, vEng))" data-rate="10">387</text>
+    <circle cx="391" cy="440" r="5" fill="var(--electric)"/>
+    <text class="f-small" x="403" y="446" style="fill:var(--z8)" data-text="pEleLbl" data-text-expr="when(vEle &lt; -0.5, 'Recovering', 'Electric')">Recovering</text>
+    <text class="f-val" x="562" y="447" text-anchor="end" data-text="pEle" data-glyphs="−" data-rate="10"
           data-text-expr="(round(vEle) &lt; 0 ? '−' : '') + fmt(abs(round(vEle)))">−100</text>
     <text class="meta" x="270" y="368" text-anchor="middle" font-size="14">0</text>
     <text class="meta" x="326" y="500" text-anchor="middle" font-size="14" style="fill:var(--electric)">−100</text>
     <text class="meta" x="626" y="500" text-anchor="middle" font-size="14">600</text>
   </g>
 
-  <!-- ============ centre dial: revs, gear, speed, shift (the mockup's at 1.08x, centre 960 366) ============ -->
-  <g id="tach" transform="matrix(1.08 0 0 1.08 -76.8 7.44)">
+  <!-- ============ centre dial: revs, gear, speed, shift (the mockup's at 1.16x, centre 960 360) ============ -->
+  <g id="tach" transform="matrix(1.16 0 0 1.16 -153.6 -25.12)">
     <circle cx="960" cy="332" r="282" fill="url(#face)"/>
     <g id="tArt"></g>
     <!-- the grooves are drawn lit: the layer dims them past the revs and draws the needle -->
@@ -176,21 +184,21 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
           data-color="when(due, C.shift, C.z10)">4</text>
     <text class="f-gearnr" x="923.5" y="398" data-text="gearNR" data-null="" data-dy="0" data-glyphs="NPR"
           data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', when(gear &lt; 0, 'R', '')))">N</text>
-    <text class="f-num" x="960" y="466" text-anchor="middle" style="font-size:59.2593px" data-text="speed"
+    <text class="f-num" x="960" y="466" text-anchor="middle" style="font-size:59.4828px" data-text="speed"
           data-text-expr="fmt(smooth(mph(kmh), 12))">188</text>
     <text class="unit" x="960" y="494" text-anchor="middle">mph</text>
     <text class="meta" x="960" y="174" text-anchor="middle" font-size="14" style="fill:var(--z6)">×1000 rpm</text>
     <text class="sport" x="960" y="567" text-anchor="middle">SPORT</text>
   </g>
 
-  <!-- the line under the dial, in the old bottom strip: clock · outside · odometer -->
-  <text class="f-small" x="965.3" y="664" text-anchor="end" data-text="metaA" data-rate="10" data-glyphs="−"
+  <!-- the top band beside the ladder: clock · outside over the power dial, the odometer over the tyres -->
+  <text class="f-val" x="448" y="160" text-anchor="middle" data-text="metaA" data-rate="10" data-glyphs="−"
         data-text-expr="when(ok(clock), clock, '--') + ' · ' + (outsideC &lt;= -0.5 ? '−' : '') + fmt(abs(outsideC)) + ' °C'">18:05 · −12 °C</text>
-  <text class="f-small" x="965.3" y="664" data-text="metaB" data-rate="10"
-        data-text-expr="' · ' + when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'"> · 114,652 mi</text>
+  <text class="f-val" x="1472" y="160" text-anchor="middle" data-text="metaB" data-rate="10"
+        data-text-expr="when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'">114,652 mi</text>
 
-  <!-- ============ right dial: the tyres as a pit board (moved 23 right and 35 down) ============ -->
-  <g id="tyres" transform="translate(23 35)">
+  <!-- ============ right dial: the tyres as a pit board (moved 28 right and 90 down, under the odometer) ============ -->
+  <g id="tyres" transform="translate(28 90)">
     <circle cx="1444" cy="342" r="184" fill="url(#faceSm)"/>
     <g id="rArt"></g>
     <text class="meta" x="1444" y="470" text-anchor="middle" font-size="15">Target 35 front · 38 rear psi</text>
@@ -277,10 +285,10 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
     el('text', { x: 10, y: 21, 'class': 'tc' }, g, IDS[k]);
     el('rect', { x: 10, y: 70, width: 92, height: 3, rx: 1, fill: css('z4') }, g);
   }
-  /* the slats' layers, in screen coordinates (the group's 23, 35 added) */
+  /* the slats' layers, in screen coordinates (the group's 28, 90 added) */
   var L = $('slatLayers');
   for (var j = 0; j < 4; j++) {
-    var x = SX[j] + 23, y = SY[j] + 35, c = 'tyres[' + j + '].c';
+    var x = SX[j] + 28, y = SY[j] + 90, c = 'tyres[' + j + '].c';
     var bar = el('g', { 'data-leds': 'bar' + j, 'data-count': 46, 'data-light': '2 3', 'data-off': "'transparent'",
       'data-lit': 'round(46 * clamp((' + c + ' - 30) / 80, 0.04, 1))', 'data-c0': 'step(' + c + ', C.z6, P.cold, C.z9, P.hot + 0.001, C.caution)', 'data-rate': 10 }, L);
     el('rect', { x: x + 10, y: y + 70, width: 92, height: 3, fill: 'none' }, bar);
@@ -292,28 +300,28 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
       'data-text-expr': 'fmt(' + c + ') + \'°\'', 'data-color': 'step(' + c + ', C.z7, P.cold, C.z9, P.hot + 0.001, C.caution)' }, L, '108°');
   }
   /* a row's two flags (COLD, LOW), each at its slat's top right: logic.extra.js lays them out */
-  el('text', { x: 1349, y: 318, 'class': 'f-tc', 'data-text': 'flagF', 'data-text-expr': "''", 'data-width': 236, 'data-glyphs': 'COLDW ' }, L, 'COLD  LOW');
-  el('text', { x: 1349, y: 410, 'class': 'f-tc', 'data-text': 'flagR', 'data-text-expr': "''", 'data-width': 236, 'data-glyphs': 'COLDW ' }, L, 'COLD  LOW');
+  el('text', { x: 1354, y: 373, 'class': 'f-tc', 'data-text': 'flagF', 'data-text-expr': "''", 'data-width': 236, 'data-glyphs': 'COLDW ' }, L, 'COLD  LOW');
+  el('text', { x: 1354, y: 465, 'class': 'f-tc', 'data-text': 'flagR', 'data-text-expr': "''", 'data-width': 236, 'data-glyphs': 'COLDW ' }, L, 'COLD  LOW');
 
-  /* ---------- the columns: 28 % taller than the mockup's, from 196 to 508 ---------- */
-  var cg = $('cols'), TOP = 200, BOT = 504, H = BOT - TOP;
+  /* ---------- the columns: from 166 to 594, inside the warning lights (left) and the parking brake light (right) ---------- */
+  var cg = $('cols'), TOP = 170, BOT = 590, H = BOT - TOP;
   function cell(x, marks, label, icon) {
     el('rect', { x: x - 13, y: TOP - 4, width: 26, height: H + 8, rx: 4, fill: 'none', stroke: css('z5'), 'stroke-width': 1.5 }, cg);
     marks.forEach(function (m) {
       var yy = BOT - H * m.at;
       el('line', { x1: x + 17, y1: yy, x2: x + 23, y2: yy, stroke: m.c || css('z5'), 'stroke-width': 1.5 }, cg);
     });
-    el('text', { x: x, y: 598, 'text-anchor': 'middle', 'class': 'lbl' }, cg, label);
-    var ig = el('g', { 'class': 'icon', transform: 'translate(' + (x + icon[0]) + ' ' + icon[1] + ')' }, cg);
+    el('text', { x: x, y: 692, 'text-anchor': 'middle', 'class': 'lbl' }, cg, label);
+    var ig = el('g', { 'class': 'icon', transform: 'translate(' + (x + icon[0]) + ' ' + (icon[1] + TOP - 200) + ')' }, cg);
     ig.innerHTML = icon[2];
   }
   var quarter = [{ at: 0.25 }, { at: 0.5 }, { at: 0.75 }];
   function tN(c) { return (c - 40) / 120; }
   var tempMarks = [{ at: tN(80) }, { at: tN(120), c: css('caution') }, { at: tN(140), c: css('signal') }];
-  cell(126, [{ at: 0.12, c: css('caution') }].concat(quarter), 'Fuel', [-11, 160, '<path d="M2 20V3.5A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V20M0 20h15M4.5 6.5h6M13 9h2.2a1.3 1.3 0 0 1 1.3 1.3v6a1.5 1.5 0 0 0 3 0V7l-3-3"/>']);
-  cell(205, [{ at: 0.15, c: css('caution') }].concat(quarter), 'Battery', [-10, 163, '<rect x="0" y="3" width="20" height="14" rx="2"/><path d="M5 0v3M15 0v3M4.5 10h4M13 8v4M11 10h4"/>']);
-  cell(1715, tempMarks, 'Oil', [-10, 163, '<path d="M1 7h4l2-2h5l7 4-6 7H5l-2-4H1zM9 5V2M7 2h4M21 12.5c0 1.2-.8 2-1.5 2s-1.5-.8-1.5-2 1.5-3 1.5-3 1.5 1.8 1.5 3z"/>']);
-  cell(1794, tempMarks, 'Coolant', [-10, 160, '<path d="M8 3.5a2 2 0 0 1 4 0v9.2a3.8 3.8 0 1 1-4 0zM10 8v7M14 6h3M14 9.5h3M0 21c2-1.4 3.5-1.4 5 0s3 1.4 5 0 3-1.4 5 0 3 1.4 5 0"/>']);
+  cell(138, [{ at: 0.12, c: css('caution') }].concat(quarter), 'Fuel', [-11, 160, '<path d="M2 20V3.5A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V20M0 20h15M4.5 6.5h6M13 9h2.2a1.3 1.3 0 0 1 1.3 1.3v6a1.5 1.5 0 0 0 3 0V7l-3-3"/>']);
+  cell(208, [{ at: 0.15, c: css('caution') }].concat(quarter), 'Battery', [-10, 163, '<rect x="0" y="3" width="20" height="14" rx="2"/><path d="M5 0v3M15 0v3M4.5 10h4M13 8v4M11 10h4"/>']);
+  cell(1686, tempMarks, 'Oil', [-10, 163, '<path d="M1 7h4l2-2h5l7 4-6 7H5l-2-4H1zM9 5V2M7 2h4M21 12.5c0 1.2-.8 2-1.5 2s-1.5-.8-1.5-2 1.5-3 1.5-3 1.5 1.8 1.5 3z"/>']);
+  cell(1766, tempMarks, 'Coolant', [-10, 160, '<path d="M8 3.5a2 2 0 0 1 4 0v9.2a3.8 3.8 0 1 1-4 0zM10 8v7M14 6h3M14 9.5h3M0 21c2-1.4 3.5-1.4 5 0s3 1.4 5 0 3-1.4 5 0 3 1.4 5 0"/>']);
 })();
 </script>
 </body>

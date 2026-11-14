@@ -127,7 +127,7 @@ const DR = (function () {
         NAMES: Object.keys(pure()).concat(STATEFUL), STATEFUL: STATEFUL };
 })();
 /* RUNTIME END */
-const P = {"maxRpm":8000,"redRpm":6800,"maxHp":300,"negHp":100,"pos":372,"neg":124,"ecoEnd":223,"zoneE":216,"zoneP":426,"turnX":764,"turnGap":6,"turnAdv":{"d":22,".":9,"-":13}};
+const P = {"maxRpm":8000,"redRpm":6800,"maxHp":300,"negHp":100,"pos":450,"neg":150,"ecoEnd":270,"zoneE":265,"zoneP":526,"turnX":720,"turnGap":6,"turnAdv":{"d":26.4,".":10.8,"-":15.6}};
 const C = {"ground":[0,0,0,1],"line":[0.1529,0.1961,0.2902,1],"line-hi":[0.2353,0.2902,0.4078,1],"lineHi":[0.2353,0.2902,0.4078,1],"ink":[0.9333,0.9529,1,1],"ink-2":[0.6039,0.6588,0.7686,1],"ink2":[0.6039,0.6588,0.7686,1],"ink-3":[0.3608,0.4118,0.5176,1],"ink3":[0.3608,0.4118,0.5176,1],"speed":[0.5608,0.7686,1,1],"calm":[0.7882,0.8471,0.949,1],"red":[1,0.1804,0.2431,1],"elec":[0.1843,0.8157,1,1],"ok":[0.4039,0.8745,0.6275,1],"warm":[1,0.6902,0.1804,1],"track":[0.0784,0.1059,0.1608,1],"box":[0.0118,0.0196,0.0431,1],"sign-ink":[0.0392,0.0549,0.0941,1],"signInk":[0.0392,0.0549,0.0941,1]};
 const LETS = [
     ["mphS", "b0", function (S, H, L) { var kmh = S.kmh, smooth = H.smooth, mph = H.mph; return (smooth(mph(kmh), 10)); }],
@@ -136,7 +136,7 @@ const LETS = [
     ["ew", "b3", function (S, H, L) { var engineHp = S.engineHp, when = H.when, ok = H.ok, round = H.round, clamp = H.clamp, max = H.max; return (when(ok(engineHp), round(clamp(max(0, engineHp) / P.maxHp) * P.pos), 0)); }],
     ["lw", "b4", function (S, H, L) { var elecHp = S.elecHp, ew = L.ew, when = H.when, min = H.min, round = H.round, clamp = H.clamp; return (when(elecHp > 0, min(round(clamp(elecHp / P.maxHp) * P.pos), P.pos - ew), 0)); }],
     ["rgPx", "b5", function (S, H, L) { var elecHp = S.elecHp, when = H.when, clamp = H.clamp; return (when(elecHp < 0, clamp(-elecHp / P.negHp) * P.neg, 0)); }],
-    ["rgCells", "b6", function (S, H, L) { var rgPx = L.rgPx, round = H.round; return (round(rgPx / 5.9)); }],
+    ["rgCells", "b6", function (S, H, L) { var rgPx = L.rgPx, min = H.min, round = H.round; return (min(23, round(rgPx / 6))); }],
     ["turnMi", "b7", function (S, H, L) { var turnM = S.turnM; return (turnM / 1609.344); }],
 ];
 const LAYERS = [
@@ -158,97 +158,97 @@ const LAYERS = [
         "value": ["b20", function (S, H, L) { return (1); }],
         "show": ["b21", function (S, H, L) { var turnDir = S.turnDir; return (turnDir === 'left'); }],
     } },
-    { info: {"name":"modeMask","kind":"rect","x":1336,"y":300}, b: {
+    { info: {"name":"modeMask","kind":"rect","x":1388,"y":292}, b: {
         "show": ["b22", function (S, H, L) { var gearMode = S.gearMode; return (gearMode !== 'D'); }],
     } },
-    { info: {"name":"fuelSegs","kind":"leds","x":471,"y":528,"rate":10}, b: {
+    { info: {"name":"fuelSegs","kind":"leds","x":370,"y":532,"rate":10}, b: {
         "u_c0": ["b23", function (S, H, L) { var fuelPct = S.fuelPct, when = H.when; return (when(fuelPct < 15, C.warm, C.ink2)); }],
         "lit": ["b25", function (S, H, L) { var fuelPct = S.fuelPct, clamp = H.clamp, round = H.round; return (clamp(round(fuelPct / 10), 0, 10)); }],
     } },
-    { info: {"name":"coolBar","kind":"leds","x":1280,"y":528,"rate":10}, b: {
-        "lit": ["b28", function (S, H, L) { var coolantC = S.coolantC, round = H.round, clamp = H.clamp; return (round(clamp((coolantC - 50) / 80) * 56)); }],
+    { info: {"name":"coolBar","kind":"leds","x":1310,"y":532,"rate":10}, b: {
+        "lit": ["b28", function (S, H, L) { var coolantC = S.coolantC, round = H.round, clamp = H.clamp; return (round(clamp((coolantC - 50) / 80) * 60)); }],
     } },
-    { info: {"name":"meterNeg","kind":"leds","x":712,"y":202}, b: {
+    { info: {"name":"meterNeg","kind":"leds","x":660,"y":188}, b: {
         "lit": ["b31", function (S, H, L) { var rgCells = L.rgCells; return (rgCells); }],
-        "dx": ["b32", function (S, H, L) { var rgCells = L.rgCells; return (112 - rgCells * 5.9); }],
+        "dx": ["b32", function (S, H, L) { var rgCells = L.rgCells; return (138 - rgCells * 6); }],
     } },
-    { info: {"name":"meterPos","kind":"leds","x":836,"y":202}, b: {
+    { info: {"name":"meterPos","kind":"leds","x":810,"y":188}, b: {
         "lit": ["b37", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"socBar","kind":"leds","x":782,"y":586,"rate":10}, b: {
+    { info: {"name":"socBar","kind":"leds","x":730,"y":600,"rate":10}, b: {
         "lit": ["b40", function (S, H, L) { var socPct = S.socPct, round = H.round, clamp = H.clamp; return (round(36 * clamp(socPct / 100))); }],
     } },
-    { info: {"name":"spd","kind":"text","x":402,"y":284,"nullText":"--"}, b: {
+    { info: {"name":"spd","kind":"text","x":297,"y":276,"nullText":"--"}, b: {
         "text": ["b41", function (S, H, L) { var mphS = L.mphS, fmt = H.fmt; return (fmt(mphS)); }],
     } },
-    { info: {"name":"limit","kind":"text","x":483,"y":160,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"limit","kind":"text","x":328,"y":138,"rate":10,"nullText":"--"}, b: {
         "text": ["b42", function (S, H, L) { var limitKmh = S.limitKmh, fmt = H.fmt, round = H.round, mph = H.mph; return (fmt(round(mph(limitKmh), 5))); }],
     } },
-    { info: {"name":"setV","kind":"text","x":549,"y":171,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"setV","kind":"text","x":388,"y":149,"rate":10,"nullText":"--"}, b: {
         "text": ["b43", function (S, H, L) { var cruiseKmh = S.cruiseKmh, setMph = L.setMph, when = H.when, ok = H.ok, fmt = H.fmt; return (when(ok(cruiseKmh), fmt(setMph), '– –')); }],
         "color": ["b44", function (S, H, L) { var cruiseKmh = S.cruiseKmh, when = H.when, ok = H.ok; return (when(ok(cruiseKmh), C.ok, C.ink3)); }],
     } },
-    { info: {"name":"trip","kind":"text","x":1261,"y":171,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"trip","kind":"text","x":1291,"y":149,"rate":10,"nullText":"--"}, b: {
         "text": ["b45", function (S, H, L) { var tripKm = S.tripKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(tripKm), 1)); }],
     } },
-    { info: {"name":"gear","kind":"text","x":1432,"y":355,"nullText":"--"}, b: {
+    { info: {"name":"gear","kind":"text","x":1504,"y":362,"nullText":"--"}, b: {
         "text": ["b46", function (S, H, L) { var gearMode = S.gearMode, gear = S.gear, when = H.when, ok = H.ok, fmt = H.fmt; return (when(/^[PRN]$/.test(gearMode), gearMode, when(!ok(gear), '-', when(gear === 0, 'N', fmt(gear))))); }],
     } },
-    { info: {"name":"evTag","kind":"text","x":1390,"y":264,"nullText":"--"}, b: {
+    { info: {"name":"evTag","kind":"text","x":1462,"y":247,"nullText":"--"}, b: {
         "text": ["b47", function (S, H, L) { return ('EV'); }],
         "show": ["b48", function (S, H, L) { var rpm = S.rpm, engineHp = S.engineHp, elecHp = S.elecHp, ok = H.ok; return ((ok(rpm) && rpm < 100) || (engineHp <= 0 && elecHp > 0)); }],
     } },
-    { info: {"name":"road","kind":"text","x":712,"y":137,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"road","kind":"text","x":660,"y":116,"rate":10,"nullText":"--"}, b: {
         "text": ["b49", function (S, H, L) { var road = S.road, when = H.when; return (when(road, String(road).toUpperCase().slice(0, 16), '--')); }],
     } },
-    { info: {"name":"turnV","kind":"text","x":764,"y":156,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"turnV","kind":"text","x":720,"y":138,"rate":10,"nullText":"--"}, b: {
         "text": ["b50", function (S, H, L) { var turnM = S.turnM, turnMi = L.turnMi, when = H.when, ok = H.ok, fmt = H.fmt, max = H.max, round = H.round; return (when(!ok(turnM), '--', when(turnMi >= 0.25, fmt(turnMi, 1), fmt(max(50, round(turnM * 1.0936, 50)))))); }],
     } },
-    { info: {"name":"turnU","kind":"text","x":840,"y":172,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"turnU","kind":"text","x":806,"y":160,"rate":10,"nullText":"--"}, b: {
         "text": ["b51", function (S, H, L) { var turnM = S.turnM, turnMi = L.turnMi, when = H.when, ok = H.ok; return (when(!ok(turnM), '', when(turnMi >= 0.25, 'mi', 'yd'))); }],
     } },
-    { info: {"name":"togo","kind":"text","x":924,"y":156,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"togo","kind":"text","x":912,"y":138,"rate":10,"nullText":"--"}, b: {
         "text": ["b52", function (S, H, L) { var destKm = S.destKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(destKm), 1)); }],
     } },
-    { info: {"name":"eta","kind":"text","x":1109,"y":156,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"eta","kind":"text","x":1139,"y":138,"rate":10,"nullText":"--"}, b: {
         "text": ["b53", function (S, H, L) { var eta = S.eta, when = H.when; return (when(/^\d{1,2}:\d{2}$/.test(eta), eta, '--:--')); }],
     } },
-    { info: {"name":"zone","kind":"text","x":712,"y":228,"nullText":"--"}, b: {
+    { info: {"name":"zone","kind":"text","x":660,"y":215,"nullText":"--"}, b: {
         "text": ["b54", function (S, H, L) { var rgPx = L.rgPx, ew = L.ew, lw = L.lw, when = H.when; return (when(rgPx > 2, 'CHARGE', when(ew + lw > P.ecoEnd, 'POWER', 'ECO'))); }],
         "show": ["b55", function (S, H, L) { var engineHp = S.engineHp, elecHp = S.elecHp, ok = H.ok; return (ok(engineHp) || ok(elecHp)); }],
         "dx": ["b56", function (S, H, L) { var rgPx = L.rgPx, ew = L.ew, lw = L.lw, when = H.when; return (when(rgPx > 2, 0, when(ew + lw > P.ecoEnd, P.zoneP, P.zoneE))); }],
     } },
-    { info: {"name":"fuelPct","kind":"text","x":591,"y":500,"rate":10,"nullText":"-- %"}, b: {
+    { info: {"name":"fuelPct","kind":"text","x":551,"y":503,"rate":10,"nullText":"-- %"}, b: {
         "text": ["b57", function (S, H, L) { var fuelPct = S.fuelPct, fmt = H.fmt; return (fmt(fuelPct) + ' %'); }],
     } },
-    { info: {"name":"range","kind":"text","x":575,"y":570,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"range","kind":"text","x":546,"y":581,"rate":10,"nullText":"--"}, b: {
         "text": ["b58", function (S, H, L) { var rangeKm = S.rangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(rangeKm))); }],
     } },
-    { info: {"name":"cool","kind":"text","x":1401,"y":500,"rate":10,"nullText":"-- °C"}, b: {
+    { info: {"name":"cool","kind":"text","x":1493,"y":503,"rate":10,"nullText":"-- °C"}, b: {
         "text": ["b59", function (S, H, L) { var coolantC = S.coolantC, fmt = H.fmt; return (fmt(coolantC) + ' °C'); }],
     } },
-    { info: {"name":"tyres","kind":"text","x":1366,"y":575,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"tyres","kind":"text","x":1451,"y":583,"rate":10,"nullText":"--"}, b: {
         "text": ["b60", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return ('F ' + fmt(psi((tyres[0].bar + tyres[1].bar) / 2)) + ' · R ' + fmt(psi((tyres[2].bar + tyres[3].bar) / 2))); }],
     } },
-    { info: {"name":"soc","kind":"text","x":692,"y":573,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"soc","kind":"text","x":640,"y":587,"rate":10,"nullText":"--"}, b: {
         "text": ["b61", function (S, H, L) { var socPct = S.socPct, fmt = H.fmt; return (fmt(socPct)); }],
     } },
-    { info: {"name":"erange","kind":"text","x":850,"y":573,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"erange","kind":"text","x":824,"y":587,"rate":10,"nullText":"--"}, b: {
         "text": ["b62", function (S, H, L) { var evRangeKm = S.evRangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(evRangeKm))); }],
     } },
-    { info: {"name":"mpg","kind":"text","x":974,"y":573,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"mpg","kind":"text","x":974,"y":587,"rate":10,"nullText":"--"}, b: {
         "text": ["b63", function (S, H, L) { var avgL100 = S.avgL100, when = H.when, fmt = H.fmt, min = H.min; return (when(avgL100 > 0, fmt(min(999, 282.481 / avgL100), 1), '--')); }],
     } },
-    { info: {"name":"avg","kind":"text","x":1098,"y":573,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"avg","kind":"text","x":1124,"y":587,"rate":10,"nullText":"--"}, b: {
         "text": ["b64", function (S, H, L) { var avgKmh = S.avgKmh, fmt = H.fmt, mph = H.mph; return (fmt(mph(avgKmh))); }],
     } },
-    { info: {"name":"clock","kind":"text","x":150,"y":677,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"clock","kind":"text","x":1040,"y":679,"rate":10,"nullText":"--"}, b: {
         "text": ["b65", function (S, H, L) { var clock = S.clock, when = H.when; return (when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')); }],
     } },
-    { info: {"name":"otemp","kind":"text","x":226,"y":683,"rate":10,"nullText":"-- °C"}, b: {
+    { info: {"name":"otemp","kind":"text","x":1126,"y":688,"rate":10,"nullText":"-- °C"}, b: {
         "text": ["b66", function (S, H, L) { var outsideC = S.outsideC, when = H.when, fmt = H.fmt, abs = H.abs; return (when(outsideC <= -0.5, '−', '') + fmt(abs(outsideC)) + ' °C'); }],
     } },
-    { info: {"name":"odo","kind":"text","x":1569,"y":683,"rate":10,"nullText":"-- mi"}, b: {
+    { info: {"name":"odo","kind":"text","x":1540,"y":688,"rate":10,"nullText":"-- mi"}, b: {
         "text": ["b67", function (S, H, L) { var odoKm = S.odoKm, floor = H.floor, miles = H.miles; return (String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' mi'); }],
     } },
 ];
@@ -257,20 +257,20 @@ const EXTRA = (function () { const module = { exports: {} }; const exports = mod
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yousaf Khan
 // lci2c: what the design's attributes can't say.
-// - The meter's drive side is a row of 372 one-pixel lights (more than a
+// - The meter's drive side is a row of 450 one-pixel lights (more than a
 //   leds layer's 64) lit to the engine's and the motor's px (the lets ew,
 //   lw), the colour split at the engine's end: the light count, size and
 //   split are uniforms bindings don't reach.
 // - The turn's unit (mi / yd) follows the distance, which is left-aligned
 //   after the arrow as in the mockup: its x from the distance's width
-//   (P.turnAdv, the 40 px font's advances).
+//   (P.turnAdv, the 48 px font's advances).
 'use strict';
 module.exports = {
     update(sig, ctx, out, env) {
         const L = env.lets, P = env.P;
         const fin = (v) => typeof v === 'number' && isFinite(v);
         const ew = fin(L.ew) ? L.ew : 0, lw = fin(L.lw) ? L.lw : 0;
-        out.meterPos = { visible: true, uniforms: { u_led: [372, ew + lw, 0, 0], u_geom: [372, 12, 1, 12], u_split: [ew, 9999, 0, 0] } };
+        out.meterPos = { visible: true, uniforms: { u_led: [450, ew + lw, 0, 0], u_geom: [450, 14, 1, 14], u_split: [ew, 9999, 0, 0] } };
         if (out.turnV && out.turnU && out.turnV.text != null) {
             const w = String(out.turnV.text).split('').reduce((n, c) => n + (P.turnAdv[c] != null ? P.turnAdv[c] : P.turnAdv.d), 0);
             out.turnU = Object.assign({}, out.turnU, { x: P.turnX + w + P.turnGap });

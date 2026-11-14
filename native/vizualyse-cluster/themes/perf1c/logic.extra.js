@@ -45,28 +45,31 @@ module.exports = {
         const put = (name, items) => { const r = row(ctx, P, name, items); out[name] = r.out; return r.widths; };
 
         /* range split: fuel | electric, in miles; "mi" after the fuel range */
-        const rr = put('ranges', [{ s: num(sig.rangeKm, 1 / MI), x: 648 }, { s: num(sig.evRangeKm, 1 / MI), x: 1238, anchor: 'end' }]);
-        put('rangeUnit', [{ s: 'mi', x: 648 + rr[0] + 8 }]);
+        const rr = put('ranges', [{ s: num(sig.rangeKm, 1 / MI), x: 600 }, { s: num(sig.evRangeKm, 1 / MI), x: 1286, anchor: 'end' }]);
+        put('rangeUnit', [{ s: 'mi', x: 600 + rr[0] + 8 }]);
 
         /* economy (the average, mpg) | HV battery */
         const avg = L.avgMpg;
-        const n436 = put('n436', [{ s: fin(avg) ? avg.toFixed(1) : '--', x: 648 }, { s: num(sig.socPct), x: 1112 }]);
-        put('u436', [{ s: 'mpg', x: 648 + n436[0] + 8 }, { s: '%', x: 1112 + n436[1] + 8 }]);
+        const n436 = put('n436', [{ s: fin(avg) ? avg.toFixed(1) : '--', x: 700 }, { s: num(sig.socPct), x: 1058 }]);
+        put('u436', [{ s: 'mpg', x: 700 + n436[0] + 8 }, { s: '%', x: 1058 + n436[1] + 8 }]);
 
-        /* y 618: electric trip, arrival | fuel (litres of the tank), trip, coolant; the units */
+        /* y 618: electric trip (ending at 770, its "mi" is art), arrival */
         const eta = typeof sig.eta === 'string' && /^\d\d?:\d\d$/.test(sig.eta) ? sig.eta : '--:--';
-        const ns = put('n618s', [{ s: fin(sig.evTripKm) ? (sig.evTripKm / MI).toFixed(1) : '--', x: 648 }, { s: eta, x: 1112 }]);
-        const fuelL = fin(sig.fuelPct) ? String(Math.round(sig.fuelPct / 100 * P.tankL)) : '--';
-        const nb = put('n618', [{ s: fuelL, x: 170 }, { s: fin(sig.tripKm) ? (sig.tripKm / MI).toFixed(1) : '--', x: 350 },
-            { s: num(sig.coolantC), x: 1430 }]);
-        put('u618', [{ s: 'mi', x: 648 + ns[0] + 8 }, { s: 'L', x: 170 + nb[0] + 8 }, { s: 'mi', x: 350 + nb[1] + 8 },
-            { s: '°C', x: 1430 + nb[2] + 8 }]);
+        put('n618s', [{ s: fin(sig.evTripKm) ? (sig.evTripKm / MI).toFixed(1) : '--', x: 770, anchor: 'end' }, { s: eta, x: 1100 }]);
 
-        /* y 672: "Average 41 mph" and "35 35 / 38 38 psi" (the words, "/" and "psi" are art) */
-        const f = ctx.fonts && ctx.fonts[P.rows.sub672.f];
+        /* y 664, under the dials: fuel (litres of the tank), trip; their units | coolant (ending at 1560, its "°C" is art), tyres */
+        const fuelL = fin(sig.fuelPct) ? String(Math.round(sig.fuelPct / 100 * P.tankL)) : '--';
+        const nl = put('nL', [{ s: fuelL, x: 150 }, { s: fin(sig.tripKm) ? (sig.tripKm / MI).toFixed(1) : '--', x: 390 }]);
+        put('uL', [{ s: 'L', x: 150 + nl[0] + 8 }, { s: 'mi', x: 390 + nl[1] + 8 }]);
         const ty = (i) => (sig.tyres && sig.tyres[i]) || {};
-        const slot = (i) => 1610 + widthOf(f, '35 35 / 38 38 '.slice(0, [0, 3, 8, 11][i]));
-        put('sub672', [{ s: num(sig.avgKmh, 1 / MI) + ' mph', x: 350 + widthOf(f, 'Average ') }]
-            .concat([0, 1, 2, 3].map((i) => ({ s: num(ty(i).bar, PSI), x: slot(i) }))));
+        const bars = [0, 1, 2, 3].map((i) => ty(i).bar);
+        const tyre = bars.every(fin) ? (Math.min(...bars) < P.tyreLowBar ? 'LOW' : 'OK') : '--';
+        put('nR', [{ s: num(sig.coolantC), x: 1560, anchor: 'end' }, { s: tyre, x: 1700 }]);
+
+        /* y 704: "Average 41 mph" and "35 35 / 38 38 psi" (the words, "/" and "psi" are art) */
+        const f = ctx.fonts && ctx.fonts[P.rows.subR.f];
+        const slot = (i) => 1700 + widthOf(f, '35 35 / 38 38 '.slice(0, [0, 3, 8, 11][i]));
+        put('subL', [{ s: num(sig.avgKmh, 1 / MI) + ' mph', x: 390 + widthOf(f, 'Average ') }]);
+        put('subR', [0, 1, 2, 3].map((i) => ({ s: num(ty(i).bar, PSI), x: slot(i) })));
     },
 };

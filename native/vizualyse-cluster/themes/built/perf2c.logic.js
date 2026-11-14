@@ -127,7 +127,7 @@ const DR = (function () {
         NAMES: Object.keys(pure()).concat(STATEFUL), STATEFUL: STATEFUL };
 })();
 /* RUNTIME END */
-const P = {"maxMph":180,"maxRpm":8000,"redRpm":7000,"quietRpm":4000,"fuelLowPct":15,"tyreLowBar":2.1,"dialLen":1178.18,"demandHp":250,"eco":0.45,"arrowX":677,"arrowFlipDx":-6,"bars":{"len":774.27,"dMin":-0.5,"dMax":1,"dT1":0.77419},"cool":{"lo":50,"hi":130,"w":150}};
+const P = {"maxMph":180,"maxRpm":8000,"redRpm":7000,"quietRpm":4000,"fuelLowPct":15,"tyreLowBar":2.1,"dialLen":1300.62,"demandHp":250,"eco":0.45,"arrowX":747,"arrowFlipDx":-6,"bars":{"len":695,"dMin":-0.5,"dMax":1,"dT1":0.7482},"cool":{"lo":50,"hi":130,"w":150}};
 const C = {"ground":[0.0157,0.0235,0.0392,1],"ink":[0.9333,0.949,0.9647,1],"ink-2":[0.6078,0.651,0.698,1],"ink2":[0.6078,0.651,0.698,1],"ink-3":[0.4784,0.5216,0.5725,1],"ink3":[0.4784,0.5216,0.5725,1],"well":[0.051,0.0706,0.0941,1],"red":[1,0.2314,0.1843,1],"amber":[1,0.698,0.1412,1],"blue":[0.2471,0.6118,1,1],"cool":[0.851,0.902,0.949,1],"track":[0.0941,0.1255,0.1647,1],"track-dim":[0.0706,0.0941,0.1255,1],"trackDim":[0.0706,0.0941,0.1255,1],"glow":[0.0706,0.0784,0.0902,1],"sign-ink":[0.0392,0.051,0.0706,1],"signInk":[0.0392,0.051,0.0706,1],"sign-red":[0.8392,0.2118,0.1686,1],"signRed":[0.8392,0.2118,0.1686,1],"map":[0.0353,0.0549,0.0824,1],"hair":[0.7686,0.8392,0.9098,0.1],"hair-2":[0.7686,0.8392,0.9098,0.18],"hair2":[0.7686,0.8392,0.9098,0.18]};
 const LETS = [
     ["vMph", "b0", function (S, H, L) { var kmh = S.kmh, smooth = H.smooth, mph = H.mph; return (smooth(mph(kmh), 12)); }],
@@ -146,115 +146,115 @@ const LAYERS = [
         "value": ["b14", function (S, H, L) { var cruiseKmh = S.cruiseKmh, mph = H.mph; return (mph(cruiseKmh) / P.maxMph); }],
         "show": ["b17", function (S, H, L) { var cruiseKmh = S.cruiseKmh; return (cruiseKmh > 0); }],
     } },
-    { info: {"name":"topText","kind":"text","x":698,"y":52,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"topText","kind":"text","x":673,"y":25,"rate":10,"nullText":"--"}, b: {
         "text": ["b18", function (S, H, L) { var clock = S.clock, outsideC = S.outsideC, when = H.when, round = H.round, fmt = H.fmt, abs = H.abs; return (when(/^\d{1,2}:\d\d$/.test(clock), clock, '--:--') + '    ' + when(round(outsideC) < 0, '−', '') + fmt(abs(round(outsideC)))); }],
     } },
-    { info: {"name":"cruiseText","kind":"text","x":1133,"y":53,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"cruiseText","kind":"text","x":1133,"y":29,"rate":10,"nullText":"--"}, b: {
         "text": ["b19", function (S, H, L) { var cruiseKmh = S.cruiseKmh, when = H.when, fmt = H.fmt, mph = H.mph; return (when(cruiseKmh > 0, fmt(mph(cruiseKmh)) + ' mph', 'off')); }],
         "color": ["b20", function (S, H, L) { var cruiseKmh = S.cruiseKmh, when = H.when; return (when(cruiseKmh > 0, C.ink, C.ink3)); }],
     } },
-    { info: {"name":"speedText","kind":"text","x":237,"y":268,"nullText":"--"}, b: {
+    { info: {"name":"speedText","kind":"text","x":327,"y":308,"nullText":"--"}, b: {
         "text": ["b21", function (S, H, L) { var kmh = S.kmh, fmt = H.fmt, mph = H.mph; return (fmt(mph(kmh))); }],
     } },
-    { info: {"name":"limitText","kind":"text","x":326,"y":461,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"limitText","kind":"text","x":426,"y":508,"rate":10,"nullText":"--"}, b: {
         "text": ["b22", function (S, H, L) { var limitKmh = S.limitKmh, fmt = H.fmt, round = H.round, mph = H.mph; return (fmt(round(mph(limitKmh), 5))); }],
     } },
-    { info: {"name":"fuel","kind":"leds","x":221,"y":576,"rate":10}, b: {
+    { info: {"name":"fuel","kind":"leds","x":302,"y":613,"rate":10}, b: {
         "u_c0": ["b23", function (S, H, L) { var fuelPct = S.fuelPct, when = H.when; return (when(fuelPct < P.fuelLowPct, C.amber, C.cool)); }],
         "lit": ["b25", function (S, H, L) { var fuelPct = S.fuelPct, when = H.when, ok = H.ok, round = H.round; return (when(ok(fuelPct), round(fuelPct / 100 * 24), 0)); }],
     } },
-    { info: {"name":"rangeText","kind":"text","x":260,"y":632,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"rangeText","kind":"text","x":354,"y":670,"rate":10,"nullText":"--"}, b: {
         "text": ["b26", function (S, H, L) { var rangeKm = S.rangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(rangeKm)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')); }],
     } },
-    { info: {"name":"evCue","kind":"text","x":1539,"y":217,"nullText":"--"}, b: {
+    { info: {"name":"evCue","kind":"text","x":1437,"y":255,"nullText":"--"}, b: {
         "text": ["b27", function (S, H, L) { var engineOff = L.engineOff, when = H.when; return (when(engineOff, 'ELECTRIC', '')); }],
     } },
-    { info: {"name":"gearL","kind":"text","x":1506,"y":287,"nullText":"--"}, b: {
+    { info: {"name":"gearL","kind":"text","x":1397,"y":331,"nullText":"--"}, b: {
         "text": ["b28", function (S, H, L) { var gearMode = S.gearMode, gear = S.gear, when = H.when; return (when(/^[DMSPRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', '--'))); }],
     } },
-    { info: {"name":"gearN","kind":"text","x":1600,"y":324,"nullText":"--"}, b: {
+    { info: {"name":"gearN","kind":"text","x":1500,"y":371,"nullText":"--"}, b: {
         "text": ["b29", function (S, H, L) { var gearMode = S.gearMode, gear = S.gear, when = H.when, ok = H.ok, fmt = H.fmt; return (when(/^[PRN]$/.test(gearMode) || !ok(gear) || gear === 0, '', fmt(gear))); }],
     } },
-    { info: {"name":"rpmText","kind":"text","x":1537,"y":404,"nullText":"--"}, b: {
+    { info: {"name":"rpmText","kind":"text","x":1428,"y":458,"nullText":"--"}, b: {
         "text": ["b30", function (S, H, L) { var vRpm = L.vRpm, fmt = H.fmt, round = H.round, max = H.max; return (fmt(round(max(0, vRpm), 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')); }],
         "color": ["b31", function (S, H, L) { var engineOff = L.engineOff, when = H.when; return (when(engineOff, C.ink2, C.ink)); }],
     } },
-    { info: {"name":"coolText","kind":"text","x":1409,"y":580,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"coolText","kind":"text","x":1497,"y":628,"rate":10,"nullText":"--"}, b: {
         "text": ["b32", function (S, H, L) { var coolantC = S.coolantC, fmt = H.fmt; return (fmt(coolantC)); }],
     } },
-    { info: {"name":"coolMark","kind":"rect","x":1409,"y":622,"rate":10}, b: {
+    { info: {"name":"coolMark","kind":"rect","x":1499,"y":674,"rate":10}, b: {
         "dx": ["b33", function (S, H, L) { var coolantC = S.coolantC, clamp = H.clamp; return (clamp((coolantC - P.cool.lo) / (P.cool.hi - P.cool.lo)) * P.cool.w); }],
     } },
-    { info: {"name":"tyresWord","kind":"text","x":1600,"y":580,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"tyresWord","kind":"text","x":1712,"y":628,"rate":10,"nullText":"--"}, b: {
         "text": ["b34", function (S, H, L) { var tyreMin = L.tyreMin, when = H.when, ok = H.ok; return (when(!ok(tyreMin), '--', when(tyreMin < P.tyreLowBar, 'LOW', 'OK'))); }],
         "color": ["b35", function (S, H, L) { var tyreMin = L.tyreMin, when = H.when; return (when(tyreMin < P.tyreLowBar, C.amber, C.ink)); }],
     } },
-    { info: {"name":"tyrePsi","kind":"text","x":1600,"y":621,"rate":10,"nullText":"-- psi"}, b: {
+    { info: {"name":"tyrePsi","kind":"text","x":1712,"y":674,"rate":10,"nullText":"-- psi"}, b: {
         "text": ["b36", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return (fmt(psi(tyres[0].bar)) + '·' + fmt(psi(tyres[1].bar)) + '·' + fmt(psi(tyres[2].bar)) + '·' + fmt(psi(tyres[3].bar)) + ' psi'); }],
     } },
-    { info: {"name":"mpgText","kind":"text","x":661,"y":142,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"mpgText","kind":"text","x":701,"y":119,"rate":10,"nullText":"--"}, b: {
         "text": ["b37", function (S, H, L) { var avgL100 = S.avgL100, when = H.when, fmt = H.fmt; return (when(avgL100 > 0, fmt(282.481 / avgL100, 1), '--')); }],
     } },
-    { info: {"name":"shareText","kind":"text","x":1176,"y":140,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"shareText","kind":"text","x":1126,"y":119,"rate":10,"nullText":"--"}, b: {
         "text": ["b38", function (S, H, L) { var evTripKm = S.evTripKm, tripKm = S.tripKm, fmt = H.fmt, clamp = H.clamp; return (fmt(clamp(evTripKm / tripKm) * 100)); }],
     } },
-    { info: {"name":"demand","kind":"gauge","x":0,"y":0,"t0":0,"t1":0.7739799185459596,"segs":[0,0],"segEnd":0.7739799185459596}, b: {
+    { info: {"name":"demand","kind":"gauge","x":0,"y":0,"t0":0,"t1":0.7479318042923694,"segs":[0,0],"segEnd":0.7479318042923694}, b: {
         "value": ["b39", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"share","kind":"gauge","x":0,"y":0,"rate":10,"t0":0.8072145766215728,"t1":1,"segs":[0,0],"segEnd":1}, b: {
+    { info: {"name":"share","kind":"gauge","x":0,"y":0,"rate":10,"t0":0.7850123809180496,"t1":1,"segs":[0,0],"segEnd":1}, b: {
         "value": ["b41", function (S, H, L) { var evTripKm = S.evTripKm, tripKm = S.tripKm, clamp = H.clamp; return (1 - clamp(evTripKm / tripKm)); }],
     } },
-    { info: {"name":"zoneC","kind":"text","x":660,"y":236,"nullText":"--"}, b: {
+    { info: {"name":"zoneC","kind":"text","x":710,"y":219,"nullText":"--"}, b: {
         "text": ["b43", function (S, H, L) { return ('CHARGE'); }],
     } },
-    { info: {"name":"zoneE","kind":"text","x":933,"y":236,"nullText":"--"}, b: {
+    { info: {"name":"zoneE","kind":"text","x":934,"y":219,"nullText":"--"}, b: {
         "text": ["b44", function (S, H, L) { return ('ECO'); }],
     } },
-    { info: {"name":"zoneP","kind":"text","x":1200,"y":236,"nullText":"--"}, b: {
+    { info: {"name":"zoneP","kind":"text","x":1150,"y":219,"nullText":"--"}, b: {
         "text": ["b45", function (S, H, L) { return ('POWER'); }],
     } },
     { info: {"name":"arrowTurn","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
         "value": ["b46", function (S, H, L) { return (1); }],
         "show": ["b47", function (S, H, L) { var turnDir = S.turnDir; return (turnDir === 'left' || turnDir === 'right'); }],
     } },
-    { info: {"name":"arrowStem","kind":"rect","x":695,"y":332}, b: {
+    { info: {"name":"arrowStem","kind":"rect","x":765,"y":303}, b: {
         "show": ["b48", function (S, H, L) { var turnDir = S.turnDir; return (turnDir === 'straight'); }],
     } },
-    { info: {"name":"arrowHead","kind":"leds","x":674,"y":327}, b: {
+    { info: {"name":"arrowHead","kind":"leds","x":744,"y":298}, b: {
         "lit": ["b51", function (S, H, L) { return (2); }],
         "show": ["b52", function (S, H, L) { var turnDir = S.turnDir; return (turnDir === 'straight'); }],
     } },
-    { info: {"name":"distText","kind":"text","x":660,"y":411,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"distText","kind":"text","x":748,"y":392,"rate":10,"nullText":"--"}, b: {
         "text": ["b53", function (S, H, L) { var turnM = S.turnM, when = H.when, ok = H.ok, fmt = H.fmt, max = H.max, round = H.round; return (when(!ok(turnM), '--', when(turnM / 1609.344 < 0.3, fmt(max(50, round(turnM * 1.09361, 50))), fmt(turnM / 1609.344, 1)))); }],
     } },
-    { info: {"name":"distUnit","kind":"text","x":666,"y":429,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"distUnit","kind":"text","x":754,"y":410,"rate":10,"nullText":"--"}, b: {
         "text": ["b54", function (S, H, L) { var turnM = S.turnM, when = H.when, ok = H.ok; return (when(!ok(turnM), '', when(turnM / 1609.344 < 0.3, 'yd', 'mi'))); }],
         "dx": ["b55", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"roadText","kind":"text","x":660,"y":463,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"roadText","kind":"text","x":748,"y":448,"rate":10,"nullText":"--"}, b: {
         "text": ["b56", function (S, H, L) { var road = S.road, when = H.when; return (when(typeof road === 'string' && road.length > 0, String(road).slice(0, 16), '--')); }],
     } },
-    { info: {"name":"etaText","kind":"text","x":718,"y":499,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"etaText","kind":"text","x":748,"y":516,"rate":10,"nullText":"--"}, b: {
         "text": ["b57", function (S, H, L) { var eta = S.eta, destKm = S.destKm, when = H.when, fmt = H.fmt, miles = H.miles; return (when(/^\d{1,2}:\d\d$/.test(eta), eta, '--:--') + ' · ' + fmt(miles(destKm)) + ' mi'); }],
     } },
-    { info: {"name":"hvState","kind":"text","x":892,"y":602,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"hvState","kind":"text","x":1134,"y":606,"rate":10,"nullText":"--"}, b: {
         "text": ["b58", function (S, H, L) { var elecHp = S.elecHp, rpm = S.rpm, engineOff = L.engineOff, when = H.when, ok = H.ok; return (when(!ok(elecHp) && !ok(rpm), '--', when(elecHp < -0.5, 'CHARGING', when(engineOff, 'ELECTRIC', 'HYBRID')))); }],
         "color": ["b59", function (S, H, L) { var elecHp = S.elecHp, engineOff = L.engineOff, when = H.when; return (when(elecHp < -0.5 || engineOff, C.blue, C.ink3)); }],
     } },
-    { info: {"name":"hvText","kind":"text","x":639,"y":631,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"hvText","kind":"text","x":696,"y":622,"rate":10,"nullText":"--"}, b: {
         "text": ["b60", function (S, H, L) { var socPct = S.socPct, fmt = H.fmt; return (fmt(socPct)); }],
     } },
-    { info: {"name":"evRangeText","kind":"text","x":745,"y":640,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"evRangeText","kind":"text","x":804,"y":631,"rate":10,"nullText":"--"}, b: {
         "text": ["b61", function (S, H, L) { var evRangeKm = S.evRangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(evRangeKm))); }],
     } },
-    { info: {"name":"hv","kind":"leds","x":659,"y":673,"rate":10}, b: {
+    { info: {"name":"hv","kind":"leds","x":950,"y":636,"rate":10}, b: {
         "lit": ["b64", function (S, H, L) { var socPct = S.socPct, when = H.when, ok = H.ok, round = H.round; return (when(ok(socPct), round(socPct / 100 * 24), 0)); }],
     } },
-    { info: {"name":"avgText","kind":"text","x":1148,"y":602,"rate":10,"nullText":"--"}, b: {
-        "text": ["b65", function (S, H, L) { var avgKmh = S.avgKmh, fmt = H.fmt, mph = H.mph; return ('AVG ' + fmt(mph(avgKmh)) + ' MPH'); }],
+    { info: {"name":"tripText","kind":"text","x":1003,"y":672,"rate":10,"nullText":"--"}, b: {
+        "text": ["b65", function (S, H, L) { var tripKm = S.tripKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(tripKm), 1)); }],
     } },
-    { info: {"name":"tripText","kind":"text","x":1004,"y":631,"rate":10,"nullText":"--"}, b: {
-        "text": ["b66", function (S, H, L) { var tripKm = S.tripKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(tripKm), 1)); }],
+    { info: {"name":"avgText","kind":"text","x":1198,"y":690,"rate":10,"nullText":"--"}, b: {
+        "text": ["b66", function (S, H, L) { var avgKmh = S.avgKmh, fmt = H.fmt, mph = H.mph; return ('AVG ' + fmt(mph(avgKmh)) + ' MPH'); }],
     } },
 ];
 /* logic.extra.js */

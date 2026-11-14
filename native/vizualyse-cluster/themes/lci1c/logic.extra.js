@@ -6,7 +6,7 @@
 //    in white.
 //  - Several readings share one text layer (average and on electric; the
 //    arrival line; range and fluids; the percentages; the trip and the four
-//    tyres; outside and the odometer), and units follow their readings
+//    tyres), and units follow their readings
 //    (on electric, cruise, the turn's distance): laid out here at their
 //    screen x with the font's advances (ctx.fonts), as the hand port did.
 //    Before the theme is built (ctx.fonts empty) the bindings' text stands.
@@ -107,15 +107,12 @@ module.exports = {
                 o.fluids = place(ctx, P, 'fluids', [{ s: num(s.rangeKm, 1 / KM_MI), x: A.fuelEnd, align: 'right' }, { s: num(s.evRangeKm, 1 / KM_MI), x: A.batEnd, align: 'right' },
                     { s: num(s.coolantC), x: A.coolEnd, align: 'right' }, { s: electric ? 'EV' : ins != null ? String(Math.round(ins)) : '--', x: A.mpgEnd, align: 'right' }]);
                 o.percents = place(ctx, P, 'percents', [{ s: num(s.fuelPct) + ' %', x: A.pctFuel }, { s: num(s.socPct) + ' %', x: A.pctBat }]);
-                /* corners: the trip and the tyres' psi; outside and the odometer */
+                /* corners: the trip and the tyres' psi; outside (the odometer is its own layer, between the warning lights and the gear) */
                 const ty = (i) => (s.tyres && s.tyres[i]) || {};
                 o.cornerTop = place(ctx, P, 'cornerTop', [{ s: fin(s.tripKm) ? (s.tripKm / KM_MI).toFixed(1) + ' mi' : '-- mi', x: A.trip }]
                     .concat([0, 1, 2, 3].map((i) => ({ s: num(ty(i).bar, PSI), x: A['t' + i], align: 'center' }))));
                 const oc = s.outsideC;
-                let odo = '--';
-                if (fin(s.odoKm)) { const m = Math.floor(s.odoKm / KM_MI); odo = m >= 1000 ? Math.floor(m / 1000) + ' ' + String(m % 1000 + 1000).slice(1) : String(m); }
-                o.cornerBot = place(ctx, P, 'cornerBot', [{ s: fin(oc) ? (oc < 0 ? '−' : '+') + Math.abs(oc).toFixed(1) + ' °C' : '-- °C', x: A.outside },
-                    { s: odo, x: A.odoEnd, align: 'right' }]);
+                o.cornerBot = place(ctx, P, 'cornerBot', [{ s: fin(oc) ? (oc < 0 ? '−' : '+') + Math.abs(oc).toFixed(1) + ' °C' : '-- °C', x: A.outside }]);
             }
             st.slow = o;
         }

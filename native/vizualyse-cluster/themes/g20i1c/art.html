@@ -4,9 +4,10 @@
      g20i1c "G20 inspired 1 · Comfort": the G20 Comfort mockup as a design
      (DESIGNS.md), on the Sport theme's (g20i1) full-height layout: the
      brackets, bars and mini bars are the Sport ones (their fields are the
-     same, so the kit carries them once), the guidance row sits below the top
-     keep-clear zone, the map panel takes the taller centre column and the
-     info line the old bottom strip.
+     same, so the kit carries them once), fitted like it to the car's panel
+     (DESIGNS.md, "The car's panel"): the guidance row along the top edge,
+     the map panel down the taller centre column, the info line in the
+     bottom strip around the car's warning lights and gear window.
      Build: node tools/design_build.js themes/g20i1c (after themes/g20i1) -->
 <html>
 <head>
@@ -17,7 +18,7 @@
 <meta name="theme-mode" content="comfort">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values the bindings use -->
 <meta name="let:vMph" content="smooth(mph(kmh), 14)">
@@ -43,10 +44,11 @@
 html, body { margin: 0; background: #000; }
 svg { display: block; }
 svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: var(--ink); }
-.big { font-size: 170px; font-weight: 500; letter-spacing: -0.02em; }
+.big { font-size: 184px; font-weight: 500; letter-spacing: -0.02em; }
 .dim { fill: var(--dim); }
 .lbl { font-size: 22px; font-weight: 500; letter-spacing: 0.06em; fill: var(--dim); }
 .val { font-size: 30px; font-weight: 500; }
+.val.info { font-size: 33px; }
 .unit { font-size: 22px; font-weight: 500; fill: var(--dim); }
 .g-outline { fill: none; stroke: var(--line); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .g-halo { fill: none; stroke: var(--calm); stroke-width: 12; opacity: 0.13; stroke-linecap: round; }
@@ -54,7 +56,7 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
 .g-red { fill: none; stroke: var(--limit); stroke-width: 7; }
 .g-tick { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
 .g-tick.minor { stroke-width: 2; opacity: 0.7; }
-.g-num { font-size: 34px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
+.g-num { font-size: 36px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
 .bar-track { fill: none; stroke: var(--track); stroke-width: 14; stroke-linecap: butt; }
 .bar-fill { fill: none; stroke-width: 14; stroke-linecap: butt; }
 .mini-track { stroke: var(--track); stroke-width: 7; stroke-linecap: round; fill: none; }
@@ -66,7 +68,7 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
 .road { font-size: 26px; font-weight: 500; }
 .sign { fill: none; stroke: var(--limit); stroke-width: 6; }
 .sign-num { font-size: 36px; font-weight: 600; text-anchor: middle; }
-.gear-n { font-size: 64px; font-weight: 400; fill: var(--dim); }
+.gear-n { font-size: 76px; font-weight: 400; fill: var(--dim); }
 .icon { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .mode { font-size: 30px; font-weight: 600; letter-spacing: 0.3em; fill: var(--line); text-anchor: middle; }
 .cell { fill: var(--track); }
@@ -103,11 +105,11 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
   </defs>
 
   <!-- a guide (not drawn by the theme): the top keep-clear zone -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
 
   <!-- the copper washes behind the brackets' outer corners (they bleed off the panel on purpose) -->
-  <ellipse data-bleed cx="250" cy="470" rx="330" ry="240" fill="url(#wash)"/>
-  <ellipse data-bleed cx="1670" cy="470" rx="330" ry="240" fill="url(#wash)"/>
+  <ellipse data-bleed cx="300" cy="420" rx="330" ry="270" fill="url(#wash)"/>
+  <ellipse data-bleed cx="1620" cy="420" rx="330" ry="270" fill="url(#wash)"/>
 
   <!-- the bracket gauges, the Sport theme's geometry and field: the outline
        is kept in the art (data-keep) and is the gauge's path; halo, unlit
@@ -150,108 +152,110 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
 
   <!-- next manoeuvre: the mockup's right-turn arrow and its mirror share the
        stem; the covers hide the branch not in use (all of it with no turn) -->
-  <g class="turn" transform="translate(790 44)"><path d="M4 44 V20 Q4 10 14 10 H32"/><path d="M23 0 L33 10 L23 20"/></g>
-  <g class="turn" transform="translate(798 44) scale(-1 1)"><path d="M4 44 V20 Q4 10 14 10 H32"/><path d="M23 0 L33 10 L23 20"/></g>
-  <rect x="758" y="40" width="33" height="32" fill="#000" data-rect="turnCoverL" data-show="turnDir !== 'left'"/>
-  <rect x="797" y="40" width="34" height="32" fill="#000" data-rect="turnCoverR" data-show="turnDir !== 'right'"/>
-  <rect x="789" y="52" width="10" height="44" fill="#000" data-rect="turnCoverStem" data-show="turnDir !== 'left' &amp;&amp; turnDir !== 'right'"/>
-  <text class="val" x="914" y="82" text-anchor="end" style="font-size:38px" data-text="distText" data-rate="10"
+  <g class="turn" transform="translate(790 12)"><path d="M4 44 V20 Q4 10 14 10 H32"/><path d="M23 0 L33 10 L23 20"/></g>
+  <g class="turn" transform="translate(798 12) scale(-1 1)"><path d="M4 44 V20 Q4 10 14 10 H32"/><path d="M23 0 L33 10 L23 20"/></g>
+  <rect x="758" y="8" width="33" height="32" fill="#000" data-rect="turnCoverL" data-show="turnDir !== 'left'"/>
+  <rect x="797" y="8" width="34" height="32" fill="#000" data-rect="turnCoverR" data-show="turnDir !== 'right'"/>
+  <rect x="789" y="20" width="10" height="44" fill="#000" data-rect="turnCoverStem" data-show="turnDir !== 'left' &amp;&amp; turnDir !== 'right'"/>
+  <text class="val" x="914" y="50" text-anchor="end" style="font-size:33px" data-text="distText" data-rate="10"
         data-text-expr="when(turnM >= P.quarterMileM, fmt(miles(turnM / 1000), 1), fmt(max(50, round(turnM * P.ydPerM, 50))))">400</text>
-  <text class="lbl" x="922" y="82" data-text="distUnit" data-rate="10" data-null=""
+  <text class="lbl" x="922" y="50" data-text="distUnit" data-rate="10" data-null=""
         data-text-expr="when(ok(turnM), when(turnM >= P.quarterMileM, 'mi', 'yd'), '')">yd</text>
-  <text class="road" x="972" y="81" data-text="roadText" data-rate="10" data-width="216"
+  <text class="road" x="962" y="49" data-text="roadText" data-rate="10" data-width="212"
         data-glyphs=" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-'.&amp;/"
         data-text-expr="road.slice(0, 16)">A34 Oxford Road</text>
 
   <!-- speed readout, the limit sign and cruise -->
-  <text class="big" x="640" y="392" text-anchor="end" data-text="speedText" data-text-expr="fmt(mph(kmh))">118</text>
-  <text class="unit" x="654" y="392" style="font-size:28px">mph</text>
-  <rect x="372" y="413" width="348" height="2" fill="url(#ruleL)"/>
-  <circle class="sign" cx="412" cy="466" r="30"/>
-  <text class="sign-num" x="412" y="479" data-text="limitText" data-text-expr="fmt(mph(limitKmh))" data-rate="10">70</text>
-  <text class="lbl" x="476" y="476">CRUISE</text>
-  <text class="val" x="610" y="476" text-anchor="end" data-text="cruiseText" data-rate="10"
+  <text class="big" x="664" y="424" text-anchor="end" data-text="speedText" data-text-expr="fmt(mph(kmh))">118</text>
+  <text class="unit" x="678" y="424" style="font-size:32px">mph</text>
+  <rect x="380" y="450" width="360" height="2" fill="url(#ruleL)"/>
+  <circle class="sign" cx="414" cy="494" r="32"/>
+  <text class="sign-num" x="414" y="507" data-text="limitText" data-text-expr="fmt(mph(limitKmh))" data-rate="10">70</text>
+  <text class="lbl" x="482" y="504">CRUISE</text>
+  <text class="val" x="620" y="504" text-anchor="end" data-text="cruiseText" data-rate="10"
         data-text-expr="fmt(mph(cruiseKmh))" data-color="when(ok(cruiseKmh), C.ink, C.dim)">70</text>
-  <text class="unit" x="617" y="476">mph</text>
+  <text class="unit" x="627" y="504">mph</text>
   <!-- cruise off: the mockup drops the unit after the dim dashes -->
-  <rect x="615" y="456" width="46" height="26" fill="#000" data-rect="cruiseUnitCover" data-show="!ok(cruiseKmh)"/>
+  <rect x="625" y="484" width="46" height="26" fill="#000" data-rect="cruiseUnitCover" data-show="!ok(cruiseKmh)"/>
 
   <!-- gear and revs readout: the selector big, the gear beside it dim -->
-  <text class="big" x="1262" y="392" data-text="gearText" data-glyphs="DMSPRN"
+  <text class="big" x="1250" y="424" data-text="gearText" data-glyphs="DMSPRN"
         data-text-expr="when(/^[DMSPRN]$/.test(gearMode), gearMode, '-')">D</text>
-  <text class="gear-n" x="1378" y="392" data-text="gearNum" data-null="" data-glyphs="DMS"
+  <text class="gear-n" x="1368" y="424" data-text="gearNum" data-null="" data-glyphs="DMS"
         data-text-expr="when(/^[DMS]$/.test(gearMode) &amp;&amp; gear > 0, fmt(gear), '')">8</text>
-  <rect x="1200" y="413" width="348" height="2" fill="url(#ruleR)"/>
-  <text class="val" x="1296" y="458" text-anchor="end" data-text="rpmText" data-text-expr="fmt(round(rpm, 50))" data-rate="10">6250</text>
-  <text class="unit" x="1304" y="458">rpm</text>
-  <text class="lbl" x="1372" y="458">AVG</text>
-  <text class="val" x="1476" y="458" text-anchor="end" data-text="avgText" data-rate="10"
+  <rect x="1180" y="450" width="360" height="2" fill="url(#ruleR)"/>
+  <text class="val" x="1304" y="500" text-anchor="end" data-text="rpmText" data-text-expr="fmt(round(rpm, 50))" data-rate="10">6250</text>
+  <text class="unit" x="1312" y="500">rpm</text>
+  <text class="lbl" x="1386" y="500">AVG</text>
+  <text class="val" x="1494" y="500" text-anchor="end" data-text="avgText" data-rate="10"
         data-text-expr="when(avgL100 > 0.05, fmt(P.mpgL100 / avgL100, 1), '--')">48.6</text>
-  <text class="unit" x="1483" y="458">mpg</text>
+  <text class="unit" x="1501" y="500">mpg</text>
 
   <!-- economy now (left) and electric power (right), on the Sport theme's
        power bars: tracks and labels are art, the fills are gauges (power
        mirrors economy's field, which is Sport's engine field) -->
-  <text class="lbl" x="800" y="118" text-anchor="middle">ECO</text>
-  <path class="bar-track" d="M800 470 Q758 300 800 130"/>
-  <path class="bar-fill" style="stroke:var(--line)" d="M800 470 Q758 300 800 130" data-gauge="eco" data-art="off"
+  <text class="lbl" x="800" y="83" text-anchor="middle">ECO</text>
+  <path class="bar-track" d="M800 534 Q752 313 800 92"/>
+  <path class="bar-fill" style="stroke:var(--line)" d="M800 534 Q752 313 800 92" data-gauge="eco" data-art="off"
         data-value="clamp(eco / P.ecoMaxMpg)"/>
-  <text class="val" x="806" y="508" text-anchor="end" data-text="ecoText" data-rate="10"
+  <text class="val" x="806" y="574" text-anchor="end" data-text="ecoText" data-rate="10"
         data-text-expr="when(instL100 >= 0.05, fmt(min(P.ecoMaxMpg, P.mpgL100 / instL100)), '--')"
         data-color="when(instL100 >= 0.05, C.ink, C.dim)">46</text>
-  <text class="unit" x="812" y="508">mpg</text>
-  <text class="lbl" x="800" y="536" text-anchor="middle">NOW</text>
-  <text class="lbl" x="1120" y="118" text-anchor="middle">POWER</text>
-  <path id="electricTrack" class="bar-track" d="M1120 470 Q1162 300 1120 130"/>
+  <text class="unit" x="812" y="574">mpg</text>
+  <text class="lbl" x="800" y="602" text-anchor="middle">NOW</text>
+  <text class="lbl" x="1120" y="83" text-anchor="middle">POWER</text>
+  <path id="electricTrack" class="bar-track" d="M1120 534 Q1168 313 1120 92"/>
   <line id="electricZero" stroke-width="2" style="stroke:var(--ink)"/>
-  <path class="bar-fill" style="stroke:var(--volt)" d="M1120 470 Q1162 300 1120 130" data-gauge="power" data-reuse="eco" data-art="off"
+  <path class="bar-fill" style="stroke:var(--volt)" d="M1120 534 Q1168 313 1120 92" data-gauge="power" data-reuse="eco" data-art="off"
         data-value="when(kw > 0.3, 0.25 + clamp(kw / P.powerMaxKw) * 0.75, when(kw &lt; -0.3, 0.25 - clamp(-kw / P.chargeMaxKw) * 0.25, 0.25))"
         data-from="when(kw &lt; -0.3, 0.25 - P.barGap, 0.25 + P.barGap)"
         data-band-color="alpha(C.volt, when(abs(kw) > 0.3, 1, 0))"/>
-  <text class="val" x="1126" y="508" text-anchor="end" data-text="powerText" data-text-expr="fmt(abs(elecHp * P.kwPerHp))" data-rate="10">60</text>
-  <text class="unit" x="1132" y="508">kW</text>
-  <text class="lbl" x="1120" y="536" text-anchor="middle" data-text="powerLabel"
+  <text class="val" x="1126" y="574" text-anchor="end" data-text="powerText" data-text-expr="fmt(abs(elecHp * P.kwPerHp))" data-rate="10">60</text>
+  <text class="unit" x="1132" y="574">kW</text>
+  <text class="lbl" x="1120" y="602" text-anchor="middle" data-text="powerLabel"
         data-text-expr="when(elecHp &lt; -1, 'CHARGING', 'ELECTRIC')" data-rate="10">ELECTRIC</text>
 
   <!-- the car shows its own map here (the map slot); the theme keeps the panel -->
-  <rect class="map-area" x="838" y="134" width="244" height="302" rx="8"/>
-  <text class="map-cap" x="854" y="422">MAP AREA</text>
-  <rect data-map x="838" y="134" width="244" height="302" rx="8" fill="none"/>
-  <text class="lbl" x="838" y="474">ETA</text>
-  <text class="val" x="890" y="475" data-text="etaText" data-rate="10"
+  <rect class="map-area" x="834" y="104" width="252" height="376" rx="8"/>
+  <text data-guide class="map-cap" x="850" y="466">MAP AREA</text>
+  <rect data-map x="834" y="104" width="252" height="376" rx="8" fill="none"/>
+  <text class="lbl" x="834" y="520">ETA</text>
+  <text class="val" x="886" y="521" data-text="etaText" data-rate="10"
         data-text-expr="when(/^\d{1,2}:\d{2}$/.test(eta), eta, '--:--')">18:52</text>
-  <text class="val" x="1056" y="475" text-anchor="end" data-text="toGoText" data-text-expr="fmt(miles(destKm), 1)" data-rate="10">123.4</text>
-  <text class="unit" x="1062" y="475">mi</text>
+  <text class="val" x="1056" y="521" text-anchor="end" data-text="toGoText" data-text-expr="fmt(miles(destKm), 1)" data-rate="10">123.4</text>
+  <text class="unit" x="1062" y="521">mi</text>
 
   <!-- battery -->
-  <g class="icon" transform="translate(800 577)"><rect x="0" y="0" width="30" height="16" rx="2"/><path d="M30 5 h4 v6 h-4"/></g>
-  <text class="lbl" x="846" y="594">BATTERY</text>
-  <text class="val" x="1022" y="595" text-anchor="end" data-text="socText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
-  <text class="unit" x="1027" y="595">%</text>
-  <text class="val" x="1090" y="595" text-anchor="end" data-text="evRangeText" data-text-expr="fmt(miles(evRangeKm))" data-rate="10">35</text>
-  <text class="unit" x="1096" y="595">mi</text>
+  <g class="icon" transform="translate(800 617)"><rect x="0" y="0" width="30" height="16" rx="2"/><path d="M30 5 h4 v6 h-4"/></g>
+  <text class="lbl" x="846" y="634">BATTERY</text>
+  <text class="val" x="1022" y="635" text-anchor="end" data-text="socText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
+  <text class="unit" x="1027" y="635">%</text>
+  <text class="val" x="1090" y="635" text-anchor="end" data-text="evRangeText" data-text-expr="fmt(miles(evRangeKm))" data-rate="10">35</text>
+  <text class="unit" x="1096" y="635">mi</text>
   <g id="socCells" data-leds="socCells" data-count="20" data-light="13 9" data-c0="C.volt" data-off="C.track"
      data-lit="round(socPct / 5)" data-rate="10">
-    <rect x="798" y="606" width="323" height="13" fill="none"/>
+    <rect x="798" y="644" width="323" height="13" fill="none"/>
   </g>
 
-  <!-- info line, in the old bottom strip -->
-  <text class="val" x="282" y="690" text-anchor="end" data-text="rangeText" data-text-expr="fmt(miles(rangeKm))" data-rate="10">312</text>
-  <text class="unit" x="289" y="690">mi</text>
-  <text class="val" x="390" y="690" data-text="clockText" data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')" data-rate="10">14:32</text>
-  <text class="lbl" x="530" y="690">TRIP</text>
-  <text class="val" x="650" y="690" text-anchor="end" data-text="tripText" data-text-expr="fmt(miles(tripKm), 1)" data-rate="10">1234.5</text>
-  <text class="unit" x="656" y="690">mi</text>
-  <text class="mode" x="960" y="690">COMFORT</text>
-  <text class="lbl" x="1232" y="690">TYRES</text>
+  <!-- info line, in the bottom strip, in three runs around the car's lights:
+       left of the bottom-left warning lights (x 560-900), between them and
+       the gear's plate (x 1356-1472), and right of it (as in g20i1) -->
+  <text class="val info" x="196" y="700" text-anchor="end" data-text="rangeText" data-text-expr="fmt(miles(rangeKm))" data-rate="10">312</text>
+  <text class="unit" x="203" y="700">mi</text>
+  <text class="val info" x="258" y="700" data-text="clockText" data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')" data-rate="10">14:32</text>
+  <text class="lbl" x="364" y="700">TRIP</text>
+  <text class="val info" x="524" y="700" text-anchor="end" data-text="tripText" data-text-expr="fmt(miles(tripKm), 1)" data-rate="10">1234.5</text>
+  <text class="unit" x="530" y="700">mi</text>
+  <text class="mode" x="1014" y="700">COMFORT</text>
+  <text class="lbl" x="1126" y="700">TYRES</text>
   <!-- each axle's mean pressure, front / rear -->
-  <text class="val" x="1306" y="690" data-text="tyresText" data-rate="10" data-glyphs="&#8195;&#8194;" data-null="-- / --"
+  <text class="val info" x="1196" y="700" data-text="tyresText" data-rate="10" data-glyphs="&#8195;&#8194;" data-null="-- / --"
         data-text-expr="fmt(psi((tyres[0].bar + tyres[1].bar) / 2)) + ' / ' + fmt(psi((tyres[2].bar + tyres[3].bar) / 2))">35 / 38</text>
-  <text class="unit" x="1398" y="690">psi</text>
-  <text class="val" x="1540" y="690" text-anchor="end" data-text="outsideText" data-text-expr="fmt(outsideC, 1, '+')" data-rate="10">+11.5</text>
-  <text class="unit" x="1546" y="690">°C</text>
-  <text class="val" x="1656" y="690" text-anchor="end" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">104</text>
-  <text class="unit" x="1662" y="690">°C</text>
+  <text class="unit" x="1300" y="700">psi</text>
+  <text class="val info" x="1612" y="700" text-anchor="end" data-text="outsideText" data-text-expr="fmt(outsideC, 1, '+')" data-rate="10">+11.5</text>
+  <text class="unit" x="1618" y="700">°C</text>
+  <text class="val info" x="1758" y="700" text-anchor="end" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">104</text>
+  <text class="unit" x="1764" y="700">°C</text>
 </svg>
 <script>
 (function () {
@@ -319,12 +323,12 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
     }
     return d;
   }
-  /* the Sport theme's brackets (g20i1): taller than the 646 px mockup (the
-   * outline reaches y 628), the same width and 70 px corner radius */
-  var SPEED = [[690, 628], [300, 628], [120, 370], [270, 104], [720, 76]];
+  /* the Sport theme's brackets (g20i1), fitted to the car's panel: up to
+   * the top edge, out to the warning lights' column, the 70 px radius kept */
+  var SPEED = [[735, 636], [320, 636], [150, 372], [305, 50], [740, 30]];
   var TACH = SPEED.map(function (p) { return [1920 - p[0], p[1]]; });
-  var sd = Gauge($('gSpeed'), $('speedOutline'), { pts: SPEED, C: [480, 350], min: 0, max: 160, major: 20, minor: 10, startAt: 290, endPad: 40 });
-  Gauge($('gTach'), $('tachOutline'), { pts: TACH, C: [1440, 350], min: 0, max: 7, major: 1, minor: 0.5, startAt: 290, endPad: 40, red: 6.5, quiet: 4 });
+  var sd = Gauge($('gSpeed'), $('speedOutline'), { pts: SPEED, C: [480, 340], min: 0, max: 160, major: 20, minor: 10, startAt: 290, endPad: 40 });
+  Gauge($('gTach'), $('tachOutline'), { pts: TACH, C: [1440, 340], min: 0, max: 7, major: 1, minor: 0.5, startAt: 290, endPad: 40, red: 6.5, quiet: 4 });
   $('setOutline').setAttribute('d', sd);
 
   /* the mini bars 36 px outside the lower diagonal, 0.14..0.84 of it: track,
@@ -361,7 +365,7 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
 
   /* the design's view of the battery cells (the leds layer draws the real ones) */
   var sc = $('socCells');
-  for (var j = 0; j < 20; j++) el('rect', { 'class': 'cell', x: 798 + 1.6 + j * 16.15, y: 608, width: 13, height: 9, style: j < 14 ? 'fill:var(--volt)' : '' }, sc);
+  for (var j = 0; j < 20; j++) el('rect', { 'class': 'cell', x: 798 + 1.6 + j * 16.15, y: 646, width: 13, height: 9, style: j < 14 ? 'fill:var(--volt)' : '' }, sc);
 })();
 </script>
 </body>

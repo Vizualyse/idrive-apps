@@ -758,9 +758,14 @@ the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-centra
   doesn't get. Then the app sends them as `signals` (with `driveMode` for
   the Sport / Comfort switch); today it sends only the speed, once a second,
   which the tool also shows as the theme's speed.
-- [ ] **The glass and cowl mask**: measure what the cluster's glass and the
-  driver camera's cowl hide, and keep themes clear of it (several put
-  readings in the top corners and the top centre).
+- [ ] **The refitted themes on the car** (gear window, warning lights, cut
+  corners: `theme_core.PANEL`, measured 2026-11-14): each family once,
+  parked, with the demo: no black box, the car's gear shows in its window,
+  text sharp (the 4-aligned fonts), the shift lights at the top. Still
+  unmeasured: the effect layers' cost on the KOMBI's GPU over a long run
+  (about 40 layers, 2-3.5 Mpx a frame), a Sport/Comfort switch, other
+  warning lights' places (only the tyre, seatbelt and parking brake were
+  lit when measured).
 - [ ] **A smaller start**: the art (5 MB of each theme's 6-7) as tiles of
   only its non-black parts, a black rect under them; a Sport/Comfort pair
   could also share one art with its differences on top.
@@ -796,8 +801,8 @@ the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-centra
   where the layout has one (or a toggle). Each theme says where its map
   sits (a `data-map` rect in its design), the tool hands that rect to the
   map source, and the map's frames stay within the link budget beside the
-  theme (start with Cast's 512x288 at 15 fps). Watch the texture footprint:
-  a video layer is the other case that left the KOMBI's black box.
+  theme (start with Cast's 512x288 at 15 fps). Keep the map out of the
+  gear window and the warning lights (`theme_core.PANEL`).
 - [ ] **A phone page** (theme, source, the readings arriving).
 - [ ] **`tool/cluster_render_client` 1.1.0**: upstream's newer client
   (the target event's guide/disabled fields).

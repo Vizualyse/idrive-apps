@@ -2,11 +2,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      tri1c "Three-dial 1 · Comfort": the three-ring Comfort mockup as a
-     design (DESIGNS.md), laid out as tri1 (Sport) is for the whole 1920 x 720
-     panel: the rings' centres at y 384 (the cruise mark above the dial now
-     clears the top keep-clear zone), the speedometer 1.04 of the mockup's
-     size, the side rings 6 px in, and the info line (tyres, total range,
-     arrival) in the old bottom strip. The right ring's disc is the theme's
+     design (DESIGNS.md), refitted to the car's panel as tri1 (Sport) is
+     (2026-11-14): the speedometer 1.08 of the mockup's size about (960, 368)
+     (the cruise mark reaches y 10; safe-top 8), the side rings about
+     (374, 400) and (1546, 400), clear of the left warning lights, the clock
+     and outside temperature above them (out of the cut corners), and the info
+     line (tyres, total range, arrival) in the bottom strip clear of the
+     warning lights and the gear window. The right ring's disc is the theme's
      map slot. Centre: a 0-160 mph speedometer, its ribs lit to the speed,
      the needle, the limit arc and the cruise set mark outside the bezel;
      limit sign, D + gear, set speed, speed, rpm (or "Electric"). Left:
@@ -24,7 +26,7 @@
 <meta name="theme-mode" content="comfort">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values the bindings use -->
 <meta name="let:vMph" content="smooth(mph(kmh), 12)">
@@ -35,8 +37,8 @@
 <meta name="let:ev" content="rpm &lt; 300">
 <meta name="let:turnMi" content="turnM / 1609.344">
 <script type="application/json" id="theme-params">
-{ "vmax": 160, "a0": 0.5, "ribLen": 676.37, "limitDeg": 3.5, "setDeg": 2, "engMaxHp": 400, "elMaxHp": 120,
-  "evDx": 41, "turnShift": 30, "distX": 1534 }
+{ "vmax": 160, "a0": 0.5, "ribLen": 702.38, "limitDeg": 3.5, "setDeg": 2, "engMaxHp": 400, "elMaxHp": 120,
+  "evDx": 41, "turnShift": 30, "distX": 1526 }
 </script>
 
 <style>
@@ -75,11 +77,11 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
     </pattern>
   </defs>
   <!-- a guide (not drawn by the theme): the top keep-clear zone -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
 
   <!-- ============ CENTRE RING: the speedometer (the mockup's ring, drawn
-       about (960, 322), placed at (960, 384) and 1.04 of its size) ============ -->
-  <g id="centre" transform="translate(960 384) scale(1.04) translate(-960 -322)">
+       about (960, 322), placed at (960, 368) and 1.08 of its size) ============ -->
+  <g id="centre" transform="translate(960 368) scale(1.08) translate(-960 -322)">
     <path id="bezel" fill="none" stroke="#a3abb7" stroke-width="3" stroke-linecap="round"/>
     <!-- the ribs, all lit: the rib layers dim those past the speed -->
     <g id="ribs"></g>
@@ -96,50 +98,50 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
          limit arc r 302.5..307.5 (7 degrees wide), the set mark r 312.75
          (its tip) .. 331.25 (its base, 20.5 px wide). logic.extra.js sends
          the values past the halves' ends (the bindings' 0..1 can't). -->
-    <path id="ribsL" class="field" data-gauge="ribsL" data-inward="left" data-maxd="60" data-pool="60 0 0"
+    <path id="ribsL" class="field" data-gauge="ribsL" data-inward="left" data-maxd="62" data-pool="62 0 0"
           data-value="clamp((P.a0 + (1 - vMph / 80) * 135) / 135.5)" data-from="0"
-          data-band="-12.98 37.94" data-band-color="#000000c4"
-          data-needle="-27.04 58.24 5.70 7.84" data-needle-color="C.ink"/>
+          data-band="-13.48 39.40" data-band-color="#000000c4"
+          data-needle="-28.08 60.48 5.92 8.14" data-needle-color="C.ink"/>
     <path id="ribsR" class="field" data-gauge="ribsR" data-reuse="ribsL"
           data-value="clamp((P.a0 + (vMph / 80 - 1) * 135) / 135.5)" data-from="1"
-          data-band="-12.98 37.94" data-band-color="#000000c4"
-          data-needle="-27.04 58.24 5.70 7.84" data-needle-color="C.ink"/>
+          data-band="-13.48 39.40" data-band-color="#000000c4"
+          data-needle="-28.08 60.48 5.92 8.14" data-needle-color="C.ink"/>
     <path id="limitL" class="field" data-gauge="limitL" data-reuse="ribsL" data-art="off"
           data-value="0" data-band="0 0" data-band-color="#00000000"
-          data-needle="-33.8 -28.6 34.94" data-needle-color="C.limit"/>
+          data-needle="-35.10 -29.70 36.28" data-needle-color="C.limit"/>
     <path id="limitR" class="field" data-gauge="limitR" data-reuse="ribsL" data-art="off"
           data-value="0" data-band="0 0" data-band-color="#00000000"
-          data-needle="-33.8 -28.6 34.94" data-needle-color="C.limit"/>
+          data-needle="-35.10 -29.70 36.28" data-needle-color="C.limit"/>
     <path id="setL" class="field" data-gauge="setL" data-reuse="ribsL" data-art="off"
           data-value="0" data-band="0 0" data-band-color="#00000000"
-          data-needle="-58.5 -39.26 17.70 2.29" data-needle-color="C.ink"/>
+          data-needle="-60.75 -40.77 18.38 2.38" data-needle-color="C.ink"/>
     <path id="setR" class="field" data-gauge="setR" data-reuse="ribsL" data-art="off"
           data-value="0" data-band="0 0" data-band-color="#00000000"
-          data-needle="-58.5 -39.26 17.70 2.29" data-needle-color="C.ink"/>
+          data-needle="-60.75 -40.77 18.38 2.38" data-needle-color="C.ink"/>
   </g>
 
-  <!-- centre readouts (screen px: the mockup's places through the ring's 1.04) -->
-  <text class="val" x="862.24" y="291.44" text-anchor="middle" data-text="limit" data-rate="10"
+  <!-- centre readouts (screen px: the mockup's places through the ring's 1.08) -->
+  <text class="val" x="858.48" y="271.88" text-anchor="middle" data-text="limit" data-rate="10"
         data-text-expr="fmt(mph(limitKmh))">70</text>
-  <text x="973.35" y="304.96" text-anchor="end" style="font-size:87.36px;font-weight:600" data-text="mode" data-glyphs="DMSPRN"
+  <text x="973.86" y="285.92" text-anchor="end" style="font-size:90.72px;font-weight:600" data-text="mode" data-glyphs="DMSPRN"
         data-text-expr="when(/^[A-Z]$/.test(gearMode), gearMode, '-')">D</text>
-  <text x="979.58" y="304.96" style="font-size:39.52px;font-weight:500;fill:var(--ink-2)" data-text="gear" data-glyphs="NRP"
+  <text x="980.33" y="285.92" style="font-size:41.04px;font-weight:500;fill:var(--ink-2)" data-text="gear" data-glyphs="NRP"
         data-text-expr="when(gear === 0, 'N', when(gear &lt; 0, 'R', fmt(gear)))">8</text>
-  <text class="big" x="1057.76" y="288.32" text-anchor="middle" data-text="set" data-rate="10"
+  <text class="big" x="1061.52" y="268.64" text-anchor="middle" data-text="set" data-rate="10"
         data-text-expr="when(ok(cruiseKmh), fmt(mph(cruiseKmh)), '– –')"
         data-color="when(ok(cruiseKmh), C.ink, C.line)">– –</text>
-  <text x="960" y="458.88" text-anchor="middle" style="font-size:178.88px;font-weight:500;letter-spacing:-3.12px"
+  <text x="960" y="445.76" text-anchor="middle" style="font-size:185.76px;font-weight:500;letter-spacing:-3.24px"
         data-text="speed" data-text-expr="fmt(mph(kmh))">188</text>
-  <text class="unit" x="960" y="496.32" text-anchor="middle" style="font-size:27px">mph</text>
+  <text class="unit" x="960" y="484.64" text-anchor="middle" style="font-size:28px">mph</text>
   <!-- rpm, or "Electric" (moved right by P.evDx to sit centred) when the engine is off -->
-  <text class="mid32" x="971.5" y="558.72" text-anchor="end" style="fill:var(--ink-2)" data-text="rpm" data-rate="10"
+  <text class="mid32" x="972.14" y="549.44" text-anchor="end" style="fill:var(--ink-2)" data-text="rpm" data-rate="10"
         data-text-expr="when(ev, 'Electric', fmt(round(rpm, 50)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '))"
         data-color="when(ev, C.elec, C.ink2)" data-dx="when(ev, P.evDx, 0)">Electric</text>
-  <text class="unit" x="977.7" y="558.72" data-text="rpmUnit" data-null="rpm" data-text-expr="when(ev, '', 'rpm')">rpm</text>
-  <text x="960" y="646.08" text-anchor="middle" style="font-size:27px;font-weight:600;letter-spacing:6.24px">COMFORT</text>
+  <text class="unit" x="978.34" y="549.44" data-text="rpmUnit" data-null="rpm" data-text-expr="when(ev, '', 'rpm')">rpm</text>
+  <text x="960" y="640.16" text-anchor="middle" style="font-size:28px;font-weight:600;letter-spacing:6.48px">COMFORT</text>
 
-  <!-- ============ LEFT RING: economy (the mockup's, 6 px in and 54 down) ============ -->
-  <g id="left" transform="translate(-6 54)">
+  <!-- ============ LEFT RING: economy (the mockup's, centred on (374, 400)) ============ -->
+  <g id="left" transform="translate(2 70)">
     <path id="l-trackA" class="track"/><path id="l-trackB" class="track"/>
     <!-- engine load on the left arc; electric on the right (the engine's field flipped):
          driving fills up from the bottom stop, charging down from the top stop, green -->
@@ -174,8 +176,8 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
     <text x="490" y="488" class="mid lbl">Trip</text>
   </g>
 
-  <!-- ============ RIGHT RING: map, guidance, range (6 px in, 54 down) ============ -->
-  <g id="right" transform="translate(6 54)">
+  <!-- ============ RIGHT RING: map, guidance, range (centred on (1546, 400)) ============ -->
+  <g id="right" transform="translate(-2 70)">
     <path id="r-trackA" class="track"/><path id="r-trackB" class="track"/>
     <path id="fuelArc" class="fill" style="stroke:var(--ink)" data-gauge="fuel" data-reuse="eng"
           data-value="clamp(fuelPct / 100)"/>
@@ -211,23 +213,23 @@ svg text { font-family: "Barlow", sans-serif; font-variant-numeric: tabular-nums
           data-text-expr="'Battery ' + fmt(socPct) + ' %'">Battery 100 %</text>
   </g>
 
-  <!-- ============ corners and the info line (the old bottom strip) ============ -->
-  <text class="mid32" x="150" y="84" data-text="clock" data-rate="10"
+  <!-- ============ the top band above the side rings, and the info line (the bottom strip, clear of the warning lights) ============ -->
+  <text class="mid32" x="374" y="128" text-anchor="middle" data-text="clock" data-rate="10"
         data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">18:42</text>
-  <text class="mid32" x="1740.28" y="84" text-anchor="end" data-text="outside" data-rate="10" data-glyphs="−"
+  <text class="mid32" x="1552" y="128" text-anchor="end" data-text="outside" data-rate="10" data-glyphs="−"
         data-text-expr="fmt(outsideC).replace('-', '−')">−14</text>
-  <text class="unit" x="1746.28" y="84">°C</text>
+  <text class="unit" x="1558" y="128">°C</text>
   <!-- tyres: each axle's mean pressure -->
-  <text class="small" x="150" y="690">Tyres</text>
-  <text class="small" x="212" y="690" data-text="tyres" data-rate="10"
+  <text class="unit" x="160" y="694" style="font-size:26px">Tyres</text>
+  <text class="mid32" x="238" y="694" style="fill:var(--ink-2)" data-text="tyres" data-rate="10"
         data-text-expr="fmt(psi((tyres[0].bar + tyres[1].bar) / 2)) + ' / ' + fmt(psi((tyres[2].bar + tyres[3].bar) / 2)) + ' psi'">38 / 38 psi</text>
   <!-- the total range, fuel and battery -->
-  <text class="unit" x="944" y="690" text-anchor="end">Range</text>
-  <text class="val" x="1006" y="690" text-anchor="end" data-text="range" data-rate="10" data-text-expr="fmt(miles(rangeKm + evRangeKm))">888</text>
-  <text class="unit" x="1012" y="690">mi</text>
+  <text class="unit" x="984" y="694" style="font-size:26px" text-anchor="end">Range</text>
+  <text class="val" x="1050" y="694" text-anchor="end" data-text="range" data-rate="10" data-text-expr="fmt(miles(rangeKm + evRangeKm))">888</text>
+  <text class="unit" x="1056" y="694" style="font-size:26px">mi</text>
   <!-- the route's end: arrival time and the miles to go -->
-  <text class="small" x="1568" y="690">Arrive</text>
-  <text class="small" x="1638" y="690" data-text="eta" data-rate="10"
+  <text class="unit" x="1552" y="694" text-anchor="end" style="font-size:26px">Arrive</text>
+  <text class="mid32" x="1560" y="694" style="fill:var(--ink-2)" data-text="eta" data-rate="10"
         data-text-expr="when(/^\d{1,2}:\d{2}$/.test(eta), eta, '--:--') + ' · ' + fmt(miles(destKm)) + ' mi'">88:88 · 888 mi</text>
 </svg>
 <script>

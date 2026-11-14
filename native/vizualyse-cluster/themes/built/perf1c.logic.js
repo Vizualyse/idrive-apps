@@ -127,7 +127,7 @@ const DR = (function () {
         NAMES: Object.keys(pure()).concat(STATEFUL), STATEFUL: STATEFUL };
 })();
 /* RUNTIME END */
-const P = {"speedMax":180,"tachMax":8000,"evRpm":300,"tankL":59,"cool":[50,130],"tyreLowBar":2,"mpgL100":282.481,"barGap":0.0024,"rows":{"ranges":{"f":"f40w600","x":648,"w":600},"rangeUnit":{"f":"f20w500","x":648,"w":220},"n436":{"f":"f36w600","x":648,"w":600},"u436":{"f":"f20w500","x":648,"w":640},"n618s":{"f":"f30w600","x":648,"w":620},"n618":{"f":"f36w600","x":170,"w":1340},"u618":{"f":"f20w500","x":170,"w":1400},"sub672":{"f":"f20w500","x":350,"w":1500}}};
+const P = {"speedMax":180,"tachMax":8000,"evRpm":300,"tankL":59,"cool":[50,130],"tyreLowBar":2,"mpgL100":282.481,"barGap":0.0024,"rows":{"ranges":{"f":"f40w600","x":600,"w":700},"rangeUnit":{"f":"f20w500","x":600,"w":220},"n436":{"f":"f40w600","x":700,"w":560},"u436":{"f":"f20w500","x":700,"w":600},"n618s":{"f":"f30w600","x":700,"w":520},"nL":{"f":"f40w600","x":150,"w":400},"uL":{"f":"f20w500","x":150,"w":400},"nR":{"f":"f40w600","x":1480,"w":430},"subL":{"f":"f20w500","x":390,"w":160},"subR":{"f":"f20w500","x":1700,"w":210}}};
 const C = {"ground":[0,0,0,1],"disc":[0.0431,0.051,0.0706,1],"line":[0.1529,0.1686,0.2039,1],"track":[0.0902,0.102,0.1255,1],"ink":[0.9529,0.9608,0.9725,1],"ink2":[0.651,0.6824,0.7333,1],"ink3":[0.498,0.5333,0.5882,1],"tick":[0.3608,0.3922,0.451,1],"calm":[0.7686,0.8275,0.902,1],"limit":[1,0.2275,0.1333,1],"limit-deep":[0.5608,0.0784,0.0941,1],"limitDeep":[0.5608,0.0784,0.0941,1],"map":[0.0471,0.0549,0.0745,1],"elec":[0.2392,0.6078,1,1]};
 const LETS = [
     ["vMph", "b0", function (S, H, L) { var kmh = S.kmh, smooth = H.smooth, mph = H.mph; return (smooth(mph(kmh), 12)); }],
@@ -142,20 +142,20 @@ const LETS = [
     ["avgMpg", "b9", function (S, H, L) { var avgL100 = S.avgL100, when = H.when; return (when(avgL100 > 0, P.mpgL100 / avgL100, NaN)); }],
 ];
 const LAYERS = [
-    { info: {"name":"speedDial","kind":"gauge","x":0,"y":0,"t0":0.008196315030673175,"t1":0.9918036849693268,"segs":[0,0],"segEnd":0.9918036849693268}, b: {
+    { info: {"name":"speedDial","kind":"gauge","x":0,"y":0,"t0":0.00819631684385328,"t1":0.9918036831561468,"segs":[0,0],"segEnd":0.9918036831561468}, b: {
         "value": ["b10", function (S, H, L) { var vMph = L.vMph; return (vMph / P.speedMax); }],
     } },
-    { info: {"name":"tachDial","kind":"gauge","x":0,"y":0,"t0":0.008196333131793724,"t1":0.9918036668682063,"segs":[0,0],"segEnd":0.9918036668682063}, b: {
+    { info: {"name":"tachDial","kind":"gauge","x":0,"y":0,"t0":0.008196330199978306,"t1":0.9918036698000217,"segs":[0,0],"segEnd":0.9918036698000217}, b: {
         "value": ["b14", function (S, H, L) { var vRpm = L.vRpm; return (vRpm / P.tachMax); }],
     } },
-    { info: {"name":"cruisePtr","kind":"gauge","x":0,"y":0,"t0":0.008196315030673175,"t1":0.9918036849693268,"segs":[0,0],"segEnd":0.9918036849693268}, b: {
+    { info: {"name":"cruisePtr","kind":"gauge","x":0,"y":0,"t0":0.00819631684385328,"t1":0.9918036831561468,"segs":[0,0],"segEnd":0.9918036831561468}, b: {
         "value": ["b18", function (S, H, L) { var cruise = L.cruise; return (cruise / P.speedMax); }],
         "show": ["b21", function (S, H, L) { var cruise = L.cruise, ok = H.ok; return (ok(cruise)); }],
     } },
-    { info: {"name":"clock","kind":"text","x":570,"y":51,"rate":1,"nullText":"--"}, b: {
+    { info: {"name":"clock","kind":"text","x":461,"y":17,"rate":1,"nullText":"--"}, b: {
         "text": ["b22", function (S, H, L) { var clock = S.clock, when = H.when; return (when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')); }],
     } },
-    { info: {"name":"outside","kind":"text","x":655,"y":51,"rate":1,"nullText":"--"}, b: {
+    { info: {"name":"outside","kind":"text","x":557,"y":17,"rate":1,"nullText":"--"}, b: {
         "text": ["b23", function (S, H, L) { var outsideC = S.outsideC, when = H.when, fmt = H.fmt; return (when(outsideC < 0, '−' + fmt(-outsideC), fmt(outsideC)) + ' °C'); }],
     } },
     { info: {"name":"arrowR","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
@@ -166,49 +166,49 @@ const LAYERS = [
         "value": ["b26", function (S, H, L) { return (1); }],
         "show": ["b27", function (S, H, L) { var turnDir = S.turnDir; return (turnDir === 'left'); }],
     } },
-    { info: {"name":"gDist","kind":"text","x":832,"y":49,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"gDist","kind":"text","x":716,"y":16,"rate":5,"nullText":"--"}, b: {
         "text": ["b28", function (S, H, L) { var turnM = S.turnM, when = H.when, ok = H.ok, fmt = H.fmt, max = H.max, round = H.round; return (when(!ok(turnM), '--', when(turnM / 1609.344 >= 0.2, fmt(turnM / 1609.344, 1) + ' mi', max(50, round(turnM * 1.09361, 50)) + ' yd'))); }],
     } },
-    { info: {"name":"road","kind":"text","x":956,"y":56,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"road","kind":"text","x":856,"y":21,"rate":2,"nullText":"--"}, b: {
         "text": ["b29", function (S, H, L) { var road = S.road, when = H.when; return (when(typeof road === 'string' && road !== '', String(road).slice(0, 16), '--')); }],
     } },
-    { info: {"name":"limit","kind":"text","x":314,"y":263,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"limit","kind":"text","x":412,"y":338,"rate":5,"nullText":"--"}, b: {
         "text": ["b30", function (S, H, L) { var limitKmh = S.limitKmh, fmt = H.fmt, mph = H.mph; return (fmt(mph(limitKmh))); }],
     } },
-    { info: {"name":"speed","kind":"text","x":220,"y":323,"nullText":"--"}, b: {
+    { info: {"name":"speed","kind":"text","x":298,"y":395,"nullText":"--"}, b: {
         "text": ["b31", function (S, H, L) { var vMph = L.vMph, fmt = H.fmt; return (fmt(vMph)); }],
     } },
-    { info: {"name":"cruiseCover","kind":"rect","x":246,"y":478}, b: {
+    { info: {"name":"cruiseCover","kind":"rect","x":344,"y":562}, b: {
         "show": ["b32", function (S, H, L) { var cruise = L.cruise, ok = H.ok; return (!ok(cruise)); }],
     } },
-    { info: {"name":"cruiseSet","kind":"text","x":332,"y":478,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"cruiseSet","kind":"text","x":430,"y":562,"rate":5,"nullText":"--"}, b: {
         "text": ["b33", function (S, H, L) { var cruise = L.cruise, fmt = H.fmt; return (fmt(cruise)); }],
         "show": ["b34", function (S, H, L) { var cruise = L.cruise, ok = H.ok; return (ok(cruise)); }],
     } },
-    { info: {"name":"evCover","kind":"rect","x":1560,"y":258}, b: {
+    { info: {"name":"evCover","kind":"rect","x":1470,"y":334}, b: {
         "show": ["b35", function (S, H, L) { var ev = L.ev; return (!ev); }],
     } },
-    { info: {"name":"gearMode","kind":"text","x":1527,"y":329,"nullText":"--"}, b: {
+    { info: {"name":"gearMode","kind":"text","x":1431,"y":409,"nullText":"--"}, b: {
         "text": ["b36", function (S, H, L) { var gearMode = S.gearMode, when = H.when; return (when(typeof gearMode === 'string' && /^[DMSPRN]$/.test(gearMode), gearMode, '-')); }],
     } },
-    { info: {"name":"gear","kind":"text","x":1616,"y":370,"nullText":"--"}, b: {
+    { info: {"name":"gear","kind":"text","x":1532,"y":460,"nullText":"--"}, b: {
         "text": ["b37", function (S, H, L) { var gear = S.gear, when = H.when, ok = H.ok, fmt = H.fmt; return (when(!ok(gear), '-', when(gear === 0, ' ', fmt(gear)))); }],
     } },
-    { info: {"name":"rpm","kind":"text","x":1525,"y":436,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"rpm","kind":"text","x":1435,"y":520,"rate":10,"nullText":"--"}, b: {
         "text": ["b38", function (S, H, L) { var vRpm = L.vRpm, fmt = H.fmt, round = H.round; return (fmt(round(vRpm, 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')); }],
         "show": ["b39", function (S, H, L) { var ev = L.ev; return (!ev); }],
     } },
-    { info: {"name":"rpmUnit","kind":"text","x":1620,"y":443,"nullText":"--"}, b: {
+    { info: {"name":"rpmUnit","kind":"text","x":1530,"y":527,"nullText":"--"}, b: {
         "text": ["b40", function (S, H, L) { return ('rpm'); }],
         "show": ["b41", function (S, H, L) { var ev = L.ev; return (!ev); }],
     } },
-    { info: {"name":"ranges","kind":"text","x":648,"y":178,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"ranges","kind":"text","x":600,"y":100,"rate":2,"nullText":"--"}, b: {
         "text": ["b42", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"rangeUnit","kind":"text","x":648,"y":191,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"rangeUnit","kind":"text","x":600,"y":113,"rate":2,"nullText":"--"}, b: {
         "text": ["b43", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"range","kind":"text","x":885,"y":168,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"range","kind":"text","x":867,"y":82,"rate":2,"nullText":"--"}, b: {
         "text": ["b44", function (S, H, L) { var rangeKm = S.rangeKm, evRangeKm = S.evRangeKm, fmt = H.fmt, round = H.round, miles = H.miles; return (fmt(round(miles(rangeKm)) + round(miles(evRangeKm)))); }],
     } },
     { info: {"name":"engBar","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
@@ -220,52 +220,55 @@ const LAYERS = [
         "from": ["b50", function (S, H, L) { var l = L.l, engEnd = L.engEnd, when = H.when; return (when(l > 0, engEnd, 0.25 - P.barGap)); }],
         "show": ["b51", function (S, H, L) { var l = L.l, abs = H.abs; return (abs(l) >= 0.5); }],
     } },
-    { info: {"name":"n436","kind":"text","x":648,"y":408,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"n436","kind":"text","x":700,"y":272,"rate":5,"nullText":"--"}, b: {
         "text": ["b52", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"u436","kind":"text","x":648,"y":419,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"u436","kind":"text","x":700,"y":285,"rate":5,"nullText":"--"}, b: {
         "text": ["b53", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"nowBar","kind":"leds","x":648,"y":450,"rate":10}, b: {
+    { info: {"name":"nowBar","kind":"leds","x":700,"y":316,"rate":10}, b: {
         "lit": ["b56", function (S, H, L) { var burning = L.burning, nowMpg = L.nowMpg, when = H.when, round = H.round, clamp = H.clamp; return (when(burning, round(clamp(nowMpg / 100) * 64), 0)); }],
     } },
-    { info: {"name":"avgMark","kind":"rect","x":647,"y":446,"rate":5}, b: {
+    { info: {"name":"avgMark","kind":"rect","x":699,"y":312,"rate":5}, b: {
         "dx": ["b57", function (S, H, L) { var avgMpg = L.avgMpg, clamp = H.clamp; return (clamp(avgMpg / 100) * 160); }],
     } },
-    { info: {"name":"now","kind":"text","x":770,"y":495,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"now","kind":"text","x":822,"y":361,"rate":5,"nullText":"--"}, b: {
         "text": ["b58", function (S, H, L) { var instL100 = S.instL100, burning = L.burning, nowMpg = L.nowMpg, when = H.when, ok = H.ok, fmt = H.fmt; return (when(!ok(instL100), '--', when(burning, fmt(nowMpg), 'EV'))); }],
         "color": ["b59", function (S, H, L) { var instL100 = S.instL100, burning = L.burning, when = H.when, ok = H.ok; return (when(burning || !ok(instL100), C.ink, C.elec)); }],
     } },
-    { info: {"name":"hv","kind":"leds","x":1111,"y":450,"rate":5}, b: {
+    { info: {"name":"hv","kind":"leds","x":1057,"y":316,"rate":5}, b: {
         "lit": ["b62", function (S, H, L) { var socPct = S.socPct, round = H.round; return (round(socPct / 10)); }],
     } },
-    { info: {"name":"hvState","kind":"text","x":1112,"y":497,"rate":5,"nullText":"--"}, b: {
+    { info: {"name":"hvState","kind":"text","x":1058,"y":363,"rate":5,"nullText":"--"}, b: {
         "text": ["b63", function (S, H, L) { var elecHp = S.elecHp, l = L.l, e = L.e, when = H.when, ok = H.ok; return (when(ok(elecHp), when(l > 3, when(ok(e) && e <= 1, 'ELECTRIC DRIVE', 'ASSISTING'), when(l < -2, 'CHARGING', 'HOLDING')), '')); }],
         "color": ["b64", function (S, H, L) { var l = L.l, when = H.when; return (when(l > 3 || l < -2, C.elec, C.ink3)); }],
     } },
-    { info: {"name":"n618s","kind":"text","x":648,"y":594,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"n618s","kind":"text","x":700,"y":594,"rate":2,"nullText":"--"}, b: {
         "text": ["b65", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"toGo","kind":"text","x":1112,"y":631,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"toGo","kind":"text","x":1100,"y":631,"rate":2,"nullText":"--"}, b: {
         "text": ["b66", function (S, H, L) { var destKm = S.destKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(destKm)) + ' mi to go'); }],
     } },
-    { info: {"name":"n618","kind":"text","x":170,"y":590,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"nL","kind":"text","x":150,"y":634,"rate":2,"nullText":"--"}, b: {
         "text": ["b67", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"u618","kind":"text","x":170,"y":601,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"uL","kind":"text","x":150,"y":647,"rate":2,"nullText":"--"}, b: {
         "text": ["b68", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"tyreStatus","kind":"text","x":1610,"y":594,"rate":2,"nullText":"--"}, b: {
-        "text": ["b69", function (S, H, L) { var tyres = S.tyres, when = H.when, ok = H.ok, min = H.min; return (when(ok(tyres[0].bar) && ok(tyres[1].bar) && ok(tyres[2].bar) && ok(tyres[3].bar), when(min(tyres[0].bar, tyres[1].bar, tyres[2].bar, tyres[3].bar) < P.tyreLowBar, 'LOW', 'OK'), '--')); }],
+    { info: {"name":"nR","kind":"text","x":1480,"y":634,"rate":2,"nullText":"--"}, b: {
+        "text": ["b69", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"sub672","kind":"text","x":350,"y":655,"rate":2,"nullText":"--"}, b: {
+    { info: {"name":"subL","kind":"text","x":390,"y":687,"rate":2,"nullText":"--"}, b: {
         "text": ["b70", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"fuelBar","kind":"leds","x":170,"y":632,"rate":2}, b: {
-        "lit": ["b73", function (S, H, L) { var fuelPct = S.fuelPct, round = H.round, clamp = H.clamp; return (round(clamp(fuelPct / 100) * 50)); }],
+    { info: {"name":"subR","kind":"text","x":1700,"y":687,"rate":2,"nullText":"--"}, b: {
+        "text": ["b71", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"coolBar","kind":"leds","x":1430,"y":632,"rate":2}, b: {
-        "lit": ["b76", function (S, H, L) { var coolantC = S.coolantC, round = H.round, clamp = H.clamp; return (round(clamp((coolantC - P.cool[0]) / (P.cool[1] - P.cool[0])) * 50)); }],
+    { info: {"name":"fuelBar","kind":"leds","x":150,"y":674,"rate":2}, b: {
+        "lit": ["b74", function (S, H, L) { var fuelPct = S.fuelPct, round = H.round, clamp = H.clamp; return (round(clamp(fuelPct / 100) * 50)); }],
+    } },
+    { info: {"name":"coolBar","kind":"leds","x":1490,"y":674,"rate":2}, b: {
+        "lit": ["b77", function (S, H, L) { var coolantC = S.coolantC, round = H.round, clamp = H.clamp; return (round(clamp((coolantC - P.cool[0]) / (P.cool[1] - P.cool[0])) * 50)); }],
     } },
 ];
 /* logic.extra.js */
@@ -317,29 +320,32 @@ module.exports = {
         const put = (name, items) => { const r = row(ctx, P, name, items); out[name] = r.out; return r.widths; };
 
         /* range split: fuel | electric, in miles; "mi" after the fuel range */
-        const rr = put('ranges', [{ s: num(sig.rangeKm, 1 / MI), x: 648 }, { s: num(sig.evRangeKm, 1 / MI), x: 1238, anchor: 'end' }]);
-        put('rangeUnit', [{ s: 'mi', x: 648 + rr[0] + 8 }]);
+        const rr = put('ranges', [{ s: num(sig.rangeKm, 1 / MI), x: 600 }, { s: num(sig.evRangeKm, 1 / MI), x: 1286, anchor: 'end' }]);
+        put('rangeUnit', [{ s: 'mi', x: 600 + rr[0] + 8 }]);
 
         /* economy (the average, mpg) | HV battery */
         const avg = L.avgMpg;
-        const n436 = put('n436', [{ s: fin(avg) ? avg.toFixed(1) : '--', x: 648 }, { s: num(sig.socPct), x: 1112 }]);
-        put('u436', [{ s: 'mpg', x: 648 + n436[0] + 8 }, { s: '%', x: 1112 + n436[1] + 8 }]);
+        const n436 = put('n436', [{ s: fin(avg) ? avg.toFixed(1) : '--', x: 700 }, { s: num(sig.socPct), x: 1058 }]);
+        put('u436', [{ s: 'mpg', x: 700 + n436[0] + 8 }, { s: '%', x: 1058 + n436[1] + 8 }]);
 
-        /* y 618: electric trip, arrival | fuel (litres of the tank), trip, coolant; the units */
+        /* y 618: electric trip (ending at 770, its "mi" is art), arrival */
         const eta = typeof sig.eta === 'string' && /^\d\d?:\d\d$/.test(sig.eta) ? sig.eta : '--:--';
-        const ns = put('n618s', [{ s: fin(sig.evTripKm) ? (sig.evTripKm / MI).toFixed(1) : '--', x: 648 }, { s: eta, x: 1112 }]);
-        const fuelL = fin(sig.fuelPct) ? String(Math.round(sig.fuelPct / 100 * P.tankL)) : '--';
-        const nb = put('n618', [{ s: fuelL, x: 170 }, { s: fin(sig.tripKm) ? (sig.tripKm / MI).toFixed(1) : '--', x: 350 },
-            { s: num(sig.coolantC), x: 1430 }]);
-        put('u618', [{ s: 'mi', x: 648 + ns[0] + 8 }, { s: 'L', x: 170 + nb[0] + 8 }, { s: 'mi', x: 350 + nb[1] + 8 },
-            { s: '°C', x: 1430 + nb[2] + 8 }]);
+        put('n618s', [{ s: fin(sig.evTripKm) ? (sig.evTripKm / MI).toFixed(1) : '--', x: 770, anchor: 'end' }, { s: eta, x: 1100 }]);
 
-        /* y 672: "Average 41 mph" and "35 35 / 38 38 psi" (the words, "/" and "psi" are art) */
-        const f = ctx.fonts && ctx.fonts[P.rows.sub672.f];
+        /* y 664, under the dials: fuel (litres of the tank), trip; their units | coolant (ending at 1560, its "°C" is art), tyres */
+        const fuelL = fin(sig.fuelPct) ? String(Math.round(sig.fuelPct / 100 * P.tankL)) : '--';
+        const nl = put('nL', [{ s: fuelL, x: 150 }, { s: fin(sig.tripKm) ? (sig.tripKm / MI).toFixed(1) : '--', x: 390 }]);
+        put('uL', [{ s: 'L', x: 150 + nl[0] + 8 }, { s: 'mi', x: 390 + nl[1] + 8 }]);
         const ty = (i) => (sig.tyres && sig.tyres[i]) || {};
-        const slot = (i) => 1610 + widthOf(f, '35 35 / 38 38 '.slice(0, [0, 3, 8, 11][i]));
-        put('sub672', [{ s: num(sig.avgKmh, 1 / MI) + ' mph', x: 350 + widthOf(f, 'Average ') }]
-            .concat([0, 1, 2, 3].map((i) => ({ s: num(ty(i).bar, PSI), x: slot(i) }))));
+        const bars = [0, 1, 2, 3].map((i) => ty(i).bar);
+        const tyre = bars.every(fin) ? (Math.min(...bars) < P.tyreLowBar ? 'LOW' : 'OK') : '--';
+        put('nR', [{ s: num(sig.coolantC), x: 1560, anchor: 'end' }, { s: tyre, x: 1700 }]);
+
+        /* y 704: "Average 41 mph" and "35 35 / 38 38 psi" (the words, "/" and "psi" are art) */
+        const f = ctx.fonts && ctx.fonts[P.rows.subR.f];
+        const slot = (i) => 1700 + widthOf(f, '35 35 / 38 38 '.slice(0, [0, 3, 8, 11][i]));
+        put('subL', [{ s: num(sig.avgKmh, 1 / MI) + ' mph', x: 390 + widthOf(f, 'Average ') }]);
+        put('subR', [0, 1, 2, 3].map((i) => ({ s: num(ty(i).bar, PSI), x: slot(i) })));
     },
 };
 

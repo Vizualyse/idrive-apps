@@ -62,7 +62,7 @@ module.exports = {
         /* the columns' figures */
         const X = P.colX;
         const pct = (v) => (ok(v) ? Math.round(v) + ' %' : '--');
-        const deg = (v) => (ok(v) ? Math.round(v) + ' °C' : '--');
+        const deg = (v) => (ok(v) ? Math.round(v) + '°C' : '--');
         const mi = (v) => (ok(v) ? Math.round(v / 1.609344) + ' mi' : '--');
         const state = (c, hot) => (!ok(c) ? '' : c < 80 ? 'Warming' : c > hot ? 'Hot' : 'Normal');
         out.storeVal = keep(out.storeVal, place(ctx, P, 'storeVal', [{ s: pct(sig.fuelPct), x: X.fuel, align: 'center' }, { s: pct(sig.socPct), x: X.batt, align: 'center' }]));

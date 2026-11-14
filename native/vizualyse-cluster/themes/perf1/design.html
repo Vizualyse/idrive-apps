@@ -2,14 +2,17 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      perf1 "Performance 1" (Sport): the perf-fable Sport mockup as a design
-     (DESIGNS.md), re-laid out for the whole 1920 x 720 panel. Two
-     open-bottomed round dials (the same size: round stays round) moved down
-     to the panel's middle (y 372), the top row below the 40 px keep-clear
-     zone, the centre stack and the readings under the dials spread over the
-     height, the car plan and the bars' scales reaching into the old bottom
-     strip. Twelve shift lights, a rev counter whose centre floods red at the
-     shift point, the power balance, boost with its peak, HV and 12 V
-     batteries, tyres on the car plan, fuel, range, oil, coolant.
+     (DESIGNS.md), laid out for the car's panel as measured (DESIGNS.md, "The
+     car's panel"): the two open-bottomed round dials (the same size: round
+     stays round) at (428, 448) and (1500, 448), clear of the warning lights
+     on the left, the parking brake light and the cut top corners; the top
+     row at the panel's top edge (8 px); the power balance wider, above the
+     dials' tops; boost | HV battery between the dials; the car plan over
+     the bottom strip; fuel and range, oil and coolant under the dials, in
+     the strip (the gear's plate and the bottom-left lights left plain).
+     Twelve shift lights, a rev counter whose centre floods red at the shift
+     point, the power balance, boost with its peak, HV and 12 V batteries,
+     tyres on the car plan, fuel, range, oil, coolant.
      Several readings in one font and baseline share a text layer
      ("rows", laid out by logic.extra.js). Archivo (OFL): the variable subset
      for the art, its static instances for the glyph atlases (fonts/).
@@ -23,7 +26,7 @@
 <meta name="theme-mode" content="sport">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values the bindings use -->
 <meta name="let:vMph" content="smooth(mph(kmh), 12)">
@@ -42,16 +45,19 @@
 { "shiftRpm": 6400, "lightsFrom": 4600, "preRpm": 5850, "speedMax": 180, "tachMax": 8000,
   "boostMax": 1.5, "tankL": 59, "oil": [70, 150], "cool": [50, 130], "tyreCold": 20, "tyreWarm": 90, "barGap": 0.0024,
   "rows": {
-    "pw":     { "f": "f40w600", "x": 648, "w": 600 },
-    "pwUnit": { "f": "f20w500", "x": 648, "w": 220 },
-    "n436":   { "f": "f36w600", "x": 648, "w": 600 },
-    "u436":   { "f": "f20w500", "x": 648, "w": 640 },
+    "pw":     { "f": "f40w600", "x": 600, "w": 700 },
+    "pwUnit": { "f": "f20w500", "x": 600, "w": 220 },
+    "n436":   { "f": "f40w600", "x": 700, "w": 560 },
+    "u436":   { "f": "f20w500", "x": 700, "w": 600 },
     "psiF":   { "f": "f30w600", "x": 840, "w": 240 },
     "tempF":  { "f": "f22w600", "x": 840, "w": 240 },
     "tempR":  { "f": "f22w600", "x": 840, "w": 240 },
-    "n618s":  { "f": "f30w600", "x": 648, "w": 620 },
-    "n618":   { "f": "f36w600", "x": 170, "w": 1690 },
-    "u618":   { "f": "f20w500", "x": 170, "w": 1700 }
+    "n618s":  { "f": "f30w600", "x": 700, "w": 520 },
+    "u618s":  { "f": "f20w500", "x": 700, "w": 560 },
+    "nL":     { "f": "f40w600", "x": 150, "w": 400 },
+    "uL":     { "f": "f20w500", "x": 150, "w": 400 },
+    "nR":     { "f": "f40w600", "x": 1490, "w": 400 },
+    "uR":     { "f": "f20w500", "x": 1490, "w": 410 }
   } }
 </script>
 
@@ -71,7 +77,7 @@ svg { display: block; }
 svg text { font-family: "ArchivoVF", sans-serif; fill: var(--ink); }
 .lab { font-size: 18px; font-weight: 500; letter-spacing: .06em; fill: var(--ink3); font-stretch: 100%; }
 .unit { font-size: 20px; font-weight: 500; fill: var(--ink2); }
-.dialnum { font-size: 23px; font-weight: 500; font-stretch: 104%; fill: var(--tick); text-anchor: middle; }
+.dialnum { font-size: 25px; font-weight: 500; font-stretch: 104%; fill: var(--tick); text-anchor: middle; }
 .dialnum.on { fill: var(--ink); }
 .dialnum.red { fill: var(--sport); }
 .scale { font-size: 16px; font-weight: 500; fill: var(--ink3); }
@@ -88,26 +94,31 @@ svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20
       <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
     </pattern>
   </defs>
-  <!-- guides (not drawn by the theme): the top keep-clear zone, the old bottom strip's edge -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
-  <line data-guide x1="0" y1="646" x2="1920" y2="646" stroke="#3a6" stroke-dasharray="6 8"/>
+  <!-- guides (not drawn by the theme): the car's panel (DESIGNS.md): the top 8 px, the cut corners,
+       the warning lights and the gear's plate -->
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
+  <path data-guide d="M0 0 L325 0 L0 190 Z M1650 0 L1920 0 L1920 200 Z" fill="url(#hatch)" opacity="0.5"/>
+  <g data-guide fill="none" stroke="#c3c" stroke-dasharray="6 6">
+    <rect x="0" y="200" width="120" height="270"/><rect x="560" y="660" width="340" height="60"/>
+    <rect x="1790" y="200" width="130" height="100"/><rect x="1356" y="640" width="116" height="80"/>
+  </g>
 
   <!-- the static art (dials, scales, labels, tracks, the car) is drawn by the script below -->
   <g id="art"></g>
 
-  <!-- ===== the dials: one field, the rev counter's a copy of the speedometer's moved 1260 px =====
+  <!-- ===== the dials: one field, the rev counter's a copy of the speedometer's moved 1072 px =====
        The path runs at r 258 (the swept band's outer edge) clockwise from -122 to 122 degrees
        (2 degrees past the scale's ends, so the needle at an end shows whole); the scale runs
        9 px in from each end. Value arc r 268..276 (d -18..-10), needle r 232..284, a glow 100 px
        deep (cut at r 190, the numerals' inner edge) brightening the tick-grey numerals it passes. -->
-  <path id="speedPath" d="M111.2 508.72 A258 258 0 1 1 548.8 508.72" fill="none" stroke="none"
+  <path id="speedPath" d="M209.2 584.72 A258 258 0 1 1 646.8 584.72" fill="none" stroke="none"
         data-gauge="speedDial" data-start="9.006" data-end="9.006" data-maxd="68"
         data-value="vMph / P.speedMax"
         data-band="-18 -10" data-band-color="C.sport"
         data-needle="-26 26 7" data-needle-color="#ff9a8a"
         data-glow="100 180.1 0.35" data-glow-color="rgb(107, 24, 14)"
         data-pool="18 1.8 0" data-look="0 10 1"/>
-  <path id="tachPath" d="M1371.2 508.72 A258 258 0 1 1 1808.8 508.72" fill="none" stroke="none"
+  <path id="tachPath" d="M1281.2 584.72 A258 258 0 1 1 1718.8 584.72" fill="none" stroke="none"
         data-gauge="tachDial" data-reuse="speedDial" data-start="9.006" data-end="9.006" data-maxd="68"
         data-value="vRpm / P.tachMax"
         data-band="-18 -10" data-band-color="C.sport"
@@ -115,77 +126,77 @@ svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20
         data-glow="100 180.1 0.35" data-glow-color="rgb(107, 24, 14)"
         data-pool="18 1.8 0" data-look="0 10 1"/>
   <!-- the design's view of a sweep (a guide): the value arc to 93 mph and the needle -->
-  <path data-guide d="M94.44 508 A272 272 0 0 1 348.97 100.66" fill="none" stroke="#ff3a22" stroke-width="8"/>
-  <line data-guide x1="346.18" y1="140.57" x2="349.81" y2="88.69" stroke="#ff9a8a" stroke-width="5" stroke-linecap="round"/>
+  <path data-guide d="M192.44 584 A272 272 0 0 1 446.97 176.66" fill="none" stroke="#ff3a22" stroke-width="8"/>
+  <line data-guide x1="444.18" y1="216.57" x2="447.81" y2="164.69" stroke="#ff9a8a" stroke-width="5" stroke-linecap="round"/>
 
   <!-- the rev counter's centre floods red at the shift point -->
-  <circle cx="1590" cy="372" r="158" style="fill:var(--sport-deep);stroke:var(--line);stroke-width:1.5"
+  <circle cx="1500" cy="448" r="158" style="fill:var(--sport-deep);stroke:var(--line);stroke-width:1.5"
           data-rect="flood" data-show="cue"/>
-  <!-- the upshift chevron (1556,284)-(1590,254)-(1624,284), 9 wide: two sheared lights, the right half leaning back;
+  <!-- the upshift chevron (1466,360)-(1500,330)-(1534,360), 9 wide: two sheared lights, the right half leaning back;
        amber from just before the shift point, white at it -->
   <g data-leds="chevron" data-count="2" data-light="13.6 38" data-radius="2" data-halo="1" data-lean="43 20.4 1"
      data-lit="when(cue || pre, 2, 0)" data-c0="when(cue, C.ink, alpha(C.amber, 0.9))" data-c1="when(cue, C.ink, alpha(C.amber, 0.9))"
      data-off="'transparent'">
-    <rect x="1545" y="250" width="91" height="38" fill="none"/>
+    <rect x="1455" y="326" width="91" height="38" fill="none"/>
   </g>
 
-  <!-- ===== top row: time, outside, twelve shift lights (8 amber, 4 red; all red flashing at the shift point) ===== -->
-  <g data-leds="lights" data-count="12" data-light="30 20" data-split="8 8" data-radius="2"
+  <!-- ===== top row, at the panel's top edge: time, outside, twelve shift lights (8 amber, 4 red; all red flashing at the shift point) ===== -->
+  <g data-leds="lights" data-count="12" data-light="44 24" data-split="8 8" data-radius="2"
      data-c0="C.amber" data-c1="C.amber" data-c2="C.sport" data-off="C.track"
      data-lit="when(ok(rpm), when(cue, 12, floor(clamp((rpm - P.lightsFrom) / (P.shiftRpm - P.lightsFrom)) * 12 + 0.001)), 0)"
      data-flash="when(cue, when(flash(2.5), 1, 2), 0)">
-    <rect x="744" y="51" width="432" height="20" fill="none"/>
+    <rect x="648" y="14" width="624" height="24" fill="none"/>
   </g>
-  <text class="n" x="640" y="70" text-anchor="end" style="font-size:22px" data-text="clock" data-rate="1"
+  <text class="n" x="536" y="38" text-anchor="end" style="font-size:26px" data-text="clock" data-rate="1"
         data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">18:29</text>
-  <text class="n" x="722" y="70" text-anchor="end" style="font-size:22px;fill:var(--ink2)" data-text="outside" data-rate="1" data-glyphs="−"
+  <text class="n" x="628" y="38" text-anchor="end" style="font-size:26px;fill:var(--ink2)" data-text="outside" data-rate="1" data-glyphs="−"
         data-text-expr="when(outsideC &lt; 0, '−' + fmt(-outsideC), fmt(outsideC)) + ' °C'">18 °C</text>
 
   <!-- ===== the rev counter's centre: M, the gear, rpm ===== -->
-  <text class="n" x="1560" y="406" text-anchor="end" style="font-size:46px;fill:var(--ink2)" data-text="gearMode" data-glyphs="MDS"
+  <text class="n" x="1466" y="490" text-anchor="end" style="font-size:40px;fill:var(--ink2)" data-text="gearMode" data-glyphs="MDS"
         data-text-expr="when(/^[MDS]$/.test(gearMode), gearMode, ' ')" data-color="when(cue, C.ink, C.ink2)">M</text>
-  <text class="n" x="1608" y="406" text-anchor="middle" style="font-size:128px" data-text="gear" data-glyphs="N-"
+  <text class="n" x="1518" y="490" text-anchor="middle" style="font-size:144px" data-text="gear" data-glyphs="N-"
         data-text-expr="when(!ok(gear), '-', when(gear === 0, 'N', fmt(gear)))">4</text>
-  <text class="n" x="1612" y="460" text-anchor="end" style="font-size:30px" data-text="rpm" data-rate="10"
+  <text class="n" x="1522" y="544" text-anchor="end" style="font-size:30px" data-text="rpm" data-rate="10"
         data-text-expr="fmt(round(vRpm, 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')">5,240</text>
-  <text class="u" x="1620" y="460" data-text="rpmUnit" data-text-expr="'rpm'" data-color="when(cue, C.ink, C.ink2)">rpm</text>
+  <text class="u" x="1530" y="544" data-text="rpmUnit" data-text-expr="'rpm'" data-color="when(cue, C.ink, C.ink2)">rpm</text>
 
   <!-- the speedometer's centre -->
-  <text class="n" x="330" y="406" text-anchor="middle" style="font-size:116px" data-text="speed"
+  <text class="n" x="428" y="492" text-anchor="middle" style="font-size:136px" data-text="speed"
         data-text-expr="fmt(vMph)">93</text>
 
-  <!-- ===== power balance: figures, then the bar (engine right of zero, electric stacked on it, regen left of zero) ===== -->
-  <text class="n" x="948" y="224" text-anchor="middle" style="font-size:80px" data-text="sys" data-rate="10" data-glyphs="−"
+  <!-- ===== power balance, above the dials: figures, then the bar (engine right of zero, electric stacked on it, regen left of zero) ===== -->
+  <text class="n" x="960" y="146" text-anchor="middle" style="font-size:88px" data-text="sys" data-rate="10" data-glyphs="−"
         data-text-expr="when(e + l &lt; 0, '−' + fmt(-(e + l)), fmt(e + l))">386</text>
-  <!-- rows: the engine figure from 648, the electric one ending at 1240 (signed); "hp" 8 px after the engine's -->
-  <text class="n" x="648" y="208" style="font-size:40px" data-text="pw" data-width="600" data-text-expr="''" data-glyphs="+−">281</text>
-  <text data-guide class="n" x="1240" y="208" text-anchor="end" style="font-size:40px">+105</text>
-  <text class="u" x="648" y="208" data-text="pwUnit" data-width="220" data-text-expr="''" data-glyphs="hp">hp</text>
-  <!-- the bar: one field along y 259; the electric fill is the engine's field again (a copy, not moved) -->
-  <path d="M648 259 L1272 259" fill="none" style="stroke:var(--sport)" stroke-width="22"
+  <!-- rows: the engine figure from 600, the electric one ending at 1288 (signed); "hp" 8 px after the engine's -->
+  <text class="n" x="600" y="130" style="font-size:40px" data-text="pw" data-width="700" data-text-expr="''" data-glyphs="+−">281</text>
+  <text data-guide class="n" x="1288" y="130" text-anchor="end" style="font-size:40px">+105</text>
+  <text class="u" x="600" y="130" data-text="pwUnit" data-width="220" data-text-expr="''" data-glyphs="hp">hp</text>
+  <!-- the bar: one field along y 175; the electric fill is the engine's field again (a copy, not moved) -->
+  <path d="M600 175 L1320 175" fill="none" style="stroke:var(--sport)" stroke-width="22"
         data-gauge="engBar" data-art="off" data-band="-11 11" data-show="e >= 1"
         data-value="engEnd" data-from="0.2 + P.barGap"/>
-  <path d="M648 259 L1272 259" fill="none" style="stroke:var(--elec)" stroke-width="22"
+  <path d="M600 175 L1320 175" fill="none" style="stroke:var(--elec)" stroke-width="22"
         data-gauge="elBar" data-reuse="engBar" data-art="off" data-band="-11 11" data-show="abs(l) >= 1"
         data-value="when(l > 0, (clamp(e, 0, 400) + clamp(l, 0, 400) + 100) / 500, (max(l, -100) + 100) / 500)"
         data-from="when(l > 0, engEnd, 0.2 - P.barGap)"/>
 
-  <!-- ===== boost | HV battery (numbers at y 436) ===== -->
-  <text class="n" x="648" y="436" style="font-size:36px" data-text="n436" data-width="600" data-text-expr="''">1.23</text>
-  <text data-guide class="n" x="1112" y="436" style="font-size:36px">66</text>
-  <text class="u" x="648" y="436" data-text="u436" data-width="640" data-text-expr="''" data-glyphs="bar%">bar</text>
+  <!-- ===== boost | HV battery between the dials (numbers at y 302) ===== -->
+  <text class="n" x="700" y="302" style="font-size:40px" data-text="n436" data-width="560" data-text-expr="''">1.23</text>
+  <text data-guide class="n" x="1058" y="302" style="font-size:40px">66</text>
+  <text class="u" x="700" y="302" data-text="u436" data-width="600" data-text-expr="''" data-glyphs="bar%">bar</text>
   <g data-leds="boostBar" data-count="64" data-light="3.5 8" data-c0="C.sport" data-off="'transparent'"
      data-lit="round(clamp(bst / P.boostMax) * 64)">
-    <rect x="648" y="450" width="160" height="8" fill="none"/>
+    <rect x="700" y="316" width="160" height="8" fill="none"/>
   </g>
   <!-- the peak of the pull (logic.extra.js keeps it and moves the mark) -->
-  <rect x="647" y="446" width="3" height="16" style="fill:var(--ink)" data-rect="peakMark" data-dx="0"/>
-  <text class="n" x="808" y="514" text-anchor="end" style="font-size:22px" data-text="peak" data-text-expr="'--'" data-glyphs="0123456789.">1.35</text>
+  <rect x="699" y="312" width="3" height="16" style="fill:var(--ink)" data-rect="peakMark" data-dx="0"/>
+  <text class="n" x="860" y="380" text-anchor="end" style="font-size:22px" data-text="peak" data-text-expr="'--'" data-glyphs="0123456789.">1.35</text>
   <g data-leds="hv" data-count="10" data-light="14.2 8" data-radius="1" data-c0="C.elec" data-off="'transparent'"
      data-lit="round(socPct / 10)" data-rate="10">
-    <rect x="1111" y="450" width="162" height="8" fill="none"/>
+    <rect x="1057" y="316" width="162" height="8" fill="none"/>
   </g>
-  <text class="u" x="1112" y="514" data-text="hvState" data-rate="10"
+  <text class="u" x="1058" y="380" data-text="hvState" data-rate="10"
         data-text-expr="when(ok(elecHp), when(l > 8, 'ASSISTING', when(l &lt; -4, 'CHARGING', 'HOLDING')), '')"
         data-color="when(abs(l) > 8 || l &lt; -4, C.elec, C.ink3)">ASSISTING</text>
 
@@ -206,21 +217,26 @@ svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20
     <rect x="904" y="582" width="112" height="50" fill="none"/>
   </g>
 
-  <!-- ===== the row at y 618: 12 V, rear pressures, electric range (f30); fuel, range, oil, coolant (f36); their units ===== -->
-  <text class="n" x="648" y="618" style="font-size:30px" data-text="n618s" data-width="620" data-text-expr="''" data-rate="10">14.3</text>
-  <text class="n" x="170" y="618" style="font-size:36px" data-text="n618" data-width="1690" data-text-expr="''" data-rate="10">38</text>
-  <text class="u" x="170" y="618" data-text="u618" data-width="1700" data-text-expr="''" data-glyphs="VmiL°C" data-rate="10">mi</text>
+  <!-- ===== the row at y 618: 12 V, rear pressures, electric range (f30) and their units ===== -->
+  <text class="n" x="700" y="618" style="font-size:30px" data-text="n618s" data-width="520" data-text-expr="''" data-rate="10">14.3</text>
+  <text class="u" x="700" y="618" data-text="u618s" data-width="560" data-text-expr="''" data-glyphs="Vmi" data-rate="10">V</text>
+
+  <!-- ===== under the dials, in the bottom strip (y 664): fuel, range | oil, coolant (f40) and their units ===== -->
+  <text class="n" x="150" y="664" style="font-size:40px" data-text="nL" data-width="400" data-text-expr="''" data-rate="10">38</text>
+  <text class="u" x="150" y="664" data-text="uL" data-width="400" data-text-expr="''" data-glyphs="miL" data-rate="10">mi</text>
+  <text class="n" x="1490" y="664" style="font-size:40px" data-text="nR" data-width="400" data-text-expr="''" data-rate="10">96</text>
+  <text class="u" x="1490" y="664" data-text="uR" data-width="410" data-text-expr="''" data-glyphs="°C" data-rate="10">°C</text>
   <g data-leds="fuelBar" data-count="50" data-light="4 8" data-c0="C.ink" data-off="'transparent'" data-rate="10"
      data-lit="round(clamp(fuelPct / 100) * 50)">
-    <rect x="170" y="632" width="150" height="8" fill="none"/>
+    <rect x="150" y="674" width="150" height="8" fill="none"/>
   </g>
   <g data-leds="oilBar" data-count="50" data-light="4 8" data-c0="C.ink" data-off="'transparent'" data-rate="10"
      data-lit="round(clamp((oilC - P.oil[0]) / (P.oil[1] - P.oil[0])) * 50)">
-    <rect x="1430" y="632" width="150" height="8" fill="none"/>
+    <rect x="1490" y="674" width="150" height="8" fill="none"/>
   </g>
   <g data-leds="coolBar" data-count="50" data-light="4 8" data-c0="C.ink" data-off="'transparent'" data-rate="10"
      data-lit="round(clamp((coolantC - P.cool[0]) / (P.cool[1] - P.cool[0])) * 50)">
-    <rect x="1610" y="632" width="150" height="8" fill="none"/>
+    <rect x="1700" y="674" width="150" height="8" fill="none"/>
   </g>
 </svg>
 <script>
@@ -237,7 +253,7 @@ svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   /* ---------- the dials: track, red zone, ticks, numerals (at rest: 0 lit), the shift mark, the disc ---------- */
-  var A0 = -120, A1 = 120, SX = 330, TX = 1590, CY = 372;
+  var A0 = -120, A1 = 120, SX = 428, TX = 1500, CY = 448;
   function Dial(cx, cy, o) {
     var ang = function (v) { return A0 + clamp(v / o.max, 0, 1) * (A1 - A0); };
     el('path', { d: arc(cx, cy, 272, A0, A1), fill: 'none', stroke: css('track'), 'stroke-width': 8 });
@@ -246,48 +262,48 @@ svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20
       var major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6, a = ang(v), red = o.redFrom != null && v >= o.redFrom;
       var p = pol(cx, cy, 262, a), q = pol(cx, cy, major ? 240 : 251, a);
       el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: red ? css('sport') : major ? css('ink') : css('tick'), 'stroke-width': major ? 3 : 1.5 });
-      if (major) { var c = pol(cx, cy, 205, a); T(c[0], c[1] + 8, o.label(v), 'dialnum' + (red ? ' red' : v === 0 ? ' on' : ''), 'middle'); }
+      if (major) { var c = pol(cx, cy, 205, a); T(c[0], c[1] + 9, o.label(v), 'dialnum' + (red ? ' red' : v === 0 ? ' on' : ''), 'middle'); }
     }
     if (o.mark != null) el('path', { d: 'M0 -264 L-9 -292 L9 -292 Z', fill: css('amber'), transform: 'translate(' + cx + ' ' + cy + ') rotate(' + ang(o.mark) + ')' });
     el('circle', { cx: cx, cy: cy, r: 158, fill: css('disc'), stroke: css('line'), 'stroke-width': 1.5 });
   }
   Dial(SX, CY, { max: P.speedMax, major: 20, minor: 10, label: function (v) { return v; } });
   Dial(TX, CY, { max: P.tachMax, major: 1000, minor: 250, label: function (v) { return v / 1000; }, redFrom: 7000, mark: P.shiftRpm });
-  T(SX, CY + 80, 'mph', 'unit', 'middle').setAttribute('font-size', 22);
+  T(SX, CY + 92, 'mph', 'unit', 'middle').setAttribute('font-size', 24);
 
   /* ---------- top row: the unlit lights, the mode and the shift point ---------- */
-  for (var i = 0; i < 12; i++) el('rect', { x: 747 + i * 36, y: 51, width: 30, height: 20, rx: 2, fill: css('track') });
-  var mode = T(1198, 70, 'SPORT', ''); mode.setAttribute('style', 'font-size:24px;font-weight:700;font-stretch:108%;letter-spacing:.08em;fill:var(--sport)');
-  el('path', { d: 'M1312 53 L1328 53 L1320 69 Z', fill: css('amber') });
-  var sp = T(1336, 70, String(P.shiftRpm).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '');
-  sp.setAttribute('style', 'font-size:24px;font-weight:500;font-stretch:108%;fill:var(--ink2)');
+  for (var i = 0; i < 12; i++) el('rect', { x: 652 + i * 52, y: 14, width: 44, height: 24, rx: 2, fill: css('track') });
+  var mode = T(1294, 38, 'SPORT', ''); mode.setAttribute('style', 'font-size:26px;font-weight:700;font-stretch:108%;letter-spacing:.08em;fill:var(--sport)');
+  el('path', { d: 'M1418 19 L1436 19 L1427 37 Z', fill: css('amber') });
+  var sp = T(1444, 38, String(P.shiftRpm).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '');
+  sp.setAttribute('style', 'font-size:26px;font-weight:500;font-stretch:108%;fill:var(--ink2)');
 
   /* ---------- power balance: labels, the bar's track, scale and zero line ---------- */
-  var PX0 = 648, PX1 = 1272, PMIN = -100, PMAX = 400;
+  var PX0 = 600, PX1 = 1320, PMIN = -100, PMAX = 400, BY = 175;
   function px(v) { return PX0 + (clamp(v, PMIN, PMAX) - PMIN) / (PMAX - PMIN) * (PX1 - PX0); }
-  el('rect', { x: PX0, y: 140, width: 10, height: 10, fill: css('sport') }); T(PX0 + 18, 150, 'ENGINE', 'lab');
-  T(960, 150, 'SYSTEM POWER', 'lab', 'middle');
-  T(PX1 - 18, 150, 'ELECTRIC', 'lab', 'end'); el('rect', { x: PX1 - 10, y: 140, width: 10, height: 10, fill: css('elec') });
-  T(1032, 224, 'hp', 'unit').setAttribute('font-size', 24);
-  T(PX1, 208, 'hp', 'unit', 'end');
-  el('rect', { x: PX0, y: 248, width: PX1 - PX0, height: 22, rx: 1, fill: css('track') });
+  el('rect', { x: PX0, y: 54, width: 10, height: 10, fill: css('sport') }); T(PX0 + 18, 64, 'ENGINE', 'lab');
+  T(960, 64, 'SYSTEM POWER', 'lab', 'middle');
+  T(PX1 - 18, 64, 'ELECTRIC', 'lab', 'end'); el('rect', { x: PX1 - 10, y: 54, width: 10, height: 10, fill: css('elec') });
+  T(1056, 146, 'hp', 'unit').setAttribute('font-size', 24);
+  T(PX1, 130, 'hp', 'unit', 'end');
+  el('rect', { x: PX0, y: BY - 11, width: PX1 - PX0, height: 22, rx: 1, fill: css('track') });
   for (var v = PMIN; v <= PMAX; v += 50) {
     var maj = v % 100 === 0;
-    el('line', { x1: px(v), y1: 276, x2: px(v), y2: maj ? 284 : 280, stroke: v === 0 ? css('ink') : css('tick'), 'stroke-width': v === 0 ? 2 : 1.5 });
-    if (maj) T(px(v), 306, v < 0 ? '−' + (-v) : String(v), 'scale', 'middle');
+    el('line', { x1: px(v), y1: BY + 17, x2: px(v), y2: maj ? BY + 25 : BY + 21, stroke: v === 0 ? css('ink') : css('tick'), 'stroke-width': v === 0 ? 2 : 1.5 });
+    if (maj) T(px(v), BY + 47, v < 0 ? '−' + (-v) : String(v), 'scale', 'middle');
   }
-  el('line', { x1: px(0), y1: 242, x2: px(0), y2: 276, stroke: css('ink'), 'stroke-width': 2 });
+  el('line', { x1: px(0), y1: BY - 17, x2: px(0), y2: BY + 17, stroke: css('ink'), 'stroke-width': 2 });
 
   /* ---------- boost, 12 V | HV battery, electric range ---------- */
-  var LX = 648, RX = 1112, CW = 160;
-  T(LX, 392, 'BOOST', 'lab'); el('rect', { x: LX, y: 450, width: CW, height: 8, rx: 1, fill: css('track') });
-  T(LX, 482, '0', 'scale', 'start'); T(LX + CW, 482, '1.5', 'scale', 'end');
-  T(LX, 514, 'PEAK', 'lab');
+  var LX = 700, RX = 1058, CW = 160, DY = -134;
+  T(LX, 392 + DY, 'BOOST', 'lab'); el('rect', { x: LX, y: 450 + DY, width: CW, height: 8, rx: 1, fill: css('track') });
+  T(LX, 482 + DY, '0', 'scale', 'start'); T(LX + CW, 482 + DY, '1.5', 'scale', 'end');
+  T(LX, 514 + DY, 'PEAK', 'lab');
   T(LX, 574, '12 V BATTERY', 'lab');
-  T(RX, 392, 'HV BATTERY', 'lab');
-  for (var s = 0; s < 10; s++) el('rect', { x: RX + s * 16.2, y: 450, width: 14.2, height: 8, rx: 1, fill: css('track') });
-  T(RX, 482, '0', 'scale', 'start'); T(RX + CW, 482, '100', 'scale', 'end');
-  T(RX, 574, 'E-RANGE', 'lab');
+  T(RX, 392 + DY, 'HV BATTERY', 'lab');
+  for (var s = 0; s < 10; s++) el('rect', { x: RX + s * 16.2, y: 450 + DY, width: 14.2, height: 8, rx: 1, fill: css('track') });
+  T(RX, 482 + DY, '0', 'scale', 'start'); T(RX + CW, 482 + DY, '100', 'scale', 'end');
+  T(1100, 574, 'E-RANGE', 'lab');
 
   /* ---------- the car seen from above (the mockup's, 74 px lower); its tyres are layers ---------- */
   var car = el('g', { fill: 'none', stroke: css('tick'), 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(0 74)' });
@@ -296,20 +312,21 @@ svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20
   el('path', { d: 'M934 500 Q960 506 986 500 L990 524 Q960 532 930 524 Z' }, car);
   el('path', { d: 'M934 436 L934 500 M986 436 L986 500', 'stroke-width': 1.5 }, car);
   el('path', { d: 'M926 340 Q934 334 944 333 M994 340 Q986 334 976 333', stroke: css('ink2') }, car);
-  T(960, 674, 'PSI', 'lab', 'middle').style.fill = css('ink'); T(960, 696, '°C', 'lab', 'middle').style.fill = css('ink2');
+  T(960, 676, 'PSI', 'lab', 'middle').style.fill = css('ink'); T(960, 700, '°C', 'lab', 'middle').style.fill = css('ink2');
 
-  /* ---------- under the dials: fuel, range | oil, coolant: labels, bar tracks, scales ---------- */
-  function track(x) { el('rect', { x: x, y: 632, width: 150, height: 8, rx: 1, fill: css('track') }); }
+  /* ---------- under the dials, in the bottom strip: fuel, range | oil, coolant: labels, bar tracks, scales ---------- */
+  var BT = 674;
+  function track(x) { el('rect', { x: x, y: BT, width: 150, height: 8, rx: 1, fill: css('track') }); }
   function barScale(x, lo, hi) {
-    [0, 0.25, 0.5, 0.75, 1].forEach(function (k) { el('line', { x1: x + 150 * k, y1: 644, x2: x + 150 * k, y2: k % 0.5 === 0 ? 652 : 649, stroke: css('tick'), 'stroke-width': 1.5 }); });
-    T(x, 672, lo, 'scale', 'start'); T(x + 150, 672, hi, 'scale', 'end');
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (k) { el('line', { x1: x + 150 * k, y1: BT + 12, x2: x + 150 * k, y2: k % 0.5 === 0 ? BT + 20 : BT + 17, stroke: css('tick'), 'stroke-width': 1.5 }); });
+    T(x, BT + 40, lo, 'scale', 'start'); T(x + 150, BT + 40, hi, 'scale', 'end');
   }
-  T(170, 574, 'FUEL', 'lab'); track(170); barScale(170, '0', '1/1');
-  T(350, 574, 'RANGE', 'lab');
-  T(1430, 574, 'OIL', 'lab'); track(1430); barScale(1430, String(P.oil[0]), String(P.oil[1]));
-  T(1610, 574, 'COOLANT', 'lab'); track(1610); barScale(1610, String(P.cool[0]), String(P.cool[1]));
+  T(150, 620, 'FUEL', 'lab'); track(150); barScale(150, '0', '1/1');
+  T(390, 620, 'RANGE', 'lab');
+  T(1490, 620, 'OIL', 'lab'); track(1490); barScale(1490, String(P.oil[0]), String(P.oil[1]));
+  T(1700, 620, 'COOLANT', 'lab'); track(1700); barScale(1700, String(P.cool[0]), String(P.cool[1]));
   /* the normal working range, marked under each bar */
-  el('rect', { x: 1467.5, y: 642, width: 56.2, height: 3, fill: css('ink2') }); el('rect', { x: 1666.2, y: 642, width: 46.9, height: 3, fill: css('ink2') });
+  el('rect', { x: 1527.5, y: BT + 10, width: 56.2, height: 3, fill: css('ink2') }); el('rect', { x: 1756.2, y: BT + 10, width: 46.9, height: 3, fill: css('ink2') });
 })();
 </script>
 </body>

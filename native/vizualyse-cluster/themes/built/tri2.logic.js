@@ -127,7 +127,7 @@ const DR = (function () {
         NAMES: Object.keys(pure()).concat(STATEFUL), STATEFUL: STATEFUL };
 })();
 /* RUNTIME END */
-const P = {"tachMax":8000,"red":7200,"ladder":{"from":5300,"step":260,"due":6400},"ladCell":0.104762,"power":{"lo":-100,"hi":600,"a0":-135,"a1":135,"start":-96.928571,"span":359,"len":964.94},"pwTint":[-0.489,-0.091,-0.055,100],"pwDim":[0.008,0.016,0.02,0.9],"ladTint":[-0.467,-0.597,-0.129,100],"target":[2.4,2.4,2.6,2.6],"low":0.2,"cold":60,"hot":100,"tempFrom":40,"tempTo":160,"oilHot":120,"coolHot":110,"colX":{"fuel":126,"batt":205,"oil":1715,"cool":1794},"slatX":[1349,1473,1349,1473],"lay":{"storeVal":{"x":76,"w":180,"font":"f24w560"},"storeSub":{"x":76,"w":180,"font":"f16w460"},"tempVal":{"x":1660,"w":190,"font":"f24w560"},"tempSub":{"x":1660,"w":190,"font":"f16w460"},"flagF":{"x":1349,"w":236,"font":"f13w600"},"flagR":{"x":1349,"w":236,"font":"f13w600"}}};
+const P = {"tachMax":8000,"red":7200,"ladder":{"from":5300,"step":260,"due":6400},"ladCell":0.104762,"power":{"lo":-100,"hi":600,"a0":-135,"a1":135,"start":-96.928571,"span":359,"len":964.94},"pwTint":[-0.489,-0.091,-0.055,100],"pwDim":[0.008,0.016,0.02,0.9],"ladTint":[-0.467,-0.597,-0.129,100],"target":[2.4,2.4,2.6,2.6],"low":0.2,"cold":60,"hot":100,"tempFrom":40,"tempTo":160,"oilHot":120,"coolHot":110,"colX":{"fuel":138,"batt":208,"oil":1686,"cool":1766},"slatX":[1354,1478,1354,1478],"lay":{"storeVal":{"x":86,"w":180,"font":"f26w560"},"storeSub":{"x":86,"w":180,"font":"f17w460"},"tempVal":{"x":1640,"w":200,"font":"f26w560"},"tempSub":{"x":1640,"w":200,"font":"f17w460"},"flagF":{"x":1354,"w":236,"font":"f13w600"},"flagR":{"x":1354,"w":236,"font":"f13w600"}}};
 const C = {"z0":[0.0039,0.0078,0.0078,1],"z1":[0.0196,0.0353,0.0431,1],"z2":[0.051,0.0784,0.0902,1],"z3":[0.1059,0.1373,0.1529,1],"z4":[0.1725,0.2039,0.2196,1],"z5":[0.2667,0.298,0.3137,1],"z6":[0.3882,0.4157,0.4314,1],"z7":[0.5255,0.5569,0.5686,1],"z8":[0.6745,0.698,0.7098,1],"z9":[0.8235,0.8431,0.851,1],"z10":[0.9569,0.9686,0.9765,1],"electric":[0.2235,0.8314,0.8941,1],"signal":[0.9529,0.2588,0.2078,1],"caution":[0.9882,0.7098,0.2588,1],"shift":[0.7529,0.9725,0.2824,1],"tach-dim":[0.0078,0.0235,0.0353,1],"tachDim":[0.0078,0.0235,0.0353,1],"face-mid":[0.0196,0.0431,0.0549,1],"faceMid":[0.0196,0.0431,0.0549,1]};
 const LETS = [
     ["vRpm", "b0", function (S, H, L) { var rpm = S.rpm, smooth = H.smooth; return (smooth(rpm, 18)); }],
@@ -154,30 +154,30 @@ const LAYERS = [
     { info: {"name":"cool","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
         "value": ["b13", function (S, H, L) { var coolantC = S.coolantC, clamp = H.clamp; return (clamp((coolantC - P.tempFrom) / (P.tempTo - P.tempFrom))); }],
     } },
-    { info: {"name":"storeVal","kind":"text","x":76,"y":525,"nullText":"--"}, b: {
+    { info: {"name":"storeVal","kind":"text","x":86,"y":615,"nullText":"--"}, b: {
         "text": ["b14", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"storeSub","kind":"text","x":76,"y":554,"nullText":"--"}, b: {
+    { info: {"name":"storeSub","kind":"text","x":86,"y":647,"nullText":"--"}, b: {
         "text": ["b15", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"tempVal","kind":"text","x":1660,"y":525,"nullText":"--"}, b: {
+    { info: {"name":"tempVal","kind":"text","x":1640,"y":615,"nullText":"--"}, b: {
         "text": ["b16", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"tempSub","kind":"text","x":1660,"y":554,"nullText":"--"}, b: {
+    { info: {"name":"tempSub","kind":"text","x":1640,"y":647,"nullText":"--"}, b: {
         "text": ["b17", function (S, H, L) { return (''); }],
     } },
     { info: {"name":"pw","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
     } },
-    { info: {"name":"pTotal","kind":"text","x":371,"y":328,"nullText":"--"}, b: {
+    { info: {"name":"pTotal","kind":"text","x":360,"y":379,"nullText":"--"}, b: {
         "text": ["b21", function (S, H, L) { var vEng = L.vEng, vEle = L.vEle, round = H.round, max = H.max, fmt = H.fmt, abs = H.abs; return ((round(max(0, vEng) + vEle) < 0 ? '−' : '') + fmt(abs(round(max(0, vEng) + vEle)))); }],
     } },
-    { info: {"name":"pEng","kind":"text","x":482,"y":429,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"pEng","kind":"text","x":484,"y":482,"rate":10,"nullText":"--"}, b: {
         "text": ["b22", function (S, H, L) { var vEng = L.vEng, fmt = H.fmt, max = H.max; return (fmt(max(0, vEng))); }],
     } },
-    { info: {"name":"pEleLbl","kind":"text","x":391,"y":467,"nullText":"--"}, b: {
+    { info: {"name":"pEleLbl","kind":"text","x":375,"y":521,"nullText":"--"}, b: {
         "text": ["b23", function (S, H, L) { var vEle = L.vEle, when = H.when; return (when(vEle < -0.5, 'Recovering', 'Electric')); }],
     } },
-    { info: {"name":"pEle","kind":"text","x":466,"y":463,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"pEle","kind":"text","x":467,"y":516,"rate":10,"nullText":"--"}, b: {
         "text": ["b24", function (S, H, L) { var vEle = L.vEle, round = H.round, fmt = H.fmt, abs = H.abs; return ((round(vEle) < 0 ? '−' : '') + fmt(abs(round(vEle)))); }],
     } },
     { info: {"name":"tach","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
@@ -188,91 +188,91 @@ const LAYERS = [
         "value": ["b29", function (S, H, L) { var ladK = L.ladK, min = H.min; return (1 - min(ladK * P.ladCell, 0.5) - 0.005); }],
         "from": ["b30", function (S, H, L) { var ladK = L.ladK, min = H.min; return (min(ladK * P.ladCell, 0.5)); }],
     } },
-    { info: {"name":"gmMask","kind":"rect","x":826,"y":362}, b: {
+    { info: {"name":"gmMask","kind":"rect","x":816,"y":355}, b: {
         "show": ["b33", function (S, H, L) { var gearMode = S.gearMode; return (gearMode !== 'M'); }],
     } },
-    { info: {"name":"gear","kind":"text","x":921,"y":257,"nullText":"--"}, b: {
+    { info: {"name":"gear","kind":"text","x":918,"y":242,"nullText":"--"}, b: {
         "text": ["b34", function (S, H, L) { var gearMode = S.gearMode, gear = S.gear, when = H.when, fmt = H.fmt; return (when(/^[PRN]$/.test(gearMode) || gear <= 0, '', fmt(gear))); }],
         "color": ["b35", function (S, H, L) { var due = L.due, when = H.when; return (when(due, C.shift, C.z10)); }],
         "dy": ["b36", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"gearNR","kind":"text","x":921,"y":260,"nullText":""}, b: {
+    { info: {"name":"gearNR","kind":"text","x":918,"y":246,"nullText":""}, b: {
         "text": ["b37", function (S, H, L) { var gearMode = S.gearMode, gear = S.gear, when = H.when; return (when(/^[PRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', when(gear < 0, 'R', '')))); }],
         "dy": ["b38", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"speed","kind":"text","x":899,"y":464,"nullText":"--"}, b: {
+    { info: {"name":"speed","kind":"text","x":894,"y":464,"nullText":"--"}, b: {
         "text": ["b39", function (S, H, L) { var kmh = S.kmh, fmt = H.fmt, smooth = H.smooth, mph = H.mph; return (fmt(smooth(mph(kmh), 12))); }],
     } },
-    { info: {"name":"metaA","kind":"text","x":863,"y":650,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"metaA","kind":"text","x":358,"y":139,"rate":10,"nullText":"--"}, b: {
         "text": ["b40", function (S, H, L) { var clock = S.clock, outsideC = S.outsideC, when = H.when, ok = H.ok, fmt = H.fmt, abs = H.abs; return (when(ok(clock), clock, '--') + ' · ' + (outsideC <= -0.5 ? '−' : '') + fmt(abs(outsideC)) + ' °C'); }],
     } },
-    { info: {"name":"metaB","kind":"text","x":965,"y":650,"rate":10,"nullText":"--"}, b: {
-        "text": ["b41", function (S, H, L) { var odoKm = S.odoKm, when = H.when, ok = H.ok, floor = H.floor, miles = H.miles; return (' · ' + when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'); }],
+    { info: {"name":"metaB","kind":"text","x":1401,"y":139,"rate":10,"nullText":"--"}, b: {
+        "text": ["b41", function (S, H, L) { var odoKm = S.odoKm, when = H.when, ok = H.ok, floor = H.floor, miles = H.miles; return (when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'); }],
     } },
-    { info: {"name":"bar0","kind":"leds","x":1359,"y":367,"rate":10}, b: {
+    { info: {"name":"bar0","kind":"leds","x":1364,"y":422,"rate":10}, b: {
         "u_c0": ["b42", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[0].c, C.z6, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
         "lit": ["b44", function (S, H, L) { var tyres = S.tyres, round = H.round, clamp = H.clamp; return (round(46 * clamp((tyres[0].c - 30) / 80, 0.04, 1))); }],
     } },
-    { info: {"name":"ring0","kind":"rect","x":1348,"y":296}, b: {
+    { info: {"name":"ring0","kind":"rect","x":1353,"y":351}, b: {
         "show": ["b45", function (S, H, L) { var low0 = L.low0; return (low0); }],
     } },
-    { info: {"name":"psi0","kind":"text","x":1359,"y":329,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"psi0","kind":"text","x":1364,"y":384,"rate":10,"nullText":"--"}, b: {
         "text": ["b46", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return (fmt(psi(tyres[0].bar))); }],
         "color": ["b47", function (S, H, L) { var low0 = L.low0, when = H.when; return (when(low0, C.caution, C.z10)); }],
     } },
-    { info: {"name":"temp0","kind":"text","x":1416,"y":343,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"temp0","kind":"text","x":1420,"y":397,"rate":10,"nullText":"--"}, b: {
         "text": ["b48", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt; return (fmt(tyres[0].c) + '°'); }],
         "color": ["b49", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[0].c, C.z7, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
     } },
-    { info: {"name":"bar1","kind":"leds","x":1483,"y":367,"rate":10}, b: {
+    { info: {"name":"bar1","kind":"leds","x":1488,"y":422,"rate":10}, b: {
         "u_c0": ["b50", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[1].c, C.z6, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
         "lit": ["b52", function (S, H, L) { var tyres = S.tyres, round = H.round, clamp = H.clamp; return (round(46 * clamp((tyres[1].c - 30) / 80, 0.04, 1))); }],
     } },
-    { info: {"name":"ring1","kind":"rect","x":1472,"y":296}, b: {
+    { info: {"name":"ring1","kind":"rect","x":1477,"y":351}, b: {
         "show": ["b53", function (S, H, L) { var low1 = L.low1; return (low1); }],
     } },
-    { info: {"name":"psi1","kind":"text","x":1483,"y":329,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"psi1","kind":"text","x":1488,"y":384,"rate":10,"nullText":"--"}, b: {
         "text": ["b54", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return (fmt(psi(tyres[1].bar))); }],
         "color": ["b55", function (S, H, L) { var low1 = L.low1, when = H.when; return (when(low1, C.caution, C.z10)); }],
     } },
-    { info: {"name":"temp1","kind":"text","x":1540,"y":343,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"temp1","kind":"text","x":1544,"y":397,"rate":10,"nullText":"--"}, b: {
         "text": ["b56", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt; return (fmt(tyres[1].c) + '°'); }],
         "color": ["b57", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[1].c, C.z7, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
     } },
-    { info: {"name":"bar2","kind":"leds","x":1359,"y":459,"rate":10}, b: {
+    { info: {"name":"bar2","kind":"leds","x":1364,"y":514,"rate":10}, b: {
         "u_c0": ["b58", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[2].c, C.z6, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
         "lit": ["b60", function (S, H, L) { var tyres = S.tyres, round = H.round, clamp = H.clamp; return (round(46 * clamp((tyres[2].c - 30) / 80, 0.04, 1))); }],
     } },
-    { info: {"name":"ring2","kind":"rect","x":1348,"y":388}, b: {
+    { info: {"name":"ring2","kind":"rect","x":1353,"y":443}, b: {
         "show": ["b61", function (S, H, L) { var low2 = L.low2; return (low2); }],
     } },
-    { info: {"name":"psi2","kind":"text","x":1359,"y":421,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"psi2","kind":"text","x":1364,"y":476,"rate":10,"nullText":"--"}, b: {
         "text": ["b62", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return (fmt(psi(tyres[2].bar))); }],
         "color": ["b63", function (S, H, L) { var low2 = L.low2, when = H.when; return (when(low2, C.caution, C.z10)); }],
     } },
-    { info: {"name":"temp2","kind":"text","x":1416,"y":435,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"temp2","kind":"text","x":1420,"y":489,"rate":10,"nullText":"--"}, b: {
         "text": ["b64", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt; return (fmt(tyres[2].c) + '°'); }],
         "color": ["b65", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[2].c, C.z7, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
     } },
-    { info: {"name":"bar3","kind":"leds","x":1483,"y":459,"rate":10}, b: {
+    { info: {"name":"bar3","kind":"leds","x":1488,"y":514,"rate":10}, b: {
         "u_c0": ["b66", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[3].c, C.z6, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
         "lit": ["b68", function (S, H, L) { var tyres = S.tyres, round = H.round, clamp = H.clamp; return (round(46 * clamp((tyres[3].c - 30) / 80, 0.04, 1))); }],
     } },
-    { info: {"name":"ring3","kind":"rect","x":1472,"y":388}, b: {
+    { info: {"name":"ring3","kind":"rect","x":1477,"y":443}, b: {
         "show": ["b69", function (S, H, L) { var low3 = L.low3; return (low3); }],
     } },
-    { info: {"name":"psi3","kind":"text","x":1483,"y":421,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"psi3","kind":"text","x":1488,"y":476,"rate":10,"nullText":"--"}, b: {
         "text": ["b70", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return (fmt(psi(tyres[3].bar))); }],
         "color": ["b71", function (S, H, L) { var low3 = L.low3, when = H.when; return (when(low3, C.caution, C.z10)); }],
     } },
-    { info: {"name":"temp3","kind":"text","x":1540,"y":435,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"temp3","kind":"text","x":1544,"y":489,"rate":10,"nullText":"--"}, b: {
         "text": ["b72", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt; return (fmt(tyres[3].c) + '°'); }],
         "color": ["b73", function (S, H, L) { var tyres = S.tyres, step = H.step; return (step(tyres[3].c, C.z7, P.cold, C.z9, P.hot + 0.001, C.caution)); }],
     } },
-    { info: {"name":"flagF","kind":"text","x":1349,"y":307,"nullText":"--"}, b: {
+    { info: {"name":"flagF","kind":"text","x":1354,"y":362,"nullText":"--"}, b: {
         "text": ["b74", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"flagR","kind":"text","x":1349,"y":399,"nullText":"--"}, b: {
+    { info: {"name":"flagR","kind":"text","x":1354,"y":454,"nullText":"--"}, b: {
         "text": ["b75", function (S, H, L) { return (''); }],
     } },
 ];
@@ -342,7 +342,7 @@ module.exports = {
         /* the columns' figures */
         const X = P.colX;
         const pct = (v) => (ok(v) ? Math.round(v) + ' %' : '--');
-        const deg = (v) => (ok(v) ? Math.round(v) + ' °C' : '--');
+        const deg = (v) => (ok(v) ? Math.round(v) + '°C' : '--');
         const mi = (v) => (ok(v) ? Math.round(v / 1.609344) + ' mi' : '--');
         const state = (c, hot) => (!ok(c) ? '' : c < 80 ? 'Warming' : c > hot ? 'Hot' : 'Normal');
         out.storeVal = keep(out.storeVal, place(ctx, P, 'storeVal', [{ s: pct(sig.fuelPct), x: X.fuel, align: 'center' }, { s: pct(sig.socPct), x: X.batt, align: 'center' }]));

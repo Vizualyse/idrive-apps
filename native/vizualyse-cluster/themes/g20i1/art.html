@@ -2,9 +2,11 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      g20i1 "G20 inspired 1" (Sport): the G20 Sport mockup as a design
-     (DESIGNS.md), re-laid out for the whole 1920 x 720 panel: the brackets,
-     the centre column and the info line use the old bottom strip; nothing
-     important in the top 40 px. Build: node tools/design_build.js themes/g20i1
+     (DESIGNS.md), fitted to the car's panel (DESIGNS.md, "The car's panel"):
+     the brackets reach up to the top edge and out to the warning lights'
+     column, the info line runs in the bottom strip around the bottom-left
+     lights and the gear window, nothing marked under the lights or in the
+     glass's cut corners. Build: node tools/design_build.js themes/g20i1
      (before themes/g20i1c, the Comfort theme, so their shared textures dedupe) -->
 <html>
 <head>
@@ -15,7 +17,7 @@
 <meta name="theme-mode" content="sport">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values the bindings use -->
 <meta name="let:vMph" content="smooth(mph(kmh), 14)">
@@ -41,10 +43,11 @@
 html, body { margin: 0; background: #000; }
 svg { display: block; }
 svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: var(--ink); }
-.big { font-size: 170px; font-weight: 500; letter-spacing: -0.02em; }
+.big { font-size: 184px; font-weight: 500; letter-spacing: -0.02em; }
 .dim { fill: var(--dim); }
 .lbl { font-size: 22px; font-weight: 500; letter-spacing: 0.06em; fill: var(--dim); }
 .val { font-size: 30px; font-weight: 500; }
+.val.info { font-size: 33px; }
 .small { font-size: 24px; font-weight: 500; }
 .unit { font-size: 22px; font-weight: 500; fill: var(--dim); }
 .g-outline { fill: none; stroke: var(--line); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
@@ -53,7 +56,7 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
 .g-red { fill: none; stroke: var(--sport); stroke-width: 7; }
 .g-tick { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
 .g-tick.minor { stroke-width: 2; opacity: 0.7; }
-.g-num { font-size: 34px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
+.g-num { font-size: 36px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
 .bar-track { fill: none; stroke: var(--track); stroke-width: 14; stroke-linecap: butt; }
 .bar-fill { fill: none; stroke-width: 14; stroke-linecap: butt; }
 .mini-track { stroke: var(--track); stroke-width: 7; stroke-linecap: round; fill: none; }
@@ -101,11 +104,12 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
   </defs>
 
   <!-- a guide (not drawn by the theme): the top keep-clear zone -->
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
 
-  <!-- the washes behind the brackets (they bleed off the panel's edges and top on purpose) -->
-  <ellipse data-bleed cx="250" cy="470" rx="330" ry="240" fill="url(#wash)"/>
-  <ellipse data-bleed cx="1670" cy="470" rx="330" ry="240" fill="url(#wash)"/>
+  <!-- the washes behind the brackets (they bleed off the panel's edges on purpose;
+       centred inside the brackets so they fade out under the warning lights) -->
+  <ellipse data-bleed cx="300" cy="420" rx="330" ry="270" fill="url(#wash)"/>
+  <ellipse data-bleed cx="1620" cy="420" rx="330" ry="270" fill="url(#wash)"/>
 
   <!-- the bracket gauges: the outline is kept in the art (data-keep) and is
        the gauge's path; the scale runs from 290 px along it to 40 px before
@@ -143,47 +147,47 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
      data-radius="0.8" data-lean="15.4 12 1" data-c0="C.amber" data-c1="C.amber" data-c2="C.sport" data-off="C.track"
      data-lit="when(ok(rpm), when(cue, 7, floor(clamp((rpm - P.shiftFrom) / (P.shiftRpm - P.shiftFrom), 0, 0.999) * 7)), 0)"
      data-flash="cue">
-    <rect x="750" y="48" width="420" height="22" fill="none"/>
+    <rect x="750" y="14" width="420" height="22" fill="none"/>
   </g>
 
   <!-- speed readout -->
-  <text class="big" x="640" y="392" text-anchor="end" data-text="speedText" data-text-expr="fmt(mph(kmh))">118</text>
-  <text class="unit" x="654" y="392" style="font-size:28px">mph</text>
-  <rect x="372" y="413" width="348" height="2" fill="url(#ruleL)"/>
-  <text class="val" x="584" y="458" text-anchor="end" data-text="kmhText" data-text-expr="fmt(kmh)" data-rate="10">190</text>
-  <text class="unit" x="592" y="458">km/h</text>
+  <text class="big" x="664" y="424" text-anchor="end" data-text="speedText" data-text-expr="fmt(mph(kmh))">118</text>
+  <text class="unit" x="678" y="424" style="font-size:32px">mph</text>
+  <rect x="380" y="450" width="360" height="2" fill="url(#ruleL)"/>
+  <text class="val" x="600" y="500" text-anchor="end" data-text="kmhText" data-text-expr="fmt(kmh)" data-rate="10">190</text>
+  <text class="unit" x="608" y="500">km/h</text>
 
   <!-- gear and revs readout -->
-  <text class="dim" x="1250" y="392" style="font-size:64px;font-weight:400" data-text="prefixText" data-glyphs="MDS0123456789"
+  <text class="dim" x="1236" y="424" style="font-size:76px;font-weight:400" data-text="prefixText" data-glyphs="MDS0123456789"
         data-text-expr="when(/^[MDS]$/.test(gearMode) &amp;&amp; gear > 0, gearMode, '')">M</text>
-  <text class="big" x="1300" y="392" data-text="gearText" data-glyphs="PRNDMS"
+  <text class="big" x="1294" y="424" data-text="gearText" data-glyphs="PRNDMS"
         data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', fmt(gear)))"
         data-color="when(cue, C.sport, C.ink)">4</text>
-  <rect x="1200" y="413" width="348" height="2" fill="url(#ruleR)"/>
-  <text class="val" x="1318" y="458" text-anchor="end" data-text="rpmText" data-glyphs="/" data-text-expr="fmt(round(rpm, 50))" data-rate="10">6250</text>
-  <text class="unit" x="1326" y="458">rpm</text>
-  <text class="lbl" x="1392" y="458">BOOST</text>
-  <text class="val" x="1512" y="458" text-anchor="end" data-text="boostText" data-text-expr="fmt(psi(max(0, boostBar)))" data-rate="10">22</text>
-  <text class="unit" x="1518" y="458">psi</text>
+  <rect x="1180" y="450" width="360" height="2" fill="url(#ruleR)"/>
+  <text class="val" x="1316" y="500" text-anchor="end" data-text="rpmText" data-glyphs="/" data-text-expr="fmt(round(rpm, 50))" data-rate="10">6250</text>
+  <text class="unit" x="1324" y="500">rpm</text>
+  <text class="lbl" x="1394" y="500">BOOST</text>
+  <text class="val" x="1520" y="500" text-anchor="end" data-text="boostText" data-text-expr="fmt(psi(max(0, boostBar)))" data-rate="10">22</text>
+  <text class="unit" x="1526" y="500">psi</text>
 
   <!-- power bars: tracks and labels are art, the fills are gauges (electric mirrors engine's field) -->
-  <text class="lbl" x="800" y="116" text-anchor="middle">184</text>
-  <path id="engineTrack" class="bar-track" d="M800 470 Q758 300 800 130"/>
-  <path class="bar-fill" style="stroke:var(--line)" d="M800 470 Q758 300 800 130" data-gauge="engine" data-art="off"
+  <text class="lbl" x="800" y="83" text-anchor="middle">184</text>
+  <path id="engineTrack" class="bar-track" d="M800 534 Q752 313 800 92"/>
+  <path class="bar-fill" style="stroke:var(--line)" d="M800 534 Q752 313 800 92" data-gauge="engine" data-art="off"
         data-value="clamp(smooth(max(0, engineHp), 12) / P.engineMaxHp)"/>
-  <text class="val" x="806" y="508" text-anchor="end" data-text="engineText" data-text-expr="fmt(max(0, engineHp))" data-rate="10">184</text>
-  <text class="unit" x="812" y="508">hp</text>
-  <text class="lbl" x="800" y="536" text-anchor="middle">ENGINE</text>
-  <text class="lbl" x="1120" y="116" text-anchor="middle">113</text>
-  <path id="electricTrack" class="bar-track" d="M1120 470 Q1162 300 1120 130"/>
+  <text class="val" x="806" y="574" text-anchor="end" data-text="engineText" data-text-expr="fmt(max(0, engineHp))" data-rate="10">184</text>
+  <text class="unit" x="812" y="574">hp</text>
+  <text class="lbl" x="800" y="602" text-anchor="middle">ENGINE</text>
+  <text class="lbl" x="1120" y="83" text-anchor="middle">113</text>
+  <path id="electricTrack" class="bar-track" d="M1120 534 Q1168 313 1120 92"/>
   <line id="electricZero" stroke-width="2" style="stroke:var(--ink)"/>
-  <path class="bar-fill" style="stroke:var(--volt)" d="M1120 470 Q1162 300 1120 130" data-gauge="electric" data-reuse="engine" data-art="off"
+  <path class="bar-fill" style="stroke:var(--volt)" d="M1120 534 Q1168 313 1120 92" data-gauge="electric" data-reuse="engine" data-art="off"
         data-value="when(ele > 0.5, 0.25 + clamp(ele / P.electricMaxHp) * 0.75, when(ele &lt; -0.5, 0.25 - clamp(-ele / P.regenMaxHp) * 0.25, 0.25))"
         data-from="when(ele &lt; -0.5, 0.25 - P.barGap, 0.25 + P.barGap)"
         data-band-color="alpha(C.volt, when(abs(ele) > 0.5, 1, 0))"/>
-  <text class="val" x="1126" y="508" text-anchor="end" data-text="electricText" data-text-expr="fmt(abs(elecHp))" data-rate="10">113</text>
-  <text class="unit" x="1132" y="508">hp</text>
-  <text class="lbl" x="1120" y="536" text-anchor="middle" data-text="electricLabel" data-glyphs="dimy"
+  <text class="val" x="1126" y="574" text-anchor="end" data-text="electricText" data-text-expr="fmt(abs(elecHp))" data-rate="10">113</text>
+  <text class="unit" x="1132" y="574">hp</text>
+  <text class="lbl" x="1120" y="602" text-anchor="middle" data-text="electricLabel" data-glyphs="dimy"
         data-text-expr="when(elecHp &lt; -1, 'CHARGING', 'ELECTRIC')" data-rate="10">ELECTRIC</text>
 
   <!-- no map slot in Sport: the centre column is the car plan and its tyres
@@ -224,41 +228,43 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
         data-text-expr="fmt(tyres[0].c) + '°' + P.tempGap + fmt(tyres[1].c) + '°'">61°&#8195;&#8195;&#8195;&#8195;&#8195;&#8195; 65°</text>
   <text class="small dim" x="853" y="410" data-text="tempRear" data-rate="10"
         data-text-expr="fmt(tyres[2].c) + '°' + P.tempGap + fmt(tyres[3].c) + '°'">58°&#8195;&#8195;&#8195;&#8195;&#8195;&#8195; 62°</text>
-  <text class="lbl" x="960" y="470" text-anchor="middle">TYRES  psi / °C</text>
+  <text class="lbl" x="960" y="496" text-anchor="middle">TYRES  psi / °C</text>
 
   <!-- battery -->
-  <g class="icon" transform="translate(800 577)"><rect x="0" y="0" width="30" height="16" rx="2"/><path d="M30 5 h4 v6 h-4"/></g>
-  <text class="lbl" x="846" y="594">BATTERY</text>
-  <text class="val" x="1022" y="595" text-anchor="end" data-text="socText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
-  <text class="unit" x="1027" y="595">%</text>
-  <text class="val" x="1090" y="595" text-anchor="end" data-text="evRangeText" data-text-expr="fmt(miles(evRangeKm))" data-rate="10">35</text>
-  <text class="unit" x="1096" y="595">mi</text>
+  <g class="icon" transform="translate(800 617)"><rect x="0" y="0" width="30" height="16" rx="2"/><path d="M30 5 h4 v6 h-4"/></g>
+  <text class="lbl" x="846" y="634">BATTERY</text>
+  <text class="val" x="1022" y="635" text-anchor="end" data-text="socText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
+  <text class="unit" x="1027" y="635">%</text>
+  <text class="val" x="1090" y="635" text-anchor="end" data-text="evRangeText" data-text-expr="fmt(miles(evRangeKm))" data-rate="10">35</text>
+  <text class="unit" x="1096" y="635">mi</text>
   <g id="socCells" data-leds="socCells" data-count="20" data-light="13 9" data-c0="C.volt" data-off="C.track"
      data-lit="round(socPct / 5)" data-rate="10">
-    <rect x="798" y="606" width="323" height="13" fill="none"/>
+    <rect x="798" y="644" width="323" height="13" fill="none"/>
   </g>
 
-  <!-- info line, in the old bottom strip -->
-  <text class="val" x="282" y="690" text-anchor="end" data-text="rangeText" data-text-expr="fmt(miles(rangeKm))" data-rate="10">312</text>
-  <text class="unit" x="289" y="690">mi</text>
-  <text class="val" x="390" y="690" data-text="clockText" data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')" data-rate="10">14:32</text>
-  <text class="lbl" x="530" y="690">0–60</text>
+  <!-- info line, in the bottom strip, in three runs around the car's lights:
+       left of the bottom-left warning lights (x 560-900), between them and
+       the gear's plate (x 1356-1472), and right of it -->
+  <text class="val info" x="214" y="700" text-anchor="end" data-text="rangeText" data-text-expr="fmt(miles(rangeKm))" data-rate="10">312</text>
+  <text class="unit" x="221" y="700">mi</text>
+  <text class="val info" x="282" y="700" data-text="clockText" data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')" data-rate="10">14:32</text>
+  <text class="lbl" x="400" y="700">0–60</text>
   <!-- 0-60 mph is timed in logic.extra.js -->
-  <text class="val" x="632" y="690" text-anchor="end" data-text="z60Text" data-text-expr="'--'" data-glyphs="0123456789.">12.5</text>
-  <text class="unit" x="638" y="690">s</text>
-  <text class="mode" x="960" y="690">SPORT</text>
-  <text class="lbl" x="1232" y="690">COOLANT</text>
-  <text class="val" x="1386" y="690" text-anchor="end" data-text="coolantText" data-text-expr="fmt(coolantC)" data-rate="10">120</text>
-  <text class="unit" x="1392" y="690">°C</text>
-  <text class="val" x="1540" y="690" text-anchor="end" data-text="outsideText" data-text-expr="fmt(outsideC, 1, '+')" data-rate="10">+11.5</text>
-  <text class="unit" x="1546" y="690">°C</text>
-  <text class="val" x="1656" y="690" text-anchor="end" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">104</text>
-  <text class="unit" x="1662" y="690">°C</text>
+  <text class="val info" x="524" y="700" text-anchor="end" data-text="z60Text" data-text-expr="'--'" data-glyphs="0123456789.">12.5</text>
+  <text class="unit" x="530" y="700">s</text>
+  <text class="mode" x="1010" y="700">SPORT</text>
+  <text class="lbl" x="1128" y="700">COOLANT</text>
+  <text class="val info" x="1292" y="700" text-anchor="end" data-text="coolantText" data-text-expr="fmt(coolantC)" data-rate="10">120</text>
+  <text class="unit" x="1298" y="700">°C</text>
+  <text class="val info" x="1612" y="700" text-anchor="end" data-text="outsideText" data-text-expr="fmt(outsideC, 1, '+')" data-rate="10">+11.5</text>
+  <text class="unit" x="1618" y="700">°C</text>
+  <text class="val info" x="1758" y="700" text-anchor="end" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">104</text>
+  <text class="unit" x="1764" y="700">°C</text>
 
   <!-- the shift chevrons beside the gear: shown at the shift point only -->
   <g data-sprite="chev" data-show="cue">
-    <polyline class="chev" points="1420,342 1450,310 1480,342"/>
-    <polyline class="chev" points="1420,378 1450,346 1480,378"/>
+    <polyline class="chev" points="1446,358 1478,324 1510,358"/>
+    <polyline class="chev" points="1446,396 1478,362 1510,396"/>
   </g>
 </svg>
 <script>
@@ -325,12 +331,14 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
       }
     }
   }
-  /* taller than the 646 px original (the outline reaches y 628), the same
-   * width and the same 70 px corner radius: nothing stretched */
-  var SPEED = [[690, 628], [300, 628], [120, 370], [270, 104], [720, 76]];
+  /* fitted to the car's panel: up to the top edge (y 30 at the inner end),
+   * out to just inside the warning lights' column (vertex x 150), the top
+   * corner clear of the glass's cut and the bottom (y 636) clear of the
+   * bottom-left lights and the gear's plate; the 70 px corner radius kept */
+  var SPEED = [[735, 636], [320, 636], [150, 372], [305, 50], [740, 30]];
   var TACH = SPEED.map(function (p) { return [1920 - p[0], p[1]]; });
-  Gauge($('gSpeed'), $('speedOutline'), { pts: SPEED, C: [480, 350], min: 0, max: 160, major: 20, minor: 10, startAt: 290, endPad: 40, numOpacity: 0.58 });
-  Gauge($('gTach'), $('tachOutline'), { pts: TACH, C: [1440, 350], min: 0, max: 7, major: 1, minor: 0.5, startAt: 290, endPad: 40, red: 6.5, numOpacity: 0.58 });
+  Gauge($('gSpeed'), $('speedOutline'), { pts: SPEED, C: [480, 340], min: 0, max: 160, major: 20, minor: 10, startAt: 290, endPad: 40, numOpacity: 0.58 });
+  Gauge($('gTach'), $('tachOutline'), { pts: TACH, C: [1440, 340], min: 0, max: 7, major: 1, minor: 0.5, startAt: 290, endPad: 40, red: 6.5, numOpacity: 0.58 });
 
   /* the mini bars 36 px outside the lower diagonal, 0.14..0.84 of it: track,
    * ticks, the red mark at the end that matters, the marked fill, the icon */
@@ -368,11 +376,11 @@ svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: v
   var sl = $('shiftLights');
   for (var i = 0; i < 14; i++) {
     var right = i >= 7, x = 750 + 7.7 + i * 28 + (right ? 12 : 0), lean = right ? -7.7 : 7.7;
-    el('polygon', { 'class': 'light', points: [x - lean, 69, x + 22 - lean, 69, x + 22 + lean, 49, x + lean, 49].join(' '),
+    el('polygon', { 'class': 'light', points: [x - lean, 35, x + 22 - lean, 35, x + 22 + lean, 15, x + lean, 15].join(' '),
       style: i < 2 || i > 11 ? 'fill:var(--amber)' : '' }, sl);
   }
   var sc = $('socCells');
-  for (var j = 0; j < 20; j++) el('rect', { 'class': 'cell', x: 798 + 1.6 + j * 16.15, y: 608, width: 13, height: 9, style: j < 14 ? 'fill:var(--volt)' : '' }, sc);
+  for (var j = 0; j < 20; j++) el('rect', { 'class': 'cell', x: 798 + 1.6 + j * 16.15, y: 646, width: 13, height: 9, style: j < 14 ? 'fill:var(--volt)' : '' }, sc);
 })();
 </script>
 </body>

@@ -2,12 +2,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      tri2c "Three-dial 2 · Comfort": the three-dial Comfort mockup as a design
-     (DESIGNS.md), on Sport's full-panel layout (themes/tri2/design.html): the
-     rev ring 1.08x and quiet, the speed first in it with the set speed, the
-     limit sign and the gear; charge / eco / power on the left; the map panel
-     (the theme's map slot) and the next turn on the right; range-first
-     columns 28 % taller; the clock / outside / odometer line in the old
-     bottom strip. Archivo: SIL OFL 1.1, ../tri2/fonts/OFL.txt.
+     (DESIGNS.md), on Sport's layout fitted to the car's panel
+     (themes/tri2/design.html): the rev ring 1.16x and quiet, the speed first
+     in it with the set speed, the limit sign and the gear; charge / eco /
+     power on the left; the map panel (the theme's map slot) and the next turn
+     on the right; range-first columns from 170 to 590; the clock / outside
+     and the odometer heading the side dials in the top band. Archivo: SIL OFL 1.1, ../tri2/fonts/OFL.txt.
      Build (after tri2): node tools/design_build.js themes/tri2c -->
 <html>
 <head>
@@ -18,7 +18,7 @@
 <meta name="theme-mode" content="comfort">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <meta name="let:vRpm" content="smooth(rpm, 12)">
 <meta name="let:vEng" content="smooth(engineHp, 8)">
@@ -29,12 +29,12 @@
   "power": { "lo": -60, "hi": 240, "eco": 100, "a0": -135, "a1": 135, "start": -81.5, "span": 359 },
   "pwTint": [-0.301, 0.09, 0.122, 10],
   "tempFrom": 40, "tempTo": 160, "oilHot": 120, "coolHot": 110,
-  "colX": { "fuel": 126, "batt": 205, "oil": 1715, "cool": 1794 }, "navX": 1467,
-  "lay": { "storeVal": { "x": 76, "w": 180, "font": "f22w560" }, "storeUnit": { "x": 76, "w": 180, "font": "f16w460" },
-           "storeSub": { "x": 76, "w": 180, "font": "f16w460" },
-           "tempVal": { "x": 1660, "w": 190, "font": "f22w560" }, "tempSub": { "x": 1660, "w": 190, "font": "f16w460" },
-           "etaA": { "x": 1312, "w": 310, "font": "f16w460" }, "etaB": { "x": 1312, "w": 310, "font": "f16w460" },
-           "tyresA": { "x": 1312, "w": 310, "font": "f16w460" }, "tyresB": { "x": 1312, "w": 310, "font": "f16w460" } } }
+  "colX": { "fuel": 138, "batt": 208, "oil": 1686, "cool": 1766 }, "navX": 1472,
+  "lay": { "storeVal": { "x": 86, "w": 180, "font": "f26w560" }, "storeUnit": { "x": 86, "w": 180, "font": "f17w460" },
+           "storeSub": { "x": 86, "w": 180, "font": "f17w460" },
+           "tempVal": { "x": 1640, "w": 200, "font": "f26w560" }, "tempSub": { "x": 1640, "w": 200, "font": "f17w460" },
+           "etaA": { "x": 1317, "w": 310, "font": "f17w460" }, "etaB": { "x": 1317, "w": 310, "font": "f17w460" },
+           "tyresA": { "x": 1317, "w": 310, "font": "f17w460" }, "tyresB": { "x": 1317, "w": 310, "font": "f17w460" } } }
 </script>
 
 <style>
@@ -67,9 +67,9 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
 .icon { fill: none; stroke: var(--z7); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .f-speed { font-family: "ArchivoGear"; font-size: 178px; font-weight: 600; fill: var(--z10); }
 .f-num { font-family: "ArchivoNum"; font-weight: 560; fill: var(--z9); }
-.f-v32 { font-family: "ArchivoVal"; font-size: 32px; font-weight: 560; fill: var(--z10); }
-.f-val { font-family: "ArchivoVal"; font-size: 22px; font-weight: 560; fill: var(--z10); }
-.f-small { font-family: "ArchivoSmall"; font-size: 16px; font-weight: 460; fill: var(--z7); }
+.f-v32 { font-family: "ArchivoVal"; font-size: 34px; font-weight: 560; fill: var(--z10); }
+.f-val { font-family: "ArchivoVal"; font-size: 26px; font-weight: 560; fill: var(--z10); }
+.f-small { font-family: "ArchivoSmall"; font-size: 17px; font-weight: 460; fill: var(--z7); }
 .f-zone { font-family: "ArchivoTc"; font-size: 14px; font-weight: 600; letter-spacing: 1.4px; fill: var(--z10); }
 .f-sign { font-family: "ArchivoSign"; font-size: 27px; font-weight: 700; fill: var(--sign-ink); }
 </style>
@@ -98,27 +98,33 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
     </pattern>
   </defs>
 
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
+  <!-- guides: the car's warning lights, the gear window and the corners the glass cuts (DESIGNS.md) -->
+  <g data-guide fill="#f0f" opacity="0.25">
+    <rect x="0" y="200" width="120" height="270"/><rect x="560" y="660" width="340" height="60"/>
+    <rect x="1790" y="200" width="130" height="100"/><rect x="1356" y="640" width="116" height="80"/>
+    <path d="M0 0H325L0 190Z"/><path d="M1650 0H1920V200Z"/>
+  </g>
 
   <!-- ============ the columns: range first; temperatures quiet ============ -->
   <g id="cols"></g>
-  <path d="M126 504 L126 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="fuel" data-art="off"
+  <path d="M138 590 L138 170" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="fuel" data-art="off"
         data-value="clamp(fuelPct / 100)"/>
-  <path d="M205 504 L205 200" fill="none" stroke="var(--electric)" stroke-width="18" data-gauge="batt" data-reuse="fuel" data-art="off"
+  <path d="M208 590 L208 170" fill="none" stroke="var(--electric)" stroke-width="18" data-gauge="batt" data-reuse="fuel" data-art="off"
         data-value="clamp(socPct / 100)"/>
-  <path d="M1715 504 L1715 200" fill="none" stroke="var(--z7)" stroke-width="18" data-gauge="oil" data-reuse="fuel" data-art="off"
+  <path d="M1686 590 L1686 170" fill="none" stroke="var(--z7)" stroke-width="18" data-gauge="oil" data-reuse="fuel" data-art="off"
         data-value="clamp((oilC - P.tempFrom) / (P.tempTo - P.tempFrom))"/>
-  <path d="M1794 504 L1794 200" fill="none" stroke="var(--z7)" stroke-width="18" data-gauge="cool" data-reuse="fuel" data-art="off"
+  <path d="M1766 590 L1766 170" fill="none" stroke="var(--z7)" stroke-width="18" data-gauge="cool" data-reuse="fuel" data-art="off"
         data-value="clamp((coolantC - P.tempFrom) / (P.tempTo - P.tempFrom))"/>
   <!-- "315 mi": the figure and its small unit centred together under each column (logic.extra.js) -->
-  <text class="f-val" x="76" y="544" data-text="storeVal" data-text-expr="''" data-width="180" data-glyphs="0123456789 -">315  23</text>
-  <text class="f-small" x="76" y="544" data-text="storeUnit" data-text-expr="''" data-width="180" data-glyphs=" mi">mi  mi</text>
-  <text class="f-small" x="76" y="568" data-text="storeSub" data-text-expr="''" data-width="180" data-glyphs="0123456789 %-">61 %  70 %</text>
-  <text class="f-val" x="1660" y="544" style="fill:var(--z8)" data-text="tempVal" data-text-expr="''" data-width="190" data-glyphs="0123456789 °C-">98 °C  90 °C</text>
-  <text class="f-small" x="1660" y="568" data-text="tempSub" data-text-expr="''" data-width="190" data-glyphs="NormalWarmingHot -">Warming  Normal</text>
+  <text class="f-val" x="86" y="636" data-text="storeVal" data-text-expr="''" data-width="180" data-glyphs="0123456789 -">315  23</text>
+  <text class="f-small" x="86" y="636" data-text="storeUnit" data-text-expr="''" data-width="180" data-glyphs=" mi">mi  mi</text>
+  <text class="f-small" x="86" y="662" data-text="storeSub" data-text-expr="''" data-width="180" data-glyphs="0123456789 %-">61 %  70 %</text>
+  <text class="f-val" x="1640" y="636" style="fill:var(--z8)" data-text="tempVal" data-text-expr="''" data-width="200" data-glyphs="0123456789 °C-">100°C  97°C</text>
+  <text class="f-small" x="1640" y="662" data-text="tempSub" data-text-expr="''" data-width="200" data-glyphs="NormalWarmingHot -">Warming  Normal</text>
 
-  <!-- ============ left dial: charge / eco / power (moved 23 left and 35 down) ============ -->
-  <g id="power" transform="translate(-23 35)">
+  <!-- ============ left dial: charge / eco / power (moved 28 left and 90 down, under the clock) ============ -->
+  <g id="power" transform="translate(-28 90)">
     <circle cx="476" cy="342" r="184" fill="url(#faceSm)"/>
     <g id="pArt"></g>
     <!-- the engine's share grey, the electric share teal (tinted over the art), regen teal below zero; dimmed past the total, a needle at it -->
@@ -135,17 +141,17 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
     <text class="f-num" x="476" y="340" text-anchor="middle" style="font-size:54px" data-text="mpg" data-rate="10"
           data-text-expr="when(avgL100 > 0, fmt(282.481 / avgL100, 1), '--')">152.3</text>
     <text class="unit" x="476" y="368" text-anchor="middle">mpg average</text>
-    <circle cx="393" cy="406" r="5" fill="var(--electric)"/>
-    <text class="row-lbl" x="406" y="412">Electric</text>
+    <circle cx="381" cy="406" r="5" fill="var(--electric)"/>
+    <text class="row-lbl" x="394" y="412">Electric</text>
     <text class="f-val" x="562" y="413" text-anchor="end" data-text="evMi" data-rate="10"
           data-text-expr="when(ok(evTripKm), fmt(miles(evTripKm), 1) + ' mi', '--')">999.9 mi</text>
-    <text class="row-lbl" x="406" y="446">Trip</text>
+    <text class="row-lbl" x="394" y="446">Trip</text>
     <text class="f-val" x="562" y="447" text-anchor="end" data-text="trip" data-rate="10"
           data-text-expr="when(ok(tripKm), fmt(miles(tripKm), 1) + ' mi', '--')">999.9 mi</text>
   </g>
 
-  <!-- ============ centre dial: speed first, revs as the quiet ring (1.08x, centre 960 366) ============ -->
-  <g id="tach" transform="matrix(1.08 0 0 1.08 -76.8 7.44)">
+  <!-- ============ centre dial: speed first, revs as the quiet ring (1.16x, centre 960 360) ============ -->
+  <g id="tach" transform="matrix(1.16 0 0 1.16 -153.6 -25.12)">
     <circle cx="960" cy="332" r="282" fill="url(#face)"/>
     <g id="tArt"></g>
     <path id="tachPath" fill="none" stroke="none" data-gauge="tach" data-art="off" data-maxd="27"
@@ -154,7 +160,7 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
           data-value="when(ok(rpm), vRpm / P.tachMax, 0)"/>
     <text class="meta" x="960" y="174" text-anchor="middle" font-size="14">×1000 rpm</text>
     <text class="lbl" x="923.4" y="226">Set</text>
-    <text class="f-v32" x="959.7" y="226" style="font-size:29.6296px" data-text="setV" data-rate="10"
+    <text class="f-v32" x="959.7" y="226" style="font-size:29.3103px" data-text="setV" data-rate="10"
           data-text-expr="when(ok(cruiseKmh), fmt(mph(cruiseKmh)), '--')"
           data-color="when(ok(cruiseKmh), C.eco, C.z6)">100</text>
     <text class="f-speed" x="960" y="394" text-anchor="middle" data-text="speed"
@@ -167,26 +173,26 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
           data-text-expr="fmt(mph(limitKmh))">70</text>
     <text class="gearD" x="966" y="494">D</text>
     <rect x="962" y="454" width="46" height="44" fill="var(--face-mid)" data-rect="gmMask" data-show="gearMode !== 'D'"/>
-    <text class="f-v32" x="1009.1" y="494" style="font-size:29.6296px" data-text="gearN" data-glyphs="EVNPR"
+    <text class="f-v32" x="1009.1" y="494" style="font-size:29.3103px" data-text="gearN" data-glyphs="EVNPR"
           data-text-expr="when(rpm === 0, 'EV', when(/^[PRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', fmt(gear))))"
           data-color="when(rpm === 0, C.electric, C.z8)">EV</text>
     <text class="mode" x="960" y="567" text-anchor="middle">COMFORT</text>
   </g>
 
-  <!-- the line under the dial, in the old bottom strip -->
-  <text class="f-small" x="965.3" y="664" text-anchor="end" data-text="metaA" data-rate="10" data-glyphs="−"
+  <!-- the top band beside the rev ring: clock · outside over the left dial, the odometer over the map -->
+  <text class="f-val" x="448" y="160" text-anchor="middle" style="fill:var(--z9)" data-text="metaA" data-rate="10" data-glyphs="−"
         data-text-expr="when(ok(clock), clock, '--') + ' · ' + (outsideC &lt;= -0.5 ? '−' : '') + fmt(abs(outsideC)) + ' °C'">18:05 · −12 °C</text>
-  <text class="f-small" x="965.3" y="664" data-text="metaB" data-rate="10"
-        data-text-expr="' · ' + when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'"> · 114,652 mi</text>
+  <text class="f-val" x="1472" y="160" text-anchor="middle" style="fill:var(--z9)" data-text="metaB" data-rate="10"
+        data-text-expr="when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'">114,652 mi</text>
 
-  <!-- ============ right dial: the car's map, and the next turn (moved 23 right and 35 down) ============ -->
-  <g id="nav" transform="translate(23 35)">
+  <!-- ============ right dial: the car's map, and the next turn (moved 28 right and 90 down, under the odometer) ============ -->
+  <g id="nav" transform="translate(28 90)">
     <circle cx="1444" cy="342" r="184" fill="url(#faceSm)"/>
     <g id="rArt"></g>
     <!-- the map panel: the theme's map slot (the car's map is drawn here by a later map integration) -->
     <rect data-map x="1304" y="218" width="280" height="154" rx="36" style="fill:var(--z2);stroke:var(--z4);stroke-width:1"/>
-    <text class="map-cap" x="1444" y="288" text-anchor="middle">Map area</text>
-    <text class="map-cap" x="1444" y="308" text-anchor="middle">the car draws its own map here</text>
+    <text data-guide class="map-cap" x="1444" y="288" text-anchor="middle">Map area</text>
+    <text data-guide class="map-cap" x="1444" y="308" text-anchor="middle">the car draws its own map here</text>
     <!-- the next turn's arrow (right; a left turn is its mirror image in place) -->
     <path d="M1352 436 L1352 414 A9 9 0 0 1 1361 405 L1382 405 L1371 394 L1382 405 L1371 416" fill="none" stroke="var(--z10)" stroke-width="4.5"
           data-gauge="arrow" data-art="off" data-ends data-value="1" data-show="turnDir === 'left' || turnDir === 'right'"/>
@@ -196,10 +202,10 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
           data-text-expr="when(road, String(road).slice(0, 16), '--')">A34 Oxford Road</text>
   </g>
   <!-- arrival and the four pressures: each line in two layers (16 glyphs a layer), centred together -->
-  <text class="f-small" x="1312" y="511" style="fill:var(--z8)" data-text="etaA" data-text-expr="''" data-width="310" data-glyphs="Arive0123456789:- ">Arrive 18:41</text>
-  <text class="f-small" x="1312" y="511" style="fill:var(--z8)" data-text="etaB" data-text-expr="''" data-width="310" data-glyphs="0123456789 ·mi-">· 26 mi</text>
-  <text class="f-small" x="1312" y="537" data-text="tyresA" data-text-expr="''" data-width="310" data-glyphs="Tyres0123456789 ·-">Tyres 35 · 35</text>
-  <text class="f-small" x="1312" y="537" data-text="tyresB" data-text-expr="''" data-width="310" data-glyphs="0123456789 ·psi-">· 38 · 38 psi</text>
+  <text class="f-small" x="1317" y="566" style="fill:var(--z8)" data-text="etaA" data-text-expr="''" data-width="310" data-glyphs="Arive0123456789:- ">Arrive 18:41</text>
+  <text class="f-small" x="1317" y="566" style="fill:var(--z8)" data-text="etaB" data-text-expr="''" data-width="310" data-glyphs="0123456789 ·mi-">· 26 mi</text>
+  <text class="f-small" x="1317" y="592" data-text="tyresA" data-text-expr="''" data-width="310" data-glyphs="Tyres0123456789 ·-">Tyres 35 · 35</text>
+  <text class="f-small" x="1317" y="592" data-text="tyresB" data-text-expr="''" data-width="310" data-glyphs="0123456789 ·psi-">· 38 · 38 psi</text>
 </svg>
 <script>
 (function () {
@@ -271,24 +277,24 @@ svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-num
   el('path', { d: arc(1444, 342, 184, -141, 141), fill: 'none', stroke: css('z7'), 'stroke-width': 2.5, 'stroke-linecap': 'round' }, $('rArt'));
 
   /* ---------- the columns (Sport's geometry) ---------- */
-  var cg = $('cols'), TOP = 200, BOT = 504, H = BOT - TOP;
+  var cg = $('cols'), TOP = 170, BOT = 590, H = BOT - TOP;
   function cell(x, marks, label, icon) {
     el('rect', { x: x - 13, y: TOP - 4, width: 26, height: H + 8, rx: 4, fill: 'none', stroke: css('z5'), 'stroke-width': 1.5 }, cg);
     marks.forEach(function (m) {
       var yy = BOT - H * m.at;
       el('line', { x1: x + 17, y1: yy, x2: x + 23, y2: yy, stroke: m.c || css('z5'), 'stroke-width': 1.5 }, cg);
     });
-    el('text', { x: x, y: 598, 'text-anchor': 'middle', 'class': 'lbl' }, cg, label);
-    var ig = el('g', { 'class': 'icon', transform: 'translate(' + (x + icon[0]) + ' ' + icon[1] + ')' }, cg);
+    el('text', { x: x, y: 692, 'text-anchor': 'middle', 'class': 'lbl' }, cg, label);
+    var ig = el('g', { 'class': 'icon', transform: 'translate(' + (x + icon[0]) + ' ' + (icon[1] + TOP - 200) + ')' }, cg);
     ig.innerHTML = icon[2];
   }
   var quarter = [{ at: 0.25 }, { at: 0.5 }, { at: 0.75 }];
   function tN(c) { return (c - 40) / 120; }
   var tempMarks = [{ at: tN(80) }, { at: tN(120), c: css('caution') }, { at: tN(140), c: css('signal') }];
-  cell(126, [{ at: 0.12, c: css('caution') }].concat(quarter), 'Fuel', [-11, 160, '<path d="M2 20V3.5A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V20M0 20h15M4.5 6.5h6M13 9h2.2a1.3 1.3 0 0 1 1.3 1.3v6a1.5 1.5 0 0 0 3 0V7l-3-3"/>']);
-  cell(205, [{ at: 0.15, c: css('caution') }].concat(quarter), 'Battery', [-10, 163, '<rect x="0" y="3" width="20" height="14" rx="2"/><path d="M5 0v3M15 0v3M4.5 10h4M13 8v4M11 10h4"/>']);
-  cell(1715, tempMarks, 'Oil', [-10, 163, '<path d="M1 7h4l2-2h5l7 4-6 7H5l-2-4H1zM9 5V2M7 2h4M21 12.5c0 1.2-.8 2-1.5 2s-1.5-.8-1.5-2 1.5-3 1.5-3 1.5 1.8 1.5 3z"/>']);
-  cell(1794, tempMarks, 'Coolant', [-10, 160, '<path d="M8 3.5a2 2 0 0 1 4 0v9.2a3.8 3.8 0 1 1-4 0zM10 8v7M14 6h3M14 9.5h3M0 21c2-1.4 3.5-1.4 5 0s3 1.4 5 0 3-1.4 5 0 3 1.4 5 0"/>']);
+  cell(138, [{ at: 0.12, c: css('caution') }].concat(quarter), 'Fuel', [-11, 160, '<path d="M2 20V3.5A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V20M0 20h15M4.5 6.5h6M13 9h2.2a1.3 1.3 0 0 1 1.3 1.3v6a1.5 1.5 0 0 0 3 0V7l-3-3"/>']);
+  cell(208, [{ at: 0.15, c: css('caution') }].concat(quarter), 'Battery', [-10, 163, '<rect x="0" y="3" width="20" height="14" rx="2"/><path d="M5 0v3M15 0v3M4.5 10h4M13 8v4M11 10h4"/>']);
+  cell(1686, tempMarks, 'Oil', [-10, 163, '<path d="M1 7h4l2-2h5l7 4-6 7H5l-2-4H1zM9 5V2M7 2h4M21 12.5c0 1.2-.8 2-1.5 2s-1.5-.8-1.5-2 1.5-3 1.5-3 1.5 1.8 1.5 3z"/>']);
+  cell(1766, tempMarks, 'Coolant', [-10, 160, '<path d="M8 3.5a2 2 0 0 1 4 0v9.2a3.8 3.8 0 1 1-4 0zM10 8v7M14 6h3M14 9.5h3M0 21c2-1.4 3.5-1.4 5 0s3 1.4 5 0 3-1.4 5 0 3 1.4 5 0"/>']);
 })();
 </script>
 </body>

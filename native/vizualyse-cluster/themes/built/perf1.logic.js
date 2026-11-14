@@ -127,7 +127,7 @@ const DR = (function () {
         NAMES: Object.keys(pure()).concat(STATEFUL), STATEFUL: STATEFUL };
 })();
 /* RUNTIME END */
-const P = {"shiftRpm":6400,"lightsFrom":4600,"preRpm":5850,"speedMax":180,"tachMax":8000,"boostMax":1.5,"tankL":59,"oil":[70,150],"cool":[50,130],"tyreCold":20,"tyreWarm":90,"barGap":0.0024,"rows":{"pw":{"f":"f40w600","x":648,"w":600},"pwUnit":{"f":"f20w500","x":648,"w":220},"n436":{"f":"f36w600","x":648,"w":600},"u436":{"f":"f20w500","x":648,"w":640},"psiF":{"f":"f30w600","x":840,"w":240},"tempF":{"f":"f22w600","x":840,"w":240},"tempR":{"f":"f22w600","x":840,"w":240},"n618s":{"f":"f30w600","x":648,"w":620},"n618":{"f":"f36w600","x":170,"w":1690},"u618":{"f":"f20w500","x":170,"w":1700}}};
+const P = {"shiftRpm":6400,"lightsFrom":4600,"preRpm":5850,"speedMax":180,"tachMax":8000,"boostMax":1.5,"tankL":59,"oil":[70,150],"cool":[50,130],"tyreCold":20,"tyreWarm":90,"barGap":0.0024,"rows":{"pw":{"f":"f40w600","x":600,"w":700},"pwUnit":{"f":"f20w500","x":600,"w":220},"n436":{"f":"f40w600","x":700,"w":560},"u436":{"f":"f20w500","x":700,"w":600},"psiF":{"f":"f30w600","x":840,"w":240},"tempF":{"f":"f22w600","x":840,"w":240},"tempR":{"f":"f22w600","x":840,"w":240},"n618s":{"f":"f30w600","x":700,"w":520},"u618s":{"f":"f20w500","x":700,"w":560},"nL":{"f":"f40w600","x":150,"w":400},"uL":{"f":"f20w500","x":150,"w":400},"nR":{"f":"f40w600","x":1490,"w":400},"uR":{"f":"f20w500","x":1490,"w":410}}};
 const C = {"ground":[0,0,0,1],"disc":[0.0431,0.051,0.0706,1],"line":[0.1529,0.1686,0.2039,1],"track":[0.0902,0.102,0.1255,1],"ink":[0.9529,0.9608,0.9725,1],"ink2":[0.651,0.6824,0.7333,1],"ink3":[0.498,0.5333,0.5882,1],"tick":[0.3608,0.3922,0.451,1],"sport":[1,0.2275,0.1333,1],"sport-deep":[0.7255,0.0784,0.102,1],"sportDeep":[0.7255,0.0784,0.102,1],"amber":[1,0.698,0.1412,1],"elec":[0.2392,0.6078,1,1]};
 const LETS = [
     ["vMph", "b0", function (S, H, L) { var kmh = S.kmh, smooth = H.smooth, mph = H.mph; return (smooth(mph(kmh), 12)); }],
@@ -144,54 +144,54 @@ const LETS = [
     ["k3", "b11", function (S, H, L) { var tyres = S.tyres, clamp = H.clamp; return (clamp((tyres[3].c - P.tyreCold) / (P.tyreWarm - P.tyreCold))); }],
 ];
 const LAYERS = [
-    { info: {"name":"speedDial","kind":"gauge","x":0,"y":0,"t0":0.008196315030673175,"t1":0.9918036849693268,"segs":[0,0],"segEnd":0.9918036849693268}, b: {
+    { info: {"name":"speedDial","kind":"gauge","x":0,"y":0,"t0":0.00819631684385328,"t1":0.9918036831561468,"segs":[0,0],"segEnd":0.9918036831561468}, b: {
         "value": ["b12", function (S, H, L) { var vMph = L.vMph; return (vMph / P.speedMax); }],
     } },
-    { info: {"name":"tachDial","kind":"gauge","x":0,"y":0,"t0":0.008196333131793724,"t1":0.9918036668682063,"segs":[0,0],"segEnd":0.9918036668682063}, b: {
+    { info: {"name":"tachDial","kind":"gauge","x":0,"y":0,"t0":0.008196330199978306,"t1":0.9918036698000217,"segs":[0,0],"segEnd":0.9918036698000217}, b: {
         "value": ["b16", function (S, H, L) { var vRpm = L.vRpm; return (vRpm / P.tachMax); }],
     } },
-    { info: {"name":"flood","kind":"rect","x":1431,"y":213}, b: {
+    { info: {"name":"flood","kind":"rect","x":1341,"y":289}, b: {
         "show": ["b20", function (S, H, L) { var cue = L.cue; return (cue); }],
     } },
-    { info: {"name":"chevron","kind":"leds","x":1545,"y":250}, b: {
+    { info: {"name":"chevron","kind":"leds","x":1455,"y":326}, b: {
         "u_c0": ["b21", function (S, H, L) { var cue = L.cue, when = H.when, alpha = H.alpha; return (when(cue, C.ink, alpha(C.amber, 0.9))); }],
         "u_c1": ["b22", function (S, H, L) { var cue = L.cue, when = H.when, alpha = H.alpha; return (when(cue, C.ink, alpha(C.amber, 0.9))); }],
         "lit": ["b24", function (S, H, L) { var cue = L.cue, pre = L.pre, when = H.when; return (when(cue || pre, 2, 0)); }],
     } },
-    { info: {"name":"lights","kind":"leds","x":744,"y":51}, b: {
+    { info: {"name":"lights","kind":"leds","x":648,"y":14}, b: {
         "lit": ["b29", function (S, H, L) { var rpm = S.rpm, cue = L.cue, when = H.when, ok = H.ok, floor = H.floor, clamp = H.clamp; return (when(ok(rpm), when(cue, 12, floor(clamp((rpm - P.lightsFrom) / (P.shiftRpm - P.lightsFrom)) * 12 + 0.001)), 0)); }],
         "flash": ["b30", function (S, H, L) { var cue = L.cue, when = H.when, flash = H.flash; return (when(cue, when(flash(2.5), 1, 2), 0)); }],
     } },
-    { info: {"name":"clock","kind":"text","x":575,"y":52,"rate":1,"nullText":"--"}, b: {
+    { info: {"name":"clock","kind":"text","x":461,"y":17,"rate":1,"nullText":"--"}, b: {
         "text": ["b31", function (S, H, L) { var clock = S.clock, when = H.when; return (when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')); }],
     } },
-    { info: {"name":"outside","kind":"text","x":661,"y":52,"rate":1,"nullText":"--"}, b: {
+    { info: {"name":"outside","kind":"text","x":557,"y":17,"rate":1,"nullText":"--"}, b: {
         "text": ["b32", function (S, H, L) { var outsideC = S.outsideC, when = H.when, fmt = H.fmt; return (when(outsideC < 0, '−' + fmt(-outsideC), fmt(outsideC)) + ' °C'); }],
     } },
-    { info: {"name":"gearMode","kind":"text","x":1515,"y":371,"nullText":"--"}, b: {
+    { info: {"name":"gearMode","kind":"text","x":1427,"y":460,"nullText":"--"}, b: {
         "text": ["b33", function (S, H, L) { var gearMode = S.gearMode, when = H.when; return (when(/^[MDS]$/.test(gearMode), gearMode, ' ')); }],
         "color": ["b34", function (S, H, L) { var cue = L.cue, when = H.when; return (when(cue, C.ink, C.ink2)); }],
     } },
-    { info: {"name":"gear","kind":"text","x":1561,"y":314,"nullText":"--"}, b: {
+    { info: {"name":"gear","kind":"text","x":1465,"y":387,"nullText":"--"}, b: {
         "text": ["b35", function (S, H, L) { var gear = S.gear, when = H.when, ok = H.ok, fmt = H.fmt; return (when(!ok(gear), '-', when(gear === 0, 'N', fmt(gear)))); }],
     } },
-    { info: {"name":"rpm","kind":"text","x":1525,"y":437,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"rpm","kind":"text","x":1435,"y":521,"rate":10,"nullText":"--"}, b: {
         "text": ["b36", function (S, H, L) { var vRpm = L.vRpm, fmt = H.fmt, round = H.round; return (fmt(round(vRpm, 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')); }],
     } },
-    { info: {"name":"rpmUnit","kind":"text","x":1620,"y":443,"nullText":"--"}, b: {
+    { info: {"name":"rpmUnit","kind":"text","x":1530,"y":527,"nullText":"--"}, b: {
         "text": ["b37", function (S, H, L) { return ('rpm'); }],
         "color": ["b38", function (S, H, L) { var cue = L.cue, when = H.when; return (when(cue, C.ink, C.ink2)); }],
     } },
-    { info: {"name":"speed","kind":"text","x":220,"y":323,"nullText":"--"}, b: {
+    { info: {"name":"speed","kind":"text","x":298,"y":395,"nullText":"--"}, b: {
         "text": ["b39", function (S, H, L) { var vMph = L.vMph, fmt = H.fmt; return (fmt(vMph)); }],
     } },
-    { info: {"name":"sys","kind":"text","x":871,"y":166,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"sys","kind":"text","x":874,"y":82,"rate":10,"nullText":"--"}, b: {
         "text": ["b40", function (S, H, L) { var e = L.e, l = L.l, when = H.when, fmt = H.fmt; return (when(e + l < 0, '−' + fmt(-(e + l)), fmt(e + l))); }],
     } },
-    { info: {"name":"pw","kind":"text","x":648,"y":178,"nullText":"--"}, b: {
+    { info: {"name":"pw","kind":"text","x":600,"y":100,"nullText":"--"}, b: {
         "text": ["b41", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"pwUnit","kind":"text","x":648,"y":191,"nullText":"--"}, b: {
+    { info: {"name":"pwUnit","kind":"text","x":600,"y":113,"nullText":"--"}, b: {
         "text": ["b42", function (S, H, L) { return (''); }],
     } },
     { info: {"name":"engBar","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
@@ -203,25 +203,25 @@ const LAYERS = [
         "from": ["b47", function (S, H, L) { var l = L.l, engEnd = L.engEnd, when = H.when; return (when(l > 0, engEnd, 0.2 - P.barGap)); }],
         "show": ["b48", function (S, H, L) { var l = L.l, abs = H.abs; return (abs(l) >= 1); }],
     } },
-    { info: {"name":"n436","kind":"text","x":648,"y":408,"nullText":"--"}, b: {
+    { info: {"name":"n436","kind":"text","x":700,"y":272,"nullText":"--"}, b: {
         "text": ["b49", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"u436","kind":"text","x":648,"y":419,"nullText":"--"}, b: {
+    { info: {"name":"u436","kind":"text","x":700,"y":285,"nullText":"--"}, b: {
         "text": ["b50", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"boostBar","kind":"leds","x":648,"y":450}, b: {
+    { info: {"name":"boostBar","kind":"leds","x":700,"y":316}, b: {
         "lit": ["b53", function (S, H, L) { var bst = L.bst, round = H.round, clamp = H.clamp; return (round(clamp(bst / P.boostMax) * 64)); }],
     } },
-    { info: {"name":"peakMark","kind":"rect","x":647,"y":446}, b: {
+    { info: {"name":"peakMark","kind":"rect","x":699,"y":312}, b: {
         "dx": ["b54", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"peak","kind":"text","x":757,"y":496,"nullText":"--"}, b: {
+    { info: {"name":"peak","kind":"text","x":809,"y":362,"nullText":"--"}, b: {
         "text": ["b55", function (S, H, L) { return ('--'); }],
     } },
-    { info: {"name":"hv","kind":"leds","x":1111,"y":450,"rate":10}, b: {
+    { info: {"name":"hv","kind":"leds","x":1057,"y":316,"rate":10}, b: {
         "lit": ["b58", function (S, H, L) { var socPct = S.socPct, round = H.round; return (round(socPct / 10)); }],
     } },
-    { info: {"name":"hvState","kind":"text","x":1112,"y":497,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"hvState","kind":"text","x":1058,"y":363,"rate":10,"nullText":"--"}, b: {
         "text": ["b59", function (S, H, L) { var elecHp = S.elecHp, l = L.l, when = H.when, ok = H.ok; return (when(ok(elecHp), when(l > 8, 'ASSISTING', when(l < -4, 'CHARGING', 'HOLDING')), '')); }],
         "color": ["b60", function (S, H, L) { var l = L.l, when = H.when, abs = H.abs; return (when(abs(l) > 8 || l < -4, C.elec, C.ink3)); }],
     } },
@@ -244,23 +244,32 @@ const LAYERS = [
         "u_c1": ["b69", function (S, H, L) { var k3 = L.k3, rgb = H.rgb, when = H.when, ok = H.ok; return (rgb(92 + 151 * when(ok(k3), k3, 0), 100 + 145 * when(ok(k3), k3, 0), 115 + 133 * when(ok(k3), k3, 0))); }],
         "lit": ["b71", function (S, H, L) { return (2); }],
     } },
-    { info: {"name":"n618s","kind":"text","x":648,"y":595,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"n618s","kind":"text","x":700,"y":595,"rate":10,"nullText":"--"}, b: {
         "text": ["b72", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"n618","kind":"text","x":170,"y":590,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"u618s","kind":"text","x":700,"y":601,"rate":10,"nullText":"--"}, b: {
         "text": ["b73", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"u618","kind":"text","x":170,"y":601,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"nL","kind":"text","x":150,"y":634,"rate":10,"nullText":"--"}, b: {
         "text": ["b74", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"fuelBar","kind":"leds","x":170,"y":632,"rate":10}, b: {
-        "lit": ["b77", function (S, H, L) { var fuelPct = S.fuelPct, round = H.round, clamp = H.clamp; return (round(clamp(fuelPct / 100) * 50)); }],
+    { info: {"name":"uL","kind":"text","x":150,"y":647,"rate":10,"nullText":"--"}, b: {
+        "text": ["b75", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"oilBar","kind":"leds","x":1430,"y":632,"rate":10}, b: {
-        "lit": ["b80", function (S, H, L) { var oilC = S.oilC, round = H.round, clamp = H.clamp; return (round(clamp((oilC - P.oil[0]) / (P.oil[1] - P.oil[0])) * 50)); }],
+    { info: {"name":"nR","kind":"text","x":1490,"y":634,"rate":10,"nullText":"--"}, b: {
+        "text": ["b76", function (S, H, L) { return (''); }],
     } },
-    { info: {"name":"coolBar","kind":"leds","x":1610,"y":632,"rate":10}, b: {
-        "lit": ["b83", function (S, H, L) { var coolantC = S.coolantC, round = H.round, clamp = H.clamp; return (round(clamp((coolantC - P.cool[0]) / (P.cool[1] - P.cool[0])) * 50)); }],
+    { info: {"name":"uR","kind":"text","x":1490,"y":647,"rate":10,"nullText":"--"}, b: {
+        "text": ["b77", function (S, H, L) { return (''); }],
+    } },
+    { info: {"name":"fuelBar","kind":"leds","x":150,"y":674,"rate":10}, b: {
+        "lit": ["b80", function (S, H, L) { var fuelPct = S.fuelPct, round = H.round, clamp = H.clamp; return (round(clamp(fuelPct / 100) * 50)); }],
+    } },
+    { info: {"name":"oilBar","kind":"leds","x":1490,"y":674,"rate":10}, b: {
+        "lit": ["b83", function (S, H, L) { var oilC = S.oilC, round = H.round, clamp = H.clamp; return (round(clamp((oilC - P.oil[0]) / (P.oil[1] - P.oil[0])) * 50)); }],
+    } },
+    { info: {"name":"coolBar","kind":"leds","x":1700,"y":674,"rate":10}, b: {
+        "lit": ["b86", function (S, H, L) { var coolantC = S.coolantC, round = H.round, clamp = H.clamp; return (round(clamp((coolantC - P.cool[0]) / (P.cool[1] - P.cool[0])) * 50)); }],
     } },
 ];
 /* logic.extra.js */
@@ -310,8 +319,8 @@ module.exports = {
 
         /* power: the engine figure, the electric one signed; "hp" after the engine's */
         const e = L.e, l = L.l;
-        const pw = put('pw', [{ s: num(e), x: 648 }, { s: signed(l), x: 1240, anchor: 'end' }]);
-        put('pwUnit', [{ s: 'hp', x: 648 + pw[0] + 8 }]);
+        const pw = put('pw', [{ s: num(e), x: 600 }, { s: signed(l), x: 1288, anchor: 'end' }]);
+        put('pwUnit', [{ s: 'hp', x: 600 + pw[0] + 8 }]);
 
         /* boost (vacuum shows as 0.00) and the peak of the pull */
         const b = fin(L.bst) ? L.bst : null;
@@ -321,13 +330,13 @@ module.exports = {
             if (b > 0.05) st.off = 0;
             st.peak = Math.max(st.peak || 0, b);
         }
-        out.peakMark = b == null ? { visible: false } : { visible: true, x: 647 + clamp(st.peak / P.boostMax, 0, 1) * 160 };
+        out.peakMark = b == null ? { visible: false } : { visible: true, x: 699 + clamp(st.peak / P.boostMax, 0, 1) * 160 };
         out.peak = { text: b == null ? '--' : st.peak.toFixed(2) };
 
         /* boost | HV battery */
         const soc = sig.socPct;
-        const n436 = put('n436', [{ s: b == null ? '--' : b.toFixed(2), x: 648 }, { s: num(soc), x: 1112 }]);
-        put('u436', [{ s: 'bar', x: 648 + n436[0] + 8 }, { s: '%', x: 1112 + n436[1] + 8 }]);
+        const n436 = put('n436', [{ s: b == null ? '--' : b.toFixed(2), x: 700 }, { s: num(soc), x: 1058 }]);
+        put('u436', [{ s: 'bar', x: 700 + n436[0] + 8 }, { s: '%', x: 1058 + n436[1] + 8 }]);
 
         /* tyres FL FR RL RR: pressure (psi), temperature (deg C) */
         const ty = (i) => (sig.tyres && sig.tyres[i]) || {};
@@ -336,15 +345,18 @@ module.exports = {
         put('tempF', [{ s: tc(0), x: 894, anchor: 'end' }, { s: tc(1), x: 1026 }]);
         put('tempR', [{ s: tc(2), x: 894, anchor: 'end' }, { s: tc(3), x: 1026 }]);
 
-        /* y 618: 12 V, rear pressures, electric range | fuel (litres of the tank), range, oil, coolant; the units */
+        /* y 618: 12 V, rear pressures, electric range; their units */
         const v12 = fin(sig.volts12) ? sig.volts12.toFixed(1) : '--';
-        const ns = put('n618s', [{ s: v12, x: 648 }, { s: psi(2), x: 894, anchor: 'end' }, { s: psi(3), x: 1026 },
-            { s: num(sig.evRangeKm, 1 / MI), x: 1112 }]);
+        const ns = put('n618s', [{ s: v12, x: 700 }, { s: psi(2), x: 894, anchor: 'end' }, { s: psi(3), x: 1026 },
+            { s: num(sig.evRangeKm, 1 / MI), x: 1100 }]);
+        put('u618s', [{ s: 'V', x: 700 + ns[0] + 8 }, { s: 'mi', x: 1100 + ns[3] + 8 }]);
+
+        /* y 664, under the dials: fuel (litres of the tank), range | oil, coolant; the units */
         const fuelL = fin(sig.fuelPct) ? String(Math.round(sig.fuelPct / 100 * P.tankL)) : '--';
-        const nb = put('n618', [{ s: fuelL, x: 170 }, { s: num(sig.rangeKm, 1 / MI), x: 350 },
-            { s: num(sig.oilC), x: 1430 }, { s: num(sig.coolantC), x: 1610 }]);
-        put('u618', [{ s: 'V', x: 648 + ns[0] + 8 }, { s: 'mi', x: 1112 + ns[3] + 8 },
-            { s: 'L', x: 170 + nb[0] + 8 }, { s: 'mi', x: 350 + nb[1] + 8 }, { s: '°C', x: 1430 + nb[2] + 8 }, { s: '°C', x: 1610 + nb[3] + 8 }]);
+        const nl = put('nL', [{ s: fuelL, x: 150 }, { s: num(sig.rangeKm, 1 / MI), x: 390 }]);
+        put('uL', [{ s: 'L', x: 150 + nl[0] + 8 }, { s: 'mi', x: 390 + nl[1] + 8 }]);
+        const nr = put('nR', [{ s: num(sig.oilC), x: 1490 }, { s: num(sig.coolantC), x: 1700 }]);
+        put('uR', [{ s: '°C', x: 1490 + nr[0] + 8 }, { s: '°C', x: 1700 + nr[1] + 8 }]);
     },
 };
 

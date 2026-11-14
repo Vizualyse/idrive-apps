@@ -37,78 +37,78 @@
   "psiGap": "        ",
   "nullPsi": "  --",
   "design": {
-   "safeTop": 40
+   "safeTop": 8
   }
  },
  "fonts": {
-  "f140w600": {
+  "f180w600": {
    "file": "SairaSemiCondensed.woff2",
    "weight": 600,
-   "size": 140,
-   "cell": [
-    77,
-    104
-   ],
-   "dy": -1,
-   "glyphs": "0123456789 -",
-   "tracking": -1.4
-  },
-  "f160w600": {
-   "file": "SairaSemiCondensed.woff2",
-   "weight": 600,
-   "size": 160,
+   "size": 180,
    "cell": [
     99,
-    118
+    132
    ],
-   "dy": -1,
-   "glyphs": "0123456789 -DNPR",
-   "tracking": -1.6
+   "dy": 0,
+   "glyphs": "0123456789 -",
+   "tracking": -1.8
   },
-  "f17w700": {
+  "f200w600": {
+   "file": "SairaSemiCondensed.woff2",
+   "weight": 600,
+   "size": 200,
+   "cell": [
+    124,
+    146
+   ],
+   "dy": 0,
+   "glyphs": "0123456789 -DNPR",
+   "tracking": -2
+  },
+  "f20w700": {
    "file": "SairaSemiCondensed.woff2",
    "weight": 700,
-   "size": 17,
+   "size": 20,
    "cell": [
-    11,
-    17
+    13,
+    19
    ],
    "dy": -0.5,
    "glyphs": "0123456789 -"
   },
-  "f18w500": {
+  "f22w500": {
    "file": "SairaSemiCondensed.woff2",
    "weight": 500,
-   "size": 18,
+   "size": 22,
    "cell": [
-    15,
-    19
+    18,
+    22
    ],
-   "dy": 0.5,
+   "dy": 1,
    "glyphs": "0123456789 -%Cim°"
   },
-  "f40w500": {
+  "f48w500": {
    "file": "SairaSemiCondensed.woff2",
    "weight": 500,
-   "size": 40,
+   "size": 48,
    "cell": [
-    23,
-    33
+    28,
+    39
    ],
    "dy": 0.5,
    "glyphs": "0123456789 -"
   },
-  "f13w500": {
+  "f14w500": {
    "file": "Saira-latin.woff2",
    "weight": 500,
-   "size": 13,
+   "size": 14,
    "cell": [
-    12,
-    14
+    13,
+    15
    ],
-   "dy": 0,
+   "dy": -0.5,
    "glyphs": " -CEGILNRT",
-   "tracking": 1.82
+   "tracking": 1.96
   },
   "f30w500": {
    "file": "SairaSemiCondensed.woff2",
@@ -119,25 +119,14 @@
     26
    ],
    "dy": 0,
-   "glyphs": "0123456789 -.LR  −"
+   "glyphs": "0123456789 -.:LR  −"
   },
-  "f26w500": {
-   "file": "SairaSemiCondensed.woff2",
-   "weight": 500,
-   "size": 26,
-   "cell": [
-    15,
-    23
-   ],
-   "dy": -0.5,
-   "glyphs": "0123456789 -:"
-  },
-  "f15w400": {
+  "f16w400": {
    "file": "Saira-latin.woff2",
    "weight": 400,
-   "size": 15,
+   "size": 16,
    "cell": [
-    14,
+    15,
     17
    ],
    "dy": 0.5,
@@ -149,45 +138,45 @@
    "path": [
     [
      "M",
-     650,
+     412,
      660
     ],
     [
      "L",
-     490.07,
+     360.02,
      660
     ],
     [
      "L",
-     336,
-     505.95
+     207.35,
+     507.35
     ],
     [
      "L",
-     336,
-     208.08
+     206,
+     505.92
     ],
     [
      "L",
-     337.35,
-     206.65
+     206,
+     194.06
     ],
     [
      "L",
-     490.03,
-     54
+     360.05,
+     40
     ],
     [
      "L",
-     560,
-     54
+     456,
+     40
     ]
    ],
    "inward": -1,
    "rect": [
-    263,
+    133,
     0,
-    389,
+    325,
     720
    ],
    "maxd": 71
@@ -198,7 +187,7 @@
   "lensL": {
    "copy": "speed",
    "at": [
-    263,
+    133,
     0
    ]
   },
@@ -480,9 +469,9 @@
   {
    "name": "lensTop",
    "shader": "rect",
-   "x": 556,
-   "y": 77,
-   "w": 808,
+   "x": 452,
+   "y": 63,
+   "w": 1016,
    "h": 3,
    "uniforms": {
     "u_shape": [
@@ -508,9 +497,9 @@
   {
    "name": "lensBot",
    "shader": "rect",
-   "x": 648,
+   "x": 408,
    "y": 635,
-   "w": 624,
+   "w": 1104,
    "h": 3,
    "uniforms": {
     "u_shape": [
@@ -536,10 +525,10 @@
   {
    "name": "shift",
    "shader": "leds",
-   "x": 705,
-   "y": 94,
-   "w": 510,
-   "h": 16,
+   "x": 644,
+   "y": 80,
+   "w": 628,
+   "h": 18,
    "uniforms": {
     "u_led": [
      12,
@@ -550,8 +539,8 @@
     "u_geom": [
      0,
      0,
-     30,
-     16
+     38,
+     18
     ],
     "u_split": [
      2,
@@ -594,8 +583,8 @@
   {
    "name": "chev",
    "shader": "leds",
-   "x": 1377,
-   "y": 244,
+   "x": 1449,
+   "y": 232,
    "w": 52,
    "h": 16,
    "uniforms": {
@@ -652,10 +641,10 @@
   {
    "name": "modeMask",
    "shader": "rect",
-   "x": 1336,
-   "y": 352,
-   "w": 52,
-   "h": 56,
+   "x": 1380,
+   "y": 350,
+   "w": 72,
+   "h": 72,
    "uniforms": {
     "u_shape": [
      0,
@@ -680,10 +669,10 @@
   {
    "name": "fuelSegs",
    "shader": "leds",
-   "x": 471,
-   "y": 528,
-   "w": 170,
-   "h": 8,
+   "x": 370,
+   "y": 532,
+   "w": 240,
+   "h": 10,
    "uniforms": {
     "u_led": [
      10,
@@ -694,8 +683,8 @@
     "u_geom": [
      0,
      0,
-     14,
-     8
+     21,
+     10
     ],
     "u_split": [
      99,
@@ -738,13 +727,13 @@
   {
    "name": "oilBar",
    "shader": "leds",
-   "x": 1280,
-   "y": 528,
-   "w": 168,
-   "h": 8,
+   "x": 1310,
+   "y": 532,
+   "w": 240,
+   "h": 10,
    "uniforms": {
     "u_led": [
-     56,
+     60,
      0,
      0,
      0
@@ -752,8 +741,8 @@
     "u_geom": [
      0,
      0,
-     3,
-     8
+     4,
+     10
     ],
     "u_split": [
      99,
@@ -796,13 +785,13 @@
   {
    "name": "power",
    "shader": "leds",
-   "x": 712,
-   "y": 202,
-   "w": 496,
-   "h": 12,
+   "x": 660,
+   "y": 188,
+   "w": 600,
+   "h": 14,
    "uniforms": {
     "u_led": [
-     62,
+     60,
      0,
      0,
      0
@@ -810,8 +799,8 @@
     "u_geom": [
      0,
      0,
-     8,
-     12
+     10,
+     14
     ],
     "u_split": [
      0,
@@ -855,7 +844,7 @@
    "name": "padsF",
    "shader": "leds",
    "x": 854,
-   "y": 318,
+   "y": 314,
    "w": 212,
    "h": 38,
    "uniforms": {
@@ -913,7 +902,7 @@
    "name": "padsR",
    "shader": "leds",
    "x": 854,
-   "y": 434,
+   "y": 430,
    "w": 212,
    "h": 38,
    "uniforms": {
@@ -970,8 +959,8 @@
   {
    "name": "socBar",
    "shader": "leds",
-   "x": 782,
-   "y": 586,
+   "x": 730,
+   "y": 600,
    "w": 36,
    "h": 6,
    "uniforms": {
@@ -1028,10 +1017,10 @@
   {
    "name": "spd",
    "shader": "text",
-   "font": "f140w600",
-   "x": 402,
-   "y": 284,
-   "w": 230,
+   "font": "f180w600",
+   "x": 297,
+   "y": 276,
+   "w": 296,
    "cells": 3,
    "align": "center",
    "text": "",
@@ -1047,10 +1036,10 @@
   {
    "name": "gear",
    "shader": "text",
-   "font": "f160w600",
-   "x": 1388,
-   "y": 290,
-   "w": 108,
+   "font": "f200w600",
+   "x": 1454,
+   "y": 274,
+   "w": 134,
    "cells": 2,
    "align": "left",
    "text": "",
@@ -1066,10 +1055,10 @@
   {
    "name": "gearOn",
    "shader": "text",
-   "font": "f17w700",
-   "x": 1384,
-   "y": 426,
-   "w": 14,
+   "font": "f20w700",
+   "x": 1453,
+   "y": 442,
+   "w": 16,
    "cells": 2,
    "align": "center",
    "text": "",
@@ -1085,10 +1074,10 @@
   {
    "name": "fuelPct",
    "shader": "text",
-   "font": "f18w500",
-   "x": 591,
-   "y": 499,
-   "w": 49,
+   "font": "f22w500",
+   "x": 551,
+   "y": 502,
+   "w": 59,
    "cells": 5,
    "align": "right",
    "text": "",
@@ -1104,10 +1093,10 @@
   {
    "name": "range",
    "shader": "text",
-   "font": "f18w500",
-   "x": 586,
-   "y": 573,
-   "w": 54,
+   "font": "f22w500",
+   "x": 545,
+   "y": 582,
+   "w": 65,
    "cells": 6,
    "align": "right",
    "text": "",
@@ -1123,10 +1112,10 @@
   {
    "name": "oil",
    "shader": "text",
-   "font": "f18w500",
-   "x": 1397,
-   "y": 499,
-   "w": 51,
+   "font": "f22w500",
+   "x": 1488,
+   "y": 502,
+   "w": 62,
    "cells": 6,
    "align": "right",
    "text": "",
@@ -1142,10 +1131,10 @@
   {
    "name": "cool",
    "shader": "text",
-   "font": "f18w500",
-   "x": 1401,
-   "y": 573,
-   "w": 47,
+   "font": "f22w500",
+   "x": 1493,
+   "y": 582,
+   "w": 57,
    "cells": 6,
    "align": "right",
    "text": "",
@@ -1161,10 +1150,10 @@
   {
    "name": "engHp",
    "shader": "text",
-   "font": "f40w500",
-   "x": 711,
-   "y": 156,
-   "w": 68,
+   "font": "f48w500",
+   "x": 657,
+   "y": 138,
+   "w": 83,
    "cells": 3,
    "align": "right",
    "text": "",
@@ -1180,10 +1169,10 @@
   {
    "name": "elHp",
    "shader": "text",
-   "font": "f40w500",
-   "x": 872,
-   "y": 156,
-   "w": 68,
+   "font": "f48w500",
+   "x": 851,
+   "y": 138,
+   "w": 83,
    "cells": 3,
    "align": "right",
    "text": "",
@@ -1199,10 +1188,10 @@
   {
    "name": "sysHp",
    "shader": "text",
-   "font": "f40w500",
-   "x": 1116,
-   "y": 156,
-   "w": 68,
+   "font": "f48w500",
+   "x": 1147,
+   "y": 138,
+   "w": 83,
    "cells": 3,
    "align": "right",
    "text": "",
@@ -1218,10 +1207,10 @@
   {
    "name": "elecLbl",
    "shader": "text",
-   "font": "f13w500",
-   "x": 896,
-   "y": 137,
-   "w": 75,
+   "font": "f14w500",
+   "x": 880,
+   "y": 116,
+   "w": 79,
    "cells": 8,
    "align": "left",
    "text": "",
@@ -1239,7 +1228,7 @@
    "shader": "text",
    "font": "f30w500",
    "x": 802,
-   "y": 315,
+   "y": 311,
    "w": 295,
    "cells": 16,
    "align": "left",
@@ -1258,7 +1247,7 @@
    "shader": "text",
    "font": "f30w500",
    "x": 802,
-   "y": 431,
+   "y": 427,
    "w": 295,
    "cells": 16,
    "align": "left",
@@ -1275,10 +1264,10 @@
   {
    "name": "tempFL",
    "shader": "text",
-   "font": "f18w500",
-   "x": 837,
-   "y": 350,
-   "w": 47,
+   "font": "f22w500",
+   "x": 827,
+   "y": 343,
+   "w": 57,
    "cells": 6,
    "align": "right",
    "text": "",
@@ -1294,10 +1283,10 @@
   {
    "name": "tempFR",
    "shader": "text",
-   "font": "f18w500",
+   "font": "f22w500",
    "x": 1036,
-   "y": 350,
-   "w": 47,
+   "y": 343,
+   "w": 57,
    "cells": 6,
    "align": "left",
    "text": "",
@@ -1313,10 +1302,10 @@
   {
    "name": "tempRL",
    "shader": "text",
-   "font": "f18w500",
-   "x": 837,
-   "y": 466,
-   "w": 47,
+   "font": "f22w500",
+   "x": 827,
+   "y": 459,
+   "w": 57,
    "cells": 6,
    "align": "right",
    "text": "",
@@ -1332,10 +1321,10 @@
   {
    "name": "tempRR",
    "shader": "text",
-   "font": "f18w500",
+   "font": "f22w500",
    "x": 1036,
-   "y": 466,
-   "w": 47,
+   "y": 459,
+   "w": 57,
    "cells": 6,
    "align": "left",
    "text": "",
@@ -1352,8 +1341,8 @@
    "name": "soc",
    "shader": "text",
    "font": "f30w500",
-   "x": 692,
-   "y": 573,
+   "x": 640,
+   "y": 587,
    "w": 53,
    "cells": 3,
    "align": "right",
@@ -1371,8 +1360,8 @@
    "name": "boost",
    "shader": "text",
    "font": "f30w500",
-   "x": 834,
-   "y": 573,
+   "x": 808,
+   "y": 587,
    "w": 75,
    "cells": 5,
    "align": "right",
@@ -1391,7 +1380,7 @@
    "shader": "text",
    "font": "f30w500",
    "x": 973,
-   "y": 573,
+   "y": 587,
    "w": 84,
    "cells": 6,
    "align": "right",
@@ -1409,8 +1398,8 @@
    "name": "glong",
    "shader": "text",
    "font": "f30w500",
-   "x": 1093,
-   "y": 573,
+   "x": 1119,
+   "y": 587,
    "w": 75,
    "cells": 5,
    "align": "right",
@@ -1427,10 +1416,10 @@
   {
    "name": "clock",
    "shader": "text",
-   "font": "f26w500",
-   "x": 150,
-   "y": 677,
-   "w": 64,
+   "font": "f30w500",
+   "x": 1040,
+   "y": 679,
+   "w": 77,
    "cells": 5,
    "align": "left",
    "text": "",
@@ -1446,10 +1435,10 @@
   {
    "name": "otemp",
    "shader": "text",
-   "font": "f15w400",
-   "x": 226,
-   "y": 683,
-   "w": 47,
+   "font": "f16w400",
+   "x": 1126,
+   "y": 688,
+   "w": 50,
    "cells": 6,
    "align": "left",
    "text": "",
@@ -1465,12 +1454,12 @@
   {
    "name": "odo",
    "shader": "text",
-   "font": "f15w400",
-   "x": 1599,
-   "y": 683,
-   "w": 81,
+   "font": "f16w400",
+   "x": 1540,
+   "y": 688,
+   "w": 88,
    "cells": 10,
-   "align": "right",
+   "align": "left",
    "text": "",
    "uniforms": {
     "u_color": [

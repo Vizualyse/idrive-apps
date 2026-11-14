@@ -43,8 +43,8 @@ module.exports = {
 
         /* power: the engine figure, the electric one signed; "hp" after the engine's */
         const e = L.e, l = L.l;
-        const pw = put('pw', [{ s: num(e), x: 648 }, { s: signed(l), x: 1240, anchor: 'end' }]);
-        put('pwUnit', [{ s: 'hp', x: 648 + pw[0] + 8 }]);
+        const pw = put('pw', [{ s: num(e), x: 600 }, { s: signed(l), x: 1288, anchor: 'end' }]);
+        put('pwUnit', [{ s: 'hp', x: 600 + pw[0] + 8 }]);
 
         /* boost (vacuum shows as 0.00) and the peak of the pull */
         const b = fin(L.bst) ? L.bst : null;
@@ -54,13 +54,13 @@ module.exports = {
             if (b > 0.05) st.off = 0;
             st.peak = Math.max(st.peak || 0, b);
         }
-        out.peakMark = b == null ? { visible: false } : { visible: true, x: 647 + clamp(st.peak / P.boostMax, 0, 1) * 160 };
+        out.peakMark = b == null ? { visible: false } : { visible: true, x: 699 + clamp(st.peak / P.boostMax, 0, 1) * 160 };
         out.peak = { text: b == null ? '--' : st.peak.toFixed(2) };
 
         /* boost | HV battery */
         const soc = sig.socPct;
-        const n436 = put('n436', [{ s: b == null ? '--' : b.toFixed(2), x: 648 }, { s: num(soc), x: 1112 }]);
-        put('u436', [{ s: 'bar', x: 648 + n436[0] + 8 }, { s: '%', x: 1112 + n436[1] + 8 }]);
+        const n436 = put('n436', [{ s: b == null ? '--' : b.toFixed(2), x: 700 }, { s: num(soc), x: 1058 }]);
+        put('u436', [{ s: 'bar', x: 700 + n436[0] + 8 }, { s: '%', x: 1058 + n436[1] + 8 }]);
 
         /* tyres FL FR RL RR: pressure (psi), temperature (deg C) */
         const ty = (i) => (sig.tyres && sig.tyres[i]) || {};
@@ -69,14 +69,17 @@ module.exports = {
         put('tempF', [{ s: tc(0), x: 894, anchor: 'end' }, { s: tc(1), x: 1026 }]);
         put('tempR', [{ s: tc(2), x: 894, anchor: 'end' }, { s: tc(3), x: 1026 }]);
 
-        /* y 618: 12 V, rear pressures, electric range | fuel (litres of the tank), range, oil, coolant; the units */
+        /* y 618: 12 V, rear pressures, electric range; their units */
         const v12 = fin(sig.volts12) ? sig.volts12.toFixed(1) : '--';
-        const ns = put('n618s', [{ s: v12, x: 648 }, { s: psi(2), x: 894, anchor: 'end' }, { s: psi(3), x: 1026 },
-            { s: num(sig.evRangeKm, 1 / MI), x: 1112 }]);
+        const ns = put('n618s', [{ s: v12, x: 700 }, { s: psi(2), x: 894, anchor: 'end' }, { s: psi(3), x: 1026 },
+            { s: num(sig.evRangeKm, 1 / MI), x: 1100 }]);
+        put('u618s', [{ s: 'V', x: 700 + ns[0] + 8 }, { s: 'mi', x: 1100 + ns[3] + 8 }]);
+
+        /* y 664, under the dials: fuel (litres of the tank), range | oil, coolant; the units */
         const fuelL = fin(sig.fuelPct) ? String(Math.round(sig.fuelPct / 100 * P.tankL)) : '--';
-        const nb = put('n618', [{ s: fuelL, x: 170 }, { s: num(sig.rangeKm, 1 / MI), x: 350 },
-            { s: num(sig.oilC), x: 1430 }, { s: num(sig.coolantC), x: 1610 }]);
-        put('u618', [{ s: 'V', x: 648 + ns[0] + 8 }, { s: 'mi', x: 1112 + ns[3] + 8 },
-            { s: 'L', x: 170 + nb[0] + 8 }, { s: 'mi', x: 350 + nb[1] + 8 }, { s: '°C', x: 1430 + nb[2] + 8 }, { s: '°C', x: 1610 + nb[3] + 8 }]);
+        const nl = put('nL', [{ s: fuelL, x: 150 }, { s: num(sig.rangeKm, 1 / MI), x: 390 }]);
+        put('uL', [{ s: 'L', x: 150 + nl[0] + 8 }, { s: 'mi', x: 390 + nl[1] + 8 }]);
+        const nr = put('nR', [{ s: num(sig.oilC), x: 1490 }, { s: num(sig.coolantC), x: 1700 }]);
+        put('uR', [{ s: '°C', x: 1490 + nr[0] + 8 }, { s: '°C', x: 1700 + nr[1] + 8 }]);
     },
 };

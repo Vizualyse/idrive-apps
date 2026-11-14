@@ -2,11 +2,14 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
      perf2 "Performance 2": the Performance Sport mockup as a design
-     (DESIGNS.md), re-laid out for the whole 1920 x 720 panel. The top row
-     (clock, shift lights, SPORT) sits below the 40 px keep-clear zone; the
-     dials are a little larger (R 250, round) and lower; the readouts in
-     their open bottoms, the centre column's chassis (car plan and friction
-     circle, x1.2) and the batteries take the old bottom strip.
+     (DESIGNS.md), fitted to the car's panel (DESIGNS.md "The car's panel"):
+     the top row (clock, shift lights, SPORT) up at the top edge; the dials
+     larger (R 276, round), pulled in clear of the warning lights on the left
+     and the parking brake light; fuel and range in the speedometer's open
+     bottom, oil and coolant right of the gear window; the centre column's
+     power, chassis (car plan and friction circle, x1.2) and high-voltage
+     battery above the bottom-left lights, the 12 V battery in the strip
+     beside them.
      Build: node tools/design_build.js themes/perf2 -->
 <html>
 <head>
@@ -17,7 +20,7 @@
 <meta name="theme-mode" content="sport">
 <meta name="theme-ship" content="true">
 <meta name="theme-bottom" content="720">
-<meta name="safe-top" content="40">
+<meta name="safe-top" content="8">
 
 <!-- shared values: the smoothed needles, the shift cue and its flash (0.17 s a phase, as the mockup) -->
 <meta name="let:vMph" content="smooth(mph(kmh), 14)">
@@ -27,8 +30,8 @@
 <script type="application/json" id="theme-params">
 { "maxMph": 180, "maxRpm": 8000, "redRpm": 7000, "shiftRpm": 6400, "lampFrom": 4600,
   "amberRpm": 5275, "redStageRpm": 5950, "topGear": 8, "fuelLowPct": 15,
-  "tyreCold": 70, "tyreHot": 95, "gK": 96, "dialLen": 1178.18,
-  "bars": { "len": 774.27, "pMin": -100, "pMax": 500, "pT1": 0.77419, "bMin": -1, "bMax": 2, "bT0": 0.80645, "bT1": 1 },
+  "tyreCold": 70, "tyreHot": 95, "gK": 96, "dialLen": 1300.62,
+  "bars": { "len": 695, "pMin": -100, "pMax": 500, "pT1": 0.74820, "bMin": -1, "bMax": 2, "bT0": 0.78417, "bT1": 1 },
   "oil": { "lo": 50, "hi": 150, "w": 150 }, "cool": { "lo": 50, "hi": 130, "w": 150 } }
 </script>
 
@@ -45,9 +48,9 @@
 html, body { margin: 0; width: 1920px; height: 720px; overflow: hidden; background: #000; }
 #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 720px;
   background:
-    radial-gradient(410px 380px at 340px 336px, #0b1118 0%, rgba(11,17,24,0) 70%),
-    radial-gradient(410px 380px at 1580px 336px, #0b1118 0%, rgba(11,17,24,0) 70%),
-    radial-gradient(700px 470px at 960px 380px, #080c12 0%, rgba(8,12,18,0) 75%),
+    radial-gradient(460px 425px at 442px 380px, #0b1118 0%, rgba(11,17,24,0) 70%),
+    radial-gradient(460px 425px at 1478px 380px, #0b1118 0%, rgba(11,17,24,0) 70%),
+    radial-gradient(640px 500px at 960px 400px, #080c12 0%, rgba(8,12,18,0) 75%),
     var(--ground); }
 svg { position: absolute; left: 0; top: 0; display: block; }
 svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
@@ -74,8 +77,7 @@ svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink
       <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
     </pattern>
   </defs>
-  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
-  <rect data-guide x="0" y="646" width="1920" height="74" fill="none" stroke="#3a6" stroke-dasharray="6 6"/>
+  <rect data-guide x="0" y="0" width="1920" height="8" fill="url(#hatch)" opacity="0.5"/>
 
   <!-- the dials' static parts (bezel, well, scale, numerals, red zone, shift notch): drawn by the script -->
   <g id="dialS"></g>
@@ -104,88 +106,88 @@ svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink
         data-needle="-12 46 6 2.4" data-needle-color="C.red"/>
 
   <!-- top row: clock and outside temperature, the shift lights, SPORT and the shift point -->
-  <text x="724.4" y="72.5" text-anchor="end" style="font-size:26px" data-text="topText" data-glyphs="−" data-rate="10"
+  <text x="702" y="49" text-anchor="end" style="font-size:30px" data-text="topText" data-glyphs="−" data-rate="10"
         data-text-expr="when(/^\d{1,2}:\d\d$/.test(clock), clock, '--:--') + '    ' + when(round(outsideC) &lt; 0, '−', '') + fmt(abs(round(outsideC)))">18:05    −12</text>
-  <text class="unit" x="731" y="72.5" style="font-size:26px">°C</text>
-  <g id="lights" data-leds="shift" data-count="15" data-mode="ends" data-light="18 18" data-split="3 6" data-radius="3" data-halo="12"
+  <text class="unit" x="709.6" y="49" style="font-size:30px">°C</text>
+  <g id="lights" data-leds="shift" data-count="15" data-mode="ends" data-light="20 20" data-split="3 6" data-radius="3" data-halo="12"
      data-c0="C.cool" data-c1="C.amber" data-c2="C.red" data-off="when(cue, C.flashOff, C.trackDim)"
      data-lit="when(cue, 8, when(ok(vRpm), floor(clamp((vRpm - P.lampFrom) / (P.shiftRpm - P.lampFrom) * 8, 0, 8) + 0.0001), 0))"
      data-flash="when(cue, when(fl, 1, 2), 0)">
-    <rect x="780" y="42" width="360" height="40" fill="none"/>
+    <rect x="750" y="16" width="420" height="40" fill="none"/>
   </g>
-  <text x="1167" y="71" style="font-size:22px;font-weight:700;letter-spacing:4.4px">SPORT</text>
-  <text id="shiftPoint" x="1267.6" y="71" style="font-size:20px"><tspan class="unit" style="font-weight:600">Shift </tspan><tspan id="shiftN">6,400</tspan></text>
+  <text x="1204" y="47" style="font-size:26px;font-weight:700;letter-spacing:5.2px">SPORT</text>
+  <text id="shiftPoint" x="1324" y="47" style="font-size:23px"><tspan class="unit" style="font-weight:600">Shift </tspan><tspan id="shiftN">6,400</tspan></text>
 
   <!-- speedometer centre -->
-  <text x="340" y="369" text-anchor="middle" style="font-size:140px;letter-spacing:-2.8px" data-text="speedText"
+  <text x="442" y="420" text-anchor="middle" style="font-size:156px;letter-spacing:-3.1px" data-text="speedText"
         data-text-expr="fmt(mph(kmh))">188</text>
-  <text class="unit" x="340" y="413" text-anchor="middle" style="font-size:24px">mph</text>
+  <text class="unit" x="442" y="466" text-anchor="middle" style="font-size:26px">mph</text>
 
-  <!-- fuel in the speedometer's open bottom -->
-  <text class="lbl" x="340" y="562" text-anchor="middle">FUEL</text>
-  <g id="fuelBar" data-leds="fuel" data-count="24" data-light="6.96 10" data-radius="1"
+  <!-- fuel and range in the speedometer's open bottom -->
+  <text class="lbl" x="442" y="600" text-anchor="middle">FUEL</text>
+  <g id="fuelBar" data-leds="fuel" data-count="24" data-light="8.17 11" data-radius="1"
      data-c0="when(fuelPct &lt; P.fuelLowPct, C.amber, C.cool)" data-off="C.track"
      data-lit="when(ok(fuelPct), round(fuelPct / 100 * 24), 0)" data-rate="10">
-    <rect x="221" y="576" width="239" height="10" fill="none"/>
+    <rect x="302" y="613" width="280" height="11" fill="none"/>
   </g>
-  <text x="222" y="606.6" style="font-size:16px;fill:var(--ink-3)">E</text>
-  <text x="340" y="606.6" text-anchor="middle" style="font-size:16px;fill:var(--ink-3)">½</text>
-  <text x="458" y="606.6" text-anchor="end" style="font-size:16px;fill:var(--ink-3)">F</text>
-  <text class="v40" x="322" y="662" text-anchor="end" data-text="rangeText" data-rate="10"
+  <text x="303" y="645" style="font-size:16px;fill:var(--ink-3)">E</text>
+  <text x="442" y="645" text-anchor="middle" style="font-size:16px;fill:var(--ink-3)">½</text>
+  <text x="581" y="645" text-anchor="end" style="font-size:16px;fill:var(--ink-3)">F</text>
+  <text x="422" y="703" text-anchor="end" style="font-size:44px" data-text="rangeText" data-rate="10"
         data-text-expr="fmt(miles(rangeKm)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')">999</text>
-  <text class="unit" x="328" y="662" style="font-size:20px">miles range</text>
+  <text class="unit" x="429" y="703" style="font-size:22px">miles range</text>
 
   <!-- tachometer centre: the cue (a sprite, below), the gear, the revs -->
-  <text x="1580" y="391" text-anchor="middle" style="font-size:164px" data-text="gearText" data-glyphs="MDSPRN" data-dy="0"
+  <text x="1478" y="444" text-anchor="middle" style="font-size:176px" data-text="gearText" data-glyphs="MDSPRN" data-dy="0"
         data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(!ok(gear), '--', when(gear === 0, 'N', when(/^[MDS]$/.test(gearMode), gearMode, '') + fmt(gear))))"
         data-color="when(cue, C.red, C.ink)">M8</text>
-  <text class="v30" x="1597" y="443" text-anchor="end" data-text="rpmText"
+  <text x="1497" y="500" text-anchor="end" style="font-size:34px" data-text="rpmText"
         data-text-expr="fmt(round(vRpm, 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')">8,000</text>
-  <text class="unit" x="1603" y="443" style="font-size:18px">rpm</text>
+  <text class="unit" x="1503" y="500" style="font-size:20px">rpm</text>
 
-  <!-- oil and coolant in the tachometer's open bottom -->
-  <text class="lbl" x="1410" y="562">OIL</text>
-  <text class="lbl" x="1600" y="562">COOLANT</text>
-  <text class="v40" x="1471" y="609.6" text-anchor="end" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">150</text>
-  <text class="unit" x="1475" y="609.6" style="font-size:20px">°C</text>
-  <text class="v40" x="1661" y="609.6" text-anchor="end" data-text="coolText" data-text-expr="fmt(coolantC)" data-rate="10">130</text>
-  <text class="unit" x="1665" y="609.6" style="font-size:20px">°C</text>
-  <rect x="1410" y="626" width="150" height="6" rx="1" class="seg"/>
-  <rect x="1470" y="626" width="45" height="6" style="fill:rgba(196,214,232,.22)"/>
-  <rect x="1600" y="626" width="150" height="6" rx="1" class="seg"/>
-  <rect x="1656.25" y="626" width="46.88" height="6" style="fill:rgba(196,214,232,.22)"/>
-  <rect x="1408.5" y="622" width="3" height="14" rx="1" style="fill:var(--ink)" data-rect="oilMark" data-rate="10"
+  <!-- oil and coolant at the bottom right, clear of the gear window -->
+  <text class="lbl" x="1500" y="616">OIL</text>
+  <text class="lbl" x="1712" y="616">COOLANT</text>
+  <text x="1565" y="661" text-anchor="end" style="font-size:44px" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">150</text>
+  <text class="unit" x="1569" y="661" style="font-size:22px">°C</text>
+  <text x="1777" y="661" text-anchor="end" style="font-size:44px" data-text="coolText" data-text-expr="fmt(coolantC)" data-rate="10">130</text>
+  <text class="unit" x="1781" y="661" style="font-size:22px">°C</text>
+  <rect x="1500" y="678" width="150" height="6" rx="1" class="seg"/>
+  <rect x="1560" y="678" width="45" height="6" style="fill:rgba(196,214,232,.22)"/>
+  <rect x="1712" y="678" width="150" height="6" rx="1" class="seg"/>
+  <rect x="1768.25" y="678" width="46.88" height="6" style="fill:rgba(196,214,232,.22)"/>
+  <rect x="1498.5" y="674" width="3" height="14" rx="1" style="fill:var(--ink)" data-rect="oilMark" data-rate="10"
         data-dx="clamp((oilC - P.oil.lo) / (P.oil.hi - P.oil.lo)) * P.oil.w"/>
-  <rect x="1598.5" y="622" width="3" height="14" rx="1" style="fill:var(--ink)" data-rect="coolMark" data-rate="10"
+  <rect x="1710.5" y="674" width="3" height="14" rx="1" style="fill:var(--ink)" data-rect="coolMark" data-rate="10"
         data-dx="clamp((coolantC - P.cool.lo) / (P.cool.hi - P.cool.lo)) * P.cool.w"/>
 
   <!-- centre column: system power and boost -->
-  <text class="lbl" x="660" y="125">SYSTEM POWER</text>
-  <text x="752" y="186" text-anchor="end" style="font-size:60px" data-text="powerText" data-glyphs="−" data-text-expr="'--'">−100</text>
-  <text class="unit" x="760" y="186" style="font-size:24px">hp</text>
-  <text class="lbl" x="1260" y="124" text-anchor="end" style="letter-spacing:2.52px">BOOST</text>
-  <text class="v40" x="1228" y="170" text-anchor="end" data-text="boostText" data-glyphs="−" data-text-expr="'--'" data-rate="10">−0.65</text>
-  <text class="unit" x="1234" y="170" style="font-size:20px">bar</text>
-  <rect x="1110" y="183" width="150" height="6" rx="1" class="seg"/>
-  <rect x="1159" y="179" width="2" height="14" style="fill:var(--ink-3)"/>
-  <rect x="660" y="205" width="600" height="12" rx="1" style="fill:var(--track-dim)"/>
-  <rect x="759" y="199" width="2" height="24" style="fill:var(--ink)"/>
+  <text class="lbl" x="700" y="106">SYSTEM POWER</text>
+  <text x="800" y="168" text-anchor="end" style="font-size:66px" data-text="powerText" data-glyphs="−" data-text-expr="'--'">−100</text>
+  <text class="unit" x="808" y="168" style="font-size:26px">hp</text>
+  <text class="lbl" x="1220" y="106" text-anchor="end" style="letter-spacing:2.52px">BOOST</text>
+  <text x="1184" y="152" text-anchor="end" style="font-size:44px" data-text="boostText" data-glyphs="−" data-text-expr="'--'" data-rate="10">−0.65</text>
+  <text class="unit" x="1190" y="152" style="font-size:20px">bar</text>
+  <rect x="1070" y="166" width="150" height="6" rx="1" class="seg"/>
+  <rect x="1119" y="162" width="2" height="14" style="fill:var(--ink-3)"/>
+  <rect x="700" y="188" width="520" height="12" rx="1" style="fill:var(--track-dim)"/>
+  <rect x="785.7" y="182" width="2" height="24" style="fill:var(--ink)"/>
   <!-- one path for both bars: the power bar left to right, up, the boost bar right to left
        (both fills are set by logic.extra.js: engine, electric after it, regen hatched left of zero; boost from zero) -->
-  <path id="barsPath" d="M660 211 L1260 211 L1260 186 L1110 186" fill="none" stroke="var(--cool)" stroke-width="12"
+  <path id="barsPath" d="M700 194 L1220 194 L1220 169 L1070 169" fill="none" stroke="var(--cool)" stroke-width="12"
         data-gauge="power" data-end="175" data-value="0" data-band="-6 6" data-red-color="C.blue"/>
-  <path d="M660 211 L1260 211 L1260 186 L1110 186" fill="none" stroke="var(--cool)" stroke-width="6"
-        data-gauge="boost" data-reuse="power" data-art="off" data-start="625" data-value="0" data-band="-3 3"/>
-  <text class="lbl" x="660" y="253">ENGINE</text>
-  <text class="v22" x="772" y="253" text-anchor="end" data-text="engText" data-text-expr="'--'" data-rate="10">500</text>
-  <text class="unit" x="776" y="253" style="font-size:16px">hp</text>
-  <text class="lbl" x="1096.6" y="253">ELECTRIC</text>
-  <text class="v22" x="1240" y="253" text-anchor="end" style="fill:var(--blue)" data-text="eleText" data-glyphs="+−" data-text-expr="'--'" data-rate="10">+109</text>
-  <text class="unit" x="1244.3" y="253" style="font-size:16px">hp</text>
-  <rect class="hr" x="660" y="271" width="600" height="1"/>
+  <path d="M700 194 L1220 194 L1220 169 L1070 169" fill="none" stroke="var(--cool)" stroke-width="6"
+        data-gauge="boost" data-reuse="power" data-art="off" data-start="545" data-value="0" data-band="-3 3"/>
+  <text class="lbl" x="710" y="234">ENGINE</text>
+  <text x="826" y="234" text-anchor="end" style="font-size:24px" data-text="engText" data-text-expr="'--'" data-rate="10">500</text>
+  <text class="unit" x="830" y="234" style="font-size:16px">hp</text>
+  <text class="lbl" x="1048" y="234">ELECTRIC</text>
+  <text x="1188" y="234" text-anchor="end" style="font-size:24px;fill:var(--blue)" data-text="eleText" data-glyphs="+−" data-text-expr="'--'" data-rate="10">+109</text>
+  <text class="unit" x="1192" y="234" style="font-size:16px">hp</text>
+  <rect class="hr" x="700" y="252" width="520" height="1"/>
 
   <!-- chassis: the car plan in its friction circle (x1.2 of the mockup's), tyres by temperature, the g dot -->
-  <g id="car" transform="translate(828 280) scale(1.2)">
+  <g id="car" transform="translate(828 289) scale(1.2)">
     <circle cx="110" cy="110" r="100" fill="none" stroke="rgba(196,214,232,.16)" stroke-width="1"/>
     <circle cx="110" cy="110" r="50" fill="none" stroke="rgba(196,214,232,.10)" stroke-width="1" stroke-dasharray="2 4"/>
     <path d="M6 110h22M192 110h22M110 6v22M110 192v22" stroke="rgba(196,214,232,.22)" stroke-width="1"/>
@@ -214,54 +216,56 @@ svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink
     </g>
     <circle cx="110" cy="110" r="2.5" fill="rgba(238,242,246,.5)"/>
   </g>
-  <circle cx="960" cy="412" r="8" style="fill:var(--ink);stroke:var(--ground);stroke-width:2.5" data-rect="gDot"
+  <circle cx="960" cy="421" r="8" style="fill:var(--ink);stroke:var(--ground);stroke-width:2.5" data-rect="gDot"
           data-dx="smooth(clamp(gLat, -1.25, 1.25) * P.gK, 10)" data-dy="smooth(clamp(-gLon, -1.25, 1.25) * P.gK, 10)"/>
-  <text x="950" y="566" text-anchor="end" style="font-size:18px;fill:var(--ink-2)">G</text>
-  <text class="v22" x="955" y="566" data-text="gText" data-text-expr="fmt(Math.hypot(gLat, gLon), 2)" data-rate="10">1.25</text>
+  <text x="950" y="578" text-anchor="end" style="font-size:20px;fill:var(--ink-2)">G</text>
+  <text x="955" y="578" style="font-size:24px" data-text="gText" data-text-expr="fmt(Math.hypot(gLat, gLon), 2)" data-rate="10">1.25</text>
 
   <!-- tyres: pressure, and temperature coloured cold / warm / hot -->
-  <text class="v30" x="803" y="358" text-anchor="end" data-text="psiFL" data-text-expr="fmt(psi(tyres[0].bar), 1)" data-rate="10">39.9</text>
-  <text class="unit" x="808" y="358" style="font-size:17px">psi</text>
-  <text class="v22" x="810" y="385.6" text-anchor="end" data-text="tempFL" data-text-expr="fmt(tyres[0].c)" data-rate="10"
+  <text class="v30" x="803" y="367" text-anchor="end" data-text="psiFL" data-text-expr="fmt(psi(tyres[0].bar), 1)" data-rate="10">39.9</text>
+  <text class="unit" x="808" y="367" style="font-size:17px">psi</text>
+  <text style="font-size:24px" x="810" y="394.6" text-anchor="end" data-text="tempFL" data-text-expr="fmt(tyres[0].c)" data-rate="10"
         data-color="step(round(tyres[0].c), C.ink2, P.tyreCold, C.ink, P.tyreHot + 1, C.amber)">110</text>
-  <text class="unit" x="814" y="385.6" style="font-size:16px">°C</text>
-  <text class="v30" x="803" y="485" text-anchor="end" data-text="psiRL" data-text-expr="fmt(psi(tyres[2].bar), 1)" data-rate="10">39.9</text>
-  <text class="unit" x="808" y="485" style="font-size:17px">psi</text>
-  <text class="v22" x="810" y="512.6" text-anchor="end" data-text="tempRL" data-text-expr="fmt(tyres[2].c)" data-rate="10"
+  <text class="unit" x="814" y="394.6" style="font-size:16px">°C</text>
+  <text class="v30" x="803" y="494" text-anchor="end" data-text="psiRL" data-text-expr="fmt(psi(tyres[2].bar), 1)" data-rate="10">39.9</text>
+  <text class="unit" x="808" y="494" style="font-size:17px">psi</text>
+  <text style="font-size:24px" x="810" y="521.6" text-anchor="end" data-text="tempRL" data-text-expr="fmt(tyres[2].c)" data-rate="10"
         data-color="step(round(tyres[2].c), C.ink2, P.tyreCold, C.ink, P.tyreHot + 1, C.amber)">110</text>
-  <text class="unit" x="814" y="512.6" style="font-size:16px">°C</text>
-  <text class="v30" x="1092" y="358" data-text="psiFR" data-text-expr="fmt(psi(tyres[1].bar), 1)" data-rate="10">39.9</text>
-  <text class="unit" x="1150" y="358" style="font-size:17px">psi</text>
-  <text class="v22" x="1092" y="385.6" data-text="tempFR" data-text-expr="fmt(tyres[1].c)" data-rate="10"
+  <text class="unit" x="814" y="521.6" style="font-size:16px">°C</text>
+  <text class="v30" x="1092" y="367" data-text="psiFR" data-text-expr="fmt(psi(tyres[1].bar), 1)" data-rate="10">39.9</text>
+  <text class="unit" x="1150" y="367" style="font-size:17px">psi</text>
+  <text style="font-size:24px" x="1092" y="394.6" data-text="tempFR" data-text-expr="fmt(tyres[1].c)" data-rate="10"
         data-color="step(round(tyres[1].c), C.ink2, P.tyreCold, C.ink, P.tyreHot + 1, C.amber)">110</text>
-  <text class="unit" x="1118" y="385.6" style="font-size:16px">°C</text>
-  <text class="v30" x="1092" y="485" data-text="psiRR" data-text-expr="fmt(psi(tyres[3].bar), 1)" data-rate="10">39.9</text>
-  <text class="unit" x="1150" y="485" style="font-size:17px">psi</text>
-  <text class="v22" x="1092" y="512.6" data-text="tempRR" data-text-expr="fmt(tyres[3].c)" data-rate="10"
+  <text class="unit" x="1118" y="394.6" style="font-size:16px">°C</text>
+  <text class="v30" x="1092" y="494" data-text="psiRR" data-text-expr="fmt(psi(tyres[3].bar), 1)" data-rate="10">39.9</text>
+  <text class="unit" x="1150" y="494" style="font-size:17px">psi</text>
+  <text style="font-size:24px" x="1092" y="521.6" data-text="tempRR" data-text-expr="fmt(tyres[3].c)" data-rate="10"
         data-color="step(round(tyres[3].c), C.ink2, P.tyreCold, C.ink, P.tyreHot + 1, C.amber)">110</text>
-  <text class="unit" x="1118" y="512.6" style="font-size:16px">°C</text>
-  <rect class="hr" x="660" y="584" width="600" height="1"/>
+  <text class="unit" x="1118" y="521.6" style="font-size:16px">°C</text>
+  <rect class="hr" x="700" y="592" width="520" height="1"/>
 
-  <!-- batteries, in the old bottom strip -->
-  <text class="lbl" x="660" y="615">HIGH-VOLTAGE BATTERY</text>
-  <text class="status" x="977.8" y="615" text-anchor="end" data-text="hvState" data-rate="10"
+  <!-- the high-voltage battery above the bottom-left warning lights (kept clear: y 660 down, x 560-900) -->
+  <text class="lbl" x="700" y="619">HIGH-VOLTAGE BATTERY</text>
+  <text class="status" x="1220" y="619" text-anchor="end" data-text="hvState" data-rate="10"
         data-text-expr="when(!ok(elecHp), '--', when(elecHp &lt; -0.5, 'REGEN', when(elecHp > 20, 'DEPLOY', 'HOLD')))">DEPLOY</text>
-  <text class="v40" x="700.6" y="660.6" text-anchor="end" data-text="hvText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
-  <text class="unit" x="704.6" y="660.6" style="font-size:22px">%</text>
-  <g id="hvBar" data-leds="hv" data-count="24" data-light="10.33 8" data-radius="1" data-c0="C.blue" data-off="C.track"
+  <text x="764" y="655" text-anchor="end" style="font-size:44px" data-text="hvText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
+  <text class="unit" x="768" y="655" style="font-size:22px">%</text>
+  <g id="hvBar" data-leds="hv" data-count="24" data-light="12 9" data-radius="1" data-c0="C.blue" data-off="C.track"
      data-lit="when(ok(socPct), round(socPct / 100 * 24), 0)" data-rate="10">
-    <rect x="659" y="673" width="320" height="8" fill="none"/>
+    <rect x="808" y="636" width="412" height="9" fill="none"/>
   </g>
-  <text class="lbl" x="1025.8" y="615">12 V BATTERY</text>
-  <text class="status" x="1260" y="615" text-anchor="end" style="fill:var(--ink-2)" data-text="lvNote" data-rate="10"
+
+  <!-- the 12 V battery in the strip, between the bottom-left lights and the gear window -->
+  <text class="lbl" x="934" y="703">12 V BATTERY</text>
+  <text x="1104" y="705" style="font-size:34px" data-text="voltsText" data-text-expr="fmt(volts12, 1)" data-rate="10">14.4</text>
+  <text class="unit" x="1170" y="705" style="font-size:22px">V</text>
+  <text class="status" x="1310" y="703" text-anchor="end" style="fill:var(--ink-2)" data-text="lvNote" data-rate="10"
         data-text-expr="when(volts12 >= 13.5, 'CHARGING', '')">CHARGING</text>
-  <text class="v40" x="1025.8" y="660.6" data-text="voltsText" data-text-expr="fmt(volts12, 1)" data-rate="10">14.4</text>
-  <text class="unit" x="1100" y="660.6" style="font-size:22px">V</text>
 
   <!-- the shift cue above the gear: shown at the shift point -->
   <g id="cue" data-sprite="cue" data-show="cue">
-    <path d="M1530.6 228.5 1542.6 216.5l12 12" fill="none" stroke="var(--red)" stroke-width="4.5" stroke-linecap="square"/>
-    <text x="1565.6" y="231.5" style="font-size:20px;font-weight:700;letter-spacing:4px;fill:var(--red)">SHIFT</text>
+    <path d="M1424.6 268.5 1436.6 256.5l12 12" fill="none" stroke="var(--red)" stroke-width="4.5" stroke-linecap="square"/>
+    <text x="1459.6" y="271.5" style="font-size:20px;font-weight:700;letter-spacing:4px;fill:var(--red)">SHIFT</text>
   </g>
 </svg>
 <script>
@@ -275,8 +279,8 @@ svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink
     parent.appendChild(n);
     return n;
   }
-  var R = 250, A0 = 135, SWEEP = 270, D = Math.PI / 180;
-  var SPD = [340, 336], TAC = [1580, 336];
+  var R = 276, A0 = 135, SWEEP = 270, D = Math.PI / 180;
+  var SPD = [442, 380], TAC = [1478, 380];
   function ang(f) { return A0 + SWEEP * Math.min(1, Math.max(0, f)); }
   function pt(c, a, r) { return [c[0] + Math.cos(a * D) * r, c[1] + Math.sin(a * D) * r]; }
   function arcD(c, r, a1, a2) {
@@ -305,7 +309,7 @@ svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink
     for (var w = 0; w <= o.max + 1e-6; w += o.label) {
       var b = ang(w / o.max), p = pt(c, b, R - 64), red = o.red && w >= o.red;
       /* canvas textBaseline middle: the alphabetic baseline 0.4 em below the middle */
-      el('text', { x: p[0], y: p[1] + 1 + 0.4 * 28, 'text-anchor': 'middle', style: 'font-size:28px;fill:' + (red ? '#ff3b2f' : '#9aa5b1') }, g, o.fmt(w));
+      el('text', { x: p[0], y: p[1] + 1 + 0.4 * 30, 'text-anchor': 'middle', style: 'font-size:30px;fill:' + (red ? '#ff3b2f' : '#9aa5b1') }, g, o.fmt(w));
     }
     if (o.shift) {
       var s = ang(o.shift / o.max), p0 = pt(c, s, R + 22), p1 = pt(c, s - 1.26, R + 38), p2 = pt(c, s + 1.26, R + 38);
@@ -328,10 +332,10 @@ svg text { font-family: "Cluster", sans-serif; font-weight: 600; fill: var(--ink
   var lights = document.getElementById('lights');
   for (var i = 0; i < 15; i++) {
     var ring = Math.min(i, 14 - i);
-    el('rect', { x: 783 + i * 24, y: 53, width: 18, height: 18, rx: 3, style: 'fill:' + (ring < 3 ? '#d9e6f2' : ring < 5 ? '#ffb224' : '#121820') }, lights);
+    el('rect', { x: 754 + i * 28, y: 26, width: 20, height: 20, rx: 3, style: 'fill:' + (ring < 3 ? '#d9e6f2' : ring < 5 ? '#ffb224' : '#121820') }, lights);
   }
-  [['fuelBar', 24, 221, 576, 239, 10, 11, '#d9e6f2'], ['hvBar', 24, 659, 673, 320, 8, 17, '#3f9cff']].forEach(function (b) {
-    var g = document.getElementById(b[0]), cw = b[4] / b[1], lw = b[0] === 'fuelBar' ? 6.96 : 10.33;
+  [['fuelBar', 24, 302, 613, 280, 11, 11, '#d9e6f2'], ['hvBar', 24, 808, 636, 412, 9, 17, '#3f9cff']].forEach(function (b) {
+    var g = document.getElementById(b[0]), cw = b[4] / b[1], lw = b[0] === 'fuelBar' ? 8.17 : 12;
     for (var j = 0; j < b[1]; j++) el('rect', { x: b[2] + j * cw + (cw - lw) / 2, y: b[3], width: lw, height: b[5], rx: 1, style: 'fill:' + (j < b[6] ? b[7] : '#18202a') }, g);
   });
 })();

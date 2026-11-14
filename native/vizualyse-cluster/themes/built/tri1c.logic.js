@@ -127,7 +127,7 @@ const DR = (function () {
         NAMES: Object.keys(pure()).concat(STATEFUL), STATEFUL: STATEFUL };
 })();
 /* RUNTIME END */
-const P = {"vmax":160,"a0":0.5,"ribLen":676.37,"limitDeg":3.5,"setDeg":2,"engMaxHp":400,"elMaxHp":120,"evDx":41,"turnShift":30,"distX":1534};
+const P = {"vmax":160,"a0":0.5,"ribLen":702.38,"limitDeg":3.5,"setDeg":2,"engMaxHp":400,"elMaxHp":120,"evDx":41,"turnShift":30,"distX":1526};
 const C = {"ground":[0,0,0,1],"disc":[0.0275,0.0353,0.0471,1],"ink":[0.9529,0.9608,0.9725,1],"ink-2":[0.6392,0.6706,0.7176,1],"ink2":[0.6392,0.6706,0.7176,1],"line":[0.3373,0.3686,0.4157,1],"line-dim":[0.1451,0.1647,0.1961,1],"lineDim":[0.1451,0.1647,0.1961,1],"limit":[1,0.2314,0.1804,1],"elec":[0.2118,0.8196,0.9176,1],"charge":[0.4471,0.8667,0.5569,1]};
 const LETS = [
     ["vMph", "b0", function (S, H, L) { var kmh = S.kmh, smooth = H.smooth, mph = H.mph; return (smooth(mph(kmh), 12)); }],
@@ -157,28 +157,28 @@ const LAYERS = [
     { info: {"name":"setR","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
         "value": ["b24", function (S, H, L) { return (0); }],
     } },
-    { info: {"name":"limit","kind":"text","x":843,"y":265,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"limit","kind":"text","x":839,"y":246,"rate":10,"nullText":"--"}, b: {
         "text": ["b27", function (S, H, L) { var limitKmh = S.limitKmh, fmt = H.fmt, mph = H.mph; return (fmt(mph(limitKmh))); }],
     } },
-    { info: {"name":"mode","kind":"text","x":901,"y":241,"nullText":"--"}, b: {
+    { info: {"name":"mode","kind":"text","x":898,"y":220,"nullText":"--"}, b: {
         "text": ["b28", function (S, H, L) { var gearMode = S.gearMode, when = H.when; return (when(/^[A-Z]$/.test(gearMode), gearMode, '-')); }],
     } },
-    { info: {"name":"gear","kind":"text","x":980,"y":275,"nullText":"--"}, b: {
+    { info: {"name":"gear","kind":"text","x":980,"y":256,"nullText":"--"}, b: {
         "text": ["b29", function (S, H, L) { var gear = S.gear, when = H.when, fmt = H.fmt; return (when(gear === 0, 'N', when(gear < 0, 'R', fmt(gear)))); }],
     } },
-    { info: {"name":"set","kind":"text","x":1034,"y":258,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"set","kind":"text","x":1038,"y":239,"rate":10,"nullText":"--"}, b: {
         "text": ["b30", function (S, H, L) { var cruiseKmh = S.cruiseKmh, when = H.when, ok = H.ok, fmt = H.fmt, mph = H.mph; return (when(ok(cruiseKmh), fmt(mph(cruiseKmh)), '– –')); }],
         "color": ["b31", function (S, H, L) { var cruiseKmh = S.cruiseKmh, when = H.when, ok = H.ok; return (when(ok(cruiseKmh), C.ink, C.line)); }],
     } },
-    { info: {"name":"speed","kind":"text","x":821,"y":330,"nullText":"--"}, b: {
+    { info: {"name":"speed","kind":"text","x":815,"y":313,"nullText":"--"}, b: {
         "text": ["b32", function (S, H, L) { var kmh = S.kmh, fmt = H.fmt, mph = H.mph; return (fmt(mph(kmh))); }],
     } },
-    { info: {"name":"rpm","kind":"text","x":860,"y":533,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"rpm","kind":"text","x":860,"y":523,"rate":10,"nullText":"--"}, b: {
         "text": ["b33", function (S, H, L) { var rpm = S.rpm, ev = L.ev, when = H.when, fmt = H.fmt, round = H.round; return (when(ev, 'Electric', fmt(round(rpm, 50)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '))); }],
         "color": ["b34", function (S, H, L) { var ev = L.ev, when = H.when; return (when(ev, C.elec, C.ink2)); }],
         "dx": ["b35", function (S, H, L) { var ev = L.ev, when = H.when; return (when(ev, P.evDx, 0)); }],
     } },
-    { info: {"name":"rpmUnit","kind":"text","x":978,"y":538,"nullText":"rpm"}, b: {
+    { info: {"name":"rpmUnit","kind":"text","x":978,"y":528,"nullText":"rpm"}, b: {
         "text": ["b36", function (S, H, L) { var ev = L.ev, when = H.when; return (when(ev, '', 'rpm')); }],
     } },
     { info: {"name":"eng","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
@@ -189,26 +189,26 @@ const LAYERS = [
         "from": ["b39", function (S, H, L) { var chg = L.chg, when = H.when; return (when(chg, 1, 0)); }],
         "band-color": ["b40", function (S, H, L) { var chg = L.chg, when = H.when; return (when(chg, C.charge, C.elec)); }],
     } },
-    { info: {"name":"avg","kind":"text","x":293,"y":265,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"avg","kind":"text","x":301,"y":281,"rate":10,"nullText":"--"}, b: {
         "text": ["b41", function (S, H, L) { var avgL100 = S.avgL100, when = H.when, fmt = H.fmt; return (when(avgL100 > 0, fmt(282.481 / avgL100, 1), '--')); }],
     } },
-    { info: {"name":"now","kind":"text","x":214,"y":388,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"now","kind":"text","x":222,"y":404,"rate":10,"nullText":"--"}, b: {
         "text": ["b42", function (S, H, L) { var instL100 = S.instL100, when = H.when, fmt = H.fmt; return (when(instL100 < 0.1 || 282.481 / instL100 > 99, '99+', fmt(282.481 / instL100))); }],
     } },
-    { info: {"name":"elV","kind":"text","x":378,"y":388,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"elV","kind":"text","x":386,"y":404,"rate":10,"nullText":"--"}, b: {
         "text": ["b43", function (S, H, L) { var elf = L.elf, fmt = H.fmt; return (fmt(elf * 100)); }],
         "color": ["b44", function (S, H, L) { var elf = L.elf, chg = L.chg, when = H.when, round = H.round; return (when(round(elf * 100) === 0, C.ink2, when(chg, C.charge, C.elec))); }],
     } },
-    { info: {"name":"elLabel","kind":"text","x":400,"y":423,"rate":10,"nullText":"Electric"}, b: {
+    { info: {"name":"elLabel","kind":"text","x":408,"y":439,"rate":10,"nullText":"Electric"}, b: {
         "text": ["b45", function (S, H, L) { var ele = L.ele, chg = L.chg, eng = L.eng, when = H.when, ok = H.ok; return (when(!ok(ele), 'Electric', when(chg, 'Charging', when(eng < 1, 'Drive', 'Assist')))); }],
     } },
-    { info: {"name":"coolant","kind":"text","x":196,"y":490,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"coolant","kind":"text","x":204,"y":506,"rate":10,"nullText":"--"}, b: {
         "text": ["b46", function (S, H, L) { var coolantC = S.coolantC, fmt = H.fmt; return (fmt(coolantC)); }],
     } },
-    { info: {"name":"avgSpd","kind":"text","x":334,"y":490,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"avgSpd","kind":"text","x":342,"y":506,"rate":10,"nullText":"--"}, b: {
         "text": ["b47", function (S, H, L) { var avgKmh = S.avgKmh, fmt = H.fmt, mph = H.mph; return (fmt(mph(avgKmh))); }],
     } },
-    { info: {"name":"trip","kind":"text","x":418,"y":490,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"trip","kind":"text","x":426,"y":506,"rate":10,"nullText":"--"}, b: {
         "text": ["b48", function (S, H, L) { var tripKm = S.tripKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(tripKm), 1)); }],
     } },
     { info: {"name":"fuel","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
@@ -217,44 +217,44 @@ const LAYERS = [
     { info: {"name":"bat","kind":"gauge","x":0,"y":0,"t0":0,"t1":1,"segs":[0,0],"segEnd":1}, b: {
         "value": ["b50", function (S, H, L) { var socPct = S.socPct, clamp = H.clamp; return (clamp(socPct / 100)); }],
     } },
-    { info: {"name":"turnCover","kind":"rect","x":1484,"y":394,"rate":10}, b: {
+    { info: {"name":"turnCover","kind":"rect","x":1476,"y":410,"rate":10}, b: {
         "dx": ["b51", function (S, H, L) { var turnDir = S.turnDir, when = H.when; return (when(turnDir === 'left', 34.8, when(turnDir === 'right', -34.8, 0))); }],
     } },
-    { info: {"name":"dist","kind":"text","x":1534,"y":408,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"dist","kind":"text","x":1526,"y":424,"rate":10,"nullText":"--"}, b: {
         "text": ["b52", function (S, H, L) { var turnM = S.turnM, turnMi = L.turnMi, when = H.when, fmt = H.fmt, max = H.max, round = H.round; return (when(turnMi > 0.5, fmt(turnMi, 1), fmt(max(50, round(turnM * 1.09361, 50))))); }],
         "dx": ["b53", function (S, H, L) { var turnDir = S.turnDir, when = H.when; return (when(turnDir === 'right', P.turnShift, 0)); }],
     } },
-    { info: {"name":"distUnit","kind":"text","x":1596,"y":413,"rate":10,"nullText":""}, b: {
+    { info: {"name":"distUnit","kind":"text","x":1588,"y":429,"rate":10,"nullText":""}, b: {
         "text": ["b54", function (S, H, L) { var turnM = S.turnM, turnMi = L.turnMi, when = H.when, ok = H.ok; return (when(ok(turnM), when(turnMi > 0.5, 'mi', 'yd'), '')); }],
     } },
-    { info: {"name":"road","kind":"text","x":1466,"y":441,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"road","kind":"text","x":1458,"y":457,"rate":10,"nullText":"--"}, b: {
         "text": ["b55", function (S, H, L) { var road = S.road, when = H.when; return (when(typeof road === 'string' && road.length > 0, road.slice(0, 16), '--')); }],
     } },
-    { info: {"name":"fuelRange","kind":"text","x":1428,"y":496,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"fuelRange","kind":"text","x":1420,"y":512,"rate":10,"nullText":"--"}, b: {
         "text": ["b56", function (S, H, L) { var rangeKm = S.rangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(rangeKm))); }],
     } },
-    { info: {"name":"fuelLabel","kind":"text","x":1414,"y":527,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"fuelLabel","kind":"text","x":1406,"y":543,"rate":10,"nullText":"--"}, b: {
         "text": ["b57", function (S, H, L) { var fuelPct = S.fuelPct, fmt = H.fmt; return ('Fuel ' + fmt(fuelPct) + ' %'); }],
     } },
-    { info: {"name":"batRange","kind":"text","x":1601,"y":496,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"batRange","kind":"text","x":1593,"y":512,"rate":10,"nullText":"--"}, b: {
         "text": ["b58", function (S, H, L) { var evRangeKm = S.evRangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(evRangeKm))); }],
     } },
-    { info: {"name":"batLabel","kind":"text","x":1562,"y":527,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"batLabel","kind":"text","x":1554,"y":543,"rate":10,"nullText":"--"}, b: {
         "text": ["b59", function (S, H, L) { var socPct = S.socPct, fmt = H.fmt; return ('Battery ' + fmt(socPct) + ' %'); }],
     } },
-    { info: {"name":"clock","kind":"text","x":150,"y":58,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"clock","kind":"text","x":334,"y":102,"rate":10,"nullText":"--"}, b: {
         "text": ["b60", function (S, H, L) { var clock = S.clock, when = H.when; return (when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')); }],
     } },
-    { info: {"name":"outside","kind":"text","x":1688,"y":58,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"outside","kind":"text","x":1500,"y":102,"rate":10,"nullText":"--"}, b: {
         "text": ["b61", function (S, H, L) { var outsideC = S.outsideC, fmt = H.fmt; return (fmt(outsideC).replace('-', '−')); }],
     } },
-    { info: {"name":"tyres","kind":"text","x":212,"y":670,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"tyres","kind":"text","x":238,"y":668,"rate":10,"nullText":"--"}, b: {
         "text": ["b62", function (S, H, L) { var tyres = S.tyres, fmt = H.fmt, psi = H.psi; return (fmt(psi((tyres[0].bar + tyres[1].bar) / 2)) + ' / ' + fmt(psi((tyres[2].bar + tyres[3].bar) / 2)) + ' psi'); }],
     } },
-    { info: {"name":"range","kind":"text","x":950,"y":664,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"range","kind":"text","x":994,"y":668,"rate":10,"nullText":"--"}, b: {
         "text": ["b63", function (S, H, L) { var rangeKm = S.rangeKm, evRangeKm = S.evRangeKm, fmt = H.fmt, miles = H.miles; return (fmt(miles(rangeKm + evRangeKm))); }],
     } },
-    { info: {"name":"eta","kind":"text","x":1638,"y":670,"rate":10,"nullText":"--"}, b: {
+    { info: {"name":"eta","kind":"text","x":1560,"y":668,"rate":10,"nullText":"--"}, b: {
         "text": ["b64", function (S, H, L) { var eta = S.eta, destKm = S.destKm, when = H.when, fmt = H.fmt, miles = H.miles; return (when(/^\d{1,2}:\d{2}$/.test(eta), eta, '--:--') + ' · ' + fmt(miles(destKm)) + ' mi'); }],
     } },
 ];

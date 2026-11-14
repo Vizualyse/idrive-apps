@@ -310,8 +310,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1.f170w500.font.gz",
-      "from": "themes/built/g20i1.f170w500.font.gz",
+      "path": "g20i1.f184w500.font.gz",
+      "from": "themes/built/g20i1.f184w500.font.gz",
       "mode": "0644"
     },
     {
@@ -330,8 +330,13 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1.f64w400.font.gz",
-      "from": "themes/built/g20i1.f64w400.font.gz",
+      "path": "g20i1.f33w500.font.gz",
+      "from": "themes/built/g20i1.f33w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i1.f76w400.font.gz",
+      "from": "themes/built/g20i1.f76w400.font.gz",
       "mode": "0644"
     },
     {
@@ -365,13 +370,18 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1c.f36w600.font.gz",
-      "from": "themes/built/g20i1c.f36w600.font.gz",
+      "path": "g20i1c.f30w500.font.gz",
+      "from": "themes/built/g20i1c.f30w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i1c.f38w500.font.gz",
-      "from": "themes/built/g20i1c.f38w500.font.gz",
+      "path": "g20i1c.f33w500.font.gz",
+      "from": "themes/built/g20i1c.f33w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i1c.f36w600.font.gz",
+      "from": "themes/built/g20i1c.f36w600.font.gz",
       "mode": "0644"
     },
     {
@@ -400,13 +410,13 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2.f156w500.font.gz",
-      "from": "themes/built/g20i2.f156w500.font.gz",
+      "path": "g20i2.f16w600.font.gz",
+      "from": "themes/built/g20i2.f16w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i2.f16w600.font.gz",
-      "from": "themes/built/g20i2.f16w600.font.gz",
+      "path": "g20i2.f180w500.font.gz",
+      "from": "themes/built/g20i2.f180w500.font.gz",
       "mode": "0644"
     },
     {
@@ -415,8 +425,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2.f200w500.font.gz",
-      "from": "themes/built/g20i2.f200w500.font.gz",
+      "path": "g20i2.f214w500.font.gz",
+      "from": "themes/built/g20i2.f214w500.font.gz",
       "mode": "0644"
     },
     {
@@ -470,8 +480,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2c.f120w500.font.gz",
-      "from": "themes/built/g20i2c.f120w500.font.gz",
+      "path": "g20i2c.f140w500.font.gz",
+      "from": "themes/built/g20i2c.f140w500.font.gz",
       "mode": "0644"
     },
     {
@@ -525,13 +535,13 @@
       "mode": "0644"
     },
     {
-      "path": "lci1.f20w500.font.gz",
-      "from": "themes/built/lci1.f20w500.font.gz",
+      "path": "lci1.f22w500.font.gz",
+      "from": "themes/built/lci1.f22w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1.f22w500.font.gz",
-      "from": "themes/built/lci1.f22w500.font.gz",
+      "path": "lci1.f24w500.font.gz",
+      "from": "themes/built/lci1.f24w500.font.gz",
       "mode": "0644"
     },
     {
@@ -540,13 +550,13 @@
       "mode": "0644"
     },
     {
-      "path": "lci1.f32w500.font.gz",
-      "from": "themes/built/lci1.f32w500.font.gz",
+      "path": "lci1.f36w600.font.gz",
+      "from": "themes/built/lci1.f36w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1.f36w600.font.gz",
-      "from": "themes/built/lci1.f36w600.font.gz",
+      "path": "lci1.f40w500.font.gz",
+      "from": "themes/built/lci1.f40w500.font.gz",
       "mode": "0644"
     },
     {
@@ -600,13 +610,13 @@
       "mode": "0644"
     },
     {
-      "path": "lci1c.f20w500.font.gz",
-      "from": "themes/built/lci1c.f20w500.font.gz",
+      "path": "lci1c.f22w500.font.gz",
+      "from": "themes/built/lci1c.f22w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1c.f22w500.font.gz",
-      "from": "themes/built/lci1c.f22w500.font.gz",
+      "path": "lci1c.f24w500.font.gz",
+      "from": "themes/built/lci1c.f24w500.font.gz",
       "mode": "0644"
     },
     {
@@ -640,38 +650,33 @@
       "mode": "0644"
     },
     {
-      "path": "lci2.f13w500.font.gz",
-      "from": "themes/built/lci2.f13w500.font.gz",
+      "path": "lci2.f14w500.font.gz",
+      "from": "themes/built/lci2.f14w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.f140w600.font.gz",
-      "from": "themes/built/lci2.f140w600.font.gz",
+      "path": "lci2.f16w400.font.gz",
+      "from": "themes/built/lci2.f16w400.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.f15w400.font.gz",
-      "from": "themes/built/lci2.f15w400.font.gz",
+      "path": "lci2.f180w600.font.gz",
+      "from": "themes/built/lci2.f180w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.f160w600.font.gz",
-      "from": "themes/built/lci2.f160w600.font.gz",
+      "path": "lci2.f200w600.font.gz",
+      "from": "themes/built/lci2.f200w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.f17w700.font.gz",
-      "from": "themes/built/lci2.f17w700.font.gz",
+      "path": "lci2.f20w700.font.gz",
+      "from": "themes/built/lci2.f20w700.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.f18w500.font.gz",
-      "from": "themes/built/lci2.f18w500.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2.f26w500.font.gz",
-      "from": "themes/built/lci2.f26w500.font.gz",
+      "path": "lci2.f22w500.font.gz",
+      "from": "themes/built/lci2.f22w500.font.gz",
       "mode": "0644"
     },
     {
@@ -680,8 +685,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci2.f40w500.font.gz",
-      "from": "themes/built/lci2.f40w500.font.gz",
+      "path": "lci2.f48w500.font.gz",
+      "from": "themes/built/lci2.f48w500.font.gz",
       "mode": "0644"
     },
     {
@@ -710,23 +715,23 @@
       "mode": "0644"
     },
     {
-      "path": "lci2c.f13w500.font.gz",
-      "from": "themes/built/lci2c.f13w500.font.gz",
+      "path": "lci2c.f14w500.font.gz",
+      "from": "themes/built/lci2c.f14w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2c.f15w400.font.gz",
-      "from": "themes/built/lci2c.f15w400.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2c.f17w500.font.gz",
-      "from": "themes/built/lci2c.f17w500.font.gz",
+      "path": "lci2c.f16w400.font.gz",
+      "from": "themes/built/lci2c.f16w400.font.gz",
       "mode": "0644"
     },
     {
       "path": "lci2c.f18w500.font.gz",
       "from": "themes/built/lci2c.f18w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2c.f22w500.font.gz",
+      "from": "themes/built/lci2c.f22w500.font.gz",
       "mode": "0644"
     },
     {
@@ -740,13 +745,13 @@
       "mode": "0644"
     },
     {
-      "path": "lci2c.f40w500.font.gz",
-      "from": "themes/built/lci2c.f40w500.font.gz",
+      "path": "lci2c.f48w500.font.gz",
+      "from": "themes/built/lci2c.f48w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2c.f64w600.font.gz",
-      "from": "themes/built/lci2c.f64w600.font.gz",
+      "path": "lci2c.f80w600.font.gz",
+      "from": "themes/built/lci2c.f80w600.font.gz",
       "mode": "0644"
     },
     {
@@ -770,13 +775,13 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.f116w600.font.gz",
-      "from": "themes/built/perf1.f116w600.font.gz",
+      "path": "perf1.f136w600.font.gz",
+      "from": "themes/built/perf1.f136w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf1.f128w600.font.gz",
-      "from": "themes/built/perf1.f128w600.font.gz",
+      "path": "perf1.f144w600.font.gz",
+      "from": "themes/built/perf1.f144w600.font.gz",
       "mode": "0644"
     },
     {
@@ -790,13 +795,13 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.f30w600.font.gz",
-      "from": "themes/built/perf1.f30w600.font.gz",
+      "path": "perf1.f26w600.font.gz",
+      "from": "themes/built/perf1.f26w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf1.f36w600.font.gz",
-      "from": "themes/built/perf1.f36w600.font.gz",
+      "path": "perf1.f30w600.font.gz",
+      "from": "themes/built/perf1.f30w600.font.gz",
       "mode": "0644"
     },
     {
@@ -805,13 +810,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.f46w600.font.gz",
-      "from": "themes/built/perf1.f46w600.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1.f80w600.font.gz",
-      "from": "themes/built/perf1.f80w600.font.gz",
+      "path": "perf1.f88w600.font.gz",
+      "from": "themes/built/perf1.f88w600.font.gz",
       "mode": "0644"
     },
     {
@@ -840,6 +840,11 @@
       "mode": "0644"
     },
     {
+      "path": "perf1c.f112w600.font.gz",
+      "from": "themes/built/perf1c.f112w600.font.gz",
+      "mode": "0644"
+    },
+    {
       "path": "perf1c.f20w500.font.gz",
       "from": "themes/built/perf1c.f20w500.font.gz",
       "mode": "0644"
@@ -860,13 +865,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf1c.f68w600.font.gz",
-      "from": "themes/built/perf1c.f68w600.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1c.f96w600.font.gz",
-      "from": "themes/built/perf1c.f96w600.font.gz",
+      "path": "perf1c.f88w600.font.gz",
+      "from": "themes/built/perf1c.f88w600.font.gz",
       "mode": "0644"
     },
     {
@@ -895,13 +895,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2.f140w600.font.gz",
-      "from": "themes/built/perf2.f140w600.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2.f164w600.font.gz",
-      "from": "themes/built/perf2.f164w600.font.gz",
+      "path": "perf2.f156w600.font.gz",
+      "from": "themes/built/perf2.f156w600.font.gz",
       "mode": "0644"
     },
     {
@@ -910,13 +905,13 @@
       "mode": "0644"
     },
     {
-      "path": "perf2.f22w600.font.gz",
-      "from": "themes/built/perf2.f22w600.font.gz",
+      "path": "perf2.f176w600.font.gz",
+      "from": "themes/built/perf2.f176w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2.f26w600.font.gz",
-      "from": "themes/built/perf2.f26w600.font.gz",
+      "path": "perf2.f24w600.font.gz",
+      "from": "themes/built/perf2.f24w600.font.gz",
       "mode": "0644"
     },
     {
@@ -925,13 +920,18 @@
       "mode": "0644"
     },
     {
-      "path": "perf2.f40w600.font.gz",
-      "from": "themes/built/perf2.f40w600.font.gz",
+      "path": "perf2.f34w600.font.gz",
+      "from": "themes/built/perf2.f34w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2.f60w600.font.gz",
-      "from": "themes/built/perf2.f60w600.font.gz",
+      "path": "perf2.f44w600.font.gz",
+      "from": "themes/built/perf2.f44w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f66w600.font.gz",
+      "from": "themes/built/perf2.f66w600.font.gz",
       "mode": "0644"
     },
     {
@@ -965,8 +965,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2c.f112w600.font.gz",
-      "from": "themes/built/perf2c.f112w600.font.gz",
+      "path": "perf2c.f124w600.font.gz",
+      "from": "themes/built/perf2c.f124w600.font.gz",
       "mode": "0644"
     },
     {
@@ -980,13 +980,13 @@
       "mode": "0644"
     },
     {
-      "path": "perf2c.f26w600.font.gz",
-      "from": "themes/built/perf2c.f26w600.font.gz",
+      "path": "perf2c.f30w600.font.gz",
+      "from": "themes/built/perf2c.f30w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2c.f40w600.font.gz",
-      "from": "themes/built/perf2c.f40w600.font.gz",
+      "path": "perf2c.f44w600.font.gz",
+      "from": "themes/built/perf2c.f44w600.font.gz",
       "mode": "0644"
     },
     {
@@ -995,8 +995,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2c.f60w600.font.gz",
-      "from": "themes/built/perf2c.f60w600.font.gz",
+      "path": "perf2c.f66w600.font.gz",
+      "from": "themes/built/perf2c.f66w600.font.gz",
       "mode": "0644"
     },
     {
@@ -1020,13 +1020,13 @@
       "mode": "0644"
     },
     {
-      "path": "tri1.f102w600.font.gz",
-      "from": "themes/built/tri1.f102w600.font.gz",
+      "path": "tri1.f106w600.font.gz",
+      "from": "themes/built/tri1.f106w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri1.f179w500.font.gz",
-      "from": "themes/built/tri1.f179w500.font.gz",
+      "path": "tri1.f186w500.font.gz",
+      "from": "themes/built/tri1.f186w500.font.gz",
       "mode": "0644"
     },
     {
@@ -1055,8 +1055,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri1.f48w500.font.gz",
-      "from": "themes/built/tri1.f48w500.font.gz",
+      "path": "tri1.f50w500.font.gz",
+      "from": "themes/built/tri1.f50w500.font.gz",
       "mode": "0644"
     },
     {
@@ -1090,11 +1090,6 @@
       "mode": "0644"
     },
     {
-      "path": "tri1c.f24w500.font.gz",
-      "from": "themes/built/tri1c.f24w500.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "tri1c.f32w500.font.gz",
       "from": "themes/built/tri1c.f32w500.font.gz",
       "mode": "0644"
@@ -1105,13 +1100,13 @@
       "mode": "0644"
     },
     {
-      "path": "tri1c.f40w500.font.gz",
-      "from": "themes/built/tri1c.f40w500.font.gz",
+      "path": "tri1c.f40w600.font.gz",
+      "from": "themes/built/tri1c.f40w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri1c.f40w600.font.gz",
-      "from": "themes/built/tri1c.f40w600.font.gz",
+      "path": "tri1c.f41w500.font.gz",
+      "from": "themes/built/tri1c.f41w500.font.gz",
       "mode": "0644"
     },
     {
@@ -1120,8 +1115,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri1c.f87w600.font.gz",
-      "from": "themes/built/tri1c.f87w600.font.gz",
+      "path": "tri1c.f91w600.font.gz",
+      "from": "themes/built/tri1c.f91w600.font.gz",
       "mode": "0644"
     },
     {
@@ -1145,23 +1140,23 @@
       "mode": "0644"
     },
     {
-      "path": "tri2.f16w460.font.gz",
-      "from": "themes/built/tri2.f16w460.font.gz",
+      "path": "tri2.f17w460.font.gz",
+      "from": "themes/built/tri2.f17w460.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2.f24w560.font.gz",
-      "from": "themes/built/tri2.f24w560.font.gz",
+      "path": "tri2.f26w560.font.gz",
+      "from": "themes/built/tri2.f26w560.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2.f255w600.font.gz",
-      "from": "themes/built/tri2.f255w600.font.gz",
+      "path": "tri2.f274w600.font.gz",
+      "from": "themes/built/tri2.f274w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2.f255w600x.font.gz",
-      "from": "themes/built/tri2.f255w600x.font.gz",
+      "path": "tri2.f274w600x.font.gz",
+      "from": "themes/built/tri2.f274w600x.font.gz",
       "mode": "0644"
     },
     {
@@ -1170,8 +1165,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri2.f64w560.font.gz",
-      "from": "themes/built/tri2.f64w560.font.gz",
+      "path": "tri2.f69w560.font.gz",
+      "from": "themes/built/tri2.f69w560.font.gz",
       "mode": "0644"
     },
     {
@@ -1220,28 +1215,28 @@
       "mode": "0644"
     },
     {
-      "path": "tri2c.f16w460.font.gz",
-      "from": "themes/built/tri2c.f16w460.font.gz",
+      "path": "tri2c.f17w460.font.gz",
+      "from": "themes/built/tri2c.f17w460.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2c.f192w600.font.gz",
-      "from": "themes/built/tri2c.f192w600.font.gz",
+      "path": "tri2c.f206w600.font.gz",
+      "from": "themes/built/tri2c.f206w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2c.f22w560.font.gz",
-      "from": "themes/built/tri2c.f22w560.font.gz",
+      "path": "tri2c.f26w560.font.gz",
+      "from": "themes/built/tri2c.f26w560.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2c.f29w700.font.gz",
-      "from": "themes/built/tri2c.f29w700.font.gz",
+      "path": "tri2c.f31w700.font.gz",
+      "from": "themes/built/tri2c.f31w700.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri2c.f32w560.font.gz",
-      "from": "themes/built/tri2c.f32w560.font.gz",
+      "path": "tri2c.f34w560.font.gz",
+      "from": "themes/built/tri2c.f34w560.font.gz",
       "mode": "0644"
     },
     {
