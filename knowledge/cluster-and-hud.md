@@ -40,14 +40,19 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   y 320-430 of the panel (inside the stock rev counter), showing while ours
   showed and **staying after our layers were gone**, until it cleared by
   itself after a while or the cluster restarted. So it is the KOMBI's own
-  content, not ours. Suspected, not shown: memory pressure on the KOMBI's
-  GPU (both kept several MB of textures on it: a 1080p video layer's
-  persistent Y/U/V and packed-block buffers, a theme's ~6-7 MB) evicting a
-  stock element's image. To test: the same theme with far smaller
-  textures; a large texture alone (the calibration grid, 5 MB).
-- The cluster's visible area: the frame and glass hide part of the panel's
-  top (our shift lights at y ~30-60 showed only as specks); measured
-  exactly with the calibration grid (`themes/calib`), still to do.
+  content, not ours. **Not memory pressure:** it came up again (2026-11-14)
+  under the calibration grid alone, one static 0.3 MB texture. Suspected,
+  not shown: the stock gear indicator (it sits in the stock rev counter
+  there) drawn above the panel like the telltales, its black plate left
+  showing when the gauges under it are covered. To test: change gear with
+  the box showing.
+- **The cluster's visible area** (calibration grid, 2026-11-14): all of
+  1920x720 shows, the top edge in the middle and the bottom strip
+  included, except **the top corners, cut on a diagonal** from about
+  (0, 190) to (325, 0) on the left and (1650, 0) to (1920, 200) on the
+  right; the bottom corners are slightly rounded. The KOMBI's telltales
+  draw over the panel at about: tyre warning (40, 260), parking brake
+  (1840, 245), seatbelt (630, 700), gear "P" in a black box (1450, 685).
 - The cluster map's top and bottom are dimmed by the gauge surround (about
   y 72-440 of 480 is clean).
 - The HUD: its top is clipped and its own speed sits at the bottom. The

@@ -182,6 +182,8 @@
             const a = theme.assets[k];
             if (a.w > LIMITS.side || a.h > LIMITS.side) p.push('asset ' + k + ' is ' + a.w + 'x' + a.h);
             if (a.w * a.h * (a.format === 'r8' ? 1 : 4) > LIMITS.frame) p.push('asset ' + k + ' is bigger than one frame message');
+            /* the KOMBI reads rows 4-byte aligned: an R8 asset of another width draws sheared */
+            if (a.format === 'r8' && a.w % 4) p.push('asset ' + k + ' is R8 and ' + a.w + ' wide (not a multiple of 4)');
         });
         const names = {};
         theme.layers.forEach((l) => {

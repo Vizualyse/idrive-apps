@@ -86,7 +86,13 @@ function fontAtlas(src, f, tmp) {
     const data = fs.readFileSync(fontFile).toString('base64');
     const fmt = /\.woff2$/.test(fontFile) ? 'woff2' : /\.woff$/.test(fontFile) ? 'woff' : 'truetype';
     const glyphs = f.glyphs;
-    const cw = f.cell[0], w = cw * glyphs.length, h = f.cell[1];
+    /* cells widened (by up to 3 px) until the atlas's width is a multiple
+     * of 4: the KOMBI reads R8 rows 4-byte aligned, so any other width
+     * shears the glyphs into diagonal hatching (seen on the car,
+     * 2026-11-14; WebGL in the preview hides it) */
+    let cw = f.cell[0];
+    while ((cw * glyphs.length) % 4) cw++;
+    const w = cw * glyphs.length, h = f.cell[1];
     const esc = (c) => c === ' ' ? '&nbsp;' : c.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const cells = glyphs.split('').map((c, i) =>
         '<div class="g" style="left:' + (i * cw) + 'px;top:' + (f.dy || 0) + 'px;height:' + h + 'px;line-height:' + h + 'px"><span>' + esc(c) + '</span></div>' +
@@ -118,7 +124,7 @@ function fontAtlas(src, f, tmp) {
         return n;
     });
     if (adv.every((n) => n === 0)) throw new Error('font ' + f.file + ': no advances measured (did the font load?)');
-    return { w, h: th, top, r8: out, adv };
+    return { w, h: th, top, r8: out, adv, cw };
 }
 
 /* A field cut to the bounds of its pixels (A > 0): the rest draws nothing
@@ -222,8 +228,9 @@ function build(src) {
         const a = fontAtlas(src, f, tmp);
         const asset = name + 'Font';
         theme.assets[asset] = { format: 'r8', w: a.w, h: a.h, sampling: 'bilinear', file: put(id + '.' + name + '.font.gz', gz(a.r8)), sha1: sha1(a.r8) };
-        fonts[name] = { glyphs: f.glyphs, cell: f.cell, adv: a.adv, asset, top: a.top, h: a.h };
-        theme.fonts[name] = { glyphs: f.glyphs, cell: f.cell, adv: a.adv };
+        const cell = [a.cw, f.cell[1]];
+        fonts[name] = { glyphs: f.glyphs, cell, adv: a.adv, asset, top: a.top, h: a.h };
+        theme.fonts[name] = { glyphs: f.glyphs, cell, adv: a.adv };
         upload += a.r8.length;
     });
 
