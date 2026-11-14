@@ -740,17 +740,10 @@ every theme's logic, the tool against a fake cluster-render on Node 8.
 the central screen, tested off the car (the picker against a fake mgu-render
 client with scripted touches on Node 8, the touch reader in Python 3.12 as
 root, the page against a fake HMI). On the car (the user, 2026-11-14): it
-works. How it works:
+works; car testing marked done for now. How it works:
 [native/vizualyse-cluster/THEMES.md](native/vizualyse-cluster/THEMES.md),
 the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-central-screen).
 
-- [ ] **First time on the KOMBI (bench, then the car).** A theme on the
-  panel with the demo drive, parked (`bench: true` on the bench): does the
-  panel show; the start upload (6-7 MB) through the governor; the effect
-  layers' cost on the KOMBI's GPU (about 40 layers, 2-2.7 Mpx a frame:
-  watch for a cluster restart and stop at once); `highp` in fragment
-  shaders; straight-alpha blending as on the test unit; a Sport/Comfort
-  switch.
 - [ ] **The picker, next:** the iDrive knob on the picker too (the app's
   manifest with FrontCCU `statusRotaryEncoderState`, as robertn_store reads
   it, forwarded to the tool: focus and press; check the installer takes
