@@ -1,19 +1,102 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
-     Three-dial 2: everything that never moves, drawn as the mockup draws it
-     (faces, grooves, ticks, numerals, rims, the unlit shift ladder, tyre
-     plates, column outlines, icons, labels and units), from geom.js, which
-     gen.js writes with the layers. The grooves are drawn LIT: the layers dim
-     them past the revs and the power (and tint the electric stretch).
-     Archivo: SIL OFL 1.1, fonts/OFL.txt. -->
+     tri2 "Three-dial 2": the three-dial Sport mockup as a design (DESIGNS.md),
+     re-laid out for the whole 1920 x 720 panel. The rev counter is 1.08x the
+     mockup's (its shift ladder now starts at the 40 px keep-clear line), the
+     side dials keep their size and sit 35 px lower, the four columns are 28 %
+     taller, and the clock / outside / odometer line sits in the old bottom
+     strip. Fuel, battery, oil and coolant on the outside; power on the left;
+     revs, gear and speed in the middle; the tyres as a pit board on the right.
+     Archivo: SIL OFL 1.1, fonts/OFL.txt (the art uses the variable font, the
+     changing figures static cuts of it: fonts/make_fonts.py).
+     Build: node tools/design_build.js themes/tri2 -->
+<html>
+<head>
 <meta charset="utf-8">
+<meta name="theme-id" content="tri2">
+<meta name="theme-title" content="Three-dial 2">
+<meta name="theme-family" content="tri2">
+<meta name="theme-mode" content="sport">
+<meta name="theme-ship" content="true">
+<meta name="theme-bottom" content="720">
+<meta name="safe-top" content="40">
+
+<!-- shared values -->
+<meta name="let:vRpm" content="smooth(rpm, 18)">
+<meta name="let:vEng" content="smooth(engineHp, 10)">
+<meta name="let:vEle" content="smooth(elecHp, 10)">
+<meta name="let:pulling" content="ok(rpm) &amp;&amp; !(throttle &lt;= 0.3)">
+<meta name="let:due" content="pulling &amp;&amp; rpm >= P.ladder.due">
+<meta name="let:ladK" content="when(due, when(flash(2.5, due), 5, 0), when(pulling, clamp(floor((rpm - P.ladder.from) / P.ladder.step) + 1, 0, 5), 0))">
+<meta name="let:low0" content="latch(tyres[0].bar &lt; P.target[0] - P.low, false)">
+<meta name="let:low1" content="latch(tyres[1].bar &lt; P.target[1] - P.low, false)">
+<meta name="let:low2" content="latch(tyres[2].bar &lt; P.target[2] - P.low, false)">
+<meta name="let:low3" content="latch(tyres[3].bar &lt; P.target[3] - P.low, false)">
+<script type="application/json" id="theme-params">
+{ "tachMax": 8000, "red": 7200,
+  "ladder": { "from": 5300, "step": 260, "due": 6400 }, "ladCell": 0.104762,
+  "power": { "lo": -100, "hi": 600, "a0": -135, "a1": 135, "start": -96.928571, "span": 359, "len": 964.94 },
+  "pwTint": [-0.489, -0.091, -0.055, 100], "pwDim": [0.008, 0.016, 0.02, 0.9],
+  "ladTint": [-0.467, -0.597, -0.129, 100],
+  "target": [2.4, 2.4, 2.6, 2.6], "low": 0.2, "cold": 60, "hot": 100,
+  "tempFrom": 40, "tempTo": 160, "oilHot": 120, "coolHot": 110,
+  "colX": { "fuel": 126, "batt": 205, "oil": 1715, "cool": 1794 },
+  "slatX": [1349, 1473, 1349, 1473],
+  "lay": { "storeVal": { "x": 76, "w": 180, "font": "f24w560" }, "storeSub": { "x": 76, "w": 180, "font": "f16w460" },
+           "tempVal": { "x": 1660, "w": 190, "font": "f24w560" }, "tempSub": { "x": 1660, "w": 190, "font": "f16w460" },
+           "flagF": { "x": 1349, "w": 236, "font": "f13w600" }, "flagR": { "x": 1349, "w": 236, "font": "f13w600" } } }
+</script>
+
 <style>
-html, body { margin: 0; background: #000; width: 1920px; height: 646px; overflow: hidden; }
-svg { display: block; width: 1920px; height: 646px; font-family: "Archivo"; font-variant-numeric: tabular-nums lining-nums; }
+@font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; src: url(fonts/Archivo-latin.woff2) format("woff2"); }
+@font-face { font-family: "ArchivoGear"; font-weight: 600; src: url(fonts/Archivo-gear.woff2) format("woff2"); }
+@font-face { font-family: "ArchivoGearNR"; font-weight: 600; src: url(fonts/Archivo-gear.woff2) format("woff2"); }
+@font-face { font-family: "ArchivoNum"; font-weight: 560; src: url(fonts/Archivo-num.woff2) format("woff2"); }
+@font-face { font-family: "ArchivoVal"; font-weight: 560; src: url(fonts/Archivo-val.woff2) format("woff2"); }
+@font-face { font-family: "ArchivoSmall"; font-weight: 460; src: url(fonts/Archivo-small.woff2) format("woff2"); }
+@font-face { font-family: "ArchivoTc"; font-weight: 600; src: url(fonts/Archivo-tc.woff2) format("woff2"); }
+:root {
+  /* the mockup's eleven-step petrol-tinted ramp and accents (its oklch, as sRGB) */
+  --z0: rgb(1, 2, 2); --z1: rgb(5, 9, 11); --z2: rgb(13, 20, 23); --z3: rgb(27, 35, 39); --z4: rgb(44, 52, 56);
+  --z5: rgb(68, 76, 80); --z6: rgb(99, 106, 110); --z7: rgb(134, 142, 145); --z8: rgb(172, 178, 181);
+  --z9: rgb(210, 215, 217); --z10: rgb(244, 247, 249);
+  --electric: rgb(57, 212, 228); --signal: rgb(243, 66, 53); --caution: rgb(252, 181, 66); --shift: rgb(192, 248, 72);
+  /* the faces' colour under the grooves (dimmed past the reading) and behind the M */
+  --tach-dim: rgb(2, 6, 9); --face-mid: rgb(5, 11, 14);
+}
+html, body { margin: 0; background: #000; }
+svg { display: block; }
+svg text { font-family: "Archivo"; font-variant-numeric: tabular-nums lining-nums; fill: var(--z9); }
+/* the art's type (variable Archivo) */
+.lbl { font-size: 15px; font-weight: 500; font-stretch: 78%; letter-spacing: 0.06em; text-transform: uppercase; fill: var(--z7); }
+.unit { font-size: 18px; font-weight: 450; font-stretch: 90%; fill: var(--z7); }
+.tick-num { font-size: 25px; font-weight: 480; font-stretch: 100%; fill: var(--z8); }
+.gm { font-size: 92px; font-weight: 560; font-stretch: 100%; fill: var(--z6); }
+.sport { font-size: 21px; font-weight: 700; font-stretch: 125%; letter-spacing: 0.24em; fill: var(--signal); }
+.meta { font-size: 17px; font-weight: 450; font-stretch: 96%; fill: var(--z7); }
+.row-lbl { font-size: 16px; font-weight: 450; font-stretch: 90%; fill: var(--z8); }
+.tc { font-size: 13px; font-weight: 600; font-stretch: 80%; letter-spacing: .08em; fill: var(--z7); }
+.icon { fill: none; stroke: var(--z7); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+/* the changing figures (static cuts: the atlas takes a weight, not a width) */
+.f-gear { font-family: "ArchivoGear"; font-size: 236px; font-weight: 600; fill: var(--z10); }
+.f-gearnr { font-family: "ArchivoGearNR"; font-size: 236px; font-weight: 600; fill: var(--z10); }
+.f-num { font-family: "ArchivoNum"; font-weight: 560; fill: var(--z10); }
+.f-tp { font-family: "ArchivoVal"; font-size: 36px; font-weight: 560; fill: var(--z10); }
+.f-val { font-family: "ArchivoVal"; font-size: 24px; font-weight: 560; fill: var(--z10); }
+.f-small { font-family: "ArchivoSmall"; font-size: 16px; font-weight: 460; fill: var(--z7); }
+.f-tc { font-family: "ArchivoTc"; font-size: 13px; font-weight: 600; letter-spacing: 1.04px; fill: var(--z6); }
 </style>
+<style data-design-build>[data-gauge]:not([data-keep]), [data-gauge]:not([data-keep]) *,
+[data-text], [data-text] *,
+[data-leds], [data-leds] *,
+[data-rect], [data-rect] *,
+[data-guide], [data-guide] *,
+[data-sprite], [data-sprite] * { visibility: hidden !important; }</style>
+<!-- generated by tools/design_build.js from design.html: edit the design, not this -->
+</head>
 <body>
-<svg id="s" viewBox="0 0 1920 646" xmlns="http://www.w3.org/2000/svg">
+<svg id="cluster" width="1920" height="720" viewBox="0 0 1920 720" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="face" cx="50%" cy="46%" r="55%">
       <stop offset="0" stop-color="oklch(0.165 0.014 228)"/>
@@ -24,148 +107,214 @@ svg { display: block; width: 1920px; height: 646px; font-family: "Archivo"; font
       <stop offset="0" stop-color="oklch(0.145 0.012 228)"/>
       <stop offset="1" stop-color="oklch(0.090 0.007 228)"/>
     </radialGradient>
+    <pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
+    </pattern>
   </defs>
+
+  <!-- a guide (not drawn by the theme): the top keep-clear zone -->
+  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+
+  <!-- ============ the columns: fuel and battery left, oil and coolant right (drawn by the script) ============ -->
+  <g id="cols"></g>
+  <!-- the fills: one field, copied to each column; lit from the bottom up to the reading -->
+  <path id="fuelFill" d="M126 504 L126 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="fuel" data-art="off"
+        data-value="clamp(fuelPct / 100)"/>
+  <path d="M205 504 L205 200" fill="none" stroke="var(--electric)" stroke-width="18" data-gauge="batt" data-reuse="fuel" data-art="off"
+        data-value="clamp(socPct / 100)"/>
+  <path d="M1715 504 L1715 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="oil" data-reuse="fuel" data-art="off"
+        data-value="clamp((oilC - P.tempFrom) / (P.tempTo - P.tempFrom))"/>
+  <path d="M1794 504 L1794 200" fill="none" stroke="var(--z9)" stroke-width="18" data-gauge="cool" data-reuse="fuel" data-art="off"
+        data-value="clamp((coolantC - P.tempFrom) / (P.tempTo - P.tempFrom))"/>
+  <!-- two figures a layer, each centred under its column (laid out in logic.extra.js) -->
+  <text class="f-val" x="76" y="544" data-text="storeVal" data-text-expr="''" data-width="180" data-glyphs="0123456789 %-">46 %  71 %</text>
+  <text class="f-small" x="76" y="568" data-text="storeSub" data-text-expr="''" data-width="180" data-glyphs="0123456789 mi-">307 mi  24 mi</text>
+  <text class="f-val" x="1660" y="544" data-text="tempVal" data-text-expr="''" data-width="190" data-glyphs="0123456789 °C-">99 °C  95 °C</text>
+  <text class="f-small" x="1660" y="568" data-text="tempSub" data-text-expr="''" data-width="190" data-glyphs="NormalWarmingHot -">Warming  Normal</text>
+
+  <!-- ============ left dial: power (the mockup's, moved 23 left and 35 down) ============ -->
+  <g id="power" transform="translate(-23 35)">
+    <circle cx="476" cy="342" r="184" fill="url(#faceSm)"/>
+    <g id="pArt"></g>
+    <!-- grooves white from zero up, teal below: one layer dims all but the reading, tints the electric share teal -->
+    <path id="pwPath" fill="none" stroke="none" data-gauge="pw" data-maxd="12"
+          data-band="-12 12" data-band-color="P.pwDim" data-red-color="'transparent'"
+          data-glow="127 0 0" data-glow-color="'transparent'" data-look="1 0 1"/>
+    <text class="f-num" x="476" y="340" text-anchor="middle" style="font-size:64px" data-text="pTotal" data-glyphs="−"
+          data-text-expr="(round(max(0, vEng) + vEle) &lt; 0 ? '−' : '') + fmt(abs(round(max(0, vEng) + vEle)))">−439</text>
+    <text class="unit" x="476" y="368" text-anchor="middle">hp</text>
+    <circle cx="401" cy="406" r="5" fill="var(--z10)"/>
+    <text class="row-lbl" x="414" y="412">Engine</text>
+    <text class="f-val" x="552" y="413" text-anchor="end" data-text="pEng" data-text-expr="fmt(max(0, vEng))" data-rate="10">387</text>
+    <circle cx="401" cy="440" r="5" fill="var(--electric)"/>
+    <text class="f-small" x="414" y="446" style="fill:var(--z8)" data-text="pEleLbl" data-text-expr="when(vEle &lt; -0.5, 'Recovering', 'Electric')">Recovering</text>
+    <text class="f-val" x="552" y="447" text-anchor="end" data-text="pEle" data-glyphs="−" data-rate="10"
+          data-text-expr="(round(vEle) &lt; 0 ? '−' : '') + fmt(abs(round(vEle)))">−100</text>
+    <text class="meta" x="270" y="368" text-anchor="middle" font-size="14">0</text>
+    <text class="meta" x="326" y="500" text-anchor="middle" font-size="14" style="fill:var(--electric)">−100</text>
+    <text class="meta" x="626" y="500" text-anchor="middle" font-size="14">600</text>
+  </g>
+
+  <!-- ============ centre dial: revs, gear, speed, shift (the mockup's at 1.08x, centre 960 366) ============ -->
+  <g id="tach" transform="matrix(1.08 0 0 1.08 -76.8 7.44)">
+    <circle cx="960" cy="332" r="282" fill="url(#face)"/>
+    <g id="tArt"></g>
+    <!-- the grooves are drawn lit: the layer dims them past the revs and draws the needle -->
+    <path id="tachPath" fill="none" stroke="none" data-gauge="tach" data-art="off" data-maxd="27"
+          data-band="-18.4 18.4" data-band-color="alpha(var(--tach-dim), 0.9)" data-from="1"
+          data-needle="-23.8 25.9 4.3" data-needle-color="when(ok(rpm), when(rpm >= P.red, C.signal, C.z10), 'transparent')"
+          data-value="when(ok(rpm), vRpm / P.tachMax, 0)"/>
+    <!-- the shift ladder: drawn lit; the layer darkens the pairs not yet lit, from the middle out -->
+    <path id="ladderPath" fill="none" stroke="none" data-gauge="ladder" data-maxd="6"
+          data-band="0 0" data-band-color="'transparent'" data-glow="127 0 1" data-glow-color="P.ladTint" data-look="1 0 1"
+          data-from="min(ladK * P.ladCell, 0.5)" data-value="1 - min(ladK * P.ladCell, 0.5) - 0.005"/>
+    <text class="gm" x="841.7" y="398">M</text>
+    <!-- the art's M hidden out of M (a face-coloured cover) -->
+    <rect x="836" y="328" width="88" height="76" fill="var(--face-mid)" data-rect="gmMask" data-show="gearMode !== 'M'"/>
+    <text class="f-gear" x="923.5" y="398" data-text="gear" data-dy="0"
+          data-text-expr="when(/^[PRN]$/.test(gearMode) || gear &lt;= 0, '', fmt(gear))"
+          data-color="when(due, C.shift, C.z10)">4</text>
+    <text class="f-gearnr" x="923.5" y="398" data-text="gearNR" data-null="" data-dy="0" data-glyphs="NPR"
+          data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', when(gear &lt; 0, 'R', '')))">N</text>
+    <text class="f-num" x="960" y="466" text-anchor="middle" style="font-size:59.2593px" data-text="speed"
+          data-text-expr="fmt(smooth(mph(kmh), 12))">188</text>
+    <text class="unit" x="960" y="494" text-anchor="middle">mph</text>
+    <text class="meta" x="960" y="174" text-anchor="middle" font-size="14" style="fill:var(--z6)">×1000 rpm</text>
+    <text class="sport" x="960" y="567" text-anchor="middle">SPORT</text>
+  </g>
+
+  <!-- the line under the dial, in the old bottom strip: clock · outside · odometer -->
+  <text class="f-small" x="965.3" y="664" text-anchor="end" data-text="metaA" data-rate="10" data-glyphs="−"
+        data-text-expr="when(ok(clock), clock, '--') + ' · ' + (outsideC &lt;= -0.5 ? '−' : '') + fmt(abs(outsideC)) + ' °C'">18:05 · −12 °C</text>
+  <text class="f-small" x="965.3" y="664" data-text="metaB" data-rate="10"
+        data-text-expr="' · ' + when(ok(odoKm), String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ','), '--') + ' mi'"> · 114,652 mi</text>
+
+  <!-- ============ right dial: the tyres as a pit board (moved 23 right and 35 down) ============ -->
+  <g id="tyres" transform="translate(23 35)">
+    <circle cx="1444" cy="342" r="184" fill="url(#faceSm)"/>
+    <g id="rArt"></g>
+    <text class="meta" x="1444" y="470" text-anchor="middle" font-size="15">Target 35 front · 38 rear psi</text>
+  </g>
+  <!-- the slats' changing parts, in screen coordinates (plates at 1349 / 1473, 297 / 389) -->
+  <g id="slatLayers"></g>
 </svg>
-<script src="geom.js"></script>
 <script>
-'use strict';
-const { G, C, P0 } = window.GEOM;
-const COMFORT = GEOM.mode === 'comfort';
-/* the font, relative to this page (Comfort's page is in themes/tri2c) */
-document.head.insertAdjacentHTML('beforeend', '<style>@font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; ' +
-  'font-stretch: 62% 125%; font-display: block; src: url(' + (COMFORT ? '../tri2/' : '') + 'fonts/Archivo-latin.woff2) format("woff2"); }</style>');
-const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('s');
-const el = (tag, attrs, parent, text) => {
-  const n = document.createElementNS(NS, tag);
-  for (const k in attrs) n.setAttribute(k, attrs[k]);
-  if (text != null) n.textContent = text;
-  (parent || svg).appendChild(n);
-  return n;
-};
-const rad = (d) => d * Math.PI / 180;
-const pt = (cx, cy, r, a) => [cx + r * Math.sin(rad(a)), cy - r * Math.cos(rad(a))];
-const arc = (cx, cy, r, a0, a1) => {
-  const [x0, y0] = pt(cx, cy, r, a0), [x1, y1] = pt(cx, cy, r, a1);
-  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${Math.abs(a1 - a0) > 180 ? 1 : 0} ${a1 > a0 ? 1 : 0} ${x1.toFixed(2)} ${y1.toFixed(2)}`;
-};
-/* type styles: size, weight, width (font-stretch), colour, letter-spacing, transform */
-const T = {
-  lbl: [15, 500, 78, C.z7, '0.06em', 'uppercase'], unit: [18, 450, 90, C.z7], tick: [25, 480, 100, C.z8],
-  gm: [92, 560, 100, C.z6], sport: [21, 700, 125, C.signal, '0.24em'], meta: [17, 450, 96, C.z7],
-  row: [16, 450, 90, C.z8], zone: [14, 600, 80, C.z7, '.1em', 'uppercase'], cap: [13, 500, 85, C.z7, '.14em', 'uppercase'],
-  cgear: [50, 560, 104, C.z10], mode: [21, 700, 125, C.z8, '0.24em'], tc: [13, 600, 80, C.z7, '.08em'], small: [17, 450, 96, C.z7],
-};
-function txt(style, x, y, s, anchor, fill, size) {
-  const t = T[style];
-  return el('text', { x, y, 'text-anchor': anchor || 'middle', 'font-size': size || t[0], 'font-weight': t[1],
-    'font-stretch': t[2] + '%', fill: fill || t[3], 'letter-spacing': t[4] || 0, style: t[5] ? 'text-transform:' + t[5] : '' }, null, s);
-}
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent, text) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function $(id) { return document.getElementById(id); }
+  function rad(d) { return d * Math.PI / 180; }
+  function pt(cx, cy, r, a) { return [cx + r * Math.sin(rad(a)), cy - r * Math.cos(rad(a))]; }
+  function arc(cx, cy, r, a0, a1) {
+    var p0 = pt(cx, cy, r, a0), p1 = pt(cx, cy, r, a1);
+    return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 ' + (Math.abs(a1 - a0) > 180 ? 1 : 0) + ' ' + (a1 > a0 ? 1 : 0) + ' ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
+  }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function css(v) { return 'var(--' + v + ')'; }
 
-/* ---------- centre dial: revs ---------- */
-const A = G.tach;
-const revA = (r) => A.a0 + (A.a1 - A.a0) * Math.max(0, Math.min(A.max, r)) / A.max;
-el('circle', { cx: A.cx, cy: A.cy, r: A.face, fill: 'url(#face)' });
-for (let r = A.grooves[0]; r <= A.grooves[1]; r += A.grooves[2])
-  el('path', { d: arc(A.cx, A.cy, r, A.a0, A.a1), fill: 'none', stroke: COMFORT ? C.z8 : C.z10, 'stroke-width': COMFORT ? 1.4 : 1.5 });
-el('path', { d: arc(A.cx, A.cy, 272, revA(A.red), revA(A.max)), fill: 'none', stroke: C.signal, 'stroke-width': COMFORT ? 4 : 6 });
-for (let v = 0; v <= A.max; v += 250) {
-  const a = revA(v), major = v % 1000 === 0, half = v % 500 === 0, far = COMFORT && v > 4000;
-  const [x0, y0] = pt(A.cx, A.cy, major ? 266 : half ? 268 : 270, a), [x1, y1] = pt(A.cx, A.cy, 276, a);
-  el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: v >= A.red ? C.signal : major ? (COMFORT ? (far ? C.z6 : C.z8) : C.z9) : (far ? C.z4 : C.z5),
-    'stroke-width': major ? (COMFORT ? 2.5 : 3) : 1.5 });
-  if (major) { const [tx, ty] = pt(A.cx, A.cy, 206, a); txt('tick', tx, ty + 9, v / 1000, 'middle', v >= A.max ? C.signal : far ? C.z6 : COMFORT ? C.z7 : null); }
-}
-el('path', { d: arc(A.cx, A.cy, 282, A.a0 - 8, A.a1 + 8), fill: 'none', stroke: C.z6, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-/* the shift ladder, unlit (Sport) */
-const L = G.ladder;
-if (!COMFORT) for (let i = 0; i < L.n; i++) {
-  const outer = L.from - i * (L.seg + L.gap);
-  [[-outer, -outer + L.seg], [outer - L.seg, outer]].forEach(([a0, a1]) =>
-    el('path', { d: arc(A.cx, A.cy, L.r, a0, a1), fill: 'none', stroke: C.z2, 'stroke-width': 9 }));
-}
-txt('meta', 960, 174, '×1000 rpm', 'middle', C.z6);
-if (COMFORT) {
-  txt('lbl', 923.4, 226, 'Set', 'start');
-  txt('unit', 960, 424, 'mph');
-  el('circle', { cx: 916, cy: 476, r: 24, fill: C.z10, stroke: C.signal, 'stroke-width': 6 });
-  txt('cgear', G.cgear.x, G.cgear.y, 'D', 'start');
-  txt('mode', 960, 567, 'COMFORT');
-} else {
-  txt('gm', G.gear.mx, G.gear.y, 'M', 'start');
-  txt('unit', 960, 494, 'mph');
-  txt('sport', 960, 567, 'SPORT');
-}
+  /* ---------- centre dial (mockup coordinates; the group scales it) ---------- */
+  var T = { cx: 960, cy: 332, a0: -135, a1: 135, max: 8000, red: 7200 };
+  function revA(r) { return T.a0 + (T.a1 - T.a0) * clamp(r, 0, T.max) / T.max; }
+  var tg = $('tArt');
+  for (var r = 232; r <= 264; r += 4) el('path', { d: arc(T.cx, T.cy, r, T.a0, T.a1), fill: 'none', stroke: css('z10'), 'stroke-width': 1.5 }, tg);
+  el('path', { d: arc(T.cx, T.cy, 272, revA(T.red), revA(T.max)), fill: 'none', stroke: css('signal'), 'stroke-width': 6 }, tg);
+  for (var v = 0; v <= T.max; v += 250) {
+    var a = revA(v), major = v % 1000 === 0, half = v % 500 === 0;
+    var q0 = pt(T.cx, T.cy, major ? 266 : half ? 268 : 270, a), q1 = pt(T.cx, T.cy, 276, a);
+    el('line', { x1: q0[0], y1: q0[1], x2: q1[0], y2: q1[1], stroke: v >= T.red ? css('signal') : major ? css('z9') : css('z5'), 'stroke-width': major ? 3 : 1.5 }, tg);
+    if (major) {
+      var tp = pt(T.cx, T.cy, 206, a);
+      el('text', { x: tp[0], y: tp[1] + 9, 'text-anchor': 'middle', 'class': 'tick-num', style: v >= T.max ? 'fill:var(--signal)' : '' }, tg, String(v / 1000));
+    }
+  }
+  el('path', { d: arc(T.cx, T.cy, 282, T.a0 - 8, T.a1 + 8), fill: 'none', stroke: css('z6'), 'stroke-width': 2.5, 'stroke-linecap': 'round' }, tg);
+  /* the shift ladder, lit: five pairs closing in on the top centre */
+  var SEG = 6.2, GAP = 1.5;
+  for (var i = 0; i < 5; i++) {
+    var outer = 36 - i * (SEG + GAP);
+    el('path', { d: arc(T.cx, T.cy, 296, -outer, -outer + SEG), fill: 'none', stroke: css('shift'), 'stroke-width': 9 }, tg);
+    el('path', { d: arc(T.cx, T.cy, 296, outer - SEG, outer), fill: 'none', stroke: css('shift'), 'stroke-width': 9 }, tg);
+  }
+  /* the gauges' paths: the grooves' middle, clockwise; the ladder from its left end to its right */
+  $('tachPath').setAttribute('d', arc(T.cx, T.cy, 248, T.a0, T.a1));
+  $('ladderPath').setAttribute('d', arc(T.cx, T.cy, 296, -36.75, 36.75));
 
-/* ---------- left dial: power ---------- */
-const P = G.power;
-const pA = (hp) => P.a0 + (P.a1 - P.a0) * (Math.max(P.lo, Math.min(P.hi, hp)) - P.lo) / (P.hi - P.lo);
-el('circle', { cx: P.cx, cy: P.cy, r: P.face, fill: 'url(#faceSm)' });
-for (let r = P.grooves[0]; r <= P.grooves[1]; r += P.grooves[2]) {
-  el('path', { d: arc(P.cx, P.cy, r, P0, P.a1), fill: 'none', stroke: COMFORT ? C.z8 : C.z10, 'stroke-width': COMFORT ? 1.4 : 1.5 });
-  el('path', { d: arc(P.cx, P.cy, r, P.a0, P0), fill: 'none', stroke: C.electric, 'stroke-width': 1.6 });
-}
-if (COMFORT) el('path', { d: arc(P.cx, P.cy, 137, P0 + 2.5, pA(P.eco)), fill: 'none', stroke: C.eco, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-for (let v = P.lo; v <= P.hi; v += COMFORT ? 20 : 50) {
-  const a = pA(v), major = v % (COMFORT ? 60 : 100) === 0, zero = v === 0;
-  const [x0, y0] = pt(P.cx, P.cy, zero ? (COMFORT ? 132 : 136) : major ? 168 : 171, a), [x1, y1] = pt(P.cx, P.cy, 176, a);
-  el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: zero ? C.z10 : v < 0 ? C.electric : major ? C.z8 : C.z5,
-    'stroke-width': zero ? 2.5 : major ? 2.2 : 1.3 });
-}
-el('path', { d: arc(P.cx, P.cy, 184, P.a0 - 6, P.a1 + 6), fill: 'none', stroke: C.z7, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-if (COMFORT) {
-  txt('zone', 476, 238, 'Eco'); txt('zone', 326, 500, 'Charge'); txt('zone', 626, 500, 'Power');
-  txt('unit', 476, 368, 'mpg average');
-  el('circle', { cx: 393, cy: 406, r: 5, fill: C.electric });
-  txt('row', 406, 412, 'Electric', 'start');
-  txt('row', 406, 446, 'Trip', 'start');
-} else {
-  txt('unit', 476, 368, 'hp');
-  el('circle', { cx: 401, cy: 406, r: 5, fill: C.z10 });
-  txt('row', 414, 412, 'Engine', 'start');
-  el('circle', { cx: 401, cy: 440, r: 5, fill: C.electric });
-  txt('small', 270, 368, '0');
-  txt('small', 326, 500, '−100', 'middle', C.electric);
-  txt('small', 626, 500, '600');
-}
+  /* ---------- left dial: power, -100..600 hp ---------- */
+  var P = { cx: 476, cy: 342, a0: -135, a1: 135, lo: -100, hi: 600 };
+  function pA(hp) { return P.a0 + (P.a1 - P.a0) * (clamp(hp, P.lo, P.hi) - P.lo) / (P.hi - P.lo); }
+  var P0 = pA(0), pg = $('pArt');
+  for (var r2 = 144; r2 <= 164; r2 += 4) {
+    el('path', { d: arc(P.cx, P.cy, r2, P0, P.a1), fill: 'none', stroke: css('z10'), 'stroke-width': 1.5 }, pg);
+    el('path', { d: arc(P.cx, P.cy, r2, P.a0, P0), fill: 'none', stroke: css('electric'), 'stroke-width': 1.6 }, pg);
+  }
+  for (var w = P.lo; w <= P.hi; w += 50) {
+    var b = pA(w), maj = w % 100 === 0, zero = w === 0;
+    var s0 = pt(P.cx, P.cy, zero ? 136 : maj ? 168 : 171, b), s1 = pt(P.cx, P.cy, 176, b);
+    el('line', { x1: s0[0], y1: s0[1], x2: s1[0], y2: s1[1], stroke: zero ? css('z10') : w < 0 ? css('electric') : maj ? css('z8') : css('z5'),
+      'stroke-width': zero ? 2.5 : maj ? 2.2 : 1.3 }, pg);
+  }
+  el('path', { d: arc(P.cx, P.cy, 184, P.a0 - 6, P.a1 + 6), fill: 'none', stroke: css('z7'), 'stroke-width': 2.5, 'stroke-linecap': 'round' }, pg);
+  /* the power gauge's path: the whole circle counter-clockwise from just short of zero
+   * (359 degrees: the zero tick stays out of the field), so what is dimmed is one stretch */
+  var st = P0 - 0.5, e0 = pt(P.cx, P.cy, 154, st), e1 = pt(P.cx, P.cy, 154, st - 359);
+  $('pwPath').setAttribute('d', 'M' + e0[0].toFixed(3) + ' ' + e0[1].toFixed(3) + 'A154 154 0 1 0 ' + e1[0].toFixed(3) + ' ' + e1[1].toFixed(3));
 
-/* ---------- right dial: tyres, a pit board ---------- */
-const Y = G.tyres;
-el('circle', { cx: Y.cx, cy: Y.cy, r: Y.face, fill: 'url(#faceSm)' });
-el('path', { d: arc(Y.cx, Y.cy, 184, -141, 141), fill: 'none', stroke: C.z7, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-if (COMFORT) {
-  /* the map area: the car draws its own map there */
-  const R = 160, cut = 372, dx = Math.sqrt(R * R - (cut - Y.cy) * (cut - Y.cy));
-  el('path', { d: `M${(Y.cx - dx).toFixed(2)} ${cut}A${R} ${R} 0 1 1 ${(Y.cx + dx).toFixed(2)} ${cut}Z`, fill: C.z2, stroke: C.z4, 'stroke-width': 1 });
-  txt('cap', Y.cx, 286, 'Map area');
-  txt('cap', Y.cx, 306, 'the car draws its own map here');
-} else for (const s of Y.slats) {
-  const g = el('g', { transform: `translate(${s.x} ${s.y})` });
-  el('rect', { x: 0, y: 0, width: 112, height: 80, rx: 3, fill: C.z2 }, g);
-  el('line', { x1: 0, y1: 0.5, x2: 112, y2: 0.5, stroke: C.z4, 'stroke-width': 1 }, g);
-  const c = txt('tc', 10, 21, s.id, 'start'); g.appendChild(c);
-  el('rect', { x: 10, y: 70, width: 92, height: 3, rx: 1, fill: C.z4 }, g);
-}
-if (!COMFORT) txt('meta', 1444, 470, `Target ${GEOM.targetPsi[0]} front · ${GEOM.targetPsi[1]} rear psi`, 'middle');
+  /* ---------- right dial: the pit board ---------- */
+  var rg = $('rArt');
+  el('path', { d: arc(1444, 342, 184, -141, 141), fill: 'none', stroke: css('z7'), 'stroke-width': 2.5, 'stroke-linecap': 'round' }, rg);
+  var IDS = ['FL', 'FR', 'RL', 'RR'], SX = [1326, 1450, 1326, 1450], SY = [262, 262, 354, 354];
+  for (var k = 0; k < 4; k++) {
+    var g = el('g', { transform: 'translate(' + SX[k] + ' ' + SY[k] + ')' }, rg);
+    el('rect', { x: 0, y: 0, width: 112, height: 80, rx: 3, fill: css('z2') }, g);
+    el('line', { x1: 0, y1: 0.5, x2: 112, y2: 0.5, stroke: css('z4'), 'stroke-width': 1 }, g);
+    el('text', { x: 10, y: 21, 'class': 'tc' }, g, IDS[k]);
+    el('rect', { x: 10, y: 70, width: 92, height: 3, rx: 1, fill: css('z4') }, g);
+  }
+  /* the slats' layers, in screen coordinates (the group's 23, 35 added) */
+  var L = $('slatLayers');
+  for (var j = 0; j < 4; j++) {
+    var x = SX[j] + 23, y = SY[j] + 35, c = 'tyres[' + j + '].c';
+    var bar = el('g', { 'data-leds': 'bar' + j, 'data-count': 46, 'data-light': '2 3', 'data-off': "'transparent'",
+      'data-lit': 'round(46 * clamp((' + c + ' - 30) / 80, 0.04, 1))', 'data-c0': 'step(' + c + ', C.z6, P.cold, C.z9, P.hot + 0.001, C.caution)', 'data-rate': 10 }, L);
+    el('rect', { x: x + 10, y: y + 70, width: 92, height: 3, fill: 'none' }, bar);
+    el('rect', { x: x, y: y, width: 112, height: 80, rx: 3, fill: 'none', stroke: css('caution'), 'stroke-width': 1.5,
+      'data-rect': 'ring' + j, 'data-show': 'low' + j }, L);
+    el('text', { x: x + 10, y: y + 60, 'class': 'f-tp', 'data-text': 'psi' + j, 'data-rate': 10,
+      'data-text-expr': 'fmt(psi(tyres[' + j + '].bar))', 'data-color': 'when(low' + j + ', C.caution, C.z10)' }, L, '38');
+    el('text', { x: x + 102, y: y + 60, 'class': 'f-small', 'text-anchor': 'end', 'data-text': 'temp' + j, 'data-rate': 10,
+      'data-text-expr': 'fmt(' + c + ') + \'°\'', 'data-color': 'step(' + c + ', C.z7, P.cold, C.z9, P.hot + 0.001, C.caution)' }, L, '108°');
+  }
+  /* a row's two flags (COLD, LOW), each at its slat's top right: logic.extra.js lays them out */
+  el('text', { x: 1349, y: 318, 'class': 'f-tc', 'data-text': 'flagF', 'data-text-expr': "''", 'data-width': 236, 'data-glyphs': 'COLDW ' }, L, 'COLD  LOW');
+  el('text', { x: 1349, y: 410, 'class': 'f-tc', 'data-text': 'flagR', 'data-text-expr': "''", 'data-width': 236, 'data-glyphs': 'COLDW ' }, L, 'COLD  LOW');
 
-/* ---------- outer columns ---------- */
-const K = G.cols;
-function cell(x, marks) {
-  el('rect', { x: x - 13, y: 228, width: 26, height: 244, rx: 4, fill: 'none', stroke: C.z5, 'stroke-width': 1.5 });
-  for (const m of marks) { const y = 468 - 236 * m.at; el('line', { x1: x + 17, y1: y, x2: x + 23, y2: y, stroke: m.c || C.z5, 'stroke-width': 1.5 }); }
-}
-const quarter = [{ at: .25 }, { at: .5 }, { at: .75 }];
-const tN = (c) => (c - 40) / 120;
-const tempMarks = [{ at: tN(80) }, { at: tN(120), c: C.caution }, { at: tN(140), c: C.signal }];
-cell(K.fuel, [{ at: .12, c: C.caution }, ...quarter]);
-cell(K.batt, [{ at: .15, c: C.caution }, ...quarter]);
-cell(K.oil, tempMarks);
-cell(K.cool, tempMarks);
-[['Fuel', K.fuel], ['Battery', K.batt], ['Oil', K.oil], ['Coolant', K.cool]].forEach(([s, x]) => txt('lbl', x, 560, s));
-const icon = (x, y, d, inner) => { const g = el('g', { transform: `translate(${x} ${y})`, fill: 'none', stroke: C.z7, 'stroke-width': 1.75,
-  'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); g.innerHTML = inner || ''; if (d) el('path', { d }, g); };
-icon(121, 186, 'M2 20V3.5A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V20M0 20h15M4.5 6.5h6M13 9h2.2a1.3 1.3 0 0 1 1.3 1.3v6a1.5 1.5 0 0 0 3 0V7l-3-3');
-icon(203, 189, 'M5 0v3M15 0v3M4.5 10h4M13 8v4M11 10h4', '<rect x="0" y="3" width="20" height="14" rx="2"/>');
-icon(K.oil - 10, 189, 'M1 7h4l2-2h5l7 4-6 7H5l-2-4H1zM9 5V2M7 2h4M21 12.5c0 1.2-.8 2-1.5 2s-1.5-.8-1.5-2 1.5-3 1.5-3 1.5 1.8 1.5 3z');
-icon(1778, 186, 'M8 3.5a2 2 0 0 1 4 0v9.2a3.8 3.8 0 1 1-4 0zM10 8v7M14 6h3M14 9.5h3M0 21c2-1.4 3.5-1.4 5 0s3 1.4 5 0 3-1.4 5 0 3 1.4 5 0');
+  /* ---------- the columns: 28 % taller than the mockup's, from 196 to 508 ---------- */
+  var cg = $('cols'), TOP = 200, BOT = 504, H = BOT - TOP;
+  function cell(x, marks, label, icon) {
+    el('rect', { x: x - 13, y: TOP - 4, width: 26, height: H + 8, rx: 4, fill: 'none', stroke: css('z5'), 'stroke-width': 1.5 }, cg);
+    marks.forEach(function (m) {
+      var yy = BOT - H * m.at;
+      el('line', { x1: x + 17, y1: yy, x2: x + 23, y2: yy, stroke: m.c || css('z5'), 'stroke-width': 1.5 }, cg);
+    });
+    el('text', { x: x, y: 598, 'text-anchor': 'middle', 'class': 'lbl' }, cg, label);
+    var ig = el('g', { 'class': 'icon', transform: 'translate(' + (x + icon[0]) + ' ' + icon[1] + ')' }, cg);
+    ig.innerHTML = icon[2];
+  }
+  var quarter = [{ at: 0.25 }, { at: 0.5 }, { at: 0.75 }];
+  function tN(c) { return (c - 40) / 120; }
+  var tempMarks = [{ at: tN(80) }, { at: tN(120), c: css('caution') }, { at: tN(140), c: css('signal') }];
+  cell(126, [{ at: 0.12, c: css('caution') }].concat(quarter), 'Fuel', [-11, 160, '<path d="M2 20V3.5A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V20M0 20h15M4.5 6.5h6M13 9h2.2a1.3 1.3 0 0 1 1.3 1.3v6a1.5 1.5 0 0 0 3 0V7l-3-3"/>']);
+  cell(205, [{ at: 0.15, c: css('caution') }].concat(quarter), 'Battery', [-10, 163, '<rect x="0" y="3" width="20" height="14" rx="2"/><path d="M5 0v3M15 0v3M4.5 10h4M13 8v4M11 10h4"/>']);
+  cell(1715, tempMarks, 'Oil', [-10, 163, '<path d="M1 7h4l2-2h5l7 4-6 7H5l-2-4H1zM9 5V2M7 2h4M21 12.5c0 1.2-.8 2-1.5 2s-1.5-.8-1.5-2 1.5-3 1.5-3 1.5 1.8 1.5 3z"/>']);
+  cell(1794, tempMarks, 'Coolant', [-10, 160, '<path d="M8 3.5a2 2 0 0 1 4 0v9.2a3.8 3.8 0 1 1-4 0zM10 8v7M14 6h3M14 9.5h3M0 21c2-1.4 3.5-1.4 5 0s3 1.4 5 0 3-1.4 5 0 3 1.4 5 0"/>']);
+})();
 </script>
 </body>
+</html>

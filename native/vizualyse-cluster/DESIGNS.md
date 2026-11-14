@@ -9,7 +9,7 @@ move. `node tools/design_build.js themes/<id>` turns it into the theme's
 `theme.src.json`, `art.html`, sprites and `logic.js` (all generated: edit
 the design, not those) and runs `tools/theme_build.js`. How themes are
 drawn and their limits: [THEMES.md](THEMES.md). The proof:
-[`themes/g20i1d/design.html`](themes/g20i1d/design.html).
+[`themes/g20i1/design.html`](themes/g20i1/design.html).
 
 ## The page
 
@@ -28,7 +28,7 @@ drawn and their limits: [THEMES.md](THEMES.md). The proof:
 
 | In `<head>` | |
 |---|---|
-| `<meta name="theme-id" content="g20i1d">` | default: the folder's name; `[a-z0-9]+` |
+| `<meta name="theme-id" content="g20i1">` | default: the folder's name; `[a-z0-9]+` |
 | `theme-title`, `theme-family`, `theme-mode` (`sport`/`comfort`), `theme-ship` (`false` keeps it out of the kit) | |
 | `theme-bottom` | 720 (default), or 646 to leave the strip to the car |
 | `safe-top` | 40 |

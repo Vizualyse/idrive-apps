@@ -1,125 +1,336 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
-     Copyright (C) 2026 Yousaf Khan -->
-<!-- perf1c "Performance 1 · Comfort": the static art, 1920 x 646, drawn with
-     the Comfort mockup's own geometry (comfort/perf-fable index.src.html) and
-     every moving part left out: the dials' tracks, red zone, ticks, numerals
-     and centre discs; the speed-limit sign's disc; the mode word; the drive
-     meter's track, ticks, ECO rule and words; labels, bar tracks and scales;
-     the map area (an empty panel the car fills); the fixed parts of the
-     sub-lines ("Average", the tyre line's "/" and "psi"). The layers
-     (theme.src.json, written by gen.js) draw the rest. Archivo (OFL), the
-     mockup's subset, from the Sport theme's folder. -->
+     Copyright (C) 2026 Yousaf Khan
+     perf1c "Performance 1 · Comfort": the perf1 family's calm theme, the
+     comfort/perf-fable mockup as a design (DESIGNS.md), re-laid out for the
+     whole 1920 x 720 panel on the Sport theme's grid: the same two dials
+     (round, the same size) at the panel's middle (y 372) in Calm, the rev
+     counter dimmed, a white needle; the speed limit and cruise in the
+     speedometer (a pointer outside the scale for the set speed); D and the
+     gear, an EV light while the engine is off; guidance (turn arrow,
+     distance, road) in the top row, below the 40 px keep-clear zone; the
+     range split over the drive meter; economy, HV battery and arrival; the
+     map area, now 320 px tall, reaching into the old bottom strip; fuel,
+     trip, coolant and tyres with their sub-lines in the strip.
+     Several readings in one font and baseline share a text layer ("rows",
+     laid out by logic.extra.js). Archivo (OFL), from the Sport theme's
+     folder. Build after perf1: node tools/design_build.js themes/perf1c -->
+<html>
+<head>
 <meta charset="utf-8">
+<meta name="theme-id" content="perf1c">
+<meta name="theme-title" content="Performance 1 · Comfort">
+<meta name="theme-family" content="perf1">
+<meta name="theme-mode" content="comfort">
+<meta name="theme-ship" content="true">
+<meta name="theme-bottom" content="720">
+<meta name="safe-top" content="40">
+
+<!-- shared values the bindings use -->
+<meta name="let:vMph" content="smooth(mph(kmh), 12)">
+<meta name="let:vRpm" content="smooth(rpm, 14)">
+<meta name="let:e" content="smooth(engineHp, 8)">
+<meta name="let:l" content="smooth(elecHp, 8)">
+<meta name="let:engEnd" content="(clamp(e, 0, 120) + 40) / 160">
+<meta name="let:cruise" content="mph(cruiseKmh)">
+<meta name="let:ev" content="ok(rpm) &amp;&amp; rpm &lt; P.evRpm">
+<meta name="let:burning" content="instL100 > 0 &amp;&amp; !(e &lt;= 1)">
+<meta name="let:nowMpg" content="min(99, P.mpgL100 / instL100)">
+<meta name="let:avgMpg" content="when(avgL100 > 0, P.mpgL100 / avgL100, NaN)">
+<script type="application/json" id="theme-params">
+{ "speedMax": 180, "tachMax": 8000, "evRpm": 300, "tankL": 59, "cool": [50, 130], "tyreLowBar": 2.0,
+  "mpgL100": 282.481, "barGap": 0.0024,
+  "rows": {
+    "ranges":    { "f": "f40w600", "x": 648, "w": 600 },
+    "rangeUnit": { "f": "f20w500", "x": 648, "w": 220 },
+    "n436":      { "f": "f36w600", "x": 648, "w": 600 },
+    "u436":      { "f": "f20w500", "x": 648, "w": 640 },
+    "n618s":     { "f": "f30w600", "x": 648, "w": 620 },
+    "n618":      { "f": "f36w600", "x": 170, "w": 1340 },
+    "u618":      { "f": "f20w500", "x": 170, "w": 1400 },
+    "sub672":    { "f": "f20w500", "x": 350, "w": 1500 }
+  } }
+</script>
+
 <style>
-@font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-stretch:62% 125%;src:url(../perf1/fonts/Archivo-subset-VF.woff2) format("woff2")}
-:root{--ground:#000;--disc:#0b0d12;--line:#272b34;--track:#171a20;--ink:#f3f5f8;--ink2:#a6aebb;--ink3:#7f8896;--tick:#5c6473;
-  --calm:#c4d3e6;--limit:#ff3a22;--limit-deep:#8f1418;--map:#0c0e13;--elec:#3d9bff;--font:"Archivo",sans-serif}
-html,body{margin:0;background:#000;width:1920px;height:646px;overflow:hidden}
-svg{display:block}
-text{font-family:var(--font);fill:var(--ink)}
-.lab{font-size:18px;font-weight:500;letter-spacing:.06em;fill:var(--ink3);font-stretch:100%}
-.unit{font-size:20px;font-weight:500;fill:var(--ink2)}
-.num{font-weight:600;font-stretch:108%;fill:var(--ink)}
-.dialnum{font-size:23px;font-weight:500;font-stretch:104%;fill:var(--tick);text-anchor:middle}
-.dialnum.on{fill:var(--ink)}
-.dialnum.red{fill:var(--limit);opacity:.75}
-.scale{font-size:16px;font-weight:500;fill:var(--ink3)}
-.sub{font-size:20px;font-weight:500;fill:var(--ink2)}
+/* the art's face: the mockup's variable subset (width and weight axes) */
+@font-face { font-family: "ArchivoVF"; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; src: url(../perf1/fonts/Archivo-subset-VF.woff2) format("woff2"); }
+/* the changing text's faces: static instances (the atlas page sets a weight, not a width) */
+@font-face { font-family: "Archivo"; font-weight: 600; src: url(../perf1/fonts/Archivo-600-108.woff2) format("woff2"); }
+@font-face { font-family: "Archivo"; font-weight: 500; src: url(../perf1/fonts/Archivo-500-100.woff2) format("woff2"); }
+:root {
+  --ground: #000000; --disc: #0b0d12; --line: #272b34; --track: #171a20;
+  --ink: #f3f5f8; --ink2: #a6aebb; --ink3: #7f8896; --tick: #5c6473;
+  --calm: #c4d3e6; --limit: #ff3a22; --limit-deep: #8f1418; --map: #0c0e13; --elec: #3d9bff;
+}
+html, body { margin: 0; background: #000; }
+svg { display: block; }
+svg text { font-family: "ArchivoVF", sans-serif; fill: var(--ink); }
+.lab { font-size: 18px; font-weight: 500; letter-spacing: .06em; fill: var(--ink3); font-stretch: 100%; }
+.unit { font-size: 20px; font-weight: 500; fill: var(--ink2); }
+.dialnum { font-size: 23px; font-weight: 500; font-stretch: 104%; fill: var(--tick); text-anchor: middle; }
+.dialnum.on { fill: var(--ink); }
+.dialnum.red { fill: var(--limit); opacity: .75; }
+.scale { font-size: 16px; font-weight: 500; fill: var(--ink3); }
+.sub { font-size: 20px; font-weight: 500; fill: var(--ink2); font-variant-numeric: tabular-nums; }
+/* marked text: the atlases' faces, tabular figures */
+svg text.n { font-family: "Archivo", sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; fill: var(--ink); }
+svg text.u { font-family: "Archivo", sans-serif; font-weight: 500; font-size: 20px; font-variant-numeric: tabular-nums; fill: var(--ink2); }
 </style>
+<style data-design-build>[data-gauge]:not([data-keep]), [data-gauge]:not([data-keep]) *,
+[data-text], [data-text] *,
+[data-leds], [data-leds] *,
+[data-rect], [data-rect] *,
+[data-guide], [data-guide] *,
+[data-sprite], [data-sprite] * { visibility: hidden !important; }</style>
+<!-- generated by tools/design_build.js from design.html: edit the design, not this -->
+</head>
 <body>
-<svg id="art" width="1920" height="646" viewBox="0 0 1920 646"></svg>
+<svg id="cluster" width="1920" height="720" viewBox="0 0 1920 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
+    </pattern>
+  </defs>
+  <!-- guides (not drawn by the theme): the top keep-clear zone, the old bottom strip's edge -->
+  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <line data-guide x1="0" y1="646" x2="1920" y2="646" stroke="#3a6" stroke-dasharray="6 8"/>
+
+  <!-- the map slot: the car's own map goes here (a later map integration); its flat ground and frame are art -->
+  <rect data-map x="834" y="380" width="252" height="320" rx="2" style="fill:var(--map);stroke:var(--line);stroke-width:1.5"/>
+
+  <!-- the static art (dials, scales, labels, tracks, the map area) is drawn by the script below -->
+  <g id="art"></g>
+
+
+  <!-- ===== the dials: one field, the rev counter's a copy of the speedometer's moved 1260 px =====
+       The path runs at r 258 clockwise from -122 to 122 degrees; the scale runs 9 px in from each
+       end. Value arc 6 wide on r 272 (d -17..-11), needle r 234..282, a soft Calm glow 100 px deep
+       (cut at r 190). The field reaches 47 px outward (r 305) for the cruise pointer: the pool's
+       place sets that reach (its strength is 0). -->
+  <path id="speedPath" d="M111.2 508.72 A258 258 0 1 1 548.8 508.72" fill="none" stroke="none"
+        data-gauge="speedDial" data-start="9.006" data-end="9.006" data-maxd="68"
+        data-value="vMph / P.speedMax"
+        data-band="-17 -11" data-band-color="C.calm"
+        data-needle="-24 24 4" data-needle-color="C.ink"
+        data-glow="100 135.1 0.44" data-glow-color="rgb(39, 42, 46)"
+        data-pool="10 0 -36" data-look="0 8 1"/>
+  <path id="tachPath" d="M1371.2 508.72 A258 258 0 1 1 1808.8 508.72" fill="none" stroke="none"
+        data-gauge="tachDial" data-reuse="speedDial" data-start="9.006" data-end="9.006" data-maxd="68"
+        data-value="vRpm / P.tachMax"
+        data-band="-17 -11" data-band-color="alpha(C.calm, 0.55)"
+        data-needle="-24 24 4" data-needle-color="C.ink"
+        data-glow="100 135.1 0.44" data-glow-color="rgb(22, 23, 25)"
+        data-look="0 8 1"/>
+  <!-- the cruise set speed: a pointer outside the scale (r 281..303; solid, the mockup's is hollow) -->
+  <path d="M111.2 508.72 A258 258 0 1 1 548.8 508.72" fill="none" stroke="none"
+        data-gauge="cruisePtr" data-reuse="speedDial" data-art="off" data-start="9.006" data-end="9.006"
+        data-show="ok(cruise)" data-value="cruise / P.speedMax"
+        data-band="0 0" data-band-color="'transparent'"
+        data-needle="-45 -23 18 1.6" data-needle-color="C.ink"/>
+  <!-- the design's view of a sweep (a guide): the value arc to 70 mph and the needle -->
+  <path data-guide d="M94.44 508 A272 272 0 0 1 207.93 128.93" fill="none" stroke="#c4d3e6" stroke-width="6"/>
+  <line data-guide x1="224.98" y1="162.89" x2="203.44" y2="120" stroke="#f3f5f8" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- ===== top row: time, outside, guidance (the arrow turning right, mirrored for left; distance; road) ===== -->
+  <text class="n" x="640" y="70" text-anchor="end" style="font-size:24px" data-text="clock" data-rate="1"
+        data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">20:30</text>
+  <text class="n" x="722" y="70" text-anchor="end" style="font-size:24px;fill:var(--ink2)" data-text="outside" data-rate="1" data-glyphs="−"
+        data-text-expr="when(outsideC &lt; 0, '−' + fmt(-outsideC), fmt(outsideC)) + ' °C'">18 °C</text>
+  <path d="M6 26 L6 13 Q6 7 12 7 L23 7 L17 1 L23 7 L17 13" transform="translate(780 40) scale(1.5)"
+        fill="none" style="stroke:var(--ink)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"
+        data-gauge="arrowR" data-ends data-art="off" data-maxd="4" data-value="1" data-show="turnDir === 'right'"/>
+  <path d="M22 26 L22 13 Q22 7 16 7 L5 7 L11 1 L5 7 L11 13" transform="translate(780 40) scale(1.5)"
+        fill="none" style="stroke:var(--ink)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"
+        data-gauge="arrowL" data-reuse="arrowR" data-ends data-art="off" data-maxd="4" data-value="1" data-show="turnDir === 'left'"/>
+  <text class="n" x="832" y="73" style="font-size:30px" data-text="gDist" data-rate="5" data-glyphs="miyd."
+        data-text-expr="when(!ok(turnM), '--', when(turnM / 1609.344 >= 0.2, fmt(turnM / 1609.344, 1) + ' mi', max(50, round(turnM * 1.09361, 50)) + ' yd'))">0.3 mi</text>
+  <text class="u" x="956" y="73" data-text="road" data-rate="2" data-cells="16" data-width="234"
+        data-glyphs="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz0123456789-'.,/&amp;()"
+        data-text-expr="when(typeof road === 'string' &amp;&amp; road !== '', String(road).slice(0, 16), '--')">A34 Oxford Road</text>
+
+  <!-- ===== the speedometer's centre: the limit sign's number, speed, cruise ===== -->
+  <text class="n" x="330" y="282" text-anchor="middle" style="font-size:24px;fill:var(--ground)" data-text="limit" data-rate="5"
+        data-text-expr="fmt(mph(limitKmh))">70</text>
+  <text class="n" x="330" y="406" text-anchor="middle" style="font-size:116px" data-text="speed"
+        data-text-expr="fmt(vMph)">70</text>
+  <!-- the CRUISE label is art; a disc-coloured cover hides it while cruise is off -->
+  <rect x="246" y="478" width="80" height="22" style="fill:var(--disc)" data-rect="cruiseCover" data-show="!ok(cruise)"/>
+  <text class="n" x="332" y="497" style="font-size:24px" data-text="cruiseSet" data-show="ok(cruise)" data-rate="5"
+        data-text-expr="fmt(cruise)">70</text>
+
+  <!-- ===== the rev counter's centre: EV (art, covered while the engine runs), D and the gear, rpm ===== -->
+  <rect x="1560" y="258" width="60" height="26" style="fill:var(--disc)" data-rect="evCover" data-show="!ev"/>
+  <text class="n" x="1572" y="398" text-anchor="middle" style="font-size:96px" data-text="gearMode" data-glyphs="DMSPRN-"
+        data-text-expr="when(typeof gearMode === 'string' &amp;&amp; /^[DMSPRN]$/.test(gearMode), gearMode, '-')">D</text>
+  <text class="n" x="1616" y="398" style="font-size:36px;fill:var(--ink2)" data-text="gear" data-glyphs="-"
+        data-text-expr="when(!ok(gear), '-', when(gear === 0, ' ', fmt(gear)))">8</text>
+  <text class="n" x="1612" y="460" text-anchor="end" style="font-size:30px" data-text="rpm" data-rate="10" data-show="!ev"
+        data-text-expr="fmt(round(vRpm, 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')">1,560</text>
+  <text class="u" x="1620" y="460" data-text="rpmUnit" data-text-expr="'rpm'" data-show="!ev">rpm</text>
+
+  <!-- ===== range split over the drive meter ===== -->
+  <!-- rows: the fuel range from 648, the electric range ending at 1238; "mi" 8 px after the fuel range -->
+  <text class="n" x="648" y="208" style="font-size:40px" data-text="ranges" data-width="600" data-text-expr="''" data-rate="2">256</text>
+  <text data-guide class="n" x="1238" y="208" text-anchor="end" style="font-size:40px">20</text>
+  <text class="u" x="648" y="208" data-text="rangeUnit" data-width="220" data-text-expr="''" data-glyphs="mi" data-rate="2">mi</text>
+  <text class="n" x="950" y="218" text-anchor="middle" style="font-size:68px" data-text="range" data-rate="2"
+        data-text-expr="fmt(round(miles(rangeKm)) + round(miles(evRangeKm)))">276</text>
+  <!-- the meter: -40..120 hp along y 259 (the Sport power bar's field: the needle's place keeps its reach, it draws nothing);
+       the electric fill is the engine's field again -->
+  <path d="M648 259 L1272 259" fill="none" style="stroke:var(--calm)" stroke-width="16"
+        data-gauge="engBar" data-art="off" data-band="-8 8" data-needle="-11 11 0" data-needle-color="'transparent'"
+        data-show="e >= 0.5" data-value="engEnd" data-from="0.25 + P.barGap"/>
+  <path d="M648 259 L1272 259" fill="none" style="stroke:var(--elec)" stroke-width="16"
+        data-gauge="elBar" data-reuse="engBar" data-art="off" data-band="-8 8" data-show="abs(l) >= 0.5"
+        data-value="when(l > 0, (clamp(e, 0, 120) + clamp(l, 0, 120) + 40) / 160, (max(l, -40) + 40) / 160)"
+        data-from="when(l > 0, engEnd, 0.25 - P.barGap)"/>
+
+  <!-- ===== economy | HV battery (numbers at y 436) ===== -->
+  <text class="n" x="648" y="436" style="font-size:36px" data-text="n436" data-width="600" data-text-expr="''" data-rate="5">52.6</text>
+  <text data-guide class="n" x="1112" y="436" style="font-size:36px">67</text>
+  <text class="u" x="648" y="436" data-text="u436" data-width="640" data-text-expr="''" data-glyphs="mpg%" data-rate="5">mpg</text>
+  <g data-leds="nowBar" data-count="64" data-light="3.5 8" data-c0="C.calm" data-off="'transparent'" data-rate="10"
+     data-lit="when(burning, round(clamp(nowMpg / 100) * 64), 0)">
+    <rect x="648" y="450" width="160" height="8" fill="none"/>
+  </g>
+  <rect x="647" y="446" width="3" height="16" style="fill:var(--ink)" data-rect="avgMark" data-rate="5"
+        data-dx="clamp(avgMpg / 100) * 160"/>
+  <text class="n" x="808" y="514" text-anchor="end" style="font-size:24px" data-text="now" data-rate="5" data-glyphs="EV"
+        data-text-expr="when(!ok(instL100), '--', when(burning, fmt(nowMpg), 'EV'))"
+        data-color="when(burning || !ok(instL100), C.ink, C.elec)">51</text>
+  <g data-leds="hv" data-count="10" data-light="14.2 8" data-radius="1" data-c0="C.elec" data-off="'transparent'"
+     data-lit="round(socPct / 10)" data-rate="5">
+    <rect x="1111" y="450" width="162" height="8" fill="none"/>
+  </g>
+  <text class="u" x="1112" y="514" data-text="hvState" data-rate="5"
+        data-text-expr="when(ok(elecHp), when(l > 3, when(ok(e) &amp;&amp; e &lt;= 1, 'ELECTRIC DRIVE', 'ASSISTING'), when(l &lt; -2, 'CHARGING', 'HOLDING')), '')"
+        data-color="when(l > 3 || l &lt; -2, C.elec, C.ink3)">ELECTRIC DRIVE</text>
+
+  <!-- ===== y 618: electric trip, arrival (f30); fuel, trip, coolant (f36); their units; tyres; miles to go ===== -->
+  <text class="n" x="648" y="618" style="font-size:30px" data-text="n618s" data-width="620" data-text-expr="''" data-glyphs=":." data-rate="2">9.1</text>
+  <text data-guide class="n" x="1112" y="618" style="font-size:30px">21:01</text>
+  <text class="u" x="1112" y="648" data-text="toGo" data-rate="2" data-glyphs="mitogo"
+        data-text-expr="fmt(miles(destKm)) + ' mi to go'">23 mi to go</text>
+  <text class="n" x="170" y="618" style="font-size:36px" data-text="n618" data-width="1340" data-text-expr="''" data-glyphs="." data-rate="2">38</text>
+  <text class="u" x="170" y="618" data-text="u618" data-width="1400" data-text-expr="''" data-glyphs="miL°C" data-rate="2">L</text>
+  <text class="n" x="1610" y="618" style="font-size:30px;fill:var(--ink2)" data-text="tyreStatus" data-rate="2" data-glyphs="OKLW-"
+        data-text-expr="when(ok(tyres[0].bar) &amp;&amp; ok(tyres[1].bar) &amp;&amp; ok(tyres[2].bar) &amp;&amp; ok(tyres[3].bar), when(min(tyres[0].bar, tyres[1].bar, tyres[2].bar, tyres[3].bar) &lt; P.tyreLowBar, 'LOW', 'OK'), '--')">OK</text>
+  <!-- the sub-lines in the old strip: "Average" is art, then the average speed; the tyre line's "/" and "psi" are art -->
+  <text class="u" x="350" y="672" data-text="sub672" data-width="1500" data-text-expr="''" data-glyphs="Average mph" data-rate="2">41 mph</text>
+  <g data-leds="fuelBar" data-count="50" data-light="4 8" data-c0="C.ink" data-off="'transparent'" data-rate="2"
+     data-lit="round(clamp(fuelPct / 100) * 50)">
+    <rect x="170" y="632" width="150" height="8" fill="none"/>
+  </g>
+  <g data-leds="coolBar" data-count="50" data-light="4 8" data-c0="C.ink" data-off="'transparent'" data-rate="2"
+     data-lit="round(clamp((coolantC - P.cool[0]) / (P.cool[1] - P.cool[0])) * 50)">
+    <rect x="1430" y="632" width="150" height="8" fill="none"/>
+  </g>
+</svg>
 <script>
 (function () {
-const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('art');
-const css = n => 'var(--' + n + ')';
-function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; }
-function T(x, y, str, cls, anchor, parent) { const t = el('text', { x, y, class: cls || '', 'text-anchor': anchor || 'start' }, parent); t.textContent = str; return t; }
-const pol = (cx, cy, r, a) => { const k = a * Math.PI / 180; return [cx + r * Math.sin(k), cy - r * Math.cos(k)]; };
-function arc(cx, cy, r, a0, a1) { const p = pol(cx, cy, r, a0), q = pol(cx, cy, r, a1);
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg', root = document.getElementById('art');
+  var P = JSON.parse(document.getElementById('theme-params').textContent);
+  function css(n) { return 'var(--' + n + ')'; }
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); (parent || root).appendChild(e); return e; }
+  function T(x, y, str, cls, anchor, parent) { var t = el('text', { x: x, y: y, 'class': cls || '', 'text-anchor': anchor || 'start' }, parent); t.textContent = str; return t; }
+  function pol(cx, cy, r, a) { var k = a * Math.PI / 180; return [cx + r * Math.sin(k), cy - r * Math.cos(k)]; }
+  function arc(cx, cy, r, a0, a1) { var p = pol(cx, cy, r, a0), q = pol(cx, cy, r, a1);
     return 'M' + p[0].toFixed(2) + ' ' + p[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 ' + ((a1 - a0) > 180 ? 1 : 0) + ' 1 ' + q[0].toFixed(2) + ' ' + q[1].toFixed(2); }
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-/* ---------- dials (value arc, swept band, needle, cruise pointer: the gauge layers) ---------- */
-const A0 = -120, A1 = 120;
-function Dial(cx, cy, o) {
-    const ang = v => A0 + clamp(v / o.max, 0, 1) * (A1 - A0);
+  /* ---------- the dials in Calm: track, red zone, ticks, numerals (at rest: 0 lit), the disc ---------- */
+  var A0 = -120, A1 = 120, SX = 330, TX = 1590, CY = 372;
+  function Dial(cx, cy, o) {
+    var ang = function (v) { return A0 + clamp(v / o.max, 0, 1) * (A1 - A0); };
     el('path', { d: arc(cx, cy, 272, A0, A1), fill: 'none', stroke: css('track'), 'stroke-width': 8 });
     if (o.redFrom != null) el('path', { d: arc(cx, cy, 272, ang(o.redFrom), A1), fill: 'none', stroke: css('limit-deep'), 'stroke-width': 8 });
-    for (let v = 0; v <= o.max + 1e-6; v += o.minor) {
-        const major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6, a = ang(v), red = o.redFrom != null && v >= o.redFrom;
-        const p = pol(cx, cy, 262, a), q = pol(cx, cy, major ? 240 : 251, a);
-        el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: red ? css('limit-deep') : major && !o.dim ? css('ink2') : css('tick'), 'stroke-width': major ? 3 : 1.5 });
-        if (major) { const c = pol(cx, cy, 205, a); T(c[0], c[1] + 8, o.label(v), 'dialnum' + (red ? ' red' : v === 0 ? ' on' : ''), 'middle'); }
+    for (var v = 0; v <= o.max + 1e-6; v += o.minor) {
+      var major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6, a = ang(v), red = o.redFrom != null && v >= o.redFrom;
+      var p = pol(cx, cy, 262, a), q = pol(cx, cy, major ? 240 : 251, a);
+      el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: red ? css('limit-deep') : major && !o.dim ? css('ink2') : css('tick'), 'stroke-width': major ? 3 : 1.5 });
+      if (major) { var c = pol(cx, cy, 205, a); T(c[0], c[1] + 8, o.label(v), 'dialnum' + (red ? ' red' : v === 0 ? ' on' : ''), 'middle'); }
     }
-    el('circle', { cx, cy, r: 158, fill: css('disc'), stroke: css('line'), 'stroke-width': 1.5 });
-}
-const SX = 330, TX = 1590, CY = 318;
-Dial(SX, CY, { max: 180, major: 20, minor: 10, label: v => v });
-Dial(TX, CY, { max: 8000, major: 1000, minor: 250, label: v => v / 1000, redFrom: 7000, dim: .55 });
+    el('circle', { cx: cx, cy: cy, r: 158, fill: css('disc'), stroke: css('line'), 'stroke-width': 1.5 });
+  }
+  Dial(SX, CY, { max: P.speedMax, major: 20, minor: 10, label: function (v) { return v; } });
+  Dial(TX, CY, { max: P.tachMax, major: 1000, minor: 250, label: function (v) { return v / 1000; }, redFrom: 7000, dim: 0.55 });
+  /* the speed-limit sign's disc, mph, the cruise label (covered while off) */
+  el('circle', { cx: SX, cy: CY - 100, r: 25, fill: css('ink'), stroke: css('limit'), 'stroke-width': 6 });
+  T(SX, CY + 78, 'mph', 'unit', 'middle').setAttribute('font-size', 22);
+  T(SX - 8, CY + 124, 'CRUISE', 'lab', 'end');
+  /* the EV light (covered while the engine runs) */
+  var ev = T(TX, CY - 92, 'EV', '', 'middle');
+  ev.setAttribute('style', 'font-size:26px;font-weight:600;font-stretch:108%;letter-spacing:.08em;fill:var(--elec)');
 
-/* speedometer centre: the limit sign's disc (its figure is a layer), the unit */
-el('circle', { cx: SX, cy: CY - 100, r: 25, fill: css('ink'), stroke: css('limit'), 'stroke-width': 6 });
-T(SX, CY + 78, 'mph', 'unit', 'middle').setAttribute('font-size', 22);
+  /* ---------- top row: the mode ---------- */
+  var mode = T(1198, 70, 'COMFORT', '');
+  mode.setAttribute('style', 'font-size:24px;font-weight:700;font-stretch:108%;letter-spacing:.08em;fill:var(--calm)');
 
-/* ---------- under the dials ---------- */
-const track = (x, y, w) => el('rect', { x, y, width: w, height: 8, rx: 1, fill: css('track') });
-function barScale(x, lo, hi) {
-    [0, .25, .5, .75, 1].forEach(k => el('line', { x1: x + 150 * k, y1: 568, x2: x + 150 * k, y2: k % .5 === 0 ? 576 : 573, stroke: css('tick'), 'stroke-width': 1.5 }));
-    T(x, 596, lo, 'scale', 'start'); T(x + 150, 596, hi, 'scale', 'end');
-}
-T(170, 498, 'FUEL', 'lab'); track(170, 556, 150); barScale(170, '0', '1/1');
-T(350, 498, 'TRIP', 'lab');
-T(350, 596, 'Average', 'sub');
-T(1430, 498, 'COOLANT', 'lab'); track(1430, 556, 150); barScale(1430, '50', '130');
-el('rect', { x: 1486.2, y: 566, width: 46.9, height: 3, fill: css('ink2') });
-T(1610, 498, 'TYRES', 'lab');
-/* the tyre line "35 35 / 38 38 psi": the pressures are a layer in four 2-digit slots
- * (logic.js lays them out the same way); the "/" and "psi" stay where the full line puts them */
-document.fonts.ready.then(() => {
-    const line = '35 35 / 38 38 psi', probe = T(1610, 596, line, 'sub');
-    const at = (i) => 1610 + (i ? probe.getSubStringLength(0, i) : 0);
-    T(at(line.indexOf('/')), 596, '/', 'sub'); T(at(line.indexOf('psi')), 596, 'psi', 'sub');
+  /* ---------- range split over the drive meter: labels, track, ticks, the ECO band ---------- */
+  var PX0 = 648, PX1 = 1272, PMIN = -40, PMAX = 120, ECO = 60;
+  function px(v) { return PX0 + (clamp(v, PMIN, PMAX) - PMIN) / (PMAX - PMIN) * (PX1 - PX0); }
+  el('rect', { x: PX0, y: 140, width: 10, height: 10, fill: css('calm') }); T(PX0 + 18, 150, 'FUEL', 'lab');
+  T(960, 150, 'RANGE', 'lab', 'middle');
+  T(PX1 - 18, 150, 'ELECTRIC', 'lab', 'end'); el('rect', { x: PX1 - 10, y: 140, width: 10, height: 10, fill: css('elec') });
+  T(1024, 218, 'mi', 'unit').setAttribute('font-size', 24);
+  T(PX1, 208, 'mi', 'unit', 'end');
+  el('rect', { x: PX0, y: 251, width: PX1 - PX0, height: 16, rx: 1, fill: css('track') });
+  for (var v = PMIN; v <= PMAX; v += 10) {
+    var maj = v % 40 === 0;
+    el('line', { x1: px(v), y1: 275, x2: px(v), y2: maj ? 283 : 279, stroke: v === 0 ? css('ink') : css('tick'), 'stroke-width': v === 0 ? 2 : 1.5 });
+  }
+  el('line', { x1: px(0), y1: 245, x2: px(0), y2: 275, stroke: css('ink'), 'stroke-width': 2 });
+  el('rect', { x: px(0), y: 271, width: px(ECO) - px(0), height: 3, fill: css('ink2') });
+  T(PX0, 309, 'CHARGE', 'scale', 'start'); T((px(0) + px(ECO)) / 2, 309, 'ECO', 'scale', 'middle'); T(PX1, 309, 'POWER', 'scale', 'end');
+
+  /* ---------- economy, electric trip | HV battery, arrival ---------- */
+  var LX = 648, RX = 1112, CW = 160;
+  T(LX, 392, 'AVERAGE', 'lab'); el('rect', { x: LX, y: 450, width: CW, height: 8, rx: 1, fill: css('track') });
+  T(LX, 482, '0', 'scale', 'start'); T(LX + CW, 482, '100', 'scale', 'end');
+  T(LX, 514, 'NOW', 'lab');
+  T(LX, 574, 'ELECTRIC TRIP', 'lab');
+  T(RX, 392, 'HV BATTERY', 'lab');
+  for (var s = 0; s < 10; s++) el('rect', { x: RX + s * 16.2, y: 450, width: 14.2, height: 8, rx: 1, fill: css('track') });
+  T(RX, 482, '0', 'scale', 'start'); T(RX + CW, 482, '100', 'scale', 'end');
+  T(RX, 574, 'ARRIVE', 'lab');
+
+  /* ---------- the map area (its ground is the map slot's rect): corner brackets, label, note ---------- */
+  var MX = 834, MY = 380, MW = 252, MH = 320;
+  [[MX, MY, 1, 1], [MX + MW, MY, -1, 1], [MX, MY + MH, 1, -1], [MX + MW, MY + MH, -1, -1]].forEach(function (c) {
+    el('path', { d: 'M' + c[0] + ' ' + (c[1] + c[3] * 18) + ' L' + c[0] + ' ' + c[1] + ' L' + (c[0] + c[2] * 18) + ' ' + c[1], fill: 'none', stroke: css('tick'), 'stroke-width': 2 });
+  });
+  T(MX + 14, MY + 30, 'MAP AREA', 'lab');
+  T(MX + 14, MY + MH - 16, "The car's own map", 'scale');
+
+  /* ---------- under the dials: fuel, trip | coolant, tyres: labels, bar tracks, scales, the sub-lines' fixed words ---------- */
+  function track(x) { el('rect', { x: x, y: 632, width: 150, height: 8, rx: 1, fill: css('track') }); }
+  function barScale(x, lo, hi) {
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (k) { el('line', { x1: x + 150 * k, y1: 644, x2: x + 150 * k, y2: k % 0.5 === 0 ? 652 : 649, stroke: css('tick'), 'stroke-width': 1.5 }); });
+    T(x, 672, lo, 'scale', 'start'); T(x + 150, 672, hi, 'scale', 'end');
+  }
+  T(170, 574, 'FUEL', 'lab'); track(170); barScale(170, '0', '1/1');
+  T(350, 574, 'TRIP', 'lab');
+  T(350, 672, 'Average', 'sub');
+  T(1430, 574, 'COOLANT', 'lab'); track(1430); barScale(1430, String(P.cool[0]), String(P.cool[1]));
+  el('rect', { x: 1486.2, y: 642, width: 46.9, height: 3, fill: css('ink2') });   /* the normal working range */
+  T(1610, 574, 'TYRES', 'lab');
+  /* "35 35 / 38 38 psi": the numbers are a layer; the slash and "psi" sit where the numbers leave them,
+     measured as the glyph atlas measures (each character's advance rounded) so the two agree */
+  /* after the fonts load (before, the fallback face would be measured) */
+  document.fonts.ready.then(function () {
+    var probe = T(0, -100, '', 'sub');
+    function adv(str) {
+      var w = 0;
+      for (var i = 0; i < str.length; i++) { probe.textContent = str[i] === ' ' ? ' ' : str[i]; w += Math.round(probe.getComputedTextLength()); }
+      return w;
+    }
+    T(1610 + adv('35 35 '), 672, '/', 'sub');
+    T(1610 + adv('35 35 / 38 38 '), 672, 'psi', 'sub');
     probe.remove();
-});
-
-/* ---------- top centre: the mode word (time, temperature and guidance are layers) ---------- */
-const mode = T(1198, 53, 'COMFORT', 'num'); mode.setAttribute('font-size', 24); mode.style.fill = css('calm'); mode.style.fontWeight = 700; mode.style.letterSpacing = '.08em';
-
-/* ---------- centre: the range split's labels over the drive meter ---------- */
-const PX0 = 648, PX1 = 1272, PMIN = -40, PMAX = 120, ECO = 60, px = v => PX0 + (clamp(v, PMIN, PMAX) - PMIN) / (PMAX - PMIN) * (PX1 - PX0);
-el('rect', { x: PX0, y: 106, width: 10, height: 10, fill: css('calm') }); T(PX0 + 18, 116, 'FUEL', 'lab');
-T(960, 116, 'RANGE', 'lab', 'middle');
-T(PX1 - 18, 116, 'ELECTRIC', 'lab', 'end'); el('rect', { x: PX1 - 10, y: 106, width: 10, height: 10, fill: css('elec') });
-T(1024, 184, 'mi', 'unit').setAttribute('font-size', 24);
-T(PX1, 174, 'mi', 'unit', 'end');
-el('rect', { x: PX0, y: 214, width: PX1 - PX0, height: 16, rx: 1, fill: css('track') });
-for (let v = PMIN; v <= PMAX; v += 10) {
-    const major = v % 40 === 0;
-    el('line', { x1: px(v), y1: 238, x2: px(v), y2: major ? 246 : 242, stroke: v === 0 ? css('ink') : css('tick'), 'stroke-width': v === 0 ? 2 : 1.5 });
-}
-el('line', { x1: px(0), y1: 208, x2: px(0), y2: 238, stroke: css('ink'), 'stroke-width': 2 });
-el('rect', { x: px(0), y: 234, width: px(ECO) - px(0), height: 3, fill: css('ink2') });
-T(PX0, 272, 'CHARGE', 'scale', 'start'); T((px(0) + px(ECO)) / 2, 272, 'ECO', 'scale', 'middle'); T(PX1, 272, 'POWER', 'scale', 'end');
-
-/* ---------- centre: economy, electric miles | map area | HV battery, arrival ---------- */
-const LX = 648, RX = 1112, CW = 160;
-T(LX, 318, 'AVERAGE', 'lab'); el('rect', { x: LX, y: 376, width: CW, height: 8, rx: 1, fill: css('track') });
-T(LX, 408, '0', 'scale', 'start'); T(LX + CW, 408, '100', 'scale', 'end');
-T(LX, 440, 'NOW', 'lab');
-T(LX, 500, 'ELECTRIC TRIP', 'lab');
-T(RX, 318, 'HV BATTERY', 'lab');
-for (let i = 0; i < 10; i++) el('rect', { x: RX + i * 16.2, y: 376, width: 14.2, height: 8, rx: 1, fill: css('track') });
-T(RX, 408, '0', 'scale', 'start'); T(RX + CW, 408, '100', 'scale', 'end');
-T(RX, 500, 'ARRIVE', 'lab');
-
-/* the map area: flat ground the car's own map fills */
-const MX = 834, MY = 306, MW = 252, MH = 296;
-el('rect', { x: MX, y: MY, width: MW, height: MH, rx: 2, fill: css('map'), stroke: css('line'), 'stroke-width': 1.5 });
-[[MX, MY, 1, 1], [MX + MW, MY, -1, 1], [MX, MY + MH, 1, -1], [MX + MW, MY + MH, -1, -1]].forEach(([x, y, a, b]) =>
-    el('path', { d: 'M' + x + ' ' + (y + b * 18) + ' L' + x + ' ' + y + ' L' + (x + a * 18) + ' ' + y, fill: 'none', stroke: css('tick'), 'stroke-width': 2 }));
-T(MX + 14, MY + 30, 'MAP AREA', 'lab');
-T(MX + 14, MY + MH - 16, 'The car’s own map', 'scale').style.fill = css('ink3');
+  });
 })();
 </script>
 </body>
+</html>

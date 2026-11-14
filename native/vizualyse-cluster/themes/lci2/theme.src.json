@@ -4,643 +4,1481 @@
  "family": "lci2",
  "mode": "sport",
  "version": 2,
- "bottom": 646,
- "signals": ["kmh", "rpm", "gear", "gearMode", "throttle", "engineHp", "elecHp", "socPct", "fuelPct", "rangeKm", "oilC", "coolantC", "boostBar", "tyres", "gLat", "gLon", "clock", "outsideC", "odoKm"],
+ "ship": true,
+ "bottom": 720,
+ "art": "art.html",
+ "signals": [
+  "kmh",
+  "rpm",
+  "throttle",
+  "gearMode",
+  "fuelPct",
+  "oilC",
+  "tyres",
+  "socPct",
+  "gear",
+  "rangeKm",
+  "coolantC",
+  "engineHp",
+  "elecHp",
+  "boostBar",
+  "gLat",
+  "gLon",
+  "clock",
+  "outsideC",
+  "odoKm"
+ ],
  "params": {
-  "speedMap": [
-   [0, 0],
-   [20, 0.125],
-   [40, 0.25],
-   [60, 0.375],
-   [80, 0.5],
-   [100, 0.625],
-   [130, 0.75],
-   [160, 0.875],
-   [200, 1]
-  ],
-  "tachMap": [
-   [0, 0],
-   [8000, 1]
-  ],
   "shiftFrom": 4800,
   "shiftCue": 6400,
   "revWarm": 3000,
-  "gearStrip": {
-   "x": 1403,
-   "pitch": 24,
-   "cell": 12
-  },
-  "psi": {
-   "lEnd": 859.83,
-   "rStart": 1036
-  },
-  "colors": {
-   "ink": [0.933, 0.953, 1, 1],
-   "ink2": [0.604, 0.659, 0.769, 1],
-   "ink3": [0.361, 0.412, 0.518, 1],
-   "speed": [0.561, 0.769, 1, 1],
-   "rev": [1, 0.478, 0.149, 1],
-   "red": [1, 0.18, 0.243, 1],
-   "redDim": [0.227, 0.051, 0.078, 1],
-   "elec": [0.184, 0.816, 1, 1],
-   "cold": [0.361, 0.584, 1, 1],
-   "ok": [0.404, 0.875, 0.627, 1],
-   "warm": [1, 0.69, 0.18, 1],
-   "hot": [1, 0.231, 0.271, 1],
-   "amber": [1, 0.698, 0.122, 1],
-   "orange": [1, 0.416, 0.102, 1],
-   "unlit": [0.078, 0.102, 0.149, 1],
-   "track": [0.078, 0.106, 0.161, 1],
-   "box": [0.012, 0.02, 0.043, 1],
-   "none": [0, 0, 0, 0]
+  "maxRpm": 8000,
+  "redRpm": 6800,
+  "psiGap": "        ",
+  "nullPsi": "  --",
+  "design": {
+   "safeTop": 40
   }
  },
  "fonts": {
-  "display": {
+  "f140w600": {
    "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
    "weight": 600,
-   "size": 132,
-   "cell": [76, 110],
+   "size": 140,
+   "cell": [
+    77,
+    104
+   ],
    "dy": -1,
    "glyphs": "0123456789 -",
-   "tracking": -1.32
+   "tracking": -1.4
   },
-  "gear": {
+  "f160w600": {
    "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
    "weight": 600,
-   "size": 150,
-   "cell": [96, 124],
+   "size": 160,
+   "cell": [
+    99,
+    118
+   ],
    "dy": -1,
-   "glyphs": "0123456789-N",
-   "tracking": -1.5
+   "glyphs": "0123456789 -DNPR",
+   "tracking": -1.6
   },
-  "power": {
+  "f17w700": {
    "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
-   "weight": 500,
-   "size": 40,
-   "cell": [24, 36],
-   "dy": 0,
-   "glyphs": "0123456789 -"
-  },
-  "mid": {
-   "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
-   "weight": 500,
-   "size": 30,
-   "cell": [31, 28],
-   "dy": 0,
-   "glyphs": "0123456789 .-−LR  "
-  },
-  "clock": {
-   "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
-   "weight": 500,
-   "size": 26,
-   "cell": [16, 25],
-   "dy": -1,
-   "glyphs": "0123456789:- "
-  },
-  "body": {
-   "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
-   "weight": 500,
-   "size": 18,
-   "cell": [16, 18],
-   "dy": 0,
-   "glyphs": "0123456789 -%°Cmi−"
-  },
-  "strip": {
-   "file": "SairaSemiCondensed.woff2",
-   "family": "Saira",
    "weight": 700,
    "size": 17,
-   "cell": [12, 18],
-   "dy": 0,
-   "glyphs": "12345678"
+   "cell": [
+    11,
+    17
+   ],
+   "dy": -0.5,
+   "glyphs": "0123456789 -"
   },
-  "unit": {
-   "file": "Saira-latin.woff2",
-   "family": "Saira",
-   "weight": 400,
-   "size": 15,
-   "cell": [15, 16],
-   "dy": 0,
-   "glyphs": "0123456789 -°Cmi−"
+  "f18w500": {
+   "file": "SairaSemiCondensed.woff2",
+   "weight": 500,
+   "size": 18,
+   "cell": [
+    15,
+    19
+   ],
+   "dy": 0.5,
+   "glyphs": "0123456789 -%Cim°"
   },
-  "label": {
+  "f40w500": {
+   "file": "SairaSemiCondensed.woff2",
+   "weight": 500,
+   "size": 40,
+   "cell": [
+    23,
+    33
+   ],
+   "dy": 0.5,
+   "glyphs": "0123456789 -"
+  },
+  "f13w500": {
    "file": "Saira-latin.woff2",
-   "family": "Saira",
    "weight": 500,
    "size": 13,
-   "cell": [15, 14],
-   "dy": -1,
-   "glyphs": "ELCTRIGN ",
+   "cell": [
+    12,
+    14
+   ],
+   "dy": 0,
+   "glyphs": " -CEGILNRT",
    "tracking": 1.82
+  },
+  "f30w500": {
+   "file": "SairaSemiCondensed.woff2",
+   "weight": 500,
+   "size": 30,
+   "cell": [
+    31,
+    26
+   ],
+   "dy": 0,
+   "glyphs": "0123456789 -.LR  −"
+  },
+  "f26w500": {
+   "file": "SairaSemiCondensed.woff2",
+   "weight": 500,
+   "size": 26,
+   "cell": [
+    15,
+    23
+   ],
+   "dy": -0.5,
+   "glyphs": "0123456789 -:"
+  },
+  "f15w400": {
+   "file": "Saira-latin.woff2",
+   "weight": 400,
+   "size": 15,
+   "cell": [
+    14,
+    17
+   ],
+   "dy": 0.5,
+   "glyphs": "0123456789 -Cim°−"
   }
  },
  "paths": {
-  "band": {
+  "speed": {
    "path": [
-    ["M", 650, 604],
-    ["L", 490, 604],
-    ["L", 336, 450],
-    ["L", 336, 182],
-    ["L", 490, 28],
-    ["L", 560, 28]
+    [
+     "M",
+     650,
+     660
+    ],
+    [
+     "L",
+     490.07,
+     660
+    ],
+    [
+     "L",
+     336,
+     505.95
+    ],
+    [
+     "L",
+     336,
+     208.08
+    ],
+    [
+     "L",
+     337.35,
+     206.65
+    ],
+    [
+     "L",
+     490.03,
+     54
+    ],
+    [
+     "L",
+     560,
+     54
+    ]
    ],
    "inward": -1,
-   "rect": [266, 0, 396, 646],
-   "maxd": 70,
-   "ends": true,
-   "step": 1
-  },
-  "tachBand": {
-   "mirror": "band"
-  },
-  "chevron": {
-   "path": [
-    ["M", 1386, 236],
-    ["L", 1403, 220],
-    ["L", 1420, 236]
+   "rect": [
+    263,
+    0,
+    389,
+    720
    ],
-   "inward": 1,
-   "rect": [1381, 215, 44, 25],
-   "maxd": 3,
-   "step": 1
+   "maxd": 71
+  },
+  "tach": {
+   "mirror": "speed"
+  },
+  "lensL": {
+   "copy": "speed",
+   "at": [
+    263,
+    0
+   ]
+  },
+  "lensR": {
+   "mirror": "speed"
   }
  },
  "layers": [
   {
    "name": "speed",
    "shader": "gauge",
-   "field": "band",
+   "field": "speed",
    "uniforms": {
-    "u_val": [0, 0, 2, 1],
-    "u_band": [-5.5, 6.5, -9, 9],
-    "u_shape": [1, 1.5, 1.5, 1],
-    "u_fill": [0.561, 0.769, 1, 1],
-    "u_red": [0, 0, 0, 0],
-    "u_glow": [0, 0, 0, 30],
-    "u_needle": [0.933, 0.953, 1, 1],
-    "u_seg": [0, 0, 0.00064, 1],
-    "u_pool": [0, 0, 0, 0],
-    "u_look": [70, 0.65, 1, 0]
+    "u_val": [
+     0,
+     0,
+     2,
+     0
+    ],
+    "u_band": [
+     -6,
+     6,
+     -9,
+     9
+    ],
+    "u_shape": [
+     1,
+     1.5,
+     1.5,
+     1
+    ],
+    "u_fill": [
+     0.5608,
+     0.7686,
+     1,
+     1
+    ],
+    "u_red": [
+     0.5608,
+     0.7686,
+     1,
+     1
+    ],
+    "u_glow": [
+     0,
+     0,
+     0,
+     30
+    ],
+    "u_needle": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ],
+    "u_seg": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "u_pool": [
+     0,
+     0,
+     26,
+     0
+    ],
+    "u_look": [
+     70,
+     0.65,
+     1,
+     0
+    ]
    }
   },
   {
    "name": "tach",
    "shader": "gauge",
-   "field": "tachBand",
+   "field": "tach",
    "uniforms": {
-    "u_val": [0, 0, 2, 1],
-    "u_band": [-5.5, 6.5, -9, 9],
-    "u_shape": [1, 1.5, 1.5, 1],
-    "u_fill": [1, 0.478, 0.149, 1],
-    "u_red": [0, 0, 0, 0],
-    "u_glow": [0, 0, 0, 30],
-    "u_needle": [0.933, 0.953, 1, 1],
-    "u_seg": [0, 0, 0.00064, 1],
-    "u_pool": [0, 0, 0, 0],
-    "u_look": [70, 0.65, 1, 0]
+    "u_val": [
+     0,
+     0,
+     2,
+     0
+    ],
+    "u_band": [
+     -6,
+     6,
+     -9,
+     9
+    ],
+    "u_shape": [
+     1,
+     1.5,
+     1.5,
+     1
+    ],
+    "u_fill": [
+     1,
+     0.4784,
+     0.149,
+     1
+    ],
+    "u_red": [
+     1,
+     0.4784,
+     0.149,
+     1
+    ],
+    "u_glow": [
+     0,
+     0,
+     0,
+     30
+    ],
+    "u_needle": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ],
+    "u_seg": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "u_pool": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_look": [
+     70,
+     0.65,
+     1,
+     0
+    ]
    }
   },
   {
    "name": "lensL",
    "shader": "gauge",
-   "field": "band",
-   "art": false,
+   "field": "lensL",
    "uniforms": {
-    "u_val": [0.99893, 0, 2, 1],
-    "u_band": [22.5, 25.5, 0, 0],
-    "u_shape": [1, 0, 0, 1],
-    "u_fill": [0, 0, 0, 0],
-    "u_red": [0, 0, 0, 0],
-    "u_glow": [0, 0, 0, 0],
-    "u_needle": [0, 0, 0, 0],
-    "u_seg": [0, 0, 0.00107, 1],
-    "u_pool": [0, 0, 0, 0],
-    "u_look": [0, 0, 2, 0]
-   }
+    "u_val": [
+     0,
+     0,
+     2,
+     0
+    ],
+    "u_band": [
+     22.5,
+     25.5,
+     0,
+     0
+    ],
+    "u_shape": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "u_fill": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_red": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_glow": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_needle": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_seg": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "u_pool": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_look": [
+     0.25,
+     0,
+     2,
+     0
+    ]
+   },
+   "art": false
   },
   {
    "name": "lensR",
    "shader": "gauge",
-   "field": "tachBand",
-   "art": false,
+   "field": "lensR",
    "uniforms": {
-    "u_val": [0.99893, 0, 2, 1],
-    "u_band": [22.5, 25.5, 0, 0],
-    "u_shape": [1, 0, 0, 1],
-    "u_fill": [0, 0, 0, 0],
-    "u_red": [0, 0, 0, 0],
-    "u_glow": [0, 0, 0, 0],
-    "u_needle": [0, 0, 0, 0],
-    "u_seg": [0, 0, 0.00107, 1],
-    "u_pool": [0, 0, 0, 0],
-    "u_look": [0, 0, 2, 0]
-   }
+    "u_val": [
+     0,
+     0,
+     2,
+     0
+    ],
+    "u_band": [
+     22.5,
+     25.5,
+     0,
+     0
+    ],
+    "u_shape": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "u_fill": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_red": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_glow": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_needle": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_seg": [
+     0,
+     0,
+     0,
+     1
+    ],
+    "u_pool": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_look": [
+     0.25,
+     0,
+     2,
+     0
+    ]
+   },
+   "art": false
   },
   {
    "name": "lensTop",
    "shader": "rect",
    "x": 556,
-   "y": 50,
+   "y": 77,
    "w": 808,
    "h": 3,
    "uniforms": {
-    "u_color": [1, 0.18, 0.243, 1]
+    "u_shape": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_color": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_ring": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "lensBot",
    "shader": "rect",
    "x": 648,
-   "y": 579,
+   "y": 635,
    "w": 624,
    "h": 3,
    "uniforms": {
-    "u_color": [1, 0.18, 0.243, 1]
+    "u_shape": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_color": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_ring": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "shift",
    "shader": "leds",
    "x": 705,
-   "y": 68,
+   "y": 94,
    "w": 510,
    "h": 16,
    "uniforms": {
-    "u_led": [12, 0, 0, 1],
-    "u_geom": [0, 0, 30, 16],
-    "u_split": [2, 4, 0, 0],
-    "u_lean": [6, 0, 0, 0],
-    "u_c0": [1, 0.698, 0.122, 1],
-    "u_c1": [1, 0.416, 0.102, 1],
-    "u_c2": [1, 0.18, 0.243, 1],
-    "u_off": [0, 0, 0, 0]
+    "u_led": [
+     12,
+     0,
+     0,
+     1
+    ],
+    "u_geom": [
+     0,
+     0,
+     30,
+     16
+    ],
+    "u_split": [
+     2,
+     4,
+     0,
+     0
+    ],
+    "u_lean": [
+     6,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     1,
+     0.698,
+     0.1216,
+     1
+    ],
+    "u_c1": [
+     1,
+     0.4157,
+     0.102,
+     1
+    ],
+    "u_c2": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_off": [
+     0.17,
+     0.15,
+     0.14,
+     1
+    ]
    }
   },
   {
-   "name": "chevron",
-   "shader": "gauge",
-   "field": "chevron",
-   "art": false,
+   "name": "chev",
+   "shader": "leds",
+   "x": 1377,
+   "y": 244,
+   "w": 52,
+   "h": 16,
    "uniforms": {
-    "u_val": [1, 0, 2, 1],
-    "u_band": [-2, 2, 0, 0],
-    "u_shape": [1, 0, 0, 1],
-    "u_fill": [0, 0, 0, 0],
-    "u_red": [0, 0, 0, 0],
-    "u_glow": [0, 0, 0, 0],
-    "u_needle": [0, 0, 0, 0],
-    "u_seg": [0, 0, 0, 1],
-    "u_pool": [0, 0, 0, 0],
-    "u_look": [0, 0, 2, 0]
+    "u_led": [
+     2,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     5.7,
+     16
+    ],
+    "u_split": [
+     99,
+     99,
+     0,
+     0
+    ],
+    "u_lean": [
+     17,
+     0,
+     1,
+     0
+    ],
+    "u_c0": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_c1": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_c2": [
+     1,
+     0.1804,
+     0.2431,
+     1
+    ],
+    "u_off": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "modeMask",
    "shader": "rect",
-   "x": 1334,
-   "y": 306,
-   "w": 54,
-   "h": 52,
+   "x": 1336,
+   "y": 352,
+   "w": 52,
+   "h": 56,
    "uniforms": {
-    "u_color": [0.012, 0.02, 0.043, 1]
+    "u_shape": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_color": [
+     0.0118,
+     0.0196,
+     0.0431,
+     1
+    ],
+    "u_ring": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "fuelSegs",
    "shader": "leds",
    "x": 471,
-   "y": 480,
+   "y": 528,
    "w": 170,
    "h": 8,
    "uniforms": {
-    "u_led": [10, 0, 0, 0],
-    "u_geom": [0, 0, 14, 8],
-    "u_split": [99, 99, 0, 0],
-    "u_c0": [0.604, 0.659, 0.769, 1],
-    "u_c1": [0.604, 0.659, 0.769, 1],
-    "u_c2": [0.604, 0.659, 0.769, 1],
-    "u_off": [0.078, 0.106, 0.161, 1]
+    "u_led": [
+     10,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     14,
+     8
+    ],
+    "u_split": [
+     99,
+     99,
+     0,
+     0
+    ],
+    "u_lean": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_c1": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_c2": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_off": [
+     0.0784,
+     0.1059,
+     0.1608,
+     1
+    ]
    }
   },
   {
    "name": "oilBar",
    "shader": "leds",
    "x": 1280,
-   "y": 480,
+   "y": 528,
    "w": 168,
    "h": 8,
    "uniforms": {
-    "u_led": [168, 0, 0, 0],
-    "u_geom": [0, 0, 1, 8],
-    "u_split": [999, 999, 0, 0],
-    "u_c0": [0.933, 0.953, 1, 1],
-    "u_c1": [0.933, 0.953, 1, 1],
-    "u_c2": [0.933, 0.953, 1, 1],
-    "u_off": [0, 0, 0, 0]
-   }
-  },
-  {
-   "name": "socBar",
-   "shader": "leds",
-   "x": 782,
-   "y": 538,
-   "w": 36,
-   "h": 6,
-   "uniforms": {
-    "u_led": [36, 0, 0, 0],
-    "u_geom": [0, 0, 1, 6],
-    "u_split": [999, 999, 0, 0],
-    "u_c0": [0.184, 0.816, 1, 1],
-    "u_c1": [0.184, 0.816, 1, 1],
-    "u_c2": [0.184, 0.816, 1, 1],
-    "u_off": [0, 0, 0, 0]
+    "u_led": [
+     56,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     3,
+     8
+    ],
+    "u_split": [
+     99,
+     99,
+     0,
+     0
+    ],
+    "u_lean": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ],
+    "u_c1": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ],
+    "u_c2": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ],
+    "u_off": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "power",
    "shader": "leds",
    "x": 712,
-   "y": 176,
+   "y": 202,
    "w": 496,
    "h": 12,
    "uniforms": {
-    "u_led": [496, 0, 0, 0],
-    "u_geom": [0, 0, 1, 12],
-    "u_split": [0, 9999, 0, 0],
-    "u_lean": [0, 0, 0, 0],
-    "u_c0": [1, 0.478, 0.149, 1],
-    "u_c1": [0.184, 0.816, 1, 1],
-    "u_c2": [0.184, 0.816, 1, 1],
-    "u_off": [0, 0, 0, 0]
+    "u_led": [
+     62,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     8,
+     12
+    ],
+    "u_split": [
+     0,
+     9999,
+     0,
+     0
+    ],
+    "u_lean": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     1,
+     0.4784,
+     0.149,
+     1
+    ],
+    "u_c1": [
+     0.1843,
+     0.8157,
+     1,
+     1
+    ],
+    "u_c2": [
+     0.1843,
+     0.8157,
+     1,
+     1
+    ],
+    "u_off": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "padsF",
    "shader": "leds",
    "x": 854,
-   "y": 280,
+   "y": 318,
    "w": 212,
    "h": 38,
    "uniforms": {
-    "u_led": [2, 0, 0, 0],
-    "u_geom": [0, 0, 14, 38],
-    "u_split": [1, 99, 3, 0],
-    "u_c0": [0.361, 0.584, 1, 1],
-    "u_c1": [0.361, 0.584, 1, 1],
-    "u_c2": [0.361, 0.584, 1, 1],
-    "u_off": [0.078, 0.106, 0.161, 1]
+    "u_led": [
+     2,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     14,
+     38
+    ],
+    "u_split": [
+     1,
+     99,
+     3,
+     0
+    ],
+    "u_lean": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_c1": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_c2": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_off": [
+     0.0784,
+     0.1059,
+     0.1608,
+     1
+    ]
    }
   },
   {
    "name": "padsR",
    "shader": "leds",
    "x": 854,
-   "y": 396,
+   "y": 434,
    "w": 212,
    "h": 38,
    "uniforms": {
-    "u_led": [2, 0, 0, 0],
-    "u_geom": [0, 0, 14, 38],
-    "u_split": [1, 99, 3, 0],
-    "u_c0": [0.361, 0.584, 1, 1],
-    "u_c1": [0.361, 0.584, 1, 1],
-    "u_c2": [0.361, 0.584, 1, 1],
-    "u_off": [0.078, 0.106, 0.161, 1]
+    "u_led": [
+     2,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     14,
+     38
+    ],
+    "u_split": [
+     1,
+     99,
+     3,
+     0
+    ],
+    "u_lean": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_c1": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_c2": [
+     1,
+     0.63,
+     0.2,
+     1
+    ],
+    "u_off": [
+     0.0784,
+     0.1059,
+     0.1608,
+     1
+    ]
+   }
+  },
+  {
+   "name": "socBar",
+   "shader": "leds",
+   "x": 782,
+   "y": 586,
+   "w": 36,
+   "h": 6,
+   "uniforms": {
+    "u_led": [
+     36,
+     0,
+     0,
+     0
+    ],
+    "u_geom": [
+     0,
+     0,
+     1,
+     6
+    ],
+    "u_split": [
+     99,
+     99,
+     0,
+     0
+    ],
+    "u_lean": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "u_c0": [
+     0.1843,
+     0.8157,
+     1,
+     1
+    ],
+    "u_c1": [
+     0.1843,
+     0.8157,
+     1,
+     1
+    ],
+    "u_c2": [
+     0.1843,
+     0.8157,
+     1,
+     1
+    ],
+    "u_off": [
+     0,
+     0,
+     0,
+     0
+    ]
    }
   },
   {
    "name": "spd",
    "shader": "text",
-   "font": "display",
-   "x": 403,
-   "y": 244,
+   "font": "f140w600",
+   "x": 402,
+   "y": 284,
+   "w": 230,
    "cells": 3,
-   "align": "center"
+   "align": "center",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "gear",
    "shader": "text",
-   "font": "gear",
+   "font": "f160w600",
    "x": 1388,
-   "y": 243,
+   "y": 290,
+   "w": 108,
    "cells": 2,
-   "align": "left"
+   "align": "left",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "gearOn",
    "shader": "text",
-   "font": "strip",
-   "x": 1397,
-   "y": 383,
-   "cells": 1,
-   "align": "center"
+   "font": "f17w700",
+   "x": 1384,
+   "y": 426,
+   "w": 14,
+   "cells": 2,
+   "align": "center",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "fuelPct",
    "shader": "text",
-   "font": "body",
-   "x": 560,
-   "y": 452,
+   "font": "f18w500",
+   "x": 591,
+   "y": 499,
+   "w": 49,
    "cells": 5,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "range",
    "shader": "text",
-   "font": "body",
-   "x": 528,
-   "y": 526,
-   "cells": 7,
-   "align": "right"
+   "font": "f18w500",
+   "x": 586,
+   "y": 573,
+   "w": 54,
+   "cells": 6,
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "oil",
    "shader": "text",
-   "font": "body",
-   "x": 1352,
-   "y": 452,
+   "font": "f18w500",
+   "x": 1397,
+   "y": 499,
+   "w": 51,
    "cells": 6,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "cool",
    "shader": "text",
-   "font": "body",
-   "x": 1352,
-   "y": 526,
+   "font": "f18w500",
+   "x": 1401,
+   "y": 573,
+   "w": 47,
    "cells": 6,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "engHp",
    "shader": "text",
-   "font": "power",
-   "x": 707,
-   "y": 128,
+   "font": "f40w500",
+   "x": 711,
+   "y": 156,
+   "w": 68,
    "cells": 3,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "elHp",
    "shader": "text",
-   "font": "power",
-   "x": 868,
-   "y": 128,
+   "font": "f40w500",
+   "x": 872,
+   "y": 156,
+   "w": 68,
    "cells": 3,
    "align": "right",
+   "text": "",
    "uniforms": {
-    "u_color": [0.184, 0.816, 1, 1]
+    "u_color": [
+     0.1843,
+     0.8157,
+     1,
+     1
+    ]
    }
   },
   {
    "name": "sysHp",
    "shader": "text",
-   "font": "power",
-   "x": 1112,
-   "y": 128,
+   "font": "f40w500",
+   "x": 1116,
+   "y": 156,
+   "w": 68,
    "cells": 3,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "elecLbl",
    "shader": "text",
-   "font": "label",
+   "font": "f13w500",
    "x": 896,
-   "y": 111,
+   "y": 137,
+   "w": 75,
    "cells": 8,
    "align": "left",
+   "text": "",
    "uniforms": {
-    "u_color": [0.604, 0.659, 0.769, 1]
+    "u_color": [
+     0.6039,
+     0.6588,
+     0.7686,
+     1
+    ]
    }
   },
   {
    "name": "psiF",
    "shader": "text",
-   "font": "mid",
-   "x": 800,
-   "y": 276,
+   "font": "f30w500",
+   "x": 802,
+   "y": 315,
+   "w": 295,
    "cells": 16,
-   "align": "left"
+   "align": "left",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "psiR",
    "shader": "text",
-   "font": "mid",
-   "x": 800,
-   "y": 392,
+   "font": "f30w500",
+   "x": 802,
+   "y": 431,
+   "w": 295,
    "cells": 16,
-   "align": "left"
+   "align": "left",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "tempFL",
    "shader": "text",
-   "font": "body",
-   "x": 788,
-   "y": 313,
+   "font": "f18w500",
+   "x": 837,
+   "y": 350,
+   "w": 47,
    "cells": 6,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "tempFR",
    "shader": "text",
-   "font": "body",
+   "font": "f18w500",
    "x": 1036,
-   "y": 313,
+   "y": 350,
+   "w": 47,
    "cells": 6,
-   "align": "left"
+   "align": "left",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "tempRL",
    "shader": "text",
-   "font": "body",
-   "x": 788,
-   "y": 429,
+   "font": "f18w500",
+   "x": 837,
+   "y": 466,
+   "w": 47,
    "cells": 6,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "tempRR",
    "shader": "text",
-   "font": "body",
+   "font": "f18w500",
    "x": 1036,
-   "y": 429,
+   "y": 466,
+   "w": 47,
    "cells": 6,
-   "align": "left"
+   "align": "left",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "soc",
    "shader": "text",
-   "font": "mid",
-   "x": 652,
-   "y": 524,
+   "font": "f30w500",
+   "x": 692,
+   "y": 573,
+   "w": 53,
    "cells": 3,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "boost",
    "shader": "text",
-   "font": "mid",
-   "x": 754,
-   "y": 524,
+   "font": "f30w500",
+   "x": 834,
+   "y": 573,
+   "w": 75,
    "cells": 5,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "glat",
    "shader": "text",
-   "font": "mid",
-   "x": 871,
-   "y": 524,
+   "font": "f30w500",
+   "x": 973,
+   "y": 573,
+   "w": 84,
    "cells": 6,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "glong",
    "shader": "text",
-   "font": "mid",
-   "x": 1002,
-   "y": 524,
+   "font": "f30w500",
+   "x": 1093,
+   "y": 573,
+   "w": 75,
    "cells": 5,
-   "align": "right"
+   "align": "right",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "clock",
    "shader": "text",
-   "font": "clock",
+   "font": "f26w500",
    "x": 150,
-   "y": 605,
+   "y": 677,
+   "w": 64,
    "cells": 5,
-   "align": "left"
+   "align": "left",
+   "text": "",
+   "uniforms": {
+    "u_color": [
+     0.9333,
+     0.9529,
+     1,
+     1
+    ]
+   }
   },
   {
    "name": "otemp",
    "shader": "text",
-   "font": "unit",
+   "font": "f15w400",
    "x": 226,
-   "y": 613,
+   "y": 683,
+   "w": 47,
    "cells": 6,
    "align": "left",
+   "text": "",
    "uniforms": {
-    "u_color": [0.604, 0.659, 0.769, 1]
+    "u_color": [
+     0.6039,
+     0.6588,
+     0.7686,
+     1
+    ]
    }
   },
   {
    "name": "odo",
    "shader": "text",
-   "font": "unit",
-   "x": 1620,
-   "y": 587,
+   "font": "f15w400",
+   "x": 1599,
+   "y": 683,
+   "w": 81,
    "cells": 10,
    "align": "right",
+   "text": "",
    "uniforms": {
-    "u_color": [0.604, 0.659, 0.769, 1]
+    "u_color": [
+     0.6039,
+     0.6588,
+     0.7686,
+     1
+    ]
    }
   }
  ]

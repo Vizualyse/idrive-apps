@@ -1,33 +1,80 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later
      Copyright (C) 2026 Yousaf Khan
-     LCI inspired 2 · Comfort: everything that never moves, drawn as the Comfort
-     mockup draws it (the lens and bands as in Sport, the limit disc, the boxes
-     with D, labels, units, the meter's tracks and zones, the empty map panel).
-     The moving parts are the theme's layers (theme.src.json, written by gen.js
-     with geom.js). -->
+     lci2c "LCI inspired 2 · Comfort": the LCI Comfort mockup (comfort/lci-opus)
+     as a design (DESIGNS.md), on the Sport theme's taller lens and bands
+     (themes/lci2/design.html) for the whole 1920 x 720 panel: the map panel
+     takes the room the lens gained, the clock, outside temperature, odometer
+     and COMFORT become an info line in the old bottom strip. Nothing
+     important in the top 40 px.
+     Calm: speed on the left band with the cruise set speed marked, revs in
+     pale grey, the speed limit and cruise above the speed box, D + gear with
+     an EV lamp, the next turn, distance to go and arrival over a centre-zero
+     CHARGE / ECO / POWER meter, the map panel (the theme's map slot),
+     battery, e-range, economy, average speed, fuel, coolant and tyres.
+     Nothing flashes. UK units: mph, miles, psi, degrees C, mpg.
+     Build (after themes/lci2): node tools/design_build.js themes/lci2c -->
+<html>
+<head>
 <meta charset="utf-8">
+<meta name="theme-id" content="lci2c">
+<meta name="theme-title" content="LCI inspired 2 · Comfort">
+<meta name="theme-family" content="lci2">
+<meta name="theme-mode" content="comfort">
+<meta name="theme-ship" content="true">
+<meta name="theme-bottom" content="720">
+<meta name="safe-top" content="40">
+
+<!-- shared values the bindings use -->
+<meta name="let:mphS" content="smooth(mph(kmh), 10)">
+<meta name="let:rpmS" content="smooth(rpm, 8)">
+<meta name="let:setMph" content="mph(cruiseKmh)">
+<!-- the meter: px right of zero for the engine (ew) and the motor (lw), left of it for regen -->
+<meta name="let:ew" content="when(ok(engineHp), round(clamp(max(0, engineHp) / P.maxHp) * P.pos), 0)">
+<meta name="let:lw" content="when(elecHp > 0, min(round(clamp(elecHp / P.maxHp) * P.pos), P.pos - ew), 0)">
+<meta name="let:rgPx" content="when(elecHp &lt; 0, clamp(-elecHp / P.negHp) * P.neg, 0)">
+<meta name="let:rgCells" content="round(rgPx / 5.9)">
+<meta name="let:turnMi" content="turnM / 1609.344">
+<script type="application/json" id="theme-params">
+{ "maxRpm": 8000, "redRpm": 6800, "maxHp": 300, "negHp": 100, "pos": 372, "neg": 124, "ecoEnd": 223,
+  "zoneE": 216, "zoneP": 426, "turnX": 764, "turnGap": 6, "turnAdv": { "d": 22, ".": 9, "-": 13 } }
+</script>
+
 <style>
-@font-face{font-family:"Saira";src:url(../lci2/Saira-latin.woff2) format("woff2");font-weight:100 900;font-stretch:50% 125%;font-display:block}
-:root{--ground:#000;--line:#27324a;--line-hi:#3c4a68;--ink:#eef3ff;--ink-2:#9aa8c4;--ink-3:#5c6984;--speed:#8fc4ff;--ok:#67dfa0;--num:"Saira",sans-serif}
-html,body{margin:0;background:#000;width:1920px;height:646px;overflow:hidden}
-svg{display:block;position:absolute;left:0;top:0;will-change:transform}
-text{font-family:var(--num);font-variant-numeric:tabular-nums;fill:var(--ink)}
-.lbl{font-size:13px;letter-spacing:.14em;font-weight:500;fill:var(--ink-2);font-stretch:100%}
-.unit{font-size:15px;font-weight:400;fill:var(--ink-2);font-stretch:100%}
-.scale{font-size:21px;font-weight:500;fill:#7482a0;font-stretch:87.5%}
-.scale.on{fill:var(--ink)}
-.scale.red{fill:#c0505b}
-.scale.far{fill:#55617c}
-.big{font-weight:600;font-stretch:87.5%;letter-spacing:-.01em}
-.mid{font-weight:500;font-stretch:87.5%}
-.sm{font-size:17px;font-weight:500;fill:var(--ink-2);letter-spacing:.08em}
-.tag{font-size:17px;font-weight:600;letter-spacing:.2em;fill:#1d2536}
-.zone{fill:#7482a0}
+/* Saira (SIL Open Font License, ../lci2/OFL.txt): the semi-condensed instance
+ * (87.5% width) for numerals, the variable font at normal width for labels and units */
+@font-face { font-family: "Saira SC"; font-weight: 100 900; src: url(../lci2/SairaSemiCondensed.woff2) format("woff2"); }
+@font-face { font-family: "Saira"; font-weight: 100 900; font-stretch: 50% 125%; src: url(../lci2/Saira-latin.woff2) format("woff2"); }
+:root {
+  --ground: #000000; --line: #27324a; --line-hi: #3c4a68;
+  --ink: #eef3ff; --ink-2: #9aa8c4; --ink-3: #5c6984; --speed: #8fc4ff; --calm: #c9d8f2;
+  --red: #ff2e3e; --elec: #2fd0ff; --ok: #67dfa0; --warm: #ffb02e;
+  --track: #141b29; --box: #03050b; --sign-ink: #0a0e18;
+}
+html, body { margin: 0; background: #000; }
+svg { display: block; }
+svg text { font-family: "Saira SC", sans-serif; font-variant-numeric: tabular-nums; fill: var(--ink); }
+.lbl { font-family: "Saira", sans-serif; font-size: 13px; letter-spacing: .14em; font-weight: 500; fill: var(--ink-2); }
+.unit { font-family: "Saira", sans-serif; font-size: 15px; font-weight: 400; fill: var(--ink-2); }
+.scale { font-size: 21px; font-weight: 500; fill: #7482a0; }
+.scale.zero { fill: var(--ink); }
+.scale.far { fill: #55617c; }
+.scale.red { fill: #c0505b; }
+.big { font-weight: 600; letter-spacing: -.01em; }
+.mid { font-weight: 500; }
+.sm { font-family: "Saira", sans-serif; font-size: 17px; font-weight: 500; fill: var(--ink-2); letter-spacing: .08em; }
+.zone { fill: #7482a0; }
 </style>
-<script src="geom.js"></script>
+<style data-design-build>[data-gauge]:not([data-keep]), [data-gauge]:not([data-keep]) *,
+[data-text], [data-text] *,
+[data-leds], [data-leds] *,
+[data-rect], [data-rect] *,
+[data-guide], [data-guide] *,
+[data-sprite], [data-sprite] * { visibility: hidden !important; }</style>
+<!-- generated by tools/design_build.js from design.html: edit the design, not this -->
+</head>
 <body>
-<svg id="cl" width="1920" height="646" viewBox="0 0 1920 646">
+<svg id="cl" width="1920" height="720" viewBox="0 0 1920 720" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="lensFill" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#0b1322"/><stop offset="1" stop-color="#050911"/>
@@ -35,136 +82,272 @@ text{font-family:var(--num);font-variant-numeric:tabular-nums;fill:var(--ink)}
     <pattern id="lines" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-38)">
       <line x1="0" y1="0" x2="0" y2="16" stroke="#7d9bd0" stroke-opacity=".08" stroke-width="1"/>
     </pattern>
-    <clipPath id="lensClip"><path d="M500 52 H1420 L1560 192 V440 L1420 580 H500 L360 440 V192 Z"/></clipPath>
+    <pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
+    </pattern>
+    <pattern id="regen" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="#0a2633"/>
+      <line x1="0" y1="0" x2="0" y2="6" stroke="var(--elec)" stroke-width="2.4"/>
+    </pattern>
+    <clipPath id="lensClip"><path d="M500 78 H1420 L1560 218 V496 L1420 636 H500 L360 496 V218 Z"/></clipPath>
   </defs>
-  <rect width="1920" height="646" fill="var(--ground)"/>
 
-  <!-- lens -->
-  <path d="M500 52 H1420 L1560 192 V440 L1420 580 H500 L360 440 V192 Z" fill="url(#lensFill)"/>
-  <rect width="1920" height="646" fill="url(#lines)" clip-path="url(#lensClip)"/>
-  <path d="M503 58 H1417 L1554 195 V437 L1417 574 H503 L366 437 V195 Z" fill="none" stroke="#18223a" stroke-width="1"/>
-  <path d="M500 52 H1420 L1560 192 V440 L1420 580 H500 L360 440 V192 Z" fill="none" stroke="var(--line-hi)" stroke-width="1.5"/>
+  <!-- guides (not drawn by the theme): the top keep-clear zone, the strip the car's warning lights draw over -->
+  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0.5" y="646.5" width="1919" height="73" fill="none" stroke="#2c3549" stroke-dasharray="6 6"/>
 
-  <!-- band tracks; fills, needles, numerals' lighting and the cruise mark are layers -->
-  <path d="M650 604 H490 L336 450 V182 L490 28 H560" fill="none" stroke="#0f1a2c" stroke-width="12" stroke-linejoin="miter"/>
-  <path d="M1270 604 H1430 L1584 450 V182 L1430 28 H1360" fill="none" stroke="#111827" stroke-width="12" stroke-linejoin="miter"/>
+  <rect width="1920" height="720" fill="var(--ground)"/>
+
+  <!-- the lens (as Sport's) -->
+  <path d="M500 78 H1420 L1560 218 V496 L1420 636 H500 L360 496 V218 Z" fill="url(#lensFill)"/>
+  <rect width="1920" height="720" fill="url(#lines)" clip-path="url(#lensClip)"/>
+  <path d="M503 84 H1417 L1554 221 V493 L1417 630 H503 L366 493 V221 Z" fill="none" stroke="#18223a" stroke-width="1"/>
+  <path d="M500 78 H1420 L1560 218 V496 L1420 636 H500 L360 496 V218 Z" fill="none" stroke="var(--line-hi)" stroke-width="1.5"/>
+
+  <!-- the flank bands' tracks, the redline, ticks and numerals (the script places them) -->
+  <path d="M650 660 H490 L336 506 V208 L490 54 H560" fill="none" stroke="#0f1a2c" stroke-width="12" stroke-linejoin="miter"/>
+  <path d="M1270 660 H1430 L1584 506 V208 L1430 54 H1360" fill="none" stroke="#111827" stroke-width="12" stroke-linejoin="miter"/>
   <path id="rvRed" fill="none" stroke="#3a0f15" stroke-width="12" stroke-linejoin="miter"/>
   <g id="spScale"></g><g id="rvScale"></g>
-  <text class="sm" x="1306" y="36" text-anchor="end">rpm ×1000</text>
-  <text class="sm" x="622" y="36">mph</text>
+  <text class="sm" x="1306" y="64" text-anchor="end">rpm ×1000</text>
+  <text class="sm" x="622" y="64">mph</text>
 
-  <!-- speed limit (its numeral is a layer) and cruise -->
-  <circle cx="501" cy="146" r="26" fill="#f1f4fa" stroke="#e23542" stroke-width="7"/>
-  <text class="lbl" x="551" y="134">CRUISE</text>
-  <text class="lbl" x="1280" y="134">TRIP</text>
+  <!-- speed: as Sport's band (the field reaches the lens edge for the cruise mark) -->
+  <path d="M650 660 H490 L336 506 V208 L490 54 H560" fill="none" stroke="var(--speed)" stroke-width="12"
+        data-gauge="speed" data-value="clamp(when(mphS &lt;= 100, mphS / 160, when(mphS &lt;= 160, 0.625 + (mphS - 100) / 240, 0.875 + (mphS - 160) / 320)))"
+        data-needle="-9 9 3" data-needle-color="C.ink"
+        data-glow="1 0 1" data-glow-color="rgb(0, 0, 0, 30)" data-look="70 0.65 1" data-pool="0 0 26"/>
+  <!-- revs in pale grey, the speed band's mirror image -->
+  <path d="M1270 660 H1430 L1584 506 V208 L1430 54 H1360" fill="none" stroke="var(--ink-2)" stroke-width="12"
+        data-gauge="tach" data-reuse="speed" data-value="rpmS / P.maxRpm"
+        data-needle="-9 9 3" data-needle-color="C.ink"
+        data-glow="1 0 1" data-glow-color="rgb(0, 0, 0, 30)" data-look="70 0.65 1"/>
+  <!-- the cruise set speed: a green wedge inside the band (the needle, 1 px wide at 10 px in, 14 at 23) -->
+  <path d="M650 660 H490 L336 506 V208 L490 54 H560" fill="none" stroke="none"
+        data-gauge="setMark" data-reuse="speed" data-art="off" data-band="0 0" data-band-color="#00000000"
+        data-needle="10 23 1 14" data-needle-color="C.ok" data-show="ok(cruiseKmh)"
+        data-value="clamp(when(setMph &lt;= 100, setMph / 160, when(setMph &lt;= 160, 0.625 + (setMph - 100) / 240, 0.875 + (setMph - 160) / 320)))"/>
+
+  <!-- the next turn's arrow (right; left is its flipped copy) -->
+  <polyline points="722,193 722,168 746,168 736,158 746,168 736,178" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linejoin="miter" stroke-linecap="square"
+            data-gauge="arrowR" data-value="1" data-art="off" data-ends data-show="turnDir === 'right'"/>
+  <polyline points="746,193 746,168 722,168 732,158 722,168 732,178" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linejoin="miter" stroke-linecap="square"
+            data-gauge="arrowL" data-reuse="arrowR" data-value="1" data-art="off" data-show="turnDir === 'left'"/>
+
+  <!-- speed limit and cruise (above the speed box) -->
+  <circle cx="501" cy="172" r="26" fill="#f1f4fa" stroke="#e23542" stroke-width="7"/>
+  <text class="lbl" x="551" y="160">CRUISE</text>
+  <text class="unit" x="590" y="194">mph</text>
+
+  <!-- trip (above the gear box) -->
+  <text class="lbl" x="1280" y="160">TRIP</text>
+  <text class="unit" x="1343" y="194">mi</text>
 
   <!-- speed box -->
-  <path d="M410 196 H624 L640 212 V396 L624 412 H410 L394 396 V212 Z" fill="#02040a" fill-opacity=".85" stroke="var(--line)" stroke-width="1.5"/>
-  <text class="unit" x="517" y="386" text-anchor="middle">mph</text>
+  <path d="M410 220 H624 L640 236 V438 L624 454 H410 L394 438 V236 Z" fill="#02040a" fill-opacity=".85" stroke="var(--line)" stroke-width="1.5"/>
+  <text class="unit" x="517" y="428" text-anchor="middle">mph</text>
 
-  <!-- gear box: D and the unlit EV lamp here; the gear and the lit lamp are layers -->
-  <path d="M1296 196 H1510 L1526 212 V396 L1510 412 H1296 L1280 396 V212 Z" fill="#02040a" fill-opacity=".85" stroke="var(--line)" stroke-width="1.5"/>
-  <text class="tag" x="1403" y="252" text-anchor="middle">EV</text>
-  <text id="dLetter" class="big" y="364" font-size="128">D</text>
+  <!-- gear box: the EV lamp, D + the gear -->
+  <path d="M1296 220 H1510 L1526 236 V438 L1510 454 H1296 L1280 438 V236 Z" fill="#02040a" fill-opacity=".85" stroke="var(--line)" stroke-width="1.5"/>
+  <text class="sm" x="1403" y="278" text-anchor="middle" style="fill:#1d2536">EV</text>
+  <text class="big" x="1424" y="402" text-anchor="end" style="font-size:136px">D</text>
+  <!-- covers the D out of drive -->
+  <rect x="1336" y="300" width="92" height="106" fill="var(--box)" data-rect="modeMask" data-show="gearMode !== 'D'"/>
 
-  <!-- fuel -->
-  <text class="lbl" x="472" y="466">FUEL</text>
-  <text class="sm" x="472" y="512">E</text>
-  <text class="sm" x="556" y="512" text-anchor="middle">½</text>
-  <text class="sm" x="640" y="512" text-anchor="end">F</text>
-  <text class="lbl" x="472" y="541">RANGE</text>
+  <!-- fuel (under the speed box) -->
+  <text class="lbl" x="472" y="514">FUEL</text>
+  <g id="fuelSegs"></g>
+  <g data-leds="fuelSegs" data-count="10" data-light="14 8" data-c0="when(fuelPct &lt; 15, C.warm, C.ink2)" data-off="C.track"
+     data-lit="clamp(round(fuelPct / 10), 0, 10)" data-rate="10">
+    <rect x="471" y="528" width="170" height="8" fill="none"/>
+  </g>
+  <text class="sm" x="472" y="560">E</text>
+  <text class="sm" x="556" y="560" text-anchor="middle">½</text>
+  <text class="sm" x="640" y="560" text-anchor="end">F</text>
+  <text class="lbl" x="472" y="589">RANGE</text>
+  <text class="unit" x="624" y="590">mi</text>
 
-  <!-- coolant and tyres -->
-  <text class="lbl" x="1280" y="466">COOLANT</text>
-  <rect x="1280" y="480" width="168" height="8" fill="#141b29"/>
-  <rect x="1343" y="480" width="63" height="8" fill="#16301f"/>
-  <text class="sm" x="1280" y="512">50</text>
-  <text class="sm" x="1364" y="512" text-anchor="middle">90</text>
-  <text class="sm" x="1448" y="512" text-anchor="end">130</text>
-  <text class="lbl" x="1280" y="541">TYRES psi</text>
+  <!-- coolant and tyres (under the gear box) -->
+  <text class="lbl" x="1280" y="514">COOLANT</text>
+  <rect x="1280" y="528" width="168" height="8" fill="#141b29"/>
+  <rect x="1343" y="528" width="63" height="8" fill="#16301f"/>
+  <g data-leds="coolBar" data-count="56" data-light="3 8" data-c0="C.ink2" data-off="#00000000"
+     data-lit="round(clamp((coolantC - 50) / 80) * 56)" data-rate="10">
+    <rect x="1280" y="528" width="168" height="8" fill="none"/>
+  </g>
+  <text class="sm" x="1280" y="560">50</text>
+  <text class="sm" x="1364" y="560" text-anchor="middle">90</text>
+  <text class="sm" x="1448" y="560" text-anchor="end">130</text>
+  <text class="lbl" x="1280" y="589">TYRES psi</text>
 
-  <!-- guidance labels -->
-  <text class="lbl" x="948" y="122">TO GO</text>
-  <text class="lbl" x="1208" y="122" text-anchor="end">ARRIVAL</text>
+  <!-- guidance (where Sport shows power) -->
+  <text class="lbl" x="948" y="148">TO GO</text>
+  <text class="unit" x="1029" y="186">mi</text>
+  <text class="lbl" x="1208" y="148" text-anchor="end">ARRIVAL</text>
 
-  <!-- the charge / eco / power meter's tracks -->
-  <rect x="712" y="176" width="496" height="12" fill="#101828"/>
-  <rect x="836" y="176" width="223" height="12" fill="#1f4d38"/>
-  <line x1="836" y1="188.5" x2="1060" y2="188.5" stroke="var(--ok)" stroke-opacity=".35" stroke-width="1"/>
-  <line x1="836" y1="172" x2="836" y2="198" stroke="var(--ink-2)" stroke-width="1.5"/>
-  <line x1="712" y1="192" x2="712" y2="198" stroke="#3a4660" stroke-width="1.5"/>
-  <line x1="1059" y1="192" x2="1059" y2="198" stroke="#3a4660" stroke-width="1.5"/>
-  <line x1="1208" y1="192" x2="1208" y2="198" stroke="#3a4660" stroke-width="1.5"/>
-  <text class="sm zone" x="712" y="216">CHARGE</text>
-  <text class="sm zone" x="947" y="216" text-anchor="middle">ECO</text>
-  <text class="sm zone" x="1208" y="216" text-anchor="end">POWER</text>
+  <!-- the charge / eco / power meter (Sport's power bar, the same place): drive
+       right of zero (engine pale, then electric), regen a hatch left of it -->
+  <rect x="712" y="202" width="496" height="12" fill="#101828"/>
+  <rect x="836" y="202" width="223" height="12" fill="#1f4d38"/>
+  <line x1="836" y1="214.5" x2="1060" y2="214.5" stroke="var(--ok)" stroke-opacity=".35" stroke-width="1"/>
+  <g data-leds="meterNeg" data-count="19" data-light="3.4 12" data-lean="12" data-c0="C.elec" data-off="#00000000"
+     data-lit="rgCells" data-dx="112 - rgCells * 5.9">
+    <rect x="712" y="202" width="124" height="12" fill="none"/>
+  </g>
+  <g data-leds="meterPos" data-count="62" data-light="6 12" data-split="0 9999" data-c0="C.calm" data-c1="C.elec" data-c2="C.elec" data-off="#00000000"
+     data-lit="0">
+    <rect x="836" y="202" width="372" height="12" fill="none"/>
+  </g>
+  <line x1="836" y1="198" x2="836" y2="224" stroke="var(--ink-2)" stroke-width="1.5"/>
+  <line x1="712" y1="218" x2="712" y2="224" stroke="#3a4660" stroke-width="1.5"/>
+  <line x1="1059" y1="218" x2="1059" y2="224" stroke="#3a4660" stroke-width="1.5"/>
+  <line x1="1208" y1="218" x2="1208" y2="224" stroke="#3a4660" stroke-width="1.5"/>
+  <text class="sm zone" x="712" y="242">CHARGE</text>
+  <text class="sm zone" x="947" y="242" text-anchor="middle">ECO</text>
+  <text class="sm zone" x="1208" y="242" text-anchor="end">POWER</text>
 
-  <!-- map area: the car draws its own map here; an empty panel -->
-  <path d="M728 240 H1192 L1208 256 V456 L1192 472 H728 L712 456 V256 Z" fill="#071020" stroke="var(--line)" stroke-width="1.5"/>
+  <!-- the map panel: the car's map goes here (the theme's map slot) -->
+  <path d="M728 266 H1192 L1208 282 V504 L1192 520 H728 L712 504 V282 Z" fill="#071020" stroke="var(--line)" stroke-width="1.5"/>
+  <rect data-map x="712" y="266" width="496" height="254" rx="16" fill="none"/>
+  <text data-guide class="lbl" x="734" y="296" style="fill:#7482a0">MAP AREA · THE CAR DRAWS ITS OWN MAP HERE</text>
 
-  <!-- bottom readouts -->
-  <line x1="836" y1="500" x2="836" y2="556" stroke="var(--line)"/>
-  <line x1="960" y1="500" x2="960" y2="556" stroke="var(--line)"/>
-  <line x1="1084" y1="500" x2="1084" y2="556" stroke="var(--line)"/>
-  <text class="lbl" x="712" y="512">BATTERY</text>
-  <rect x="780" y="536" width="40" height="10" fill="none" stroke="var(--ink-3)" stroke-width="1.2"/>
-  <rect x="820" y="539" width="3" height="4" fill="var(--ink-3)"/>
-  <text class="lbl" x="852" y="512">E-RANGE</text>
-  <text class="lbl" x="976" y="512">ECONOMY</text>
-  <text class="lbl" x="1100" y="512">AVG SPEED</text>
-  <g id="units"></g>
+  <!-- the readouts row: battery, e-range, economy, average speed -->
+  <line x1="836" y1="548" x2="836" y2="604" stroke="var(--line)"/>
+  <line x1="960" y1="548" x2="960" y2="604" stroke="var(--line)"/>
+  <line x1="1084" y1="548" x2="1084" y2="604" stroke="var(--line)"/>
+  <text class="lbl" x="712" y="560">BATTERY</text>
+  <text class="unit" x="749.3" y="596">%</text>
+  <rect x="780" y="584" width="40" height="10" fill="none" stroke="var(--ink-3)" stroke-width="1.2"/>
+  <rect x="820" y="587" width="3" height="4" fill="var(--ink-3)"/>
+  <g data-leds="socBar" data-count="36" data-light="1 6" data-c0="C.elec" data-off="#00000000"
+     data-lit="round(36 * clamp(socPct / 100))" data-rate="10">
+    <rect x="782" y="586" width="36" height="6" fill="none"/>
+  </g>
+  <text class="lbl" x="852" y="560">E-RANGE</text>
+  <text class="unit" x="890" y="596">mi</text>
+  <text class="lbl" x="976" y="560">ECONOMY</text>
+  <text class="unit" x="1038" y="596">mpg</text>
+  <text class="lbl" x="1100" y="560">AVG SPEED</text>
+  <text class="unit" x="1138" y="596">mph</text>
 
-  <!-- outside the lens -->
-  <text class="mid" x="1770" y="626" text-anchor="end" font-size="20" style="fill:var(--speed);letter-spacing:.16em">COMFORT</text>
+  <!-- ===== the changing texts ===== -->
+  <text class="big" x="517" y="384" text-anchor="middle" style="font-size:140px"
+        data-text="spd" data-text-expr="fmt(mphS)">188</text>
+  <text class="mid" x="501" y="183" text-anchor="middle" style="font-size:30px;fill:var(--sign-ink)" data-text="limit" data-rate="10"
+        data-text-expr="fmt(round(mph(limitKmh), 5))">70</text>
+  <text class="mid" x="585" y="194" text-anchor="end" style="font-size:30px" data-text="setV" data-rate="10"
+        data-text-expr="when(ok(cruiseKmh), fmt(setMph), '– –')" data-color="when(ok(cruiseKmh), C.ok, C.ink3)">– –</text>
+  <text class="mid" x="1338" y="194" text-anchor="end" style="font-size:30px" data-text="trip" data-rate="10"
+        data-text-expr="fmt(miles(tripKm), 1)">888.8</text>
+  <text class="big" x="1432" y="402" style="font-size:64px;fill:var(--ink-2)" data-text="gear" data-glyphs="PRN-"
+        data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(!ok(gear), '-', when(gear === 0, 'N', fmt(gear))))">8</text>
+  <text class="sm" x="1403" y="278" text-anchor="middle" style="fill:var(--elec)" data-text="evTag" data-glyphs="EV"
+        data-text-expr="'EV'" data-show="(ok(rpm) &amp;&amp; rpm &lt; 100) || (engineHp &lt;= 0 &amp;&amp; elecHp > 0)">EV</text>
+
+  <text class="lbl" x="712" y="148" data-text="road" data-glyphs="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.'" data-rate="10"
+        data-text-expr="when(road, String(road).toUpperCase().slice(0, 16), '--')">A34 OXFORD ROAD</text>
+  <text class="mid" x="764" y="186" style="font-size:40px" data-text="turnV" data-rate="10"
+        data-text-expr="when(!ok(turnM), '--', when(turnMi >= 0.25, fmt(turnMi, 1), fmt(max(50, round(turnM * 1.0936, 50)))))">1750</text>
+  <text class="unit" x="840" y="186" data-text="turnU" data-glyphs="miyd" data-rate="10"
+        data-text-expr="when(!ok(turnM), '', when(turnMi >= 0.25, 'mi', 'yd'))">yd</text>
+  <text class="mid" x="1023" y="186" text-anchor="end" style="font-size:40px" data-text="togo" data-rate="10"
+        data-text-expr="fmt(miles(destKm), 1)">888.8</text>
+  <text class="mid" x="1208" y="186" text-anchor="end" style="font-size:40px" data-text="eta" data-rate="10"
+        data-text-expr="when(/^\d{1,2}:\d{2}$/.test(eta), eta, '--:--')">88:88</text>
+  <text class="sm" x="712" y="242" style="fill:var(--ink)" data-text="zone" data-glyphs="CHARGEOPW"
+        data-text-expr="when(rgPx > 2, 'CHARGE', when(ew + lw > P.ecoEnd, 'POWER', 'ECO'))"
+        data-dx="when(rgPx > 2, 0, when(ew + lw > P.ecoEnd, P.zoneP, P.zoneE))" data-show="ok(engineHp) || ok(elecHp)">CHARGE</text>
+
+  <text class="mid" x="640" y="515" text-anchor="end" style="font-size:18px" data-text="fuelPct" data-rate="10"
+        data-text-expr="fmt(fuelPct) + ' %'" data-null="-- %">100 %</text>
+  <text class="mid" x="619" y="590" text-anchor="end" style="font-size:25px" data-text="range" data-rate="10"
+        data-text-expr="fmt(miles(rangeKm))">888</text>
+  <text class="mid" x="1448" y="515" text-anchor="end" style="font-size:18px" data-text="cool" data-rate="10"
+        data-text-expr="fmt(coolantC) + ' °C'" data-null="-- °C">-88 °C</text>
+  <text class="mid" x="1448" y="590" text-anchor="end" style="font-size:18px" data-text="tyres" data-rate="10" data-glyphs="FR·"
+        data-text-expr="'F ' + fmt(psi((tyres[0].bar + tyres[1].bar) / 2)) + ' · R ' + fmt(psi((tyres[2].bar + tyres[3].bar) / 2))">F 35 · R 38</text>
+
+  <text class="mid" x="745.3" y="596" text-anchor="end" style="font-size:30px" data-text="soc" data-rate="10"
+        data-text-expr="fmt(socPct)">100</text>
+  <text class="mid" x="886" y="596" text-anchor="end" style="font-size:30px;fill:var(--elec)" data-text="erange" data-rate="10"
+        data-text-expr="fmt(miles(evRangeKm))">88</text>
+  <text class="mid" x="1034" y="596" text-anchor="end" style="font-size:30px" data-text="mpg" data-rate="10"
+        data-text-expr="when(avgL100 > 0, fmt(min(999, 282.481 / avgL100), 1), '--')">88.8</text>
+  <text class="mid" x="1134" y="596" text-anchor="end" style="font-size:30px" data-text="avg" data-rate="10"
+        data-text-expr="fmt(mph(avgKmh))">88</text>
+
+  <!-- the info line, in the old bottom strip: clock and outside temperature left, odometer and the mode right -->
+  <text class="mid" x="150" y="697" style="font-size:25px" data-text="clock" data-rate="10"
+        data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">88:88</text>
+  <text class="unit" x="226" y="697" data-text="otemp" data-glyphs="−" data-rate="10"
+        data-text-expr="when(outsideC &lt;= -0.5, '−', '') + fmt(abs(outsideC)) + ' °C'" data-null="-- °C">−88 °C</text>
+  <text class="unit" x="1650" y="697" text-anchor="end" data-text="odo" data-rate="10"
+        data-text-expr="String(floor(miles(odoKm))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' mi'" data-null="-- mi">888 888 mi</text>
+  <text class="mid" x="1770" y="697" text-anchor="end" style="font-size:20px;fill:var(--speed);letter-spacing:.16em">COMFORT</text>
 </svg>
 <script>
-'use strict';
-const NS = 'http://www.w3.org/2000/svg';
-const $ = (id) => document.getElementById(id);
-const mk = (tag, attrs, parent, txt) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (txt != null) e.textContent = txt; if (parent) parent.appendChild(e); return e; };
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const G = window.LCI;
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var $ = function (id) { return document.getElementById(id); };
+  function mk(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  var P = JSON.parse($('theme-params').textContent);
 
-function band(pts, side) {
-  const segs = []; let total = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
-    const len = Math.hypot(x1 - x0, y1 - y0); segs.push({ x0, y0, x1, y1, len, start: total }); total += len;
+  /* the mockup's band helper: point + outward normal at a fraction of the band */
+  function band(pts, side) {
+    var segs = [], total = 0;
+    for (var i = 1; i < pts.length; i++) {
+      var x0 = pts[i - 1][0], y0 = pts[i - 1][1], x1 = pts[i][0], y1 = pts[i][1], len = Math.hypot(x1 - x0, y1 - y0);
+      segs.push({ x0: x0, y0: y0, x1: x1, y1: y1, len: len, start: total }); total += len;
+    }
+    return function (f) {
+      var d = clamp(f, 0, 1) * total, s = segs[segs.length - 1];
+      for (var j = 0; j < segs.length; j++) if (d <= segs[j].start + segs[j].len) { s = segs[j]; break; }
+      var t = (d - s.start) / s.len, dx = (s.x1 - s.x0) / s.len, dy = (s.y1 - s.y0) / s.len;
+      var n = side < 0 ? [dy, -dx] : [-dy, dx];
+      return { x: lerp(s.x0, s.x1, t), y: lerp(s.y0, s.y1, t), nx: n[0], ny: n[1] };
+    };
   }
-  return (f) => {
-    const d = clamp(f, 0, 1) * total;
-    let s = segs[segs.length - 1];
-    for (const g of segs) if (d <= g.start + g.len) { s = g; break; }
-    const t = (d - s.start) / s.len, dx = (s.x1 - s.x0) / s.len, dy = (s.y1 - s.y0) / s.len;
-    const n = side < 0 ? [dy, -dx] : [-dy, dx];
-    return { x: lerp(s.x0, s.x1, t), y: lerp(s.y0, s.y1, t), nx: n[0], ny: n[1] };
-  };
-}
-const spAt = band([[650, 604], [490, 604], [336, 450], [336, 182], [490, 28], [560, 28]], -1);
-const rvAt = band([[1270, 604], [1430, 604], [1584, 450], [1584, 182], [1430, 28], [1360, 28]], 1);
+  var spAt = band([[650, 660], [490, 660], [336, 506], [336, 208], [490, 54], [560, 54]], -1);
+  var rvAt = band([[1270, 660], [1430, 660], [1584, 506], [1584, 208], [1430, 54], [1360, 54]], 1);
 
-const SPD = [0, 20, 40, 60, 80, 100, 130, 160, 200];
-const spFrac = (v) => { v = clamp(v, 0, 200); for (let i = 1; i < SPD.length; i++) if (v <= SPD[i]) return (i - 1 + (v - SPD[i - 1]) / (SPD[i] - SPD[i - 1])) / 8; return 1; };
-SPD.forEach((v, i) => {
-  const p = spAt(i / 8), off = 30, end = i === 8;
-  mk('text', { class: 'scale' + (v === 0 ? ' on' : ''), x: (end ? p.x + 14 : p.x + p.nx * off).toFixed(1), y: (end ? p.y + 8 : p.y + p.ny * off + 7).toFixed(1), 'text-anchor': end ? 'start' : p.nx < -0.3 ? 'end' : 'middle' }, $('spScale'), v);
-});
-for (let v = 10; v < 200; v += 10) { if (SPD.includes(v)) continue; const p = spAt(spFrac(v)); mk('line', { x1: p.x + p.nx * 9, y1: p.y + p.ny * 9, x2: p.x + p.nx * 13, y2: p.y + p.ny * 13, stroke: '#3a4660', 'stroke-width': 1.5 }, $('spScale')); }
+  /* speed scale: as Sport */
+  var SPD = [0, 20, 40, 60, 80, 100, 130, 160, 200];
+  function spFrac(v) { v = clamp(v, 0, 200); for (var i = 1; i < SPD.length; i++) if (v <= SPD[i]) return (i - 1 + (v - SPD[i - 1]) / (SPD[i] - SPD[i - 1])) / 8; return 1; }
+  SPD.forEach(function (v, i) {
+    var p = spAt(i / 8), end = i === 8;
+    var t = mk('text', { 'class': 'scale' + (v === 0 ? ' zero' : ''), x: (end ? p.x + 14 : p.x + p.nx * 30).toFixed(1), y: (end ? p.y + 10 : p.y + p.ny * 30 + 7).toFixed(1),
+      'text-anchor': end ? 'start' : p.nx < -0.3 ? 'end' : 'middle' }, $('spScale'));
+    t.textContent = v;
+  });
+  for (var v = 10; v < 200; v += 10) {
+    if (SPD.indexOf(v) >= 0) continue;
+    var p = spAt(spFrac(v));
+    mk('line', { x1: p.x + p.nx * 9, y1: p.y + p.ny * 9, x2: p.x + p.nx * 13, y2: p.y + p.ny * 13, stroke: '#3a4660', 'stroke-width': 1.5 }, $('spScale'));
+  }
 
-/* rev scale: numerals above 4 sit back, as do their half ticks */
-const RED = 6800, MAXR = 8000;
-for (let k = 0; k <= 8; k++) {
-  const p = rvAt(k / 8), off = 30, end = k === 8;
-  mk('text', { class: 'scale' + (k >= 7 ? ' red' : k > 4 ? ' far' : '') + (k === 0 ? ' on' : ''), x: (end ? p.x - 14 : p.x + p.nx * off).toFixed(1), y: (end ? p.y + 8 : p.y + p.ny * off + 7).toFixed(1), 'text-anchor': end ? 'end' : p.nx > 0.3 ? 'start' : 'middle' }, $('rvScale'), k);
-}
-for (let r = 500; r < MAXR; r += 500) { if (r % 1000 === 0) continue; const p = rvAt(r / MAXR); mk('line', { x1: p.x + p.nx * 9, y1: p.y + p.ny * 9, x2: p.x + p.nx * 13, y2: p.y + p.ny * 13, stroke: r > 4000 ? '#263047' : '#3a4660', 'stroke-width': 1.5 }, $('rvScale')); }
-{ const pts = []; for (let f = RED / MAXR; f <= 1.0001; f += 0.005) { const p = rvAt(f); pts.push(p.x.toFixed(1) + ',' + p.y.toFixed(1)); } $('rvRed').setAttribute('d', 'M' + pts.join(' L')); }
+  /* rev scale 0-8, the redline from 6800; numerals above 4 sit back in Comfort */
+  var MAXR = P.maxRpm;
+  for (var k = 0; k <= 8; k++) {
+    var q = rvAt(k / 8), e8 = k === 8;
+    var tt = mk('text', { 'class': 'scale' + (k >= 7 ? ' red' : k > 4 ? ' far' : k === 0 ? ' zero' : ''), x: (e8 ? q.x - 14 : q.x + q.nx * 30).toFixed(1), y: (e8 ? q.y + 10 : q.y + q.ny * 30 + 7).toFixed(1),
+      'text-anchor': e8 ? 'end' : q.nx > 0.3 ? 'start' : 'middle' }, $('rvScale'));
+    tt.textContent = k;
+  }
+  for (var r = 500; r < MAXR; r += 500) {
+    if (r % 1000 === 0) continue;
+    var m = rvAt(r / MAXR);
+    mk('line', { x1: m.x + m.nx * 9, y1: m.y + m.ny * 9, x2: m.x + m.nx * 13, y2: m.y + m.ny * 13, stroke: r > 4000 ? '#263047' : '#3a4660', 'stroke-width': 1.5 }, $('rvScale'));
+  }
+  var red = [];
+  for (var f = P.redRpm / MAXR; f <= 1.0001; f += 0.005) { var a = rvAt(f); red.push(a.x.toFixed(1) + ',' + a.y.toFixed(1)); }
+  $('rvRed').setAttribute('d', 'M' + red.join(' L'));
 
-$('dLetter').setAttribute('x', G.dX);
-
-const U = G.U, u = $('units');
-[['mph', U.setU, 168], ['mi', U.tripU, 168], ['mi', U.togoU, 160], ['mi', U.rangeU, 542], ['%', U.socU, 548], ['mi', U.erU, 548], ['mpg', U.mpgU, 548], ['mph', U.avgU, 548]]
-  .forEach(([s, x, y]) => mk('text', { class: 'unit', x, y }, u, s));
+  /* fuel segments, unlit */
+  for (var j = 0; j < 10; j++) mk('rect', { x: 472 + j * 17, y: 528, width: 14, height: 8, fill: '#141b29' }, $('fuelSegs'));
+})();
 </script>
 </body>
+</html>

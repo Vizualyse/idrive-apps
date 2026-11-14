@@ -1,0 +1,422 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     g20i2c "G20 inspired 2 · Comfort": the G20 Comfort (Opus) mockup as a
+     design (DESIGNS.md), re-laid out for the whole 1920 x 720 panel like the
+     Sport theme of its family (themes/g20i2/design.html): frames 70 px taller
+     (bottom rules at y 642), everything inside 35 px lower, power bars of 30
+     degrees, the status row as the info line in the old bottom strip (y 694).
+     The map panel is taller (360 px, was 286) and is the theme's map slot; the
+     next manoeuvre and the arrival sit under it. Nothing flashes.
+     Build (after g20i2, so shared textures dedupe): node tools/design_build.js themes/g20i2c -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="theme-id" content="g20i2c">
+<meta name="theme-title" content="G20 inspired 2 · Comfort">
+<meta name="theme-family" content="g20i2">
+<meta name="theme-mode" content="comfort">
+<meta name="theme-ship" content="true">
+<meta name="theme-bottom" content="720">
+<meta name="safe-top" content="40">
+
+<!-- shared values: slow, well damped readings; the scales' stop maps (the
+     mockup's stopsMap as sums of clamped pieces) for the speed, the limit and
+     the cruise set speed; the drive meter and the economy -->
+<meta name="let:vMph" content="smooth(mph(kmh), 9)">
+<meta name="let:vRpm" content="smooth(rpm, 10)">
+<meta name="let:kRpm" content="vRpm / 1000">
+<meta name="let:fSpd" content="clamp(vMph / 20) * 0.17 + clamp((vMph - 20) / 20) * 0.13 + clamp((vMph - 40) / 20) * 0.12 + clamp((vMph - 60) / 20) * 0.12 + clamp((vMph - 80) / 20) * 0.12 + clamp((vMph - 100) / 20) * 0.12 + clamp((vMph - 120) / 40) * 0.22">
+<meta name="let:fRpm" content="clamp(kRpm) * 0.17 + clamp(kRpm - 1) * 0.14 + clamp(kRpm - 2) * 0.13 + clamp(kRpm - 3) * 0.13 + clamp(kRpm - 4) * 0.14 + clamp(kRpm - 5) * 0.145 + clamp(kRpm - 6) * 0.145">
+<meta name="let:lim" content="round(mph(limitKmh))">
+<meta name="let:fLim" content="clamp(lim / 20) * 0.17 + clamp((lim - 20) / 20) * 0.13 + clamp((lim - 40) / 20) * 0.12 + clamp((lim - 60) / 20) * 0.12 + clamp((lim - 80) / 20) * 0.12 + clamp((lim - 100) / 20) * 0.12 + clamp((lim - 120) / 40) * 0.22">
+<meta name="let:set" content="round(mph(cruiseKmh))">
+<meta name="let:fSet" content="clamp(set / 20) * 0.17 + clamp((set - 20) / 20) * 0.13 + clamp((set - 40) / 20) * 0.12 + clamp((set - 60) / 20) * 0.12 + clamp((set - 80) / 20) * 0.12 + clamp((set - 100) / 20) * 0.12 + clamp((set - 120) / 40) * 0.22">
+<meta name="let:ev" content="engineHp === 0 &amp;&amp; elecHp > 0">
+<meta name="let:hpOk" content="ok(engineHp) || ok(elecHp)">
+<meta name="let:hp" content="when(ok(engineHp), engineHp, 0) + when(ok(elecHp), elecHp, 0)">
+<meta name="let:pw" content="clamp(smooth(when(hpOk, when(hp >= 0, hp / P.driveHp, 0.25 * hp / P.regenHp), NaN), 6), -0.25, 1)">
+<meta name="let:word" content="when(pw &lt; -0.01, 'CHARGE', when(pw > P.ecoMax, 'POWER', 'ECO'))">
+<meta name="let:driveCol" content="when(word === 'CHARGE', C.regen, when(ev, C.edrive, C.calm))">
+<meta name="let:mpgS" content="smooth(min(99, when(ev || instL100 &lt;= 0.01, 99, P.mpgL100 / instL100)), 4)">
+<script type="application/json" id="theme-params">
+{ "scaleLen": 1262.36, "driveHp": 300, "regenHp": 40, "pwrZero": 0.2, "ecoMax": 0.35, "mpgMax": 80, "mpgL100": 282.481 }
+</script>
+
+<style>
+@font-face { font-family: "Cluster"; font-weight: 400; src: url(../fonts/BarlowSemiCondensed-400.woff2) format("woff2"); }
+@font-face { font-family: "Cluster"; font-weight: 500; src: url(../fonts/BarlowSemiCondensed-500.woff2) format("woff2"); }
+@font-face { font-family: "Cluster"; font-weight: 600; src: url(../fonts/BarlowSemiCondensed-600.woff2) format("woff2"); }
+:root {
+  --ink: #f1f0ec; --ink-2: #b4b2ac; --ink-3: #8a8882; --ink-4: #3a3936; --frame: #e9e7e2;
+  --sport: #ff3a1c; --needle: #ffc88a; --edrive: #3aa2ff; --regen: #9fd2ff;
+  --calm: #f0a550; --calm-deep: #7c4c18; --cold: #4a8fd8; --wake: #ffa84d;
+}
+html, body { margin: 0; background: #000; width: 1920px; height: 720px; overflow: hidden; }
+/* the warm haze under the frames: it now reaches into the old strip, fading out by y 712 */
+.haze { position: absolute; left: 0; top: 0; width: 1920px; height: 720px;
+  -webkit-mask-image: linear-gradient(#000 640px, transparent 712px); mask-image: linear-gradient(#000 640px, transparent 712px);
+  background: radial-gradient(520px 260px at 470px 595px, rgba(150,84,14,.13), transparent 70%),
+              radial-gradient(520px 260px at 1450px 595px, rgba(150,84,14,.13), transparent 70%); }
+svg { position: absolute; left: 0; top: 0; display: block; }
+svg text { font-family: "Cluster", sans-serif; font-variant-numeric: tabular-nums; fill: var(--ink); }
+.num { font-size: 31px; font-weight: 500; }
+.num.red { fill: var(--sport); }
+.num.dim { fill: var(--ink-3); }
+.unit { font-size: 16px; font-weight: 500; fill: var(--ink-2); letter-spacing: .02em; }
+.cap { font-size: 16px; font-weight: 600; fill: var(--ink-3); letter-spacing: .12em; }
+.val { font-size: 26px; font-weight: 500; }
+.small { font-size: 19px; font-weight: 500; fill: var(--ink-2); }
+.speed { font-size: 156px; font-weight: 500; letter-spacing: -.01em; }
+.gear { font-size: 120px; font-weight: 500; }
+/* the gear in use (36 px in the mockup) and the guidance distance (34) share one 35 px font */
+.f35 { font-size: 35px; font-weight: 500; }
+.gearsub { fill: var(--ink-2); }
+.limit { font-size: 30px; font-weight: 600; fill: var(--ink); }
+.modeword { font-size: 25px; font-weight: 600; fill: var(--calm); letter-spacing: .1em; }
+.frameLine { fill: none; stroke: var(--frame); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: .92; }
+.hidden-path { fill: none; stroke: none; }
+.arrow { fill: none; stroke: var(--ink); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div class="haze"></div>
+<svg id="g" width="1920" height="720" viewBox="0 0 1920 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lineFadeR" x1="0" x2="1">
+      <stop offset="0" stop-color="#f1f0ec" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#f1f0ec" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
+    </pattern>
+  </defs>
+  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+  <rect data-guide x="0" y="646" width="1920" height="74" fill="none" stroke="#3a6" stroke-dasharray="6 6"/>
+
+  <!-- static art, drawn by the script below from the mockup's own geometry -->
+  <g id="static"></g>
+
+  <!-- the car's map: the area stays flat and outlined; the theme's map slot -->
+  <rect id="mapArea" data-map x="832" y="116" width="256" height="360" rx="3" fill="#0a0b0d" stroke="var(--ink-4)" stroke-width="1.5"/>
+
+  <!-- speed and revs: the frame outline is the gauge's path (kept in the art);
+       the scale runs from 212 px along it to 18 px before its end. A pale
+       pointer, an amber wake, a soft pool. (The pool sits as Sport's, 40 px in
+       and 90 px wide, so the two themes share one speed field.) -->
+  <path id="speedPath" class="frameLine" data-gauge="speed" data-keep data-inward="right"
+        data-start="212" data-end="18" data-maxd="127"
+        data-value="fSpd" data-band="0 0" data-band-color="'transparent'"
+        data-needle="2 36 9 4" data-needle-color="var(--needle)"
+        data-glow="100 300 0.15" data-glow-color="alpha(C.wake, 0.42 * clamp(fSpd * P.scaleLen / 60))"
+        data-pool="90 0.3 40" data-look="0.3 0.25 1"/>
+  <path id="tachPath" class="frameLine" data-gauge="tach" data-reuse="speed" data-keep data-inward="right"
+        data-start="212" data-end="18" data-maxd="127"
+        data-value="fRpm" data-band="0 0" data-band-color="'transparent'"
+        data-needle="2 36 9 4" data-needle-color="var(--needle)"
+        data-glow="100 300 0.15" data-glow-color="alpha(C.wake, 0.42 * clamp(fRpm * P.scaleLen / 60))"
+        data-pool="90 0.3 40" data-look="0.3 0.25 1"/>
+  <!-- on the speed scale, outside the frame: the limit's red tick and the cruise set speed's pointer -->
+  <path id="limitPath" class="hidden-path" data-gauge="limitTick" data-reuse="speed" data-inward="right" data-art="off"
+        data-start="212" data-end="18" data-value="fLim" data-band="0 0" data-band-color="'transparent'"
+        data-needle="-17 -5 3.5" data-needle-color="var(--sport)" data-look="0 0 1"/>
+  <path id="setPath" class="hidden-path" data-gauge="setMark" data-reuse="speed" data-inward="right" data-art="off"
+        data-start="212" data-end="18" data-value="fSet" data-band="0 0" data-band-color="'transparent'"
+        data-needle="-35 -21 14 0" data-needle-color="var(--ink)" data-look="0 0 1"/>
+
+  <!-- drive meter (CHARGE below its zero, ECO, POWER past the second tick) and
+       instantaneous economy, on one field: up the drive bar, across, down the economy one -->
+  <path id="barsPath" class="hidden-path" data-gauge="drive" data-inward="left" data-art="off"
+        data-value="when(hpOk, clamp(P.pwrZero + pw * 0.8), NaN)" data-from="0.2"
+        data-band="-11 11" data-band-color="driveCol" data-show="abs(pw) > 0.004"/>
+  <path id="barsPathE" class="hidden-path" data-gauge="econ" data-reuse="drive" data-inward="left" data-art="off"
+        data-value="1 - when(ev, 1, clamp(mpgS / P.mpgMax))" data-from="1"
+        data-band="-11 11" data-band-color="when(ev, C.edrive, C.ink2)"/>
+
+  <!-- fuel up its arc (far left) -->
+  <path id="fuelPath" data-gauge="fuel" data-inward="left" data-art="off" fill="none" stroke="var(--ink)" stroke-width="7"
+        data-value="clamp(fuelPct / 100)"/>
+
+  <!-- the next manoeuvre's arrow, right, and left (its mirror image) -->
+  <path class="arrow" data-gauge="arrowR" data-inward="left" data-art="off" data-ends data-value="1" data-show="turnDir === 'right'"
+        d="M852 552 L852 524 Q852 514 862 514 L886 514 L874 502 L886 514 L874 526"/>
+  <path class="arrow" data-gauge="arrowL" data-reuse="arrowR" data-inward="right" data-art="off" data-ends data-value="1" data-show="turnDir === 'left'"
+        d="M886 552 L886 524 Q886 514 876 514 L852 514 L864 502 L852 514 L864 526"/>
+
+  <!-- HV battery: 20 segments -->
+  <g data-leds="soc" data-count="20" data-light="7.5 16" data-c0="C.edrive" data-off="C.ink4" data-lit="round(socPct / 5)" data-rate="10">
+    <rect id="socBox" x="482" y="482" width="220" height="16" fill="none"/>
+  </g>
+  <!-- oil: a mark along its arc, 50..150 °C (drawn at 100, moved by the reading) -->
+  <rect x="1801" y="463.5" width="20" height="7" fill="var(--ink)" data-rect="oilMark" data-rate="10"
+        data-dx="223 * (Math.cos((19 - 38 * clamp((oilC - 50) / 100)) * Math.PI / 180) - 1)"
+        data-dy="223 * Math.sin((19 - 38 * clamp((oilC - 50) / 100)) * Math.PI / 180)"/>
+
+  <!-- readouts: the speed turns red over the limit -->
+  <text class="speed" x="620" y="427" text-anchor="end" data-text="kmh" data-text-expr="fmt(vMph)"
+        data-color="when(ok(lim) &amp;&amp; round(vMph) > lim + 1, C.sport, C.ink)">118</text>
+  <text class="limit" x="728" y="382" text-anchor="middle" data-text="limit" data-text-expr="fmt(lim)" data-rate="10">70</text>
+  <text class="val" x="672" y="427" data-text="set" data-text-expr="fmt(set)" data-color="when(ok(set), C.ink, C.ink3)" data-rate="10">70</text>
+  <text class="gear" x="1440" y="427" text-anchor="middle" data-text="mode" data-glyphs="DMSNRP-"
+        data-text-expr="when(ok(gearMode), String(gearMode).slice(0, 1), '-')">D</text>
+  <text class="f35 gearsub" x="1484" y="427" data-text="gearSub" data-glyphs="EVN"
+        data-text-expr="when(ev, 'EV', when(!ok(gear), '--', when(gear === 0, 'N', String(gear))))">EV</text>
+  <text class="val" x="1520" y="497" text-anchor="end" data-text="rpm" data-null="--"
+        data-text-expr="String(round(vRpm, 10)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')">2 020</text>
+  <text id="driveVal" class="cap" text-anchor="middle" data-text="driveWord" data-rate="10"
+        data-text-expr="when(hpOk, word, '--')" data-color="when(hpOk, driveCol, C.ink3)" style="fill:var(--calm)">CHARGE</text>
+  <text id="mpgVal" class="val" text-anchor="middle" data-text="mpg" data-glyphs="+" data-rate="10"
+        data-text-expr="when(ev || mpgS >= 98, '99+', fmt(mpgS))">99+</text>
+  <text class="val" x="712" y="498" data-text="evMi" data-null="-- mi" data-text-expr="fmt(miles(evRangeKm)) + ' mi'" data-rate="10">24 mi</text>
+  <text class="cap" x="712" y="525" style="fill:var(--ink-2)" data-text="socPct" data-null="-- %" data-text-expr="fmt(socPct) + ' %'" data-rate="10">71 %</text>
+
+  <!-- guidance under the map -->
+  <text class="f35" x="908" y="528" data-text="guideDist" data-rate="10"
+        data-text-expr="when(turnM / 1609.344 >= 0.5, (turnM / 1609.344).toFixed(1) + ' mi', max(50, round(turnM * 1.09361, 50)) + ' yd')">450 yd</text>
+  <text class="small" x="908" y="556" data-text="road" data-text-expr="String(road).slice(0, 16)" data-rate="10">A34 Oxford Road</text>
+  <text class="small" x="1088" y="604" text-anchor="end" style="fill:var(--ink)" data-text="eta" data-rate="10"
+        data-text-expr="when(ok(eta), String(eta).slice(0, 5), '--:--') + ' · ' + fmt(miles(destKm), 1) + ' mi'">18:41 · 26.0 mi</text>
+  <text class="small" x="1816" y="633" text-anchor="middle" data-text="oilC" data-null="-- °C" data-text-expr="fmt(oilC) + ' °C'" data-rate="10">101 °C</text>
+
+  <!-- the info line, in the old bottom strip; trip and average economy either side of the middle -->
+  <text class="val" x="238" y="694" data-text="range" data-null="-- mi" data-text-expr="fmt(miles(rangeKm)) + ' mi'" data-rate="10">309 mi</text>
+  <text class="val" x="520" y="694" text-anchor="middle" data-text="clock" data-rate="10"
+        data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')">18:05</text>
+  <text class="small" x="968" y="694" text-anchor="end" data-text="trip" data-rate="10"
+        data-text-expr="'TRIP ' + fmt(miles(tripKm), 1) + ' mi'">TRIP 70.0 mi</text>
+  <text class="small" x="973" y="694" data-text="avg" data-rate="10"
+        data-text-expr="'· ' + when(avgL100 > 0, fmt(P.mpgL100 / avgL100), '--') + ' mpg'">· 44 mpg</text>
+  <text class="val" x="1684" y="694" text-anchor="end" data-text="outside" data-null="-- °C" data-rate="10"
+        data-text-expr="fmt(outsideC, 1, '+') + ' °C'">+11.5 °C</text>
+</svg>
+<script>
+(function () {
+'use strict';
+const W = 1920, NS = 'http://www.w3.org/2000/svg';
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs, parent, text) => {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  if (parent) parent.appendChild(n);
+  return n;
+};
+const lerp = (a, b, t) => a + (b - a) * t;
+const RAD = Math.PI / 180;
+const f1 = (v) => (Math.round(v * 100) / 100).toString();
+
+/* ---------- the mockup's frame geometry (as themes/g20i2/design.html) ---------- */
+function frame(points, radii, step) {
+  step = step || 2;
+  const prims = []; let cur = points[0];
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i];
+    if (i < points.length - 1 && radii[i] > 0) {
+      const a = points[i - 1], b = points[i + 1];
+      const li = Math.hypot(p.x - a.x, p.y - a.y), lo = Math.hypot(b.x - p.x, b.y - p.y);
+      const di = { x: (p.x - a.x) / li, y: (p.y - a.y) / li }, dout = { x: (b.x - p.x) / lo, y: (b.y - p.y) / lo };
+      const c = Math.min(radii[i], li / 2, lo / 2);
+      const p1 = { x: p.x - di.x * c, y: p.y - di.y * c }, p2 = { x: p.x + dout.x * c, y: p.y + dout.y * c };
+      prims.push({ q: 0, a: cur, b: p1 }, { q: 1, a: p1, c: p, b: p2 }); cur = p2;
+    } else { prims.push({ q: 0, a: cur, b: p }); cur = p; }
+  }
+  const pts = [];
+  const push = (x, y) => { const l = pts[pts.length - 1]; if (!l || Math.hypot(l.x - x, l.y - y) > 0.01) pts.push({ x, y }); };
+  for (const pr of prims) {
+    if (!pr.q) {
+      const n = Math.max(1, Math.ceil(Math.hypot(pr.b.x - pr.a.x, pr.b.y - pr.a.y) / step));
+      for (let i = 0; i <= n; i++) push(lerp(pr.a.x, pr.b.x, i / n), lerp(pr.a.y, pr.b.y, i / n));
+    } else {
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40, u = 1 - t;
+        push(u * u * pr.a.x + 2 * u * t * pr.c.x + t * t * pr.b.x, u * u * pr.a.y + 2 * u * t * pr.c.y + t * t * pr.b.y);
+      }
+    }
+  }
+  let s = 0;
+  pts.forEach((p, i) => { if (i) s += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y); p.s = s; });
+  pts.forEach((p, i) => {
+    const a = pts[Math.max(0, i - 2)], b = pts[Math.min(pts.length - 1, i + 2)];
+    const l = Math.hypot(b.x - a.x, b.y - a.y) || 1, tx = (b.x - a.x) / l, ty = (b.y - a.y) / l;
+    p.nx = -ty; p.ny = tx;
+  });
+  return { pts, len: s, prims };
+}
+const mirror = (f) => ({ len: f.len, prims: f.prims.map((pr) => {
+  const m = (p) => ({ x: W - p.x, y: p.y });
+  return pr.q ? { q: 1, a: m(pr.a), c: m(pr.c), b: m(pr.b) } : { q: 0, a: m(pr.a), b: m(pr.b) };
+}), pts: f.pts.map((p) => ({ x: W - p.x, y: p.y, s: p.s, nx: -p.nx, ny: p.ny })) });
+function at(f, s) {
+  const P = f.pts; s = Math.max(0, Math.min(f.len, s));
+  let lo = 0, hi = P.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (P[m].s < s) lo = m; else hi = m; }
+  const a = P[lo], b = P[hi], t = (s - a.s) / ((b.s - a.s) || 1);
+  const nx = lerp(a.nx, b.nx, t), ny = lerp(a.ny, b.ny, t), nl = Math.hypot(nx, ny) || 1;
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), nx: nx / nl, ny: ny / nl };
+}
+const off = (f, s, d) => { const p = at(f, s); return [p.x + p.nx * d, p.y + p.ny * d]; };
+function pathD(f, s0, s1, d, step) {
+  step = step || 3;
+  let out = '';
+  for (let s = s0; s <= s1 + 0.001; s += step) {
+    const q = off(f, Math.min(s, s1), d);
+    out += (out ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+  }
+  return out;
+}
+function primsD(f) {
+  let d = 'M' + f1(f.prims[0].a.x) + ' ' + f1(f.prims[0].a.y);
+  f.prims.forEach((pr) => { d += pr.q ? ' Q' + f1(pr.c.x) + ' ' + f1(pr.c.y) + ' ' + f1(pr.b.x) + ' ' + f1(pr.b.y) : ' L' + f1(pr.b.x) + ' ' + f1(pr.b.y); });
+  return d;
+}
+
+/* 70 px taller than the mockup's (572 -> 642 at the bottom), the same top, corners and angles */
+const LEFT = frame([{ x: 812, y: 642 }, { x: 368, y: 642 }, { x: 198, y: 520 }, { x: 198, y: 306 }, { x: 396, y: 130 }, { x: 778, y: 84 }],
+  [0, 70, 56, 56, 90, 0]);
+const RIGHT = mirror(LEFT);
+['speedPath', 'limitPath', 'setPath'].forEach((id) => $(id).setAttribute('d', primsD(LEFT)));
+$('tachPath').setAttribute('d', primsD(RIGHT));
+
+function stopsMap(stops) {
+  return (v) => {
+    for (let i = 1; i < stops.length; i++) if (v <= stops[i][0]) {
+      const a = stops[i - 1], b = stops[i];
+      return lerp(a[1], b[1], (v - a[0]) / (b[0] - a[0]));
+    }
+    return stops[stops.length - 1][1];
+  };
+}
+const SPD = { f: LEFT, s0: 212, s1: LEFT.len - 18, map: stopsMap([[0, 0], [20, .17], [40, .3], [60, .42], [80, .54], [100, .66], [120, .78], [160, 1]]) };
+const TAC = { f: RIGHT, s0: 212, s1: RIGHT.len - 18, map: stopsMap([[0, 0], [1, .17], [2, .31], [3, .44], [4, .57], [5, .71], [6, .855], [7, 1]]) };
+const sOf = (g, v) => lerp(g.s0, g.s1, g.map(v));
+const S = $('static');
+
+/* the copper inner track over the scale's length; the tach's red zone on the frame */
+for (const g of [SPD, TAC]) el('path', { d: pathD(g.f, g.s0, g.s1, 15, 2), fill: 'none', stroke: 'var(--calm-deep)', 'stroke-width': 2, opacity: .95 }, S);
+{
+  const a = sOf(TAC, 6.5), b = sOf(TAC, 7);
+  let d = '';
+  for (let s = a; s <= b; s += 2) { const q = off(RIGHT, s, 1.5); d += (d ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+  for (let s = b; s >= a; s -= 2) { const q = off(RIGHT, s, 11); d += 'L' + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+  el('path', { d: d + 'Z', fill: 'var(--sport)' }, S);
+}
+function tick(g, v, d0, d1, w, col) {
+  const s = sOf(g, v), a = off(g.f, s, d0), b = off(g.f, s, d1);
+  el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: col, 'stroke-width': w }, S);
+}
+for (let v = 0; v <= 160; v += 10) {
+  const major = [0, 20, 40, 60, 80, 100, 120, 160].indexOf(v) >= 0;
+  tick(SPD, v, 15, major ? 33 : 24, major ? 3 : 1.6, major ? 'var(--ink)' : 'var(--ink-3)');
+}
+for (let v = 0; v <= 7; v += .5) {
+  const major = v % 1 === 0;
+  tick(TAC, v, 15, major ? 33 : 24, major ? 3 : 1.6, v >= 6.5 ? 'var(--sport)' : v > 4 ? 'var(--ink-3)' : major ? 'var(--ink)' : 'var(--ink-3)');
+}
+function label(g, v, txt, d, cls) {
+  const q = off(g.f, sOf(g, v), d);
+  el('text', { x: q[0], y: q[1] + 11, 'text-anchor': 'middle', class: cls }, S, txt);
+}
+[0, 20, 40, 60, 80, 100, 120, 160].forEach((v) => label(SPD, v, String(v), 58, 'num'));
+for (let v = 0; v <= 7; v++) label(TAC, v, String(v), 56, v === 7 ? 'num red' : v > 4 ? 'num dim' : 'num');
+{
+  const q = off(LEFT, sOf(SPD, 0), 58);
+  el('text', { x: q[0] + 26, y: q[1] + 11, class: 'unit' }, S, 'mph');
+  const r = off(RIGHT, sOf(TAC, 0), 56);
+  el('text', { x: r[0] + 24, y: r[1] - 4, class: 'unit' }, S, '1/min');
+  el('text', { x: r[0] + 24, y: r[1] + 14, class: 'unit' }, S, '×1000');
+}
+
+/* ---------- fuel (far left) and oil temperature (far right), 35 px lower ---------- */
+function sideArc(cx, cy, R) {
+  const pt = (a, r) => [cx + Math.cos(a) * (r == null ? R : r), cy + Math.sin(a) * (r == null ? R : r)];
+  const d = (from, to, r) => {
+    let o = '';
+    for (let i = 0; i <= 40; i++) { const q = pt(lerp(from, to, i / 40), r); o += (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+    return o;
+  };
+  return { pt, d };
+}
+const ARC_Y = 467;
+const FUEL = sideArc(332, ARC_Y, 222), FA0 = 161 * RAD, FA1 = 199 * RAD;
+el('path', { d: FUEL.d(FA0, FA1), fill: 'none', stroke: 'var(--ink-4)', 'stroke-width': 7 }, S);
+[[0, '0'], [.5, '½'], [1, '1']].forEach((k) => {
+  const a = lerp(FA0, FA1, k[0]), p0 = FUEL.pt(a, 228), p1 = FUEL.pt(a, 242), lp = FUEL.pt(a, 256);
+  el('line', { x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1], stroke: 'var(--ink)', 'stroke-width': 2.5 }, S);
+  el('text', { x: lp[0], y: lp[1] + 8, 'text-anchor': 'middle', class: 'small' }, S, k[1]);
+});
+$('fuelPath').setAttribute('d', 'M' + FUEL.pt(FA0).map(f1).join(' ') + ' A222 222 0 0 1 ' + FUEL.pt(FA1).map(f1).join(' '));
+const PUMP = 'M0 0h11a2 2 0 0 1 2 2v18H-2V2a2 2 0 0 1 2-2zM1 3v6h9V3zM13 7l4 3v8a1.6 1.6 0 0 0 3.2 0V8l-3-4';
+el('path', { d: PUMP, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(96 583)' }, S);
+const OIL = sideArc(W - 332, ARC_Y, 222), OA0 = 19 * RAD, OA1 = -19 * RAD;
+el('path', { d: OIL.d(OA0, OA1), fill: 'none', stroke: 'var(--ink-4)', 'stroke-width': 7 }, S);
+el('path', { d: OIL.d(OA0, lerp(OA0, OA1, .2)), fill: 'none', stroke: 'var(--cold)', 'stroke-width': 7, opacity: .9 }, S);
+el('path', { d: OIL.d(lerp(OA0, OA1, .8), OA1), fill: 'none', stroke: 'var(--sport)', 'stroke-width': 7, opacity: .9 }, S);
+[[0, '50'], [.5, '100'], [1, '150']].forEach((k) => {
+  const a = lerp(OA0, OA1, k[0]), p0 = OIL.pt(a, 228), p1 = OIL.pt(a, 242), lp = OIL.pt(a, 262);
+  el('line', { x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1], stroke: 'var(--ink)', 'stroke-width': 2.5 }, S);
+  el('text', { x: lp[0], y: lp[1] + 7, 'text-anchor': 'middle', class: 'small', style: 'font-size:16px' }, S, k[1]);
+});
+el('text', { x: W - 104, y: 601, 'text-anchor': 'middle', class: 'cap' }, S, 'OIL');
+
+/* ---------- left interior: speed unit, rule, limit sign, SET, HV battery ---------- */
+el('text', { x: 634, y: 331, class: 'unit', style: 'font-size:22px' }, S, 'mph');
+el('rect', { x: 372, y: 453, width: 400, height: 2.5, fill: 'url(#lineFadeR)' }, S);
+el('circle', { cx: 728, cy: 371, r: 29, fill: '#0c0c0c', stroke: 'var(--sport)', 'stroke-width': 6 }, S);
+el('text', { x: 634, y: 427, class: 'cap' }, S, 'SET');
+el('path', { d: 'M0 3h26v16H0zM26 8h3v6h-3M9 7l-3 5h6l-3 5', fill: 'none', stroke: 'var(--edrive)', 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(440 479)' }, S);
+el('text', { x: 484, y: 525, class: 'cap' }, S, 'HV BATTERY');
+for (let i = 0; i < 20; i++) el('rect', { x: 484 + i * 11, y: 482, width: 7.5, height: 16, fill: i < 14 ? 'var(--edrive)' : 'var(--ink-4)' }, $('socBox').parentNode);
+
+/* ---------- centre: the map area's label; under it the arrival ---------- */
+$('mapArea').after(el('text', { x: 844, y: 138, class: 'cap', style: 'fill:#5c5a55;font-size:13px' }, null, 'MAP AREA  ·  DRAWN BY THE CAR'));
+el('rect', { x: 832, y: 576, width: 256, height: 1.5, fill: 'var(--ink-4)' }, S);
+el('text', { x: 832, y: 604, class: 'cap' }, S, 'ARRIVE');
+
+/* ---------- right interior: the drive and economy bars, 30 degrees each (the mockup's 26), about (682, 415) ---------- */
+{
+  const CX = 682, CY = 415, A = 15, TAIL = 3;
+  const bar = (R, w) => {
+    const pt = (a, r) => [CX + Math.cos(a * RAD) * r, CY + Math.sin(a * RAD) * r];
+    const band = () => {
+      let o = '';
+      for (let i = 0; i <= 30; i++) { const q = pt(lerp(A, -A, i / 30), R); o += (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+      for (let i = 30; i >= 0; i--) { const q = pt(lerp(A, -A, i / 30), R - w); o += 'L' + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+      return o + 'Z';
+    };
+    return { pt, band, R, w };
+  };
+  const ENG = bar(532, 22), ELE = bar(610, 22);
+  for (const b of [ENG, ELE]) el('path', { d: b.band(), fill: '#0d0d0d', stroke: 'var(--ink-3)', 'stroke-width': 1.5 }, S);
+  /* drive meter: the zero tick, and the tick where ECO ends and POWER begins */
+  [[0.2, 2, 'var(--ink)'], [0.2 + 0.35 * 0.8, 1.5, 'var(--ink-3)']].forEach((k) => {
+    const a = lerp(A, -A, k[0]), p0 = ENG.pt(a, ENG.R + 6), p1 = ENG.pt(a, ENG.R - ENG.w - 6);
+    el('line', { x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1], stroke: k[2], 'stroke-width': k[1] }, S);
+  });
+  const labels = (b, top, name, valId) => {
+    const t = b.pt(-A, b.R - b.w / 2), bt = b.pt(A, b.R - b.w / 2);
+    $(valId).setAttribute('x', f1(t[0] + 6)); $(valId).setAttribute('y', f1(t[1] - 14));
+    if (top) el('text', { x: t[0] + 6, y: t[1] - 44, 'text-anchor': 'middle', class: 'unit', style: 'fill:var(--ink-3)' }, S, top);
+    el('text', { x: bt[0] - 2, y: bt[1] + 32, 'text-anchor': 'middle', class: 'cap', style: 'letter-spacing:.06em' }, S, name);
+  };
+  labels(ENG, '', 'DRIVE', 'driveVal');
+  labels(ELE, 'mpg', 'ECONOMY', 'mpgVal');
+  const RE = 532 - 11, RL = 610 - 11;
+  const e0 = ENG.pt(A, RE), e1 = ENG.pt(-A - TAIL, RE), l0 = ELE.pt(-A - TAIL, RL), l1 = ELE.pt(A, RL);
+  const d = 'M' + e0.map(f1).join(' ') + ' A' + RE + ' ' + RE + ' 0 0 0 ' + e1.map(f1).join(' ') + ' L' + l0.map(f1).join(' ') +
+    ' A' + RL + ' ' + RL + ' 0 0 1 ' + l1.map(f1).join(' ');
+  $('barsPath').setAttribute('d', d); $('barsPathE').setAttribute('d', d);
+  const total = $('barsPath').getTotalLength();
+  const engLen = RE * 2 * A * RAD, eleLen = RL * 2 * A * RAD;
+  $('barsPath').setAttribute('data-end', (total - engLen).toFixed(2));
+  $('barsPathE').setAttribute('data-start', (total - eleLen).toFixed(2));
+}
+el('rect', { x: 1340, y: 453, width: 220, height: 2.5, fill: 'var(--ink-4)' }, S);
+el('text', { x: 1530, y: 497, class: 'unit' }, S, 'rpm');
+
+/* ---------- the info line, in the old bottom strip ---------- */
+el('path', { d: PUMP, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 2, 'stroke-linejoin': 'round', transform: 'translate(204 673)' }, S);
+el('text', { x: 1400, y: 694, 'text-anchor': 'middle', class: 'modeword' }, S, 'COMFORT');
+})();
+</script>
+</body>
+</html>

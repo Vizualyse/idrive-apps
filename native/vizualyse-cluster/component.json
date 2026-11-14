@@ -93,13 +93,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1.big.font.gz",
-      "from": "themes/built/g20i1.big.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i1.electric.field.gz",
-      "from": "themes/built/g20i1.electric.field.gz",
+      "path": "g20i1.chev.sprite.gz",
+      "from": "themes/built/g20i1.chev.sprite.gz",
       "mode": "0644"
     },
     {
@@ -108,28 +103,38 @@
       "mode": "0644"
     },
     {
+      "path": "g20i1.f170w500.font.gz",
+      "from": "themes/built/g20i1.f170w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i1.f22w500.font.gz",
+      "from": "themes/built/g20i1.f22w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i1.f24w500.font.gz",
+      "from": "themes/built/g20i1.f24w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i1.f30w500.font.gz",
+      "from": "themes/built/g20i1.f30w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i1.f64w400.font.gz",
+      "from": "themes/built/g20i1.f64w400.font.gz",
+      "mode": "0644"
+    },
+    {
       "path": "g20i1.fuel.field.gz",
       "from": "themes/built/g20i1.fuel.field.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i1.label.font.gz",
-      "from": "themes/built/g20i1.label.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "g20i1.logic.js",
       "from": "themes/built/g20i1.logic.js",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i1.prefix.font.gz",
-      "from": "themes/built/g20i1.prefix.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i1.small.font.gz",
-      "from": "themes/built/g20i1.small.font.gz",
       "mode": "0644"
     },
     {
@@ -143,38 +148,23 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1.val.font.gz",
-      "from": "themes/built/g20i1.val.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "g20i1c.art.tiles.gz",
       "from": "themes/built/g20i1c.art.tiles.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i1c.big.font.gz",
-      "from": "themes/built/g20i1c.big.font.gz",
+      "path": "g20i1c.f26w500.font.gz",
+      "from": "themes/built/g20i1c.f26w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i1c.dist.font.gz",
-      "from": "themes/built/g20i1c.dist.font.gz",
+      "path": "g20i1c.f36w600.font.gz",
+      "from": "themes/built/g20i1c.f36w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i1c.gearNum.font.gz",
-      "from": "themes/built/g20i1c.gearNum.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i1c.label.font.gz",
-      "from": "themes/built/g20i1c.label.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i1c.limit.font.gz",
-      "from": "themes/built/g20i1c.limit.font.gz",
+      "path": "g20i1c.f38w500.font.gz",
+      "from": "themes/built/g20i1c.f38w500.font.gz",
       "mode": "0644"
     },
     {
@@ -183,13 +173,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1c.road.font.gz",
-      "from": "themes/built/g20i1c.road.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i1c.speed.field.gz",
-      "from": "themes/built/g20i1c.speed.field.gz",
+      "path": "g20i1c.setPointer.field.gz",
+      "from": "themes/built/g20i1c.setPointer.field.gz",
       "mode": "0644"
     },
     {
@@ -198,23 +183,48 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1c.val.font.gz",
-      "from": "themes/built/g20i1c.val.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "g20i2.art.tiles.gz",
       "from": "themes/built/g20i2.art.tiles.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i2.bars.field.gz",
-      "from": "themes/built/g20i2.bars.field.gz",
+      "path": "g20i2.eng.field.gz",
+      "from": "themes/built/g20i2.eng.field.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i2.cap.font.gz",
-      "from": "themes/built/g20i2.cap.font.gz",
+      "path": "g20i2.f156w500.font.gz",
+      "from": "themes/built/g20i2.f156w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2.f16w600.font.gz",
+      "from": "themes/built/g20i2.f16w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2.f19w500.font.gz",
+      "from": "themes/built/g20i2.f19w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2.f200w500.font.gz",
+      "from": "themes/built/g20i2.f200w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2.f26w500.font.gz",
+      "from": "themes/built/g20i2.f26w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2.f30w500.font.gz",
+      "from": "themes/built/g20i2.f30w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2.f44w500.font.gz",
+      "from": "themes/built/g20i2.f44w500.font.gz",
       "mode": "0644"
     },
     {
@@ -223,13 +233,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2.gear.font.gz",
-      "from": "themes/built/g20i2.gear.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i2.lamps.field.gz",
-      "from": "themes/built/g20i2.lamps.field.gz",
+      "path": "g20i2.lampsA.field.gz",
+      "from": "themes/built/g20i2.lampsA.field.gz",
       "mode": "0644"
     },
     {
@@ -238,43 +243,13 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2.mid.font.gz",
-      "from": "themes/built/g20i2.mid.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i2.mode.font.gz",
-      "from": "themes/built/g20i2.mode.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i2.psi.font.gz",
-      "from": "themes/built/g20i2.psi.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i2.small.font.gz",
-      "from": "themes/built/g20i2.small.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "g20i2.speed.field.gz",
       "from": "themes/built/g20i2.speed.field.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i2.speed.font.gz",
-      "from": "themes/built/g20i2.speed.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "g20i2.theme.json",
       "from": "themes/built/g20i2.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i2c.arrowL.field.gz",
-      "from": "themes/built/g20i2c.arrowL.field.gz",
       "mode": "0644"
     },
     {
@@ -288,28 +263,38 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2c.big.font.gz",
-      "from": "themes/built/g20i2c.big.font.gz",
+      "path": "g20i2c.f120w500.font.gz",
+      "from": "themes/built/g20i2c.f120w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i2c.cap.font.gz",
-      "from": "themes/built/g20i2c.cap.font.gz",
+      "path": "g20i2c.f16w600.font.gz",
+      "from": "themes/built/g20i2c.f16w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "g20i2c.f35.font.gz",
-      "from": "themes/built/g20i2c.f35.font.gz",
+      "path": "g20i2c.f19w500.font.gz",
+      "from": "themes/built/g20i2c.f19w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2c.f26w500.font.gz",
+      "from": "themes/built/g20i2c.f26w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2c.f30w600.font.gz",
+      "from": "themes/built/g20i2c.f30w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "g20i2c.f35w500.font.gz",
+      "from": "themes/built/g20i2c.f35w500.font.gz",
       "mode": "0644"
     },
     {
       "path": "g20i2c.logic.js",
       "from": "themes/built/g20i2c.logic.js",
-      "mode": "0644"
-    },
-    {
-      "path": "g20i2c.small.font.gz",
-      "from": "themes/built/g20i2c.small.font.gz",
       "mode": "0644"
     },
     {
@@ -323,28 +308,53 @@
       "mode": "0644"
     },
     {
-      "path": "lci1.bars.field.gz",
-      "from": "themes/built/lci1.bars.field.gz",
+      "path": "lci1.f112w600.font.gz",
+      "from": "themes/built/lci1.f112w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1.big.font.gz",
-      "from": "themes/built/lci1.big.font.gz",
+      "path": "lci1.f18w600.font.gz",
+      "from": "themes/built/lci1.f18w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1.clock.font.gz",
-      "from": "themes/built/lci1.clock.font.gz",
+      "path": "lci1.f20w500.font.gz",
+      "from": "themes/built/lci1.f20w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1.gear.field.gz",
-      "from": "themes/built/lci1.gear.field.gz",
+      "path": "lci1.f22w500.font.gz",
+      "from": "themes/built/lci1.f22w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1.label.font.gz",
-      "from": "themes/built/lci1.label.font.gz",
+      "path": "lci1.f24w600.font.gz",
+      "from": "themes/built/lci1.f24w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1.f32w500.font.gz",
+      "from": "themes/built/lci1.f32w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1.f36w600.font.gz",
+      "from": "themes/built/lci1.f36w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1.f44w600.font.gz",
+      "from": "themes/built/lci1.f44w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1.fuelBar.field.gz",
+      "from": "themes/built/lci1.fuelBar.field.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1.gearOutline.field.gz",
+      "from": "themes/built/lci1.gearOutline.field.gz",
       "mode": "0644"
     },
     {
@@ -353,23 +363,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci1.nums.field.gz",
-      "from": "themes/built/lci1.nums.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1.psi.font.gz",
-      "from": "themes/built/lci1.psi.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1.speed.field.gz",
-      "from": "themes/built/lci1.speed.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1.sub.font.gz",
-      "from": "themes/built/lci1.sub.font.gz",
+      "path": "lci1.speedNum.field.gz",
+      "from": "themes/built/lci1.speedNum.field.gz",
       "mode": "0644"
     },
     {
@@ -378,28 +373,48 @@
       "mode": "0644"
     },
     {
-      "path": "lci1.v24.font.gz",
-      "from": "themes/built/lci1.v24.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1.val.font.gz",
-      "from": "themes/built/lci1.val.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "lci1c.art.tiles.gz",
       "from": "themes/built/lci1c.art.tiles.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1c.big.font.gz",
-      "from": "themes/built/lci1c.big.font.gz",
+      "path": "lci1c.f112w600.font.gz",
+      "from": "themes/built/lci1c.f112w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci1c.label.font.gz",
-      "from": "themes/built/lci1c.label.font.gz",
+      "path": "lci1c.f14w600.font.gz",
+      "from": "themes/built/lci1c.f14w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1c.f18w600.font.gz",
+      "from": "themes/built/lci1c.f18w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1c.f20w500.font.gz",
+      "from": "themes/built/lci1c.f20w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1c.f22w500.font.gz",
+      "from": "themes/built/lci1c.f22w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1c.f24w600.font.gz",
+      "from": "themes/built/lci1c.f24w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1c.f34w700.font.gz",
+      "from": "themes/built/lci1c.f34w700.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci1c.f44w600.font.gz",
+      "from": "themes/built/lci1c.f44w600.font.gz",
       "mode": "0644"
     },
     {
@@ -408,38 +423,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci1c.sign.font.gz",
-      "from": "themes/built/lci1c.sign.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1c.speed.field.gz",
-      "from": "themes/built/lci1c.speed.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1c.sub.font.gz",
-      "from": "themes/built/lci1c.sub.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "lci1c.theme.json",
       "from": "themes/built/lci1c.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1c.v24.font.gz",
-      "from": "themes/built/lci1c.v24.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1c.val.font.gz",
-      "from": "themes/built/lci1c.val.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci1c.zone.font.gz",
-      "from": "themes/built/lci1c.zone.font.gz",
       "mode": "0644"
     },
     {
@@ -448,38 +433,48 @@
       "mode": "0644"
     },
     {
-      "path": "lci2.band.field.gz",
-      "from": "themes/built/lci2.band.field.gz",
+      "path": "lci2.f13w500.font.gz",
+      "from": "themes/built/lci2.f13w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.body.font.gz",
-      "from": "themes/built/lci2.body.font.gz",
+      "path": "lci2.f140w600.font.gz",
+      "from": "themes/built/lci2.f140w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.chevron.field.gz",
-      "from": "themes/built/lci2.chevron.field.gz",
+      "path": "lci2.f15w400.font.gz",
+      "from": "themes/built/lci2.f15w400.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.clock.font.gz",
-      "from": "themes/built/lci2.clock.font.gz",
+      "path": "lci2.f160w600.font.gz",
+      "from": "themes/built/lci2.f160w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.display.font.gz",
-      "from": "themes/built/lci2.display.font.gz",
+      "path": "lci2.f17w700.font.gz",
+      "from": "themes/built/lci2.f17w700.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.gear.font.gz",
-      "from": "themes/built/lci2.gear.font.gz",
+      "path": "lci2.f18w500.font.gz",
+      "from": "themes/built/lci2.f18w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2.label.font.gz",
-      "from": "themes/built/lci2.label.font.gz",
+      "path": "lci2.f26w500.font.gz",
+      "from": "themes/built/lci2.f26w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2.f30w500.font.gz",
+      "from": "themes/built/lci2.f30w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2.f40w500.font.gz",
+      "from": "themes/built/lci2.f40w500.font.gz",
       "mode": "0644"
     },
     {
@@ -488,18 +483,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci2.mid.font.gz",
-      "from": "themes/built/lci2.mid.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2.power.font.gz",
-      "from": "themes/built/lci2.power.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2.strip.font.gz",
-      "from": "themes/built/lci2.strip.font.gz",
+      "path": "lci2.speed.field.gz",
+      "from": "themes/built/lci2.speed.field.gz",
       "mode": "0644"
     },
     {
@@ -508,13 +493,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci2.unit.font.gz",
-      "from": "themes/built/lci2.unit.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2c.arrow.field.gz",
-      "from": "themes/built/lci2c.arrow.field.gz",
+      "path": "lci2c.arrowR.field.gz",
+      "from": "themes/built/lci2c.arrowR.field.gz",
       "mode": "0644"
     },
     {
@@ -523,18 +503,43 @@
       "mode": "0644"
     },
     {
-      "path": "lci2c.body.font.gz",
-      "from": "themes/built/lci2c.body.font.gz",
+      "path": "lci2c.f13w500.font.gz",
+      "from": "themes/built/lci2c.f13w500.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2c.gear.font.gz",
-      "from": "themes/built/lci2c.gear.font.gz",
+      "path": "lci2c.f15w400.font.gz",
+      "from": "themes/built/lci2c.f15w400.font.gz",
       "mode": "0644"
     },
     {
-      "path": "lci2c.label.font.gz",
-      "from": "themes/built/lci2c.label.font.gz",
+      "path": "lci2c.f17w500.font.gz",
+      "from": "themes/built/lci2c.f17w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2c.f18w500.font.gz",
+      "from": "themes/built/lci2c.f18w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2c.f25w500.font.gz",
+      "from": "themes/built/lci2c.f25w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2c.f30w500.font.gz",
+      "from": "themes/built/lci2c.f30w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2c.f40w500.font.gz",
+      "from": "themes/built/lci2c.f40w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "lci2c.f64w600.font.gz",
+      "from": "themes/built/lci2c.f64w600.font.gz",
       "mode": "0644"
     },
     {
@@ -543,33 +548,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci2c.mid.font.gz",
-      "from": "themes/built/lci2c.mid.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2c.num25.font.gz",
-      "from": "themes/built/lci2c.num25.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2c.power.font.gz",
-      "from": "themes/built/lci2c.power.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2c.sm.font.gz",
-      "from": "themes/built/lci2c.sm.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "lci2c.theme.json",
       "from": "themes/built/lci2c.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "lci2c.unit.font.gz",
-      "from": "themes/built/lci2c.unit.font.gz",
       "mode": "0644"
     },
     {
@@ -578,13 +558,53 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.big.font.gz",
-      "from": "themes/built/perf1.big.font.gz",
+      "path": "perf1.engBar.field.gz",
+      "from": "themes/built/perf1.engBar.field.gz",
       "mode": "0644"
     },
     {
-      "path": "perf1.gear.font.gz",
-      "from": "themes/built/perf1.gear.font.gz",
+      "path": "perf1.f116w600.font.gz",
+      "from": "themes/built/perf1.f116w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f128w600.font.gz",
+      "from": "themes/built/perf1.f128w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f20w500.font.gz",
+      "from": "themes/built/perf1.f20w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f22w600.font.gz",
+      "from": "themes/built/perf1.f22w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f30w600.font.gz",
+      "from": "themes/built/perf1.f30w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f36w600.font.gz",
+      "from": "themes/built/perf1.f36w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f40w600.font.gz",
+      "from": "themes/built/perf1.f40w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f46w600.font.gz",
+      "from": "themes/built/perf1.f46w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1.f80w600.font.gz",
+      "from": "themes/built/perf1.f80w600.font.gz",
       "mode": "0644"
     },
     {
@@ -593,38 +613,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.p40.font.gz",
-      "from": "themes/built/perf1.p40.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1.pre.font.gz",
-      "from": "themes/built/perf1.pre.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1.r29.font.gz",
-      "from": "themes/built/perf1.r29.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1.r36.font.gz",
-      "from": "themes/built/perf1.r36.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1.s22.font.gz",
-      "from": "themes/built/perf1.s22.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "perf1.speedDial.field.gz",
       "from": "themes/built/perf1.speedDial.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1.sys.font.gz",
-      "from": "themes/built/perf1.sys.font.gz",
       "mode": "0644"
     },
     {
@@ -633,13 +623,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.u19.font.gz",
-      "from": "themes/built/perf1.u19.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1c.arrow.field.gz",
-      "from": "themes/built/perf1c.arrow.field.gz",
+      "path": "perf1c.arrowR.field.gz",
+      "from": "themes/built/perf1c.arrowR.field.gz",
       "mode": "0644"
     },
     {
@@ -648,33 +633,38 @@
       "mode": "0644"
     },
     {
-      "path": "perf1c.d96.font.gz",
-      "from": "themes/built/perf1c.d96.font.gz",
+      "path": "perf1c.f20w500.font.gz",
+      "from": "themes/built/perf1c.f20w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1c.f24w600.font.gz",
+      "from": "themes/built/perf1c.f24w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1c.f30w600.font.gz",
+      "from": "themes/built/perf1c.f30w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1c.f40w600.font.gz",
+      "from": "themes/built/perf1c.f40w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1c.f68w600.font.gz",
+      "from": "themes/built/perf1c.f68w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf1c.f96w600.font.gz",
+      "from": "themes/built/perf1c.f96w600.font.gz",
       "mode": "0644"
     },
     {
       "path": "perf1c.logic.js",
       "from": "themes/built/perf1c.logic.js",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1c.p40.font.gz",
-      "from": "themes/built/perf1c.p40.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1c.r31.font.gz",
-      "from": "themes/built/perf1c.r31.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1c.r68.font.gz",
-      "from": "themes/built/perf1c.r68.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf1c.s24.font.gz",
-      "from": "themes/built/perf1c.s24.font.gz",
       "mode": "0644"
     },
     {
@@ -688,23 +678,53 @@
       "mode": "0644"
     },
     {
-      "path": "perf1c.u20.font.gz",
-      "from": "themes/built/perf1c.u20.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "perf2.art.tiles.gz",
       "from": "themes/built/perf2.art.tiles.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2.bars.field.gz",
-      "from": "themes/built/perf2.bars.field.gz",
+      "path": "perf2.cue.sprite.gz",
+      "from": "themes/built/perf2.cue.sprite.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2.gear.font.gz",
-      "from": "themes/built/perf2.gear.font.gz",
+      "path": "perf2.f140w600.font.gz",
+      "from": "themes/built/perf2.f140w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f164w600.font.gz",
+      "from": "themes/built/perf2.f164w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f16w700.font.gz",
+      "from": "themes/built/perf2.f16w700.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f22w600.font.gz",
+      "from": "themes/built/perf2.f22w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f26w600.font.gz",
+      "from": "themes/built/perf2.f26w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f30w600.font.gz",
+      "from": "themes/built/perf2.f30w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f40w600.font.gz",
+      "from": "themes/built/perf2.f40w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2.f60w600.font.gz",
+      "from": "themes/built/perf2.f60w600.font.gz",
       "mode": "0644"
     },
     {
@@ -713,8 +733,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2.p60.font.gz",
-      "from": "themes/built/perf2.p60.font.gz",
+      "path": "perf2.power.field.gz",
+      "from": "themes/built/perf2.power.field.gz",
       "mode": "0644"
     },
     {
@@ -723,48 +743,13 @@
       "mode": "0644"
     },
     {
-      "path": "perf2.speed.font.gz",
-      "from": "themes/built/perf2.speed.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2.status.font.gz",
-      "from": "themes/built/perf2.status.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "perf2.theme.json",
       "from": "themes/built/perf2.theme.json",
       "mode": "0644"
     },
     {
-      "path": "perf2.v20.font.gz",
-      "from": "themes/built/perf2.v20.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2.v22.font.gz",
-      "from": "themes/built/perf2.v22.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2.v26.font.gz",
-      "from": "themes/built/perf2.v26.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2.v30.font.gz",
-      "from": "themes/built/perf2.v30.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2.v40.font.gz",
-      "from": "themes/built/perf2.v40.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2c.arrow.field.gz",
-      "from": "themes/built/perf2c.arrow.field.gz",
+      "path": "perf2c.arrowTurn.field.gz",
+      "from": "themes/built/perf2c.arrowTurn.field.gz",
       "mode": "0644"
     },
     {
@@ -773,18 +758,38 @@
       "mode": "0644"
     },
     {
-      "path": "perf2c.bars.field.gz",
-      "from": "themes/built/perf2c.bars.field.gz",
+      "path": "perf2c.f112w600.font.gz",
+      "from": "themes/built/perf2c.f112w600.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2c.gear.font.gz",
-      "from": "themes/built/perf2c.gear.font.gz",
+      "path": "perf2c.f16w700.font.gz",
+      "from": "themes/built/perf2c.f16w700.font.gz",
       "mode": "0644"
     },
     {
-      "path": "perf2c.lbl.font.gz",
-      "from": "themes/built/perf2c.lbl.font.gz",
+      "path": "perf2c.f20w600.font.gz",
+      "from": "themes/built/perf2c.f20w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2c.f26w600.font.gz",
+      "from": "themes/built/perf2c.f26w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2c.f40w600.font.gz",
+      "from": "themes/built/perf2c.f40w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2c.f48w600.font.gz",
+      "from": "themes/built/perf2c.f48w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "perf2c.f60w600.font.gz",
+      "from": "themes/built/perf2c.f60w600.font.gz",
       "mode": "0644"
     },
     {
@@ -793,43 +798,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2c.p60.font.gz",
-      "from": "themes/built/perf2c.p60.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2c.speed.field.gz",
-      "from": "themes/built/perf2c.speed.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2c.t20.font.gz",
-      "from": "themes/built/perf2c.t20.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "perf2c.theme.json",
       "from": "themes/built/perf2c.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2c.v26.font.gz",
-      "from": "themes/built/perf2c.v26.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2c.v40.font.gz",
-      "from": "themes/built/perf2c.v40.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "perf2c.v48.font.gz",
-      "from": "themes/built/perf2c.v48.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.arcL.field.gz",
-      "from": "themes/built/tri1.arcL.field.gz",
       "mode": "0644"
     },
     {
@@ -838,13 +808,53 @@
       "mode": "0644"
     },
     {
-      "path": "tri1.big.font.gz",
-      "from": "themes/built/tri1.big.font.gz",
+      "path": "tri1.eng.field.gz",
+      "from": "themes/built/tri1.eng.field.gz",
       "mode": "0644"
     },
     {
-      "path": "tri1.gear.font.gz",
-      "from": "themes/built/tri1.gear.font.gz",
+      "path": "tri1.f102w600.font.gz",
+      "from": "themes/built/tri1.f102w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f179w500.font.gz",
+      "from": "themes/built/tri1.f179w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f24w400.font.gz",
+      "from": "themes/built/tri1.f24w400.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f24w500.font.gz",
+      "from": "themes/built/tri1.f24w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f32w500.font.gz",
+      "from": "themes/built/tri1.f32w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f34w600.font.gz",
+      "from": "themes/built/tri1.f34w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f40w600.font.gz",
+      "from": "themes/built/tri1.f40w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f48w500.font.gz",
+      "from": "themes/built/tri1.f48w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1.f76w600.font.gz",
+      "from": "themes/built/tri1.f76w600.font.gz",
       "mode": "0644"
     },
     {
@@ -853,33 +863,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri1.mid.font.gz",
-      "from": "themes/built/tri1.mid.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.mode.font.gz",
-      "from": "themes/built/tri1.mode.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.ribs.field.gz",
-      "from": "themes/built/tri1.ribs.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.rpm.font.gz",
-      "from": "themes/built/tri1.rpm.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.small.font.gz",
-      "from": "themes/built/tri1.small.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.speed.font.gz",
-      "from": "themes/built/tri1.speed.font.gz",
+      "path": "tri1.ribsL.field.gz",
+      "from": "themes/built/tri1.ribsL.field.gz",
       "mode": "0644"
     },
     {
@@ -888,28 +873,48 @@
       "mode": "0644"
     },
     {
-      "path": "tri1.total.font.gz",
-      "from": "themes/built/tri1.total.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1.val.font.gz",
-      "from": "themes/built/tri1.val.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "tri1c.art.tiles.gz",
       "from": "themes/built/tri1c.art.tiles.gz",
       "mode": "0644"
     },
     {
-      "path": "tri1c.big.font.gz",
-      "from": "themes/built/tri1c.big.font.gz",
+      "path": "tri1c.f24w400.font.gz",
+      "from": "themes/built/tri1c.f24w400.font.gz",
       "mode": "0644"
     },
     {
-      "path": "tri1c.gear.font.gz",
-      "from": "themes/built/tri1c.gear.font.gz",
+      "path": "tri1c.f24w500.font.gz",
+      "from": "themes/built/tri1c.f24w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1c.f32w500.font.gz",
+      "from": "themes/built/tri1c.f32w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1c.f34w600.font.gz",
+      "from": "themes/built/tri1c.f34w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1c.f40w500.font.gz",
+      "from": "themes/built/tri1c.f40w500.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1c.f40w600.font.gz",
+      "from": "themes/built/tri1c.f40w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1c.f76w600.font.gz",
+      "from": "themes/built/tri1c.f76w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri1c.f87w600.font.gz",
+      "from": "themes/built/tri1c.f87w600.font.gz",
       "mode": "0644"
     },
     {
@@ -918,38 +923,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri1c.mid.font.gz",
-      "from": "themes/built/tri1c.mid.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1c.mode.font.gz",
-      "from": "themes/built/tri1c.mode.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1c.ribs.field.gz",
-      "from": "themes/built/tri1c.ribs.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1c.small.font.gz",
-      "from": "themes/built/tri1c.small.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "tri1c.theme.json",
       "from": "themes/built/tri1c.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1c.total.font.gz",
-      "from": "themes/built/tri1c.total.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri1c.val.font.gz",
-      "from": "themes/built/tri1c.val.font.gz",
       "mode": "0644"
     },
     {
@@ -958,8 +933,43 @@
       "mode": "0644"
     },
     {
-      "path": "tri2.gear.font.gz",
-      "from": "themes/built/tri2.gear.font.gz",
+      "path": "tri2.f13w600.font.gz",
+      "from": "themes/built/tri2.f13w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.f16w460.font.gz",
+      "from": "themes/built/tri2.f16w460.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.f24w560.font.gz",
+      "from": "themes/built/tri2.f24w560.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.f255w600.font.gz",
+      "from": "themes/built/tri2.f255w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.f255w600x.font.gz",
+      "from": "themes/built/tri2.f255w600x.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.f36w560.font.gz",
+      "from": "themes/built/tri2.f36w560.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.f64w560.font.gz",
+      "from": "themes/built/tri2.f64w560.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2.fuel.field.gz",
+      "from": "themes/built/tri2.fuel.field.gz",
       "mode": "0644"
     },
     {
@@ -973,28 +983,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri2.num.font.gz",
-      "from": "themes/built/tri2.num.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2.power.field.gz",
-      "from": "themes/built/tri2.power.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2.small.font.gz",
-      "from": "themes/built/tri2.small.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2.speed.font.gz",
-      "from": "themes/built/tri2.speed.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2.stores.field.gz",
-      "from": "themes/built/tri2.stores.field.gz",
+      "path": "tri2.pw.field.gz",
+      "from": "themes/built/tri2.pw.field.gz",
       "mode": "0644"
     },
     {
@@ -1003,23 +993,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri2.tc.font.gz",
-      "from": "themes/built/tri2.tc.font.gz",
-      "mode": "0644"
-    },
-    {
       "path": "tri2.theme.json",
       "from": "themes/built/tri2.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2.tp.font.gz",
-      "from": "themes/built/tri2.tp.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2.val.font.gz",
-      "from": "themes/built/tri2.val.font.gz",
       "mode": "0644"
     },
     {
@@ -1033,53 +1008,53 @@
       "mode": "0644"
     },
     {
+      "path": "tri2c.f14w600.font.gz",
+      "from": "themes/built/tri2c.f14w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2c.f16w460.font.gz",
+      "from": "themes/built/tri2c.f16w460.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2c.f192w600.font.gz",
+      "from": "themes/built/tri2c.f192w600.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2c.f22w560.font.gz",
+      "from": "themes/built/tri2c.f22w560.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2c.f29w700.font.gz",
+      "from": "themes/built/tri2c.f29w700.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2c.f32w560.font.gz",
+      "from": "themes/built/tri2c.f32w560.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "tri2c.f54w560.font.gz",
+      "from": "themes/built/tri2c.f54w560.font.gz",
+      "mode": "0644"
+    },
+    {
       "path": "tri2c.logic.js",
       "from": "themes/built/tri2c.logic.js",
       "mode": "0644"
     },
     {
-      "path": "tri2c.mpg.font.gz",
-      "from": "themes/built/tri2c.mpg.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.power.field.gz",
-      "from": "themes/built/tri2c.power.field.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.sign.font.gz",
-      "from": "themes/built/tri2c.sign.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.small.font.gz",
-      "from": "themes/built/tri2c.small.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.speed.font.gz",
-      "from": "themes/built/tri2c.speed.font.gz",
+      "path": "tri2c.pwTint.field.gz",
+      "from": "themes/built/tri2c.pwTint.field.gz",
       "mode": "0644"
     },
     {
       "path": "tri2c.theme.json",
       "from": "themes/built/tri2c.theme.json",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.v30.font.gz",
-      "from": "themes/built/tri2c.v30.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.val.font.gz",
-      "from": "themes/built/tri2c.val.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "tri2c.zone.font.gz",
-      "from": "themes/built/tri2c.zone.font.gz",
       "mode": "0644"
     }
   ],
