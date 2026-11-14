@@ -108,16 +108,21 @@ class ThemeRuntime {
          * y bottom..720, so nothing of BMW's cluster shows below the theme.
          * The panel is under the KOMBI's telltales, so warning lights still
          * show over it; the strip's own readings (range, clock, road) do not. */
-        if (this.cover) {
-            const h = 720 - (theme.bottom || core.LIMITS.bottom);
-            const ref = cr.effect({ target: TARGET, klass: 'content', z: 999, x: 0, y: 720 - h, w: 1920, h: h, fs: shaders.rect ||
-                fs.readFileSync(path.join(this.dir, 'fs_rect.frag'), 'utf8') });
-            if (ref) {
+        /* Either side of the gear window only (theme_core.PANEL): covering the
+         * strip there brings up the KOMBI's fallback gear box. */
+        const top = theme.bottom || core.LIMITS.bottom;
+        if (this.cover && top < 720) {
+            const gw = core.PANEL.gearWindow;
+            [['__coverL', 0, gw[0]], ['__coverR', gw[0] + gw[2], 1920]].forEach((c) => {
+                const w = c[2] - c[1], h = 720 - top;
+                const ref = cr.effect({ target: TARGET, klass: 'content', z: 999, x: c[1], y: top, w: w, h: h, fs: shaders.rect ||
+                    fs.readFileSync(path.join(this.dir, 'fs_rect.frag'), 'utf8') });
+                if (!ref) return;
                 this._uniform(ref, 'u_color', [0, 0, 0, 1]);
-                this._uniform(ref, 'u_shape', [1920, h, 0, 0]);
+                this._uniform(ref, 'u_shape', [w, h, 0, 0]);
                 this._uniform(ref, 'u_ring', [0, 0, 0, 0]);
-                this.refs.layers.__cover = ref;
-            }
+                this.refs.layers[c[0]] = ref;
+            });
         }
         this.theme = theme;
         this.logic = logic;

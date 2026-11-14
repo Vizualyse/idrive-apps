@@ -23,6 +23,40 @@
 
     const LIMITS = { layers: 40, assets: 12, bottom: 646, side: 2048, frame: 5529600, uniformVectors: 12 };
 
+    /* The panel as the car shows it (measured on the car, 2026-11-14:
+     * knowledge/cluster-and-hud.md, the photos in docs/). [x, y, w, h].
+     *   gearWindow  never drawn: the KOMBI's own gear readout shows through
+     *               it. Covering any of the strip there brings up its
+     *               fallback gear box (a black box over the rev counter);
+     *               all the rest of the strip may be covered.
+     *   keepOut     the KOMBI's warning lights and the gear's plate draw over
+     *               the panel here: no moving part (text, gauge, lights) in
+     *               them, the art only (kept plain).
+     *   corners     the glass cuts the top corners on a diagonal: a line
+     *               from (0, y) to (x, 0) on the left, (1920 - x, 0) to
+     *               (1920, y) on the right; nothing moving above it. */
+    const PANEL = {
+        gearWindow: [1366, 665, 96, 55],
+        keepOut: [
+            { what: 'the gear readout', r: [1356, 640, 116, 80] },
+            { what: 'the warning lights on the left', r: [0, 200, 120, 270] },
+            { what: 'the warning lights at the bottom left', r: [560, 660, 340, 60] },
+            { what: 'the parking brake light', r: [1790, 200, 130, 100] }
+        ],
+        corners: { left: [325, 190], right: [270, 200] }
+    };
+    function overlaps(a, b) { return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]; }
+    /* what of PANEL a rectangle breaks (a list of words, empty when none) */
+    function panelProblems(r) {
+        const p = [];
+        if (overlaps(r, PANEL.gearWindow)) p.push('covers the gear window');
+        PANEL.keepOut.forEach((k) => { if (overlaps(r, k.r)) p.push('is over ' + k.what); });
+        const L = PANEL.corners.left, R = PANEL.corners.right;
+        if (r[0] / L[0] + r[1] / L[1] < 1) p.push('reaches into the top-left corner the glass cuts off');
+        if ((1920 - (r[0] + r[2])) / R[0] + r[1] / R[1] < 1) p.push('reaches into the top-right corner the glass cuts off');
+        return p;
+    }
+
     /* Text laid out with the font's advances (text.frag version 2): up to 16
      * glyph codes and each glyph's left edge in pixels, aligned in the
      * layer's width. layer: { glyphs, adv (px per glyph, or none: the cell
@@ -196,6 +230,11 @@
             const bottom = theme.bottom >= LIMITS.bottom && theme.bottom <= 720 ? theme.bottom : LIMITS.bottom;
             if (l.y + l.h > bottom) p.push('layer ' + l.name + ' reaches y ' + (l.y + l.h) + ' (the theme ends at ' + bottom + ')');
             Object.keys(l.binds || {}).forEach((s) => { if (!theme.assets[l.binds[s]]) p.push('layer ' + l.name + ' binds a missing asset ' + l.binds[s]); });
+            /* moving parts and sprites keep out of what the car draws over
+             * (the art, layer "art", may run under it: a hole is cut for the
+             * gear window by theme_build.js) */
+            if (theme.ship !== false && l.name !== 'art' && !l.panelFree)
+                panelProblems([l.x, l.y, l.w, l.h]).forEach((w) => p.push('layer ' + l.name + ' (' + [l.x, l.y, l.w, l.h].join(', ') + ') ' + w));
             if (l.kind === 'effect') {
                 const vectors = Object.keys(l.uniforms || {}).reduce((n, k) => n + Math.ceil(l.uniforms[k].length / 4), 0);
                 if (vectors > LIMITS.uniformVectors) p.push('layer ' + l.name + ' has ' + vectors + ' uniform vectors (at most ' + LIMITS.uniformVectors + ')');
@@ -204,7 +243,7 @@
         return p;
     }
 
-    const api = { LIMITS, encodeText, layoutText, Spring, scale, layerUniforms, Differ, check };
+    const api = { LIMITS, PANEL, panelProblems, encodeText, layoutText, Spring, scale, layerUniforms, Differ, check };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.ThemeCore = api;
 })(this);

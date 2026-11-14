@@ -41,11 +41,25 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   showed and **staying after our layers were gone**, until it cleared by
   itself after a while or the cluster restarted. So it is the KOMBI's own
   content, not ours. **Not memory pressure:** it came up again (2026-11-14)
-  under the calibration grid alone, one static 0.3 MB texture. Suspected,
-  not shown: the stock gear indicator (it sits in the stock rev counter
-  there) drawn above the panel like the telltales, its black plate left
-  showing when the gauges under it are covered. To test: change gear with
-  the box showing.
+  under the calibration grid alone, one static 0.3 MB texture. **It is the
+  KOMBI's fallback gear box, and covering the bottom strip summons it**
+  (others' findings, on cars): a panel layer below y ~646 takes the
+  cluster's own bottom strip (gear, drive mode, ranges), the KOMBI then
+  draws a fallback gear box above the panel at about x 1490-1652,
+  y 271-442 (eroobeeroo/idrive7-cluster-info `layout_common.js`; also an
+  `EDRIVE_HOLE` at 1770,170 150x95 and, on M cars, boxes at 793,289 246x92
+  and 1223,328 171x78). Nothing drawn in the panel fills it. A layout that
+  ends at y 646 and leaves the strip to the car gets no boxes (Cluster
+  Layouts 0.14-0.17, tested on cars; bimmer-lab/apps #1, #5). The
+  lingering after our layers go is reported too (idrive7-cluster-info #3)
+  but unexplained.
+- **Only the strip's gear readout matters** (measured 2026-11-14, white
+  rectangles on the panel): white over all of y 0-665 and over the strip
+  everywhere except **x 1366-1462, y 665-720** brought no box; covering
+  any of that window (white to y 670 across, or the window narrowed from
+  either side) brought it. The gear's plate itself draws over the panel up
+  to about y 648. Photos: `native/vizualyse-cluster/docs/`; the numbers:
+  `theme_core.PANEL`.
 - **The cluster's visible area** (calibration grid, 2026-11-14): all of
   1920x720 shows, the top edge in the middle and the bottom strip
   included, except **the top corners, cut on a diagonal** from about

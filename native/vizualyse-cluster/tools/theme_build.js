@@ -176,6 +176,12 @@ function build(src) {
      * one texture (tools/tiles.js), the tile size whichever of 4 and 8 px
      * makes it smaller (4 for nearly every theme); checked against the art */
     const art = shoot(path.resolve(src, spec.art || 'art.html'), 1920, bottom, tmp);
+    /* the gear window left clear (transparent): the KOMBI's own gear readout
+     * shows through it (theme_core.PANEL) */
+    const gw = core.PANEL.gearWindow;
+    if (spec.ship !== false) {
+        for (let y = gw[1]; y < Math.min(bottom, gw[1] + gw[3]); y++) art.rgba.fill(0, (y * 1920 + gw[0]) * 4, (y * 1920 + gw[0] + gw[2]) * 4);
+    }
     const tiled = [4, 8].map((T) => tiles.tile(art.rgba, 1920, bottom, T)).sort((a, b) => a.rgba.length - b.rgba.length)[0];
     if (!tiles.untile(tiled, 1920, bottom).equals(art.rgba)) throw new Error('the art\'s tiles do not give the art back');
     const T = tiled.T;

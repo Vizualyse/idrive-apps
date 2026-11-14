@@ -15,12 +15,28 @@ drawn and their limits: [THEMES.md](THEMES.md). The proof:
 
 - **Canvas:** 1920 x 720 at (0, 0), black background (`body { margin: 0;
   background: #000 }`, an `<svg width="1920" height="720">`). The theme
-  covers the old bottom strip (`"bottom": 720`); the car's warning lights
-  draw over it anyway.
-- **Top keep-clear zone:** nothing important in the top **40 px** (the
-  cluster's frame hides some of it). One number, `<meta name="safe-top"
-  content="40">`: a marked part starting above it is an error; unmarked art
-  there is a warning unless it carries `data-bleed` (washes, glows).
+  covers the old bottom strip (`"bottom": 720`) except the gear window.
+- **The car's panel** (measured on the car, 2026-11-14; photos
+  [docs/car-calibration-grid.jpg](docs/car-calibration-grid.jpg),
+  [docs/car-drawable-area.jpg](docs/car-drawable-area.jpg); the zones
+  drawn: [docs/panel-zones.png](docs/panel-zones.png), numbers in
+  `theme_core.PANEL`). Everything is visible to the top edge in the middle,
+  except:
+  - **the gear window**, x 1366-1462, y 665-720: never drawn (cut out of
+    the art by the build). The car's gear readout shows through it;
+    covering it brings up the KOMBI's black fallback gear box.
+  - **warning lights**, drawn by the car over the theme: the left column
+    (x 0-120, y 200-470), the bottom left (x 560-900, y 660-720), the
+    parking brake (x 1790-1920, y 200-300), and the gear's plate
+    (x 1356-1472, y 640-720). Art only there, kept plain.
+  - **the top corners**, cut by the glass on a diagonal: (0, 190) to
+    (325, 0) on the left, (1650, 0) to (1920, 200) on the right.
+  A marked part (text, gauge, lights, sprite) in any of these fails the
+  build. `node tools/zones.js shot.png out.png` draws them over a render.
+- **Top keep-clear zone:** `<meta name="safe-top" content="8">`: a marked
+  part starting above it is an error; unmarked art there is a warning
+  unless it carries `data-bleed` (washes, glows). The top edge shows in the
+  middle, so 8 px is enough; the corners are the check above.
 - **Everything not marked is static art**, rendered once by headless Chrome
   (fonts via `@font-face` with local files; scripts may draw ticks and
   numerals, the build measures after they ran).
@@ -31,7 +47,7 @@ drawn and their limits: [THEMES.md](THEMES.md). The proof:
 | `<meta name="theme-id" content="g20i1">` | default: the folder's name; `[a-z0-9]+` |
 | `theme-title`, `theme-family`, `theme-mode` (`sport`/`comfort`), `theme-ship` (`false` keeps it out of the kit) | |
 | `theme-bottom` | 720 (default), or 646 to leave the strip to the car |
-| `safe-top` | 40 |
+| `safe-top` | 40 (default; 8 is enough on the car) |
 | `<meta name="let:cue" content="rpm >= P.shiftRpm && throttle > 0.5">` | a shared value, evaluated each tick before the layers, usable by name |
 | `<script type="application/json" id="theme-params">{...}</script>` | `P`, the theme's numbers |
 | `:root { --sport: #ff2b1c; ... }` | every colour custom property is `C.sport` (`C.barTrack` for `--bar-track`) |
