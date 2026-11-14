@@ -1,7 +1,7 @@
 {
   "id": "vizualyse-cluster",
   "kind": "tool",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "GPL-3.0-or-later",
   "title": "Cluster themes",
   "description": "EXPERIMENTAL, NOT YET TRIED ON A CAR. Whole-cluster themes drawn over the instrument cluster through cluster-render's panel target, under the car's own warning lights and bottom strip: eight families (G20 inspired 1 and 2, LCI inspired 1 and 2, Three-dial 1 and 2, Performance 1 and 2), each a Sport and a Comfort theme switched by the drive mode. Drawn by small shaders on the cluster with textures sent once (about 6-7 MB at start), so only a few KB/s of numbers cross the link while driving. Readings the car does not give show as --. A bench demo drive runs only while parked. No iDrive app yet: driven over its control socket. About 10 MB.",
