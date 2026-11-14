@@ -1,6 +1,6 @@
 {
   "name": "vizualyse_cluster",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cluster themes: chooses the instrument cluster theme (the vizualyse-cluster tool): a picker on the central screen with a preview of every theme, touched, a Try on the cluster while parked, Sport or Comfort, on or off",
   "private": false,
   "main": "javascript/runner.js",

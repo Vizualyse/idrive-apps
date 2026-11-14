@@ -9,8 +9,10 @@
  * or the car's own), {"cmd":"theme","id":family}, {"cmd":"mode","mode":
  * "auto"|"sport"|"comfort"}, {"cmd":"cover","on":bool} (black over the
  * car's own strip under the theme), {"cmd":"picker","on":bool} (the theme
- * picker on the central screen) and {"cmd":"speed","kmh":...} (the car's
- * speed, about once a second: the picker and Try only while parked).
+ * picker on the central screen), {"cmd":"speed","kmh":...} (the car's
+ * speed, about once a second: the picker and Try only while parked) and
+ * {"cmd":"signals", ...} (the car's readings for the theme:
+ * src/vehicle_signals.js).
  * Connected while the app runs, retried once a second; the tool keeps
  * running without it. As vizualyse_steam's.
  *
@@ -115,6 +117,14 @@ class ClusterControl extends EventEmitter {
     speed(kmh) {
         if (!this.sock || !this.status) return false;
         this.sock.write(JSON.stringify({ cmd: 'speed', kmh: Math.round(kmh * 10) / 10 }) + '\n');
+        return true;
+    }
+
+    /* the car's readings for the theme (src/vehicle_signals.js): only what
+     * changed, and all of them once a second */
+    signals(values) {
+        if (!this.sock || !this.status) return false;
+        this.sock.write(JSON.stringify(Object.assign({}, values, { cmd: 'signals' })) + '\n');
         return true;
     }
 

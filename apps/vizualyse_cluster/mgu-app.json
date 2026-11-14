@@ -1,12 +1,13 @@
 {
   "schema": 1,
   "id": "vizualyse_cluster",
-  "version": "0.1.0",
-  "tree": "vizualyse_cluster@0.1.0",
+  "version": "0.2.0",
+  "tree": "vizualyse_cluster@0.2.0",
   "modules": [
     "src/vizualyse_cluster.js",
     "src/cluster_control.js",
-    "src/vehicle_speed.js"
+    "src/vehicle_speed.js",
+    "src/vehicle_signals.js"
   ],
   "sdk": [
     "oap-sdk/src/core/OnlineApp.js",

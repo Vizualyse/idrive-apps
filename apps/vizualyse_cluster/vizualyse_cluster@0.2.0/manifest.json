@@ -59,11 +59,91 @@
         "1"
       ],
       "attributes": {
-        "statusCarSpeed2": "r"
+        "statusCarSpeed2": "rs"
       }
     },
     "de.bmw.infrastructure.EnvironmentalInformation": "*",
-    "de.bmw.infotainment.certification.Certification": "*"
+    "de.bmw.infotainment.certification.Certification": "*",
+    "de.bmw.infotainment.vehicle.CDS": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusEngineSpeed2": "rs",
+        "statusEngineTemperature": "rs"
+      }
+    },
+    "de.bmw.infotainment.vehicle.CDS2": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusLateralAccelerationMassCenter": "rs",
+        "statusLongitudinalAccelerationMassCenter": "rs"
+      }
+    },
+    "de.bmw.infrastructure.VehicleInformation": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "DataPowerTrain2": "s"
+      }
+    },
+    "de.bmw.infotainment.misc.MDrive": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "dataDisplayGearbox": "s"
+      }
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusFESVehicleDynamicSwitchHMI": "rs",
+        "statusActualValueTorque2": "rs",
+        "statusSwitchDriveDynamicSport2": "rs"
+      }
+    },
+    "de.bmw.powertrain.AcceleratorPedal": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "AngleAcceleratorPedal": "s"
+      }
+    },
+    "de.bmw.infotainment.KombiIF": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusRangeTankStatus": "rs",
+        "displayRangeElectricVehicle": "rs",
+        "statusBordcomputerTravelData": "rs",
+        "statusBordcomputerAverage": "rs"
+      }
+    },
+    "de.bmw.infotainment.drivingexcitement.Efficiencytainment2": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusChargeOfBatteryHybrid": "rs"
+      }
+    },
+    "de.bmw.infotainment.vehicle.TPMS": {
+      "instances": [
+        "1"
+      ],
+      "attributes": {
+        "statusTyrePressure": "rs",
+        "statusTyreTemperature": "rs"
+      }
+    }
   },
   "services": {
     "de.bmw.infotainment.telematic.oap.AppStatus": {

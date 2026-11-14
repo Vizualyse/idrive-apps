@@ -119,11 +119,44 @@ class OnlineApp extends EventEmitter {
 }
 /* Vehicle2's speed, raw (km/h x 64; 65535 invalid) */
 let speedRaw = 65535;
+/* the car's other fields, raw as SOME/IP gives them (src/vehicle_signals.js);
+ * a getter returns the field's value, notify() pushes one to subscribers */
+const CAR = {
+    'de.bmw.infotainment.vehicle.CDS': { statusEngineSpeed2: { actualValueRPMEngineCrankshaft: 12000 },
+        statusEngineTemperature: { temperatureEngineOilDrive: 148, temperatureEngineDrive: 255 } },
+    'de.bmw.infotainment.vehicle.CDS2': { statusLateralAccelerationMassCenter: { lateralAccelerationCentreOfGravity: 32500 },
+        statusLongitudinalAccelerationMassCenter: { longitudinalAccelerationCentreOfGravity: 65535 } },
+    'de.bmw.infrastructure.VehicleInformation': {},
+    'de.bmw.infotainment.misc.MDrive': {},
+    'de.bmw.infotainment.drivingexcitement.FES': { statusFESVehicleDynamicSwitchHMI: { actualValueModeDrivingExperience: 'SPORT_DYNAMIC' },
+        statusActualValueTorque2: { actualValueTorqueCrankshaft: 2447 }, statusSwitchDriveDynamicSport2: { displayBoostPressure: 120 } },
+    'de.bmw.powertrain.AcceleratorPedal': {},
+    'de.bmw.infrastructure.EnvironmentalInformation': {},
+    'de.bmw.infotainment.KombiIF': { statusRangeTankStatus: { fluidLevelFuelTank: 27, range: 494, mileageKilometre: 23581 },
+        displayRangeElectricVehicle: { displayRangeElectricVehicle: 39 }, statusBordcomputerTravelData: { wayPassed: 113 },
+        statusBordcomputerAverage: { speedAverage1BC1: 360, consumptionAverage1BC1: 441, statusUnitOfMeasurementSpeedBC: 'MPH__MLS', statusUnitOfMeasurementConsumptionBC: 2 } },
+    'de.bmw.infotainment.drivingexcitement.Efficiencytainment2': { statusChargeOfBatteryHybrid: { displayChargingConditionHighVoltageStorage: 71 } },
+    'de.bmw.infotainment.vehicle.TPMS': { statusTyrePressure: { actualValuePressureTyreFLH: 362, actualValuePressureTyreFRH: 362, actualValuePressureTyreRLH: 391, actualValuePressureTyreRRH: 65535 },
+        statusTyreTemperature: { actualValueTemperatureTyreFLH: 110, actualValueTemperatureTyreFRH: 112, actualValueTemperatureTyreRLH: 107, actualValueTemperatureTyreRRH: 109 } },
+    'de.bmw.infotainment.vehicle.Vehicle': { statusNewCurrentUnitsStatusExt: { unitOfMeasurementAirPressure: 'PSI', unitOfMeasurementTemperature: 'C' } },
+};
+const subscribers = {};
+function notify(iface, field, value) { (subscribers[iface + '.' + field] || []).forEach((cb) => cb(value)); }
 const someipBuilders = {
     buildTypedProxy(iface, instance) {
-        assert.strictEqual(iface, 'de.bmw.infotainment.vehicle.Vehicle2');
         assert.strictEqual(instance, '1');
-        return Promise.resolve({ init: () => Promise.resolve(), statusCarSpeed2: { getValue: () => Promise.resolve({ speedVehicleCentreOfGravity: speedRaw }) } });
+        const p = { init: () => Promise.resolve(), waitUntilAvailable: () => Promise.resolve() };
+        if (iface === 'de.bmw.infotainment.vehicle.Vehicle2') {
+            p.statusCarSpeed2 = { getValue: () => Promise.resolve({ speedVehicleCentreOfGravity: speedRaw }),
+                subscribe: (cb) => { (subscribers[iface + '.statusCarSpeed2'] = subscribers[iface + '.statusCarSpeed2'] || []).push(cb); return Promise.resolve(); } };
+            return Promise.resolve(p);
+        }
+        assert(CAR[iface], 'a proxy for ' + iface + ', which the app does not read');
+        require(path.join(ROOT, 'src', 'vehicle_signals.js')).READINGS.filter((r) => r.iface === iface).forEach((r) => {
+            p[r.field] = { subscribe: (cb) => { (subscribers[iface + '.' + r.field] = subscribers[iface + '.' + r.field] || []).push(cb); return Promise.resolve(); } };
+            if (r.access.indexOf('r') >= 0) p[r.field].getValue = () => (CAR[iface][r.field] ? Promise.resolve(CAR[iface][r.field]) : Promise.reject(new Error('no value')));
+        });
+        return Promise.resolve(p);
     },
 };
 function runSource() {
@@ -226,7 +259,11 @@ async function main() {
     assert.strictEqual(pkg.oapAppSettings.loggingId, 'VCLU');
     const manifest = JSON.parse(fs.readFileSync(path.join(PKG, 'manifest.json'), 'utf8'));
     const v2 = manifest.proxies['de.bmw.infotainment.vehicle.Vehicle2'];
-    assert(v2 && v2.instances[0] === '1' && v2.attributes.statusCarSpeed2 === 'r', 'the manifest asks to read Vehicle2.statusCarSpeed2');
+    assert(v2 && v2.instances[0] === '1' && v2.attributes.statusCarSpeed2 === 'rs', 'the manifest asks to read and subscribe Vehicle2.statusCarSpeed2');
+    /* the manifest asks for every reading, with its access (tools/check_signals.js checks them against the catalog) */
+    const want = require(path.join(ROOT, 'src', 'vehicle_signals.js')).manifestProxies();
+    Object.keys(want).forEach((i) => Object.keys(want[i].attributes).forEach((f) =>
+        assert.strictEqual(manifest.proxies[i] && manifest.proxies[i].attributes && manifest.proxies[i].attributes[f], want[i].attributes[f], 'the manifest asks for ' + i + '.' + f)));
     assert(!/[^\x00-\x7f]/.test(JSON.stringify(UI)), 'uiDescription.json is ASCII');
     /* UUIDs of our own, not Steam's (the app it was copied from) or another's */
     ['vizualyse_steam', 'vizualyse_chromium', 'vizualyse_moonlight', 'vizualyse_cast'].forEach((other) => {
@@ -316,6 +353,48 @@ async function main() {
     byName[STATE].emit('visible', { visible: true });
     console.log('ok   the speed goes to the tool; moving: Choose off, the rows still on; the tool\'s refusal shown');
 
+    /* the readings: read, converted to the tool's names and units, sent as they change, all once a second */
+    const lastSignals = () => {
+        const o = {};
+        received.filter((c) => c.cmd === 'signals').forEach((c) => Object.assign(o, c));
+        return o;
+    };
+    await until('the readings', () => lastSignals().tyres && lastSignals().avgL100 != null && lastSignals().driveMode, 4000);
+    let g = lastSignals();
+    assert.strictEqual(g.rpm, 3000);
+    assert.strictEqual(g.oilC, 100);
+    assert.strictEqual(g.coolantC, null, 'an invalid reading (255) is null');
+    assert.strictEqual(g.gLat, 0);
+    assert.strictEqual(g.gLon, null);
+    assert.strictEqual(g.driveMode, 'SPORT', 'an enum by name');
+    assert.strictEqual(g.engineHp, 84, 'power from torque (200 Nm) and rpm');
+    assert.strictEqual(g.boostBar, 1.2);
+    assert.strictEqual(g.fuelL, 27);
+    assert.strictEqual(g.rangeKm, 494);
+    assert.strictEqual(g.odoKm, 23581);
+    assert.strictEqual(g.evRangeKm, 39);
+    assert.strictEqual(g.socPct, 71);
+    assert.strictEqual(g.tripKm, 113);
+    assert.strictEqual(g.avgKmh, 57.9, 'mph to km/h');
+    assert.strictEqual(g.avgL100, 6.4, 'mpg (UK) to l/100 km');
+    assert.deepStrictEqual(g.tyres, [{ bar: 2.5, c: 70 }, { bar: 2.5, c: 72 }, { bar: 2.7, c: 67 }, { bar: null, c: 69 }], 'psi to bar; an invalid tyre is null');
+    assert(!received.some((c) => c.cmd === 'signals' && Object.keys(c).some((k) => k[0] === '_')), 'nothing internal sent');
+    /* notifier-only fields: subscribed; a change goes out at once */
+    notify('de.bmw.infrastructure.VehicleInformation', 'DataPowerTrain2', { statusGearSelectionDrive: '_4' });
+    notify('de.bmw.infotainment.misc.MDrive', 'dataDisplayGearbox', { displayProgramGearbox: 2 });
+    notify('de.bmw.infrastructure.EnvironmentalInformation', 'ExteriorTemperature', { temperatureExterior: 103 });
+    notify('de.bmw.infotainment.drivingexcitement.FES', 'statusFESVehicleDynamicSwitchHMI', { actualValueModeDrivingExperience: 0 });
+    notify('de.bmw.infotainment.vehicle.Vehicle2', 'statusCarSpeed2', { speedVehicleCentreOfGravity: 64 * 48 });
+    await until('the notified readings', () => lastSignals().gear === 4 && lastSignals().gearMode === 'M' && lastSignals().outsideC === 11.5 && lastSignals().kmh === 48, 1000);
+    g = lastSignals();
+    assert.strictEqual(g.gearPos, 'D');
+    assert.strictEqual(g.driveMode, 'SPORT', 'a drive mode of 0 (the car switching off) keeps the last');
+    /* everything again once a second, so the tool doesn't forget a reading that stands still */
+    const n0 = count('signals', (c) => c.oilC === 100);
+    await sleep(1300);
+    assert(count('signals', (c) => c.oilC === 100) > n0, 'unchanged readings are sent again');
+    console.log('ok   the readings: ' + Object.keys(g).filter((k) => k !== 'cmd').length + ' signals, converted (enums by name or number, invalid as null, units), notified ones at once, all again each second');
+
     /* Sport or Comfort cycles; the strip; off and on */
     await press('clusterMode');
     await until('mode sport', () => received.some((c) => c.cmd === 'mode' && c.mode === 'sport') && byName.clusterMode.text === 'Sport or Comfort: always Sport');
@@ -338,7 +417,7 @@ async function main() {
     assert.strictEqual(tool.clients(), 1, 'the socket stays open with the page hidden');
     assert(count('speed') > n, 'the speed goes on with the page hidden');
     byName[STATE].emit('visible', { visible: true });
-    assert(!received.some((c) => !/^(speed|picker|use|mode|cover|enable|disable)$/.test(c.cmd)), 'nothing else sent');
+    assert(!received.some((c) => !/^(speed|signals|picker|use|mode|cover|enable|disable)$/.test(c.cmd)), 'nothing else sent');
     tool.close();
     await until('tool gone', () => /not running/.test(S.text || ''));
     assert.strictEqual(byName.clusterEnable.enabled, false);

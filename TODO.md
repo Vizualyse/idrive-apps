@@ -752,12 +752,16 @@ the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-centra
   current (`picker_test.js` checks every shipped theme has one, not that
   it matches the theme: rerun `tools/picker_build.js` after a theme's look
   changes).
-- [ ] **Which readings iDrive 7 gives an app** (rpm, gear, drive mode, oil
-  and coolant, tyres, power, battery, limit, cruise, guidance, economy):
-  `someip-interfaces.json` on the unit. A theme shows `--` for any it
-  doesn't get. Then the app sends them as `signals` (with `driveMode` for
-  the Sport / Comfort switch); today it sends only the speed, once a second,
-  which the tool also shows as the theme's speed.
+- [ ] **The car's readings on the car** (app 0.2.0 reads 22,
+  `apps/vizualyse_cluster/src/vehicle_signals.js`, never run on a car):
+  the app installs (its manifest asks for 18 more fields: checked against
+  our catalog, but the installer has the last word); each reading against
+  the car's own display, driving; the logged raw values of the unconfirmed
+  scalings (boost, throttle, battery %, electric range, trip computer) to
+  fix them; `driveMode` switching Sport / Comfort. Then: `fuelPct` (the car
+  gives litres: the tank's size, a setting or from the range), and the
+  rows not read yet: the speed limit and cruise speed (DisplayDataServer
+  candidates), navigation (Guidance, `Main_Instance`), electric power.
 - [ ] **The refitted themes on the car** (gear window, warning lights, cut
   corners: `theme_core.PANEL`, measured 2026-11-14): each family once,
   parked, with the demo: no black box, the car's gear shows in its window,

@@ -46,8 +46,40 @@ previews is a row here.
 The app reads `Vehicle2.statusCarSpeed2` every second (`src/vehicle_speed.js`)
 and sends `{"cmd":"speed","kmh":N}`; the tool hides the picker above 3 km/h
 and won't show it, and tries a theme only at a standstill. The theme rows
-work while driving (only the cluster changes). Until the app reads more of
-the car, that speed is also the theme's speed.
+work while driving (only the cluster changes).
+
+## The car's readings
+
+`src/vehicle_signals.js` reads the car over SOME/IP and sends the theme its
+readings as `{"cmd":"signals", ...}` in the tool's names
+(`native/vizualyse-cluster/src/sim.js`): what changed within 100 ms, and
+everything once a second (the tool forgets a reading after 2 s). Where each
+comes from and how it is scaled: [knowledge/vehicle-signals.md](../../knowledge/vehicle-signals.md).
+
+| Signal | From |
+|---|---|
+| `kmh` | `Vehicle2.statusCarSpeed2` (subscribed; also polled for the parked gate) |
+| `rpm`, `oilC`, `coolantC` | `CDS.statusEngineSpeed2`, `statusEngineTemperature` |
+| `gLat`, `gLon` | `CDS2` accelerations |
+| `gear`, `gearPos` | `VehicleInformation.DataPowerTrain2` (notifier only) |
+| `gearMode` | `MDrive.dataDisplayGearbox` (notifier only): `S`, `M`, `D` |
+| `driveMode` | `FES.statusFESVehicleDynamicSwitchHMI`: `SPORT` (Sport, Sport+, PHEV Sport) picks Sport, anything else Comfort |
+| `engineHp` | `FES.statusActualValueTorque2` x rpm |
+| `boostBar`*, `throttle`* | `FES.statusSwitchDriveDynamicSport2`, `AcceleratorPedal` |
+| `outsideC` | `EnvironmentalInformation.ExteriorTemperature` |
+| `fuelL`, `rangeKm`, `odoKm` | `KombiIF.statusRangeTankStatus` |
+| `evRangeKm`*, `socPct`* | `KombiIF.displayRangeElectricVehicle`, `Efficiencytainment2.statusChargeOfBatteryHybrid` |
+| `tripKm`*, `avgKmh`*, `avgL100`* | `KombiIF` trip computer (its own units converted) |
+| `tyres` | `TPMS` pressures and temperatures, in the car's units (`Vehicle`'s units status, else from the size) |
+
+\* a scaling not yet checked against the car: the raw value is logged once
+(`signals: <field> raw ...`). The theme's fuel gauge wants `fuelPct`; the
+car gives litres, so it shows `--` until the tank's size is known. Not read
+yet: the speed limit, cruise speed, navigation, electric power.
+
+Before a manifest change goes to the car: `node tools/check_signals.js
+<someip-interfaces.json>` against the unit's catalog (BMW's installer
+refuses the whole app for one field it lacks).
 
 ## The socket
 
@@ -62,7 +94,7 @@ second, `speed`.
 
 ## Building and testing
 
-- `node tools/make_page.js vizualyse_cluster@0.1.0` writes `application.xml`
+- `node tools/make_page.js vizualyse_cluster@0.2.0` writes `application.xml`
   and `uiDescription.json` from one list; `node tools/make_icon.js <png>`
   the tile icon (a gauge).
 - `node tools/test_page.js` runs the app against a fake SDK, HMI and tool

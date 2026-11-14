@@ -24,7 +24,13 @@
  * (vehicle_speed.js) and hands it to the tool, which hides the picker above
  * 3 km/h and won't show it, and tries a theme on the cluster only at a
  * standstill. So the app holds the tool's control socket while it runs, not
- * only while its page shows. The structure follows vizualyse_steam.
+ * only while its page shows.
+ *
+ * The theme's readings: the app reads the car over SOME/IP
+ * (vehicle_signals.js: speed, rpm, gear, drive mode, temperatures, tyres,
+ * fuel, range, trip...) and sends them to the tool as they change; the
+ * drive mode also picks Sport or Comfort. The structure follows
+ * vizualyse_steam.
  */
 'use strict';
 
@@ -32,6 +38,7 @@ const OnlineApp = require('oap-sdk/src/core/OnlineApp.js');
 const logging = require('oap-sdk/src/logging/logging');
 const { ClusterControl } = require('./cluster_control.js');
 const { watchSpeed } = require('./vehicle_speed.js');
+const vehicleSignals = require('./vehicle_signals.js');
 
 const logger = logging.getSDKLogger();
 
@@ -83,6 +90,7 @@ class ClusterApp extends OnlineApp {
         this._control = new ClusterControl({ log: logger });
         this._control.on('change', () => this._render());
         this._stopSpeed = null;
+        this._stopSignals = null;
 
         this.on('initialized', () => {
             this._appInitialized()
@@ -103,7 +111,7 @@ class ClusterApp extends OnlineApp {
             return this.initialized();
         }
         const foregroundStart = this._startedForeground();
-        /* the tool hears from the app while it runs: the speed, whatever the page */
+        /* the tool hears from the app while it runs: the speed and the readings, whatever the page */
         this._control.open();
         this._startSpeed();
         return this._setupRhmi()
@@ -129,6 +137,7 @@ class ClusterApp extends OnlineApp {
             return;
         }
         this._stopSpeed = watchSpeed(builders, logger, (kmh) => this._control.speed(kmh));
+        this._stopSignals = vehicleSignals.watch(builders, logger, (values) => this._control.signals(values));
     }
 
     _startedForeground() {
@@ -372,6 +381,7 @@ class ClusterApp extends OnlineApp {
         if (this._shutdownPromise) return this._shutdownPromise;
         logger.info('vizualyse_cluster shutdown: ' + JSON.stringify(reason));
         if (this._stopSpeed) this._stopSpeed();
+        if (this._stopSignals) this._stopSignals();
         clearTimeout(this._focusTimer);
         clearTimeout(this._screenTimer);
         this._control.hide();

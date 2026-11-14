@@ -4,8 +4,11 @@
 # Cluster themes (vizualyse-cluster)
 
 Whole-cluster themes for the iDrive 7 instrument cluster (1920x720), drawn
-through cluster-render's `panel` target: over BMW's gauges, under the car's
-own warning lights and its bottom strip (y 646 and below, never covered).
+through cluster-render's `panel` target: over BMW's gauges and its bottom
+strip, under the car's own warning lights. The car's gear readout shows
+through a window in the strip (x 1366-1462, y 665-720): covering it brings
+up the KOMBI's black fallback gear box (`theme_core.PANEL`, DESIGNS.md
+"The car's panel").
 Each comes as a Sport and a Comfort theme, switched by the car's drive mode.
 Switching the tool off brings BMW's cluster back.
 
@@ -14,10 +17,14 @@ Chosen on the central screen by touch: the **Cluster themes** iDrive app
 **picker**, a large preview of every theme in Sport and Comfort, with Use,
 a 10 s Try on the cluster while parked, Sport or Comfort, and off.
 
-**Not yet tried on a car.** Built and tested off the car: the shaders in
-WebGL 1, every theme's logic and limits, the tool end to end against a fake
-cluster-render on the unit's Node 8, the picker against a fake mgu-render
-client with scripted touches, the touch reader on mgu-python's Python.
+**On the car** (2026-11-13/14): a theme draws on the panel with the demo
+drive, the picker works, and the panel's visible shape was measured
+(`docs/`). Not yet on a car: the themes refitted to that shape (0.3.0) and
+the car's readings (the app's 0.2.0). Built and tested off the car: the
+shaders in WebGL 1, every theme's logic and limits, the tool end to end
+against a fake cluster-render on the unit's Node 8, the picker against a
+fake mgu-render client with scripted touches, the touch reader on
+mgu-python's Python.
 
 How a theme is drawn (textures sent once, small shaders on the KOMBI,
 uniforms while driving) and the rules every theme keeps:
@@ -34,22 +41,22 @@ typefaces (THIRD-PARTY.md).
 
 | Theme | Id | Mode | Layers | Textures | MB at start | MB on a mode switch | Mpx a frame |
 |---|---|---|---|---|---|---|---|
-| G20 inspired 1 | `g20i1` | sport | 37 | 10 | 2.99 | 2.82 | 1.98 |
-| G20 inspired 1 · Comfort | `g20i1c` | comfort | 36 | 12 | 2.99 | 2.81 | 2.33 |
-| G20 inspired 2 | `g20i2` | sport | 37 | 12 | 3.11 | 1.43 | 2.29 |
-| G20 inspired 2 · Comfort | `g20i2c` | comfort | 31 | 12 | 2.60 | 0.92 | 2.51 |
-| LCI inspired 1 | `lci1` | sport | 38 | 12 | 2.09 | 1.44 | 2.52 |
-| LCI inspired 1 · Comfort | `lci1c` | comfort | 38 | 12 | 2.09 | 1.43 | 2.70 |
-| LCI inspired 2 | `lci2` | sport | 40 | 12 | 2.27 | 1.22 | 2.40 |
-| LCI inspired 2 · Comfort | `lci2c` | comfort | 34 | 12 | 2.04 | 0.98 | 2.09 |
-| Performance 1 | `perf1` | sport | 38 | 11 | 1.71 | 1.62 | 2.09 |
-| Performance 1 · Comfort | `perf1c` | comfort | 40 | 11 | 1.72 | 1.63 | 2.32 |
-| Performance 2 | `perf2` | sport | 37 | 12 | 2.52 | 2.43 | 2.12 |
-| Performance 2 · Comfort | `perf2c` | comfort | 36 | 12 | 2.39 | 2.31 | 2.16 |
-| Three-dial 1 | `tri1` | sport | 37 | 12 | 1.69 | 1.36 | 2.22 |
-| Three-dial 1 · Comfort | `tri1c` | comfort | 37 | 12 | 1.74 | 1.41 | 2.63 |
-| Three-dial 2 | `tri2` | sport | 39 | 12 | 2.85 | 1.80 | 1.94 |
-| Three-dial 2 · Comfort | `tri2c` | comfort | 29 | 12 | 2.66 | 1.61 | 1.89 |
+| G20 inspired 1 | `g20i1` | sport | 37 | 11 | 3.90 | 2.08 | 2.30 |
+| G20 inspired 1 · Comfort | `g20i1c` | comfort | 36 | 12 | 4.98 | 3.16 | 2.66 |
+| G20 inspired 2 | `g20i2` | sport | 37 | 12 | 3.59 | 1.62 | 2.63 |
+| G20 inspired 2 · Comfort | `g20i2c` | comfort | 31 | 12 | 2.97 | 0.99 | 3.30 |
+| LCI inspired 1 | `lci1` | sport | 37 | 12 | 1.66 | 0.91 | 2.77 |
+| LCI inspired 1 · Comfort | `lci1c` | comfort | 38 | 12 | 1.55 | 0.80 | 2.84 |
+| LCI inspired 2 | `lci2` | sport | 40 | 10 | 2.62 | 1.59 | 2.46 |
+| LCI inspired 2 · Comfort | `lci2c` | comfort | 35 | 12 | 2.19 | 1.17 | 2.18 |
+| Performance 1 | `perf1` | sport | 39 | 11 | 1.79 | 1.62 | 2.25 |
+| Performance 1 · Comfort | `perf1c` | comfort | 40 | 12 | 1.86 | 1.69 | 2.47 |
+| Performance 2 | `perf2` | sport | 39 | 12 | 3.22 | 1.72 | 2.60 |
+| Performance 2 · Comfort | `perf2c` | comfort | 38 | 12 | 2.98 | 1.47 | 2.56 |
+| Three-dial 1 | `tri1` | sport | 40 | 12 | 2.07 | 0.88 | 2.59 |
+| Three-dial 1 · Comfort | `tri1c` | comfort | 38 | 11 | 2.05 | 0.86 | 3.02 |
+| Three-dial 2 | `tri2` | sport | 40 | 12 | 3.52 | 2.20 | 2.08 |
+| Three-dial 2 · Comfort | `tri2c` | comfort | 31 | 12 | 3.07 | 1.75 | 2.12 |
 
 (`node tools/theme_table.js` prints this from the built themes.) While
 driving, a theme sends 4-20 KB/s of uniforms (`test/themes_test.js`), next to
@@ -164,27 +171,16 @@ python3 test/touch_reader_test.py               # the touch reader (as root in a
 
 ## On the car, still to find out
 
-- Everything: no theme has been on a KOMBI yet. First: the panel shown, a
-  theme's start upload (about 1.7-3.1 MB) through the governor, and how the
-  KOMBI's GPU copes with about 40 effect layers and 2-2.7 Mpx a frame
-  (THEMES.md "Not known yet").
-- Which readings the car actually sends. Our firmware's SOME/IP catalog has
-  these, the same fields idrive7-apps reads on its cars
-  (`knowledge/vehicle-signals.md`): speed, rpm, gear (P R N, 1-9), gear mode
-  (S / M), drive mode, oil, coolant and outside temperatures, fuel (litres)
-  and range, odometer, boost, tyre pressures and temperatures, g, engine
-  power, trip averages, and BMW navigation's next turn, road, distance and
-  ETA. Their scaling still needs checking on the car: battery charge,
-  electric range and power, instant consumption. Speed limit and cruise set
-  speed are only candidates, not read by any app yet; the 12 V voltage isn't
-  a signal (only its charge %). Until the app reads them, a theme on `car`
-  shows the speed and the clock.
-- Where the glass and the driver camera's cowl hide the screen's edges.
-- The picker: that mgu-render takes the RGBX pixmap and its regions on our
-  version (0.6.11 or later) and shows it in the app area over the app's empty
-  state; that the AF_PACKET reader sees the display's touches under mgu-python
-  (as the C readers of Browser and Steam do); how long the first picture
-  takes on the unit's Atom (16 PNGs decoded) and a press after.
+- The refitted themes (0.3.0): the gear window clear, no black box, the
+  text sharp (font atlases are now 4-byte aligned: the KOMBI sheared the
+  others), and the KOMBI's GPU over a long run (about 40 effect layers,
+  2-3.3 Mpx a frame).
+- The car's readings, as the app (0.2.0) sends them: each against the
+  car's own display; the scalings not yet confirmed (boost, throttle,
+  battery %, electric range, the trip computer: the app logs their raw
+  values); the drive mode picking Sport or Comfort. Not read yet: the speed
+  limit, cruise speed, navigation, electric power; `fuelPct` (the car
+  gives litres). Where each comes from: `knowledge/vehicle-signals.md`.
+- The picker: how long the first picture takes on the unit's Atom.
 
-Not yet: the readings beyond the speed (the app sends `speed` only), a
-phone page (TODO.md).
+Not yet: a phone page (TODO.md).

@@ -5,7 +5,7 @@ Which car readings an iDrive app can read over SOME/IP on our firmware, for
 parking brake for "only while parked": [vehicle-data.md](vehicle-data.md).
 Index: [index.md](index.md).
 
-**Nothing here has been read on our car yet** (2026-11-13). Two kinds of fact:
+**Nothing here has been read on our car yet** (2026-11-14). The cluster app reads the rows marked yes (`apps/vizualyse_cluster/src/vehicle_signals.js`, app 0.2.0); its manifest was checked against our catalog (`tools/check_signals.js`). Two kinds of fact:
 
 - **cat**: in our unit's own SOME/IP catalog, `/etc/oap/someip/someip-interfaces.json`
   (catalog version 5, 591 interfaces), read from the rootfs copy
