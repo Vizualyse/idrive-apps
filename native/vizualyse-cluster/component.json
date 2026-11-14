@@ -90,186 +90,6 @@
       "mode": "0644"
     },
     {
-      "path": "picker.f20.font.gz",
-      "from": "picker/f20.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.f24.font.gz",
-      "from": "picker/f24.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.f36.font.gz",
-      "from": "picker/f36.font.gz",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.fonts.json",
-      "from": "picker/fonts.json",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i1.png",
-      "from": "picker/g20i1.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i1.thumb.png",
-      "from": "picker/g20i1.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i1c.png",
-      "from": "picker/g20i1c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i1c.thumb.png",
-      "from": "picker/g20i1c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i2.png",
-      "from": "picker/g20i2.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i2.thumb.png",
-      "from": "picker/g20i2.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i2c.png",
-      "from": "picker/g20i2c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.g20i2c.thumb.png",
-      "from": "picker/g20i2c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci1.png",
-      "from": "picker/lci1.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci1.thumb.png",
-      "from": "picker/lci1.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci1c.png",
-      "from": "picker/lci1c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci1c.thumb.png",
-      "from": "picker/lci1c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci2.png",
-      "from": "picker/lci2.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci2.thumb.png",
-      "from": "picker/lci2.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci2c.png",
-      "from": "picker/lci2c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.lci2c.thumb.png",
-      "from": "picker/lci2c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf1.png",
-      "from": "picker/perf1.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf1.thumb.png",
-      "from": "picker/perf1.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf1c.png",
-      "from": "picker/perf1c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf1c.thumb.png",
-      "from": "picker/perf1c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf2.png",
-      "from": "picker/perf2.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf2.thumb.png",
-      "from": "picker/perf2.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf2c.png",
-      "from": "picker/perf2c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.perf2c.thumb.png",
-      "from": "picker/perf2c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri1.png",
-      "from": "picker/tri1.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri1.thumb.png",
-      "from": "picker/tri1.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri1c.png",
-      "from": "picker/tri1c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri1c.thumb.png",
-      "from": "picker/tri1c.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri2.png",
-      "from": "picker/tri2.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri2.thumb.png",
-      "from": "picker/tri2.thumb.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri2c.png",
-      "from": "picker/tri2c.png",
-      "mode": "0644"
-    },
-    {
-      "path": "picker.tri2c.thumb.png",
-      "from": "picker/tri2c.thumb.png",
-      "mode": "0644"
-    },
-    {
       "path": "fs_art.frag",
       "from": "src/shaders/art.frag",
       "mode": "0644"
@@ -1257,6 +1077,186 @@
     {
       "path": "tri2c.theme.json",
       "from": "themes/built/tri2c.theme.json",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.f20.font.gz",
+      "from": "picker/f20.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.f24.font.gz",
+      "from": "picker/f24.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.f36.font.gz",
+      "from": "picker/f36.font.gz",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.fonts.json",
+      "from": "picker/fonts.json",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i1.png",
+      "from": "picker/g20i1.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i1.thumb.png",
+      "from": "picker/g20i1.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i1c.png",
+      "from": "picker/g20i1c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i1c.thumb.png",
+      "from": "picker/g20i1c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i2.png",
+      "from": "picker/g20i2.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i2.thumb.png",
+      "from": "picker/g20i2.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i2c.png",
+      "from": "picker/g20i2c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.g20i2c.thumb.png",
+      "from": "picker/g20i2c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci1.png",
+      "from": "picker/lci1.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci1.thumb.png",
+      "from": "picker/lci1.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci1c.png",
+      "from": "picker/lci1c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci1c.thumb.png",
+      "from": "picker/lci1c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci2.png",
+      "from": "picker/lci2.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci2.thumb.png",
+      "from": "picker/lci2.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci2c.png",
+      "from": "picker/lci2c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.lci2c.thumb.png",
+      "from": "picker/lci2c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf1.png",
+      "from": "picker/perf1.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf1.thumb.png",
+      "from": "picker/perf1.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf1c.png",
+      "from": "picker/perf1c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf1c.thumb.png",
+      "from": "picker/perf1c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf2.png",
+      "from": "picker/perf2.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf2.thumb.png",
+      "from": "picker/perf2.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf2c.png",
+      "from": "picker/perf2c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.perf2c.thumb.png",
+      "from": "picker/perf2c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri1.png",
+      "from": "picker/tri1.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri1.thumb.png",
+      "from": "picker/tri1.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri1c.png",
+      "from": "picker/tri1c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri1c.thumb.png",
+      "from": "picker/tri1c.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri2.png",
+      "from": "picker/tri2.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri2.thumb.png",
+      "from": "picker/tri2.thumb.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri2c.png",
+      "from": "picker/tri2c.png",
+      "mode": "0644"
+    },
+    {
+      "path": "picker.tri2c.thumb.png",
+      "from": "picker/tri2c.thumb.png",
       "mode": "0644"
     }
   ],
