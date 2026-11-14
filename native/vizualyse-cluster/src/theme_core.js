@@ -233,8 +233,9 @@
             /* moving parts and sprites keep out of what the car draws over
              * (the art, layer "art", may run under it: a hole is cut for the
              * gear window by theme_build.js) */
-            if (theme.ship !== false && l.name !== 'art' && !l.panelFree)
-                panelProblems([l.x, l.y, l.w, l.h]).forEach((w) => p.push('layer ' + l.name + ' (' + [l.x, l.y, l.w, l.h].join(', ') + ') ' + w));
+            /* a gauge by its field's pixels (panelHits, theme_build.js), the rest by their rectangles */
+            if (theme.ship !== false && l.name !== 'art')
+                (l.panelHits || panelProblems([l.x, l.y, l.w, l.h])).forEach((w) => p.push('layer ' + l.name + ' (' + [l.x, l.y, l.w, l.h].join(', ') + ') ' + w));
             if (l.kind === 'effect') {
                 const vectors = Object.keys(l.uniforms || {}).reduce((n, k) => n + Math.ceil(l.uniforms[k].length / 4), 0);
                 if (vectors > LIMITS.uniformVectors) p.push('layer ' + l.name + ' has ' + vectors + ' uniform vectors (at most ' + LIMITS.uniformVectors + ')');

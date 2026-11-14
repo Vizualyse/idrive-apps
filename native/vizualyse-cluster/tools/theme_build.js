@@ -127,6 +127,28 @@ function fontAtlas(src, f, tmp) {
     return { w, h: th, top, r8: out, adv, cw };
 }
 
+/* What of the car's panel (theme_core.PANEL) a gauge reaches, by the pixels
+ * of its field (every 2nd) where it can change anything: within the d its
+ * band, needle and light pool reach (u), with a margin for the glow. Its
+ * rectangle is not the measure: an arc may curve past a cut corner its
+ * rectangle reaches into, and the field runs far wider than what lights. */
+function fieldPanelHits(f, u) {
+    const hits = {}, F = f.src, r = f.rect;
+    const band = u.u_band || [-8, 8, 0, 0], pool = u.u_pool || [0, 0, 0, 0], glow = u.u_glow || [0, 0, 0, 0];
+    const m = 6 + (glow[3] > 0 ? 16 : 0);
+    const ds = [band[0], band[1]].concat(band[3] > band[2] ? [band[2], band[3]] : []).concat(pool[1] > 0 ? [pool[2] - pool[0], pool[2] + pool[0]] : []);
+    const dLo = Math.min.apply(null, ds) - m, dHi = Math.max.apply(null, ds) + m;
+    for (let y = 0; y < F.h; y += 2) for (let x = 0; x < F.w; x += 2) {
+        const i = (y * F.w + x) * 4;
+        if (!F.rgba[i + 3]) continue;
+        const d = F.rgba[i + 2] - 128;
+        if (d < dLo || d > dHi) continue;
+        const px = r[0] + (f.flip ? F.w - 1 - x : x), py = r[1] + y;
+        core.panelProblems([px, py, 1, 1]).forEach((w) => { hits[w] = true; });
+    }
+    return Object.keys(hits);
+}
+
 /* A field cut to the bounds of its pixels (A > 0): the rest draws nothing
  * (gauge.frag returns transparent there) and needs no upload or fill. */
 function cropField(f) {
@@ -210,21 +232,21 @@ function build(src) {
         theme.assets[asset] = { format: 'rgba8', w: f.w, h: f.h, sampling: 'nearest', file: put(id + '.' + name + '.field.gz', gz(f.rgba)), sha1: sha1(f.rgba) };
         /* crop: where the cropped field sits in the path's rectangle (x0, y0) and
          * how much was cut on the right (x2), for a mirrored copy */
-        fields[name] = { rect: [p.rect[0] + f.x0, p.rect[1] + f.y0, f.w, f.h], length: f.length, asset, flip: 0, crop: [f.x0, f.y0, f.x2] };
+        fields[name] = { rect: [p.rect[0] + f.x0, p.rect[1] + f.y0, f.w, f.h], length: f.length, asset, flip: 0, crop: [f.x0, f.y0, f.x2], src: f };
         upload += f.rgba.length;
     });
     Object.keys(paths).filter((n) => paths[n].mirror).forEach((name) => {
         const o = fields[paths[name].mirror];
         if (!o) throw new Error('path ' + name + ' mirrors a missing path ' + paths[name].mirror);
         const r = o.rect;
-        fields[name] = { rect: [1920 - r[0] - r[2], r[1], r[2], r[3]], length: o.length, asset: o.asset, flip: 1 };
+        fields[name] = { rect: [1920 - r[0] - r[2], r[1], r[2], r[3]], length: o.length, asset: o.asset, flip: 1, src: o.src };
     });
     Object.keys(paths).filter((n) => paths[n].copy).forEach((name) => {
         const o = fields[paths[name].copy], at = paths[name].at;
         if (!Array.isArray(at) || at.length !== 2) throw new Error('path ' + name + ': "at": [x, y] (the copy\'s top-left)');
         /* "flip": true mirrors the copy too (a mirror image anywhere, not only about the screen's middle) */
         const flip = paths[name].flip ? 1 : 0;
-        fields[name] = { rect: [at[0] + (flip ? o.crop[2] : o.crop[0]), at[1] + o.crop[1], o.rect[2], o.rect[3]], length: o.length, asset: o.asset, flip };
+        fields[name] = { rect: [at[0] + (flip ? o.crop[2] : o.crop[0]), at[1] + o.crop[1], o.rect[2], o.rect[3]], length: o.length, asset: o.asset, flip, src: o.src };
     });
 
     /* fonts */
@@ -260,6 +282,7 @@ function build(src) {
             L.uniforms.u_area = l.art === false ? [0, 0, 0, 0] : [L.x / T, L.y / T, L.w / T, L.h / T];
             L.uniforms.u_tile = artTile;
             L.binds.u_field = f.asset;
+            L.panelHits = fieldPanelHits(f, L.uniforms);
             L.binds.u_art = 'art';
             L.uniforms.u_look = L.uniforms.u_look || [0.25, 0, 2, 0];
         } else if (l.shader === 'text') {
