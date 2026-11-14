@@ -12,7 +12,7 @@
  *   node release/release.js build [<id>...]           reproducible build of HEAD into release/out/
  *   node release/release.js check [<id>...]           build twice, compare the artifacts
  *   node release/release.js bump <id> <version>       set a component's version
- *   node release/release.js publish [<id>...] [--dry-run]
+ *   node release/release.js publish [<id>...] [--dry-run] [--from=<dir>]
  *                                                     upload new versions, then the catalog
  *
  * Builds run on a clean `git archive HEAD` export, never on the working tree,
@@ -20,6 +20,8 @@
  * component ships (an app's staged tree, a tool's folder, the platform files
  * either copies: platform/README.md): the same tree
  * always gives the same bytes, so one version has exactly one artifact.
+ * publish --from=<dir> uploads what `build` left in <dir> instead of building
+ * (the Release workflow builds each component in a job of its own).
  */
 const fs = require('fs');
 const os = require('os');
@@ -512,7 +514,27 @@ function cmdBump(id, version) {
     console.log(`next: add a ${version} entry to ${c.dir}/${newToken}/CHANGELOG.md, rebuild (${c.release.build}), commit`);
 }
 
-function cmdPublish(ids, dryRun) {
+/* The selected components' artifacts as `build` left them in dir
+ * (<id>@<version>.tgz), copied to outDir; returns their catalog entries. A
+ * component without one is recorded in `failed` (its build failed). */
+function prebuilt(ids, dir, outDir, failed) {
+    const entries = [];
+    select(components(), ids).forEach((c) => {
+        const name = `${c.id}@${c.version}.tgz`;
+        if (!fs.existsSync(path.join(dir, name))) {
+            failed.push(`${c.id}@${c.version} was not built (no ${name} in ${dir})`);
+            return;
+        }
+        const dest = path.join(outDir, name);
+        fs.copyFileSync(path.join(dir, name), dest);
+        const entry = catalogEntry(c, dest);
+        console.log(`built ${c.id}@${c.version} ${entry.artifact.sha256.slice(0, 12)} ${entry.artifact.size} bytes`);
+        entries.push(entry);
+    });
+    return entries;
+}
+
+function cmdPublish(ids, dryRun, from) {
     if (git(['status', '--porcelain', '--untracked-files=no'])) {
         throw new Error('commit first: publish builds HEAD and records its commit in the catalog');
     }
@@ -535,7 +557,7 @@ function cmdPublish(ids, dryRun) {
     removed.forEach((id) => current.delete(id));
     const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'mgu-publish-'));
     const skipped = [];
-    const built = build(ids, staging, skipped);
+    const built = from ? prebuilt(ids, path.resolve(from), staging, skipped) : build(ids, staging, skipped);
     const uploads = [];
     built.forEach((e) => {
         const p = current.get(e.id);
@@ -588,7 +610,10 @@ function main(argv) {
     case 'build': return cmdBuild(args);
     case 'check': return cmdCheck(args);
     case 'bump': return cmdBump(args[0], args[1]);
-    case 'publish': return cmdPublish(args, flags.includes('--dry-run'));
+    case 'publish': {
+        const from = flags.find((f) => f.startsWith('--from='));
+        return cmdPublish(args, flags.includes('--dry-run'), from && from.slice('--from='.length));
+    }
     default:
         process.stdout.write(fs.readFileSync(__filename, 'utf8').split('/**')[1].split('*/')[0].split('\n').slice(1, 12)
             .map((l) => l.replace(/^ \* ?/, '')).join('\n') + '\n');

@@ -9,6 +9,9 @@
 # .github/scripts/changed.sh), the release
 # tooling, every shipped script parsing on Node 8 (the head unit's), and
 # two clean builds of each component compared byte for byte.
+#
+# The checks run in one job; each component builds in a job of its own, all
+# at once: its slow test, if it has one, then its reproducible-build check.
 name: Test
 
 on:
@@ -23,13 +26,14 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # the builds' finished parts by their inputs' keys (tools/build_cache.sh):
+  # Steam's Mesa builds, ntdll and bundle, ~12 min when rebuilt
+  BUILD_CACHE: /tmp/build-cache
+
 jobs:
-  test:
+  checks:
     runs-on: ubuntu-24.04
-    env:
-      # the builds' finished parts by their inputs' keys (tools/build_cache.sh):
-      # Steam's Mesa builds, ntdll and bundle, ~12 min when rebuilt
-      BUILD_CACHE: /tmp/build-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,39 +107,85 @@ jobs:
         uses: ./.github/actions/mgu-dl
       - name: The tools' bus (Mosquitto built for the unit, the client and Cast on glibc Node 8, as root)
         run: BUS_TEST_IMAGE=ml-unit:18.04-node8 sh native/vizualyse-bus/test/run_test.sh
-      # The slow steps run only when their component changed: its folder (pins
+
+  # every component, as the build matrix's list
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.12.0
+      - id: ids
+        run: |
+          node -e 'console.log(`ids=${JSON.stringify(require("./release/release.js").components().map((c) => c.id))}`)' >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    name: build ${{ matrix.id }}
+    runs-on: ubuntu-24.04
+    strategy:
+      # every component's result, not just the first failure's
+      fail-fast: false
+      matrix:
+        id: ${{ fromJSON(needs.plan.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.12.0
+      # The slow tests run only when their component changed: its folder (pins
       # included), a platform module version it pins, and what its build
       # reads from elsewhere (.github/scripts/changed.sh). No base to compare
       # with (a new branch, a force push): they run. The reproducible-build
-      # check builds every component either way.
+      # check builds the component either way.
       - name: What changed?
         id: changed
+        if: matrix.id == 'vizualyse-moonlight' || matrix.id == 'vizualyse-chromium' || matrix.id == 'vizualyse-steam'
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ID: ${{ matrix.id }}
         run: |
-          sh .github/scripts/changed.sh moonlight native/vizualyse-moonlight
-          sh .github/scripts/changed.sh browser native/vizualyse-chromium
-          sh .github/scripts/changed.sh steam native/vizualyse-steam tools/vk-trial tools/iris-bench tools/build_cache.sh
-      # Moonlight's build always (the reproducible-build check packs it from build/)
+          case "$ID" in
+          vizualyse-steam) sh .github/scripts/changed.sh slow native/vizualyse-steam tools/vk-trial tools/iris-bench tools/build_cache.sh ;;
+          *) sh .github/scripts/changed.sh slow "native/$ID" ;;
+          esac
+
       - name: Moonlight build
+        if: matrix.id == 'vizualyse-moonlight' && steps.changed.outputs.slow == 'true'
         timeout-minutes: 20
         run: sh native/vizualyse-moonlight/build.sh
       - name: Moonlight against Sunshine (the head unit in a box, Node 8)
-        if: steps.changed.outputs.moonlight == 'true'
+        if: matrix.id == 'vizualyse-moonlight' && steps.changed.outputs.slow == 'true'
         timeout-minutes: 20
         run: |
           sudo modprobe uinput || true
           sudo modprobe vhci-hcd || true
           sh native/vizualyse-moonlight/test/run_sunshine_test.sh
+
       # the image always: the reproducible-build check builds the Browser in it
       - name: Chromium build image (cached)
+        if: matrix.id == 'vizualyse-chromium'
         uses: ./.github/actions/chromium-image
       - name: Browser bundle (Chromium for the unit; the sink's colour test)
-        if: steps.changed.outputs.browser == 'true'
+        if: matrix.id == 'vizualyse-chromium' && steps.changed.outputs.slow == 'true'
         timeout-minutes: 30
         run: sh native/vizualyse-chromium/build.sh
+
+      - name: Pinned downloads (cached)
+        if: matrix.id == 'vizualyse-bus' || matrix.id == 'vizualyse-steam'
+        uses: ./.github/actions/mgu-dl
       # the newest saved build cache; the builds take what still matches
       - name: Build cache (restore)
+        if: matrix.id == 'vizualyse-steam'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/build-cache
@@ -143,15 +193,19 @@ jobs:
           restore-keys: build-cache-
       # (the reproducible-build check builds Steam in its own exports, from the cache)
       - name: Steam bundles (Proton, the runtime, the prefix made by Proton)
-        if: steps.changed.outputs.steam == 'true'
+        if: matrix.id == 'vizualyse-steam' && steps.changed.outputs.slow == 'true'
         timeout-minutes: 30
         run: sh native/vizualyse-steam/build.sh
-      - name: Reproducible builds
-        run: node release/release.js check
+
+      - name: Reproducible build
+        env:
+          ID: ${{ matrix.id }}
+        run: node release/release.js check "$ID"
+
       # saved only when a part was built (build_cache_put leaves .changed)
       - name: Build cache (anything new?)
         id: build-cache
-        if: always()
+        if: always() && matrix.id == 'vizualyse-steam'
         run: |
           if [ -f /tmp/build-cache/.changed ]; then
             rm -f /tmp/build-cache/.changed
