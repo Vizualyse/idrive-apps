@@ -28,19 +28,29 @@ async function main() {
     fs.mkdirSync(out, { recursive: true });
     const bin = path.join(out, 'ffmpeg');
     if (fs.existsSync(bin) && fs.existsSync(path.join(out, 'ffmpeg-GPLv3.txt'))) { console.log('build/ffmpeg present'); return; }
-    let buf = null;
-    for (const url of URLS) {
-        console.log('downloading ' + url);
-        const r = await fetch(url);
-        if (r.ok) { buf = Buffer.from(await r.arrayBuffer()); break; }
-        console.log('  HTTP ' + r.status);
+    /* The server once sent other bytes under the same name (CI, 2026-11-13:
+     * sha256 1416e990...); the next run got the pinned archive again. So a
+     * mismatch is tried again, and only a pin that keeps failing stops. */
+    let buf = null, why = 'ffmpeg ' + VERSION + ' not found at ' + URLS.join(' or ');
+    for (let attempt = 1; attempt <= 4 && !buf; attempt++) {
+        if (attempt > 1) await new Promise((ok) => setTimeout(ok, 15000 * (attempt - 1)));
+        for (const url of URLS) {
+            console.log('downloading ' + url + (attempt > 1 ? ' (try ' + attempt + ')' : ''));
+            let got;
+            try {
+                const r = await fetch(url);
+                if (!r.ok) { console.log('  HTTP ' + r.status); continue; }
+                got = Buffer.from(await r.arrayBuffer());
+            } catch (e) { console.log('  ' + e.message); why = e.message; continue; }
+            const sha = crypto.createHash('sha256').update(got).digest('hex');
+            const md5 = crypto.createHash('md5').update(got).digest('hex');
+            console.log('  ' + got.length + ' bytes, sha256 ' + sha + ', md5 ' + md5);
+            if (SHA256 ? sha === SHA256 : md5 === '7fa72b652e19bf84c9461e332ea1cdf3') { buf = got; break; }
+            why = SHA256 ? 'sha256 mismatch: want ' + SHA256 : 'md5 mismatch: not the pinned ' + VERSION + ' archive';
+            console.log('  ' + why);
+        }
     }
-    if (!buf) throw new Error('ffmpeg ' + VERSION + ' not found at ' + URLS.join(' or '));
-    const sha = crypto.createHash('sha256').update(buf).digest('hex');
-    const md5 = crypto.createHash('md5').update(buf).digest('hex');
-    console.log('sha256 ' + sha + ', md5 ' + md5);
-    if (SHA256 && sha !== SHA256) throw new Error('sha256 mismatch: want ' + SHA256);
-    if (!SHA256 && md5 !== '7fa72b652e19bf84c9461e332ea1cdf3') throw new Error('md5 mismatch: not the pinned ' + VERSION + ' archive');
+    if (!buf) throw new Error(why);
     const tarball = path.join(out, 'ffmpeg.tar.xz');
     fs.writeFileSync(tarball, buf);
     const dir = 'ffmpeg-' + VERSION + '-amd64-static';
