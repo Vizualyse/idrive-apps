@@ -12,6 +12,7 @@ node release/release.js build [<id>...]               # artifacts and catalog.js
 node release/release.js check [<id>...]               # build twice, compare byte for byte
 node release/release.js bump <id> <x.y.z>             # set a component's version
 node release/release.js publish [<id>...] [--dry-run] # (GitHub Actions) new versions, then the catalog
+node release/release.js publish --from=<dir> [<id>...] # the same, with the artifacts `build` left in <dir>
 MGU_PUBLISH=dir:<folder> node release/release.js publish   # a local catalog (emulator, USB stick)
 node release/test/release_test.js
 ```
@@ -59,8 +60,13 @@ artifact's size and sha256 against it.
 or by hand (Actions, Release, with the component ids or none for all), from
 `main`, with the workflow's `GITHUB_TOKEN` (`contents: write`). It publishes
 whether this repository is private or public
-(`MGU_PUBLISH_VISIBILITY=any`). `.github/workflows/test.yml` runs the tests,
-a Node 8 syntax check and `check` on each push to main and pull request.
+(`MGU_PUBLISH_VISIBILITY=any`). Each component builds in a job of its own,
+all at once (`build <id>`), and one job then publishes what they built
+(`publish --from`); a component that does not build is left out and fails
+the run. `.github/workflows/test.yml` runs the tests and a Node 8 syntax
+check in one job and, per component in parallel, its slow test and `check
+<id>`, on each push to main and pull request. Only Steam's job restores and
+saves the build cache.
 
 **Build cache.** A runner starts empty, so a tool build that skips work only
 when its last outputs are still in `build/` redid it on every run (Steam:
