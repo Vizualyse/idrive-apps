@@ -739,7 +739,8 @@ every theme's logic, the tool against a fake cluster-render on Node 8.
 2026-11-14 (main 601ed90, released): the iDrive app and the touch picker on
 the central screen, tested off the car (the picker against a fake mgu-render
 client with scripted touches on Node 8, the touch reader in Python 3.12 as
-root, the page against a fake HMI); not yet on a car. How it works:
+root, the page against a fake HMI). On the car (the user, 2026-11-14): it
+works. How it works:
 [native/vizualyse-cluster/THEMES.md](native/vizualyse-cluster/THEMES.md),
 the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-central-screen).
 
@@ -750,16 +751,6 @@ the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-centra
   watch for a cluster restart and stop at once); `highp` in fragment
   shaders; straight-alpha blending as on the test unit; a Sport/Comfort
   switch.
-- [ ] **The picker and the app on the car**, parked, after the KOMBI item
-  above. Ask before anything on the unit; read the journal after
-  (`journalctl -u vizualyse-cluster | grep picker:`), don't poll during.
-  The tile installs and opens; Choose opens the empty screen state and the
-  picker fills the app area (title bar and back arrow still the HMI's);
-  taps land where they look (the AF_PACKET reader under mgu-python, as
-  root, then nobody); a tile, < >, a swipe; Use and a theme row put the
-  family on the cluster once; Try for 10 s then back; BACK, HOME and a
-  pop-up take it down; moving hides it. How long the first picture takes
-  (16 PNGs decoded on the Atom) and a press after.
 - [ ] **The picker, next:** the iDrive knob on the picker too (the app's
   manifest with FrontCCU `statusRotaryEncoderState`, as robertn_store reads
   it, forwarded to the tool: focus and press; check the installer takes

@@ -14,7 +14,13 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   sit 16 bytes later (X u16 BE at 54, Y at 60, the event in the high nibble
   of 63; 112-byte PDUs every 8 ms while a finger is down, from
   160.48.199.115 to UDP 30567 on vlan73), so a CLAIM gets no touch here. A
-  root tool can read a copy of them passively (AF_PACKET on vlan73).
+  root tool can read a copy of them passively (AF_PACKET on vlan73), from
+  C or from mgu-python's Python (vizualyse-cluster's `touch_reader.py`,
+  dropping to nobody after the socket opens: works on the car, 2026-11-14).
+- A tool's own touch page in the app area works (vizualyse-cluster 0.2.0's
+  picker, on the car 2026-11-14): one RGBX pixmap the size of the app area
+  (`pixmap` + `pixels` of the changed regions + an IMAGE op at least once a
+  second), in layer mode over the app's empty screen state.
 - An iDrive app page shows a PNG through `LT_Label_1Graphic_Scalable`: write
   it world-readable in `/dev/shm`, `createResourceHandles`, then
   `setValue(0, 'Graphic', file, 'ResourceId')`; a new file name for each new
