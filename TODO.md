@@ -736,10 +736,10 @@ frames as PRIME buffers through the unit's i965 (stub), the right picture
 Built and tested off the car (2026-11-13): shader library version 2, 16
 themes (8 families, Sport and Comfort), the theme build, the WebGL preview,
 every theme's logic, the tool against a fake cluster-render on Node 8.
-2026-11-14, branch `cluster-app`: the iDrive app and the touch picker on the
-central screen, tested off the car (the picker against a fake mgu-render
+2026-11-14 (main 601ed90, released): the iDrive app and the touch picker on
+the central screen, tested off the car (the picker against a fake mgu-render
 client with scripted touches on Node 8, the touch reader in Python 3.12 as
-root, the page against a fake HMI); not released. How it works:
+root, the page against a fake HMI); not yet on a car. How it works:
 [native/vizualyse-cluster/THEMES.md](native/vizualyse-cluster/THEMES.md),
 the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-central-screen).
 
@@ -750,9 +750,6 @@ the picker: [README](native/vizualyse-cluster/README.md#the-picker-on-the-centra
   watch for a cluster restart and stop at once); `highp` in fragment
   shaders; straight-alpha blending as on the test unit; a Sport/Comfort
   switch.
-- [ ] **Release the app and the picker** (tool 0.2.0, app 0.1.0, branch
-  `cluster-app`): merge, then the Release workflow for `vizualyse-cluster`
-  and `vizualyse_cluster`.
 - [ ] **The picker and the app on the car**, parked, after the KOMBI item
   above. Ask before anything on the unit; read the journal after
   (`journalctl -u vizualyse-cluster | grep picker:`), don't poll during.
