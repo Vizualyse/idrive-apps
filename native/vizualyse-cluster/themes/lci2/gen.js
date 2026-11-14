@@ -116,12 +116,12 @@ const CHEV = (() => {
 function sport() {
     const P = (name, extra) => Object.assign({ name, shader: 'gauge', field: 'band' }, extra);
     const bandU = (fill) => ({
-        u_v: [0, 0, 2, 1], u_band: [-5.5, 6.5, -9, 9], u_shape: [1, 1.5, 1.5, 1],
+        u_val: [0, 0, 2, 1], u_band: [-5.5, 6.5, -9, 9], u_shape: [1, 1.5, 1.5, 1],
         u_fill: fill, u_red: C.none, u_glow: [0, 0, 0, 30], u_needle: C.ink,
         u_seg: [0, 0, +(0.6 / BAND_LEN).toFixed(5), 1], u_pool: [0, 0, 0, 0], u_look: [REACH, 0.65, 1, 0],
     });
     const lensU = () => ({
-        u_v: [+(1 - 1 / BAND_LEN).toFixed(5), 0, 2, 1], u_band: [22.5, 25.5, 0, 0], u_shape: [1, 0, 0, 1],
+        u_val: [+(1 - 1 / BAND_LEN).toFixed(5), 0, 2, 1], u_band: [22.5, 25.5, 0, 0], u_shape: [1, 0, 0, 1],
         u_fill: C.none, u_red: C.none, u_glow: C.none, u_needle: C.none,
         u_seg: [0, 0, +(1 / BAND_LEN).toFixed(5), 1], u_pool: [0, 0, 0, 0], u_look: [0, 0, 2, 0],
     });
@@ -136,7 +136,7 @@ function sport() {
             u_led: [12, 0, 0, 1], u_geom: [0, 0, 30, 16], u_split: [2, 4, 0, 0], u_lean: [6, 0, 0, 0],
             u_c0: C.amber, u_c1: C.orange, u_c2: C.red, u_off: C.none } },
         { name: 'chevron', shader: 'gauge', field: 'chevron', art: false, uniforms: {
-            u_v: [1, 0, 2, 1], u_band: [-2, 2, 0, 0], u_shape: [1, 0, 0, 1], u_fill: C.none, u_red: C.none, u_glow: C.none,
+            u_val: [1, 0, 2, 1], u_band: [-2, 2, 0, 0], u_shape: [1, 0, 0, 1], u_fill: C.none, u_red: C.none, u_glow: C.none,
             u_needle: C.none, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0], u_look: [0, 0, 2, 0] } },
         { name: 'modeMask', shader: 'rect', x: Math.floor(mX) - 2, y: 306, w: 54, h: 52, uniforms: { u_color: C.box } },
         /* fuel: ten segments 14 x 8 on a 17 pitch; oil: a continuous bar; battery: the glyph's fill */

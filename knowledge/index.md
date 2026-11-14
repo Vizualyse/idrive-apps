@@ -20,6 +20,7 @@ What's next: [`../TODO.md`](../TODO.md). The CarPlay second screen in depth:
 | [sound.md](sound.md) | SmartXbar inputs, live playback without lag, sources and the volume |
 | [input.md](input.md) | Touch PDUs, the iDrive controller (FrontCCU), gamepads |
 | [vehicle-data.md](vehicle-data.md) | Speed, gear, parking brake: "only while parked" |
+| [vehicle-signals.md](vehicle-signals.md) | The cluster themes' readings (rpm, temperatures, drive mode, fuel, tyres, g, navigation...): the SOME/IP field for each in our firmware's catalog, scaling, manifest access, notify vs poll |
 | [idrive-app-ui.md](idrive-app-ui.md) | RHMI pages: templates, drop-downs and other selections, gotchas, pop-ups and focus |
 | [store.md](store.md) | Releases, catalogs, `component.json` fields, the uplink's firewall |
 | [browser.md](browser.md) | Chromium on the unit: what the image lacks (Vulkan), **GPU drivers only with a safety net**, Vulkan on the 4.14 kernel (Mesa history), bringing a newer userland, WebGPU / JSPI in headless Chromium |

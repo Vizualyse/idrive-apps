@@ -34,16 +34,51 @@ and uniforms sent while driving**: no per-frame pixels.
 
 ## The three ingredients
 
-### 1. Static art: one image, uploaded once
+### 1. Static art: its tiles, uploaded once
 
 Everything that never moves (the black background, gauge outlines, scale
 ticks and numerals, labels, icons, the car plan) is rendered at build time
-into **one RGBA texture** of the drawn area (1920x646), sent once when the
-theme starts. About 5 MB raw: roughly one second of the link at start,
-then nothing. It is an asset drawn by the `art` shader rather than an
-image layer, so the gauge layers can sample it too and **add** their glow
-to it (ticks and numerals brighten as the needle passes) at no extra
-upload.
+into a picture of the drawn area (1920x646, or up to 720), and sent once
+when the theme starts **as tiles** ([`tools/tiles.js`](tools/tiles.js)):
+
+- the picture is cut into **4x4 px tiles** (8x8 when that is smaller: only
+  a nearly empty picture); every **all-black tile shares one black slot**
+  and every tile repeated elsewhere (a flat background, a repeated tick) is
+  kept once;
+- the distinct tiles go into **one RGBA8 texture** together with the
+  **tile map**: for each tile of the screen, the column and row (in tiles)
+  of its slot, two screen tiles a map texel (R, G the even one, B, A the
+  odd one), the map in the texture's top-left corner and the tiles in the
+  slots around and below it, the texture as small as the tiles allow (one
+  asset, so the art still counts as one of a theme's 12).
+
+The `art` shader draws a pixel in two reads: its tile's map entry, then
+its slot's texel at the pixel's place in the tile. Both are nearest
+sampling at texel centres, so the art comes back **exactly** (the build
+checks it by drawing the tiles back into the picture). `u_area` is the
+layer's rectangle in tiles and `u_tile` the texture's size and the tile
+size.
+
+| | 1920x646 RGBA | tiles and map (16 themes) |
+|---|---|---|
+| a theme's art | 4.73 MB | 0.39-1.55 MB, 0.87 MB on average |
+| a theme's whole start upload | 5.9-7.1 MB | 1.7-3.1 MB |
+
+Measured on the 16 themes (75.7 MB of art as pictures): 4 px tiles give
+13.9 MB in all, 8 px 23.6 MB, 16 px 30.0 MB, 32 px 37.6 MB; dropping only
+the black tiles, without the repeats, 16 px tiles still left 44 MB (two
+themes have no black tile at all). A theme whose background is a gradient all over keeps most of its
+tiles (`perf2`: 1.18 MB); a dark one with a plain black background, few
+(`perf1`: 0.39 MB). Less texture is also less of the KOMBI's GPU memory (a
+stock image of the KOMBI's once vanished while our textures were on it:
+[knowledge/cluster-and-hud.md](../../knowledge/cluster-and-hud.md)), a
+faster start and a cheaper Sport/Comfort switch.
+
+The art is an asset drawn by the `art` shader rather than an image layer,
+so the gauge layers can read it too (the same two reads) and **add** their
+glow to it (ticks and numerals brighten as the needle passes) at no extra
+upload. An `art` layer with `u_tile.z` 0 draws a texture as it is
+(`u_area` its rectangle 0..1): a sprite.
 
 ### 2. Fields: what a moving part needs to know about each pixel
 
@@ -51,7 +86,8 @@ A sweeping gauge, a lit band, a needle and a glow all depend on *where a
 pixel is along the gauge's path* and *how far it is from it*. Working that
 out per pixel in a shader means loops over path segments: too heavy for
 the KOMBI. So the build tool works it out once and stores it in a
-**field texture** (RGBA8, nearest sampling, the size of the gauge's layer):
+**field texture** (RGBA8, nearest sampling, the size of the gauge's layer;
+the build crops it, and the layer with it, to the bounds of its pixels):
 
 | Channel | Holds |
 |---|---|
@@ -84,7 +120,15 @@ open-licence font at the sizes it uses). The build measures each glyph's
 **advance** in Chrome, and the tool lays text out with them (version 2):
 up to 16 glyph codes and their left edges go as `vec4` uniforms, aligned
 left, right or centre, so `98.7°` takes its own width, not five digits'.
-Digits are tabular, so a number keeps its width as it changes.
+Digits are tabular, so a number keeps its width as it changes. The atlas
+keeps only the rows its glyphs ink: the text layer starts that much lower
+(its `dy`, which the tool adds to a `y` the logic sends) and is that tall.
+
+Cropping the fields and the fonts saves less than the tiles: fields 14.9 to
+14.7 MB over the 16 themes, fonts 4.4 to 3.7 MB. The fields (about 0.9 MB a
+theme) are now the largest part of a start; tiling them as well would
+halve them (7.3 MB of 4 px tiles hold a pixel) but needs a fourth read in
+`gauge` or its own map, so not yet.
 
 ## The shaders
 
@@ -95,8 +139,8 @@ proportional text, leaning shift lights and ringed rects:
 
 | Shader | Draws | Uniforms |
 |---|---|---|
-| `art` | the static art (the theme's first layer) | `u_area` |
-| `gauge` | along a path: the band lit from a start to the value (`u_seg.z`; either way, so a bar fills up for drive and down for regen), optionally in segments with gaps (`u_seg.x`, `u_seg.y`: gapped shift lamps or a segmented fuel bar on a curve); the needle; a glow trailing the value plus a pool of light at the needle (`u_pool`), added to the art under it, which it can also brighten (`u_look.y`: grey numerals turn white as the needle passes), with its outward reach (`u_look.x`) and falloff (`u_look.z`) set per layer; the redline colour | 11 `vec4`; reads its field and the art |
+| `art` | the static art (the theme's first layer), through its tile map | 2 `vec4`: `u_area`, `u_tile`; reads the map, then the tile |
+| `gauge` | along a path: the band lit from a start to the value (`u_seg.z`; either way, so a bar fills up for drive and down for regen), optionally in segments with gaps (`u_seg.x`, `u_seg.y`: gapped shift lamps or a segmented fuel bar on a curve); the needle; a glow trailing the value plus a pool of light at the needle (`u_pool`), added to the art under it, which it can also brighten (`u_look.y`: grey numerals turn white as the needle passes), with its outward reach (`u_look.x`) and falloff (`u_look.z`) set per layer; the redline colour | 12 `vec4`; reads its field and the art (its map and tile) |
 | `text` | up to 16 glyphs, proportional, aligned | 10 `vec4`; reads a glyph atlas |
 | `leds` | a row of shift lights, filling left to right or from both ends, flashing; leaning (`u_lean.x`), the right half leaning the other way (`u_lean.z`), with a wider gap in the middle (`u_lean.y`) | 8 `vec4` |
 | `rect` | a rounded rectangle in a colour with a ring in another (a hollow cold tyre), a dot, a cover over a piece of art | 3 `vec4` |
@@ -112,8 +156,11 @@ Rules every shader keeps (`test/shader_lint.js` checks them):
   path need it), `mediump` otherwise.
 - **At most 12 uniform vectors** in a layer (the GLES 2 floor is 16 fragment
   vectors; Redline's 70 restarted the cluster). The library's largest,
-  `gauge`, has 11.
-- **At most 2 texture reads**, **no loops** except constant ones of at most
+  `gauge`, has 12 (`u_tile`, the tiled art's size, took the last).
+- **At most 2 texture reads**, 3 in `gauge`: its field, then the art
+  through its tile map (the map, then the tile), so its glow still adds to
+  the art without the whole picture (5 MB) going to the KOMBI. The two
+  art reads are a dependent read, nearest, from a small texture. **No loops** except constant ones of at most
   4 steps (16 in `text`, whose layers are small: one compare a glyph), no
   `discard`, no derivatives (`GL_OES_standard_derivatives` is not
   promised).
@@ -176,6 +223,7 @@ A theme's source lives in `themes/<id>/`:
 | `art.html` | the static art as a page (SVG/HTML), rendered by headless Chrome |
 | `logic.js` | `update(signals, ctx) -> { layer: { value, text, color, ring, lit, flash, visible, x, y, uniforms } }`; `ctx` has the theme's `params`, `fonts` (each font's glyphs, cell and measured advances, for logic that lays out text itself), `state` (kept between ticks), `t`, `dt` and `core` (theme_core: `Spring`, `scale`) |
 | `gen.js` (most themes) | writes `theme.src.json` from the mockup's own geometry, so paths, rectangles and text anchors agree with the art |
+| `design.html` (newer themes) | the whole theme as one HTML/SVG page with marker attributes; `node tools/design_build.js themes/<id>` writes the four above and builds ([DESIGNS.md](DESIGNS.md)) |
 
 `node tools/theme_build.js themes/<id>` writes the kit's files into
 [`themes/built/`](themes/built) (flat, as the kit wants them): the theme's

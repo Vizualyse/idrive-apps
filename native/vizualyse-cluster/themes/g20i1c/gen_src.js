@@ -106,22 +106,22 @@ const off = [0, 0, 0, 0];
  * copper wedge (linear falloff) added to the art, brightening the numerals;
  * a weak copper pool at the needle for the mockup's needle heat (0.4) */
 const bracketU = (segs) => ({
-    u_v: [t0, 0, 2, R(TRAIL / total)], u_band: [5, 27, 0, 40], u_shape: [GLOW, 2.5, 2.5, 0],
+    u_val: [t0, 0, 2, R(TRAIL / total)], u_band: [5, 27, 0, 40], u_shape: [GLOW, 2.5, 2.5, 0],
     u_fill: a(C.calm, 0.66), u_red: a(C.calm, 0.66), u_glow: a(C.calm, 0), u_needle: a(C.ink, 1),
     u_seg: [segs, 2.5, t0, 1], u_pool: [14, 0.6, 20, 0], u_look: [0, 3, 1, 0],
 });
 /* the cruise set-speed pointer: a needle 7..23 px outside the outline, 18 px
  * wide at its outer end and pointed at its inner one (the mockup's triangle) */
 const pointerU = () => ({
-    u_v: [t0, 0, 2, 0], u_band: [-23, -7, -23, -7], u_shape: [1, 9, 0, 0],
+    u_val: [t0, 0, 2, 0], u_band: [-23, -7, -23, -7], u_shape: [1, 9, 0, 0],
     u_fill: off, u_red: off, u_glow: off, u_needle: a(C.ink, 0), u_seg: [0, 0, t0, 1], u_look: [0, 0, 1, 0],
 });
 const barU = (fill, startT) => ({
-    u_v: [startT, 0, 2, 0], u_band: [-7, 7, 0, 0], u_shape: [1, 0, 0, 0],
+    u_val: [startT, 0, 2, 0], u_band: [-7, 7, 0, 0], u_shape: [1, 0, 0, 0],
     u_fill: fill, u_red: fill, u_glow: off, u_needle: off, u_seg: [0, 0, startT, 1], u_look: [0, 0, 1, 0],
 });
 const miniU = () => ({
-    u_v: [0, 0, 2, 0], u_band: [-3.5, 3.5, 0, 0], u_shape: [1, 0, 0, 0],
+    u_val: [0, 0, 2, 0], u_band: [-3.5, 3.5, 0, 0], u_shape: [1, 0, 0, 0],
     u_fill: a(C.line, 1), u_red: a(C.line, 1), u_glow: off, u_needle: off, u_seg: [0, 0, -0.03, 1], u_look: [0, 0, 1, 0],
 });
 const BLACK = [0, 0, 0, 1];

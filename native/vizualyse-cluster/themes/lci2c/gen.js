@@ -62,18 +62,18 @@ const C2 = Object.assign({}, C, { calm: hex('#c9d8f2'), signInk: hex('#0a0e18') 
 const none = C.none;
 const layers = [
     { name: 'speed', shader: 'gauge', field: 'band', uniforms: {
-        u_v: [0, 0, 2, 1], u_band: [-5.5, 6.5, -9, 9], u_shape: [1, 1.5, 1.5, 1], u_fill: C.speed, u_red: none,
+        u_val: [0, 0, 2, 1], u_band: [-5.5, 6.5, -9, 9], u_shape: [1, 1.5, 1.5, 1], u_fill: C.speed, u_red: none,
         u_glow: [0, 0, 0, 30], u_needle: C.ink, u_seg: [0, 0, +(0.6 / BAND_LEN).toFixed(5), 1], u_pool: [0, 0, 0, 0], u_look: [REACH, 0.65, 1, 0] } },
     { name: 'tach', shader: 'gauge', field: 'tachBand', uniforms: {
-        u_v: [0, 0, 2, 1], u_band: [-5.5, 6.5, -9, 9], u_shape: [1, 1.5, 1.5, 1], u_fill: C.ink2, u_red: none,
+        u_val: [0, 0, 2, 1], u_band: [-5.5, 6.5, -9, 9], u_shape: [1, 1.5, 1.5, 1], u_fill: C.ink2, u_red: none,
         u_glow: [0, 0, 0, 30], u_needle: C.ink, u_seg: [0, 0, +(0.6 / BAND_LEN).toFixed(5), 1], u_pool: [0, 0, 0, 0], u_look: [REACH, 0.65, 1, 0] } },
     /* the cruise set speed: a 14 px green triangle on the lens side of the band (a needle 0 wide at d 10, 14 at d 23) */
     { name: 'setMark', shader: 'gauge', field: 'band', art: false, uniforms: {
-        u_v: [0, 0, 2, 1], u_band: [0, 0, 10, 23], u_shape: [1, 0.5, 7, 1], u_fill: none, u_red: none,
+        u_val: [0, 0, 2, 1], u_band: [0, 0, 10, 23], u_shape: [1, 0.5, 7, 1], u_fill: none, u_red: none,
         u_glow: none, u_needle: C.ok, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0], u_look: [0, 0, 2, 0] } },
     /* the next turn's arrow; mirrored about its own middle (u_pool.w) for a left turn */
     { name: 'arrow', shader: 'gauge', field: 'arrow', art: false, uniforms: {
-        u_v: [1, 0, 2, 1], u_band: [-2, 2, 0, 0], u_shape: [1, 0, 0, 1], u_fill: C.ink, u_red: none,
+        u_val: [1, 0, 2, 1], u_band: [-2, 2, 0, 0], u_shape: [1, 0, 0, 1], u_fill: C.ink, u_red: none,
         u_glow: none, u_needle: none, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0], u_look: [0, 0, 2, 0] } },
     /* the meter: drive to the right of zero (engine pale, electric cyan), regen a hatch to the left */
     { name: 'meterPos', shader: 'leds', x: Z, y: 176, w: POS, h: 12, uniforms: {

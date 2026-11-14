@@ -206,11 +206,17 @@
  "assets": {
   "art": {
    "format": "rgba8",
-   "w": 1920,
-   "h": 646,
+   "w": 504,
+   "h": 808,
    "sampling": "nearest",
-   "file": "g20i1.art.rgba.gz",
-   "sha1": "71001a1b4866be2d888ed6bdd32d7f2bd828da13"
+   "file": "g20i1.art.tiles.gz",
+   "sha1": "b4bf39512574caa0c60824e59dbfa139e7d0363f",
+   "tile": 4,
+   "map": [
+    240,
+    162
+   ],
+   "tiles": 22987
   },
   "speedField": {
    "format": "rgba8",
@@ -222,67 +228,67 @@
   },
   "fuelField": {
    "format": "rgba8",
-   "w": 139,
-   "h": 174,
+   "w": 138,
+   "h": 173,
    "sampling": "nearest",
    "file": "g20i1.fuel.field.gz",
-   "sha1": "e4950d90658196cc80039e102e4bd44205336564"
+   "sha1": "63e5756d044a1474560f45c6b61112b32c75dd97"
   },
   "engineField": {
    "format": "rgba8",
-   "w": 38,
-   "h": 306,
+   "w": 37,
+   "h": 304,
    "sampling": "nearest",
    "file": "g20i1.engine.field.gz",
-   "sha1": "d3b35a888568e8c386a4b1f2adee450da4236407"
+   "sha1": "78de1bd6e36c53eaaadba4632ecabd5f88e32320"
   },
   "electricField": {
    "format": "rgba8",
-   "w": 38,
-   "h": 306,
+   "w": 37,
+   "h": 304,
    "sampling": "nearest",
    "file": "g20i1.electric.field.gz",
-   "sha1": "ad042b14d034a1ad19271ee0a355fe7d80cc725f"
+   "sha1": "1d38c9976b28845ecc2a1dc88a947e03e9971ef8"
   },
   "bigFont": {
    "format": "r8",
    "w": 1600,
-   "h": 136,
+   "h": 121,
    "sampling": "bilinear",
    "file": "g20i1.big.font.gz",
-   "sha1": "03d2b7e9fbf18eb4055d8e72720ebfaad655b7fa"
+   "sha1": "45b184641beb9b5c493dcecdc4608899f8e9a91a"
   },
   "valFont": {
    "format": "r8",
    "w": 544,
-   "h": 28,
+   "h": 22,
    "sampling": "bilinear",
    "file": "g20i1.val.font.gz",
-   "sha1": "14209d91cacdde4ece6a816d416f259d53e33d9d"
+   "sha1": "e68ef9e176abab57cadbfa4e8c5910927033f5e2"
   },
   "smallFont": {
    "format": "r8",
    "w": 390,
-   "h": 24,
+   "h": 19,
    "sampling": "bilinear",
    "file": "g20i1.small.font.gz",
-   "sha1": "83ed36685824371f644d1890244b66f1be7f276b"
+   "sha1": "8cffec3f1efce83201d859d6db56357dc5da0aca"
   },
   "labelFont": {
    "format": "r8",
    "w": 192,
-   "h": 20,
+   "h": 16,
    "sampling": "bilinear",
    "file": "g20i1.label.font.gz",
-   "sha1": "164f5f1aa3f1e5e8cdc96447fe91061ffb53b41a"
+   "sha1": "081fa44c9d73d66412a2339e7313b9bf4a89b3ad"
   },
   "prefixFont": {
    "format": "r8",
    "w": 176,
-   "h": 52,
+   "h": 46,
    "sampling": "bilinear",
    "file": "g20i1.prefix.font.gz",
-   "sha1": "70eb2d7cab067adfd40523bcae22746c6ccb683b"
+   "sha1": "caac3f8c311867b9c9104e453f57a8b9e281e3ce"
   }
  },
  "layers": [
@@ -302,8 +308,14 @@
     "u_area": [
      0,
      0,
-     1,
-     1
+     480,
+     161.5
+    ],
+    "u_tile": [
+     504,
+     808,
+     4,
+     0
     ]
    }
   },
@@ -313,7 +325,7 @@
    "shader": "gauge",
    "z": 0,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      1114.5014259617158,
      2,
@@ -374,10 +386,16 @@
      0
     ],
     "u_area": [
-     0.06979166666666667,
-     0.1021671826625387,
-     0.2864583333333333,
-     0.7739938080495357
+     33.5,
+     16.5,
+     137.5,
+     125
+    ],
+    "u_tile": [
+     504,
+     808,
+     4,
+     0
     ]
    },
    "binds": {
@@ -395,7 +413,7 @@
    "shader": "gauge",
    "z": 1,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      1114.5014259617158,
      2,
@@ -456,10 +474,16 @@
      0
     ],
     "u_area": [
-     0.64375,
-     0.1021671826625387,
-     0.2864583333333333,
-     0.7739938080495357
+     309,
+     16.5,
+     137.5,
+     125
+    ],
+    "u_tile": [
+     504,
+     808,
+     4,
+     0
     ]
    },
    "binds": {
@@ -477,7 +501,7 @@
    "shader": "gauge",
    "z": 2,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      204.4431461311433,
      2,
@@ -535,6 +559,12 @@
      0,
      0,
      0,
+     0
+    ],
+    "u_tile": [
+     504,
+     808,
+     4,
      0
     ],
     "u_look": [
@@ -549,9 +579,9 @@
     "u_art": "art"
    },
    "x": 114,
-   "y": 382,
-   "w": 139,
-   "h": 174
+   "y": 383,
+   "w": 138,
+   "h": 173
   },
   {
    "name": "oil",
@@ -559,7 +589,7 @@
    "shader": "gauge",
    "z": 3,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      204.4431461311433,
      2,
@@ -619,6 +649,12 @@
      0,
      0
     ],
+    "u_tile": [
+     504,
+     808,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -630,10 +666,10 @@
     "u_field": "fuelField",
     "u_art": "art"
    },
-   "x": 1667,
-   "y": 382,
-   "w": 139,
-   "h": 174
+   "x": 1668,
+   "y": 383,
+   "w": 138,
+   "h": 173
   },
   {
    "name": "engine",
@@ -641,7 +677,7 @@
    "shader": "gauge",
    "z": 4,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      -0.01,
      303.17817343429834,
      2,
@@ -701,6 +737,12 @@
      0,
      0
     ],
+    "u_tile": [
+     504,
+     808,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -713,9 +755,9 @@
     "u_art": "art"
    },
    "x": 772,
-   "y": 117,
-   "w": 38,
-   "h": 306
+   "y": 118,
+   "w": 37,
+   "h": 304
   },
   {
    "name": "electric",
@@ -723,7 +765,7 @@
    "shader": "gauge",
    "z": 5,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.25,
      303.1781734342981,
      2,
@@ -783,6 +825,12 @@
      0,
      0
     ],
+    "u_tile": [
+     504,
+     808,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -794,10 +842,10 @@
     "u_field": "electricField",
     "u_art": "art"
    },
-   "x": 1110,
-   "y": 117,
-   "w": 38,
-   "h": 306
+   "x": 1111,
+   "y": 118,
+   "w": 37,
+   "h": 304
   },
   {
    "name": "chevCover",
@@ -1166,9 +1214,10 @@
     "u_font": "bigFont"
    },
    "x": 370,
-   "y": 222,
+   "y": 230,
    "w": 270,
-   "h": 136,
+   "h": 121,
+   "dy": 8,
    "glyphs": "0123456789 -NPRD",
    "cells": 3,
    "align": "right",
@@ -1251,9 +1300,10 @@
     "u_font": "prefixFont"
    },
    "x": 1250,
-   "y": 300,
+   "y": 304,
    "w": 44,
-   "h": 52,
+   "h": 46,
+   "dy": 4,
    "glyphs": "MDS ",
    "cells": 1,
    "align": "left",
@@ -1324,9 +1374,10 @@
     "u_font": "bigFont"
    },
    "x": 1300,
-   "y": 222,
+   "y": 230,
    "w": 180,
-   "h": 136,
+   "h": 121,
+   "dy": 8,
    "glyphs": "0123456789 -NPRD",
    "cells": 2,
    "align": "left",
@@ -1409,9 +1460,10 @@
     "u_font": "valFont"
    },
    "x": 524,
-   "y": 390,
+   "y": 392,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -1495,9 +1547,10 @@
     "u_font": "valFont"
    },
    "x": 1243,
-   "y": 390,
+   "y": 392,
    "w": 75,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 4,
    "align": "right",
@@ -1581,9 +1634,10 @@
     "u_font": "valFont"
    },
    "x": 1452,
-   "y": 390,
+   "y": 392,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -1667,9 +1721,10 @@
     "u_font": "valFont"
    },
    "x": 746,
-   "y": 434,
+   "y": 436,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -1753,9 +1808,10 @@
     "u_font": "valFont"
    },
    "x": 1066,
-   "y": 434,
+   "y": 436,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -1839,9 +1895,10 @@
     "u_font": "labelFont"
    },
    "x": 1055,
-   "y": 468,
+   "y": 470,
    "w": 130,
-   "h": 20,
+   "h": 16,
+   "dy": 2,
    "glyphs": "ACEGHILNRT -",
    "cells": 8,
    "align": "center",
@@ -1920,9 +1977,10 @@
     "u_font": "valFont"
    },
    "x": 856,
-   "y": 175,
+   "y": 177,
    "w": 220,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 11,
    "align": "left",
@@ -2006,9 +2064,10 @@
     "u_font": "valFont"
    },
    "x": 856,
-   "y": 329,
+   "y": 331,
    "w": 220,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 11,
    "align": "left",
@@ -2094,7 +2153,7 @@
    "x": 853,
    "y": 206,
    "w": 220,
-   "h": 24,
+   "h": 19,
    "glyphs": "0123456789 -.° ",
    "cells": 13,
    "align": "left",
@@ -2178,7 +2237,7 @@
    "x": 853,
    "y": 360,
    "w": 220,
-   "h": 24,
+   "h": 19,
    "glyphs": "0123456789 -.° ",
    "cells": 13,
    "align": "left",
@@ -2262,7 +2321,7 @@
    "x": 914,
    "y": 194,
    "w": 50,
-   "h": 24,
+   "h": 19,
    "glyphs": "0123456789 -.° ",
    "cells": 4,
    "align": "right",
@@ -2344,9 +2403,10 @@
     "u_font": "valFont"
    },
    "x": 972,
-   "y": 501,
+   "y": 503,
    "w": 50,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -2430,9 +2490,10 @@
     "u_font": "valFont"
    },
    "x": 1040,
-   "y": 501,
+   "y": 503,
    "w": 50,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -2516,9 +2577,10 @@
     "u_font": "valFont"
    },
    "x": 222,
-   "y": 592,
+   "y": 594,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 4,
    "align": "right",
@@ -2602,9 +2664,10 @@
     "u_font": "valFont"
    },
    "x": 390,
-   "y": 592,
+   "y": 594,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 5,
    "align": "left",
@@ -2688,9 +2751,10 @@
     "u_font": "valFont"
    },
    "x": 572,
-   "y": 592,
+   "y": 594,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 4,
    "align": "right",
@@ -2774,9 +2838,10 @@
     "u_font": "valFont"
    },
    "x": 1326,
-   "y": 592,
+   "y": 594,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -2860,9 +2925,10 @@
     "u_font": "valFont"
    },
    "x": 1460,
-   "y": 592,
+   "y": 594,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 5,
    "align": "right",
@@ -2946,9 +3012,10 @@
     "u_font": "valFont"
    },
    "x": 1596,
-   "y": 592,
+   "y": 594,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:  ",
    "cells": 3,
    "align": "right",
@@ -2974,6 +3041,6 @@
    "cellW": 32
   }
  ],
- "upload": 6506232,
- "fill": 1998023
+ "upload": 3138554,
+ "fill": 1979125
 }

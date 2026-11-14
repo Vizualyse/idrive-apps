@@ -50,12 +50,12 @@ const C = {
 const GLOW = 100, TRAIL = 300;
 const L = lengthOf(speedPath);
 const gaugeU = {
-    u_v: [0, 0, 2, +(TRAIL / L).toFixed(4)], u_band: [0, 0, 2, 36], u_shape: [GLOW, 4.5, 2, 0.15],
+    u_val: [0, 0, 2, +(TRAIL / L).toFixed(4)], u_band: [0, 0, 2, 36], u_shape: [GLOW, 4.5, 2, 0.15],
     u_fill: C.none, u_red: C.none, u_glow: [1, 0.66, 0.3, 0.42], u_needle: C.needle,
     u_pool: [100, 0.3, 30, 0], u_seg: [0, 0, SPEED_T0, 1], u_look: [0.3, 0.25, 1, 0],
 };
 const bandU = (b, fill, seg) => ({
-    u_v: [0, 0, 2, 1], u_band: [-b, b, 0, 0], u_shape: [1, 0, 0, 1],
+    u_val: [0, 0, 2, 1], u_band: [-b, b, 0, 0], u_shape: [1, 0, 0, 1],
     u_fill: fill, u_red: fill, u_glow: C.none, u_needle: C.none, u_seg: seg || [0, 0, 0, 1],
 });
 const PWR_ZERO = 0.2;
@@ -65,13 +65,13 @@ const layers = [
     { name: 'tach', shader: 'gauge', field: 'tach', uniforms: gaugeU },
     /* the speed limit: a red tick 5..17 px outside the frame (the needle of a second layer on the speed field) */
     { name: 'limitTick', shader: 'gauge', field: 'speed', art: false, uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [0, 0, -17, -5], u_shape: [1, 1.75, 1.75, 0],
+        u_val: [0, 0, 2, 0], u_band: [0, 0, -17, -5], u_shape: [1, 1.75, 1.75, 0],
         u_fill: C.none, u_red: C.none, u_glow: C.none, u_needle: C.sport, u_seg: [0, 0, 0, 1], u_look: [0, 0, 1, 0] } },
     { name: 'drive', shader: 'gauge', field: 'bars', art: false, uniforms: bandU(11, C.calm, [0, 0, driveZero, 1]) },
     { name: 'econ', shader: 'gauge', field: 'bars', art: false, uniforms: bandU(11, C.ink2, [0, 0, barT.eleBottom, 1]) },
     { name: 'fuel', shader: 'gauge', field: 'fuel', art: false, uniforms: bandU(3.5, C.ink) },
-    { name: 'arrowR', shader: 'gauge', field: 'arrowR', art: false, uniforms: Object.assign(bandU(2.5, C.ink), { u_v: [1, 0, 2, 1] }) },
-    { name: 'arrowL', shader: 'gauge', field: 'arrowL', art: false, uniforms: Object.assign(bandU(2.5, C.ink), { u_v: [1, 0, 2, 1] }) },
+    { name: 'arrowR', shader: 'gauge', field: 'arrowR', art: false, uniforms: Object.assign(bandU(2.5, C.ink), { u_val: [1, 0, 2, 1] }) },
+    { name: 'arrowL', shader: 'gauge', field: 'arrowL', art: false, uniforms: Object.assign(bandU(2.5, C.ink), { u_val: [1, 0, 2, 1] }) },
     { name: 'soc', shader: 'leds', x: 482, y: 447, w: 220, h: 16, uniforms: {
         u_led: [20, 0, 0, 0], u_geom: [0, 0, 7.5, 16], u_split: [99, 99, 0, 1],
         u_c0: C.edrive, u_c1: C.edrive, u_c2: C.edrive, u_off: C.ink4 } },

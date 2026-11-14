@@ -70,35 +70,41 @@
  "assets": {
   "art": {
    "format": "rgba8",
-   "w": 1920,
-   "h": 646,
+   "w": 144,
+   "h": 208,
    "sampling": "nearest",
-   "file": "sample.art.rgba.gz",
-   "sha1": "ad4e34ecb3c587f12414ae4ac171237579fcfcdd"
+   "file": "sample.art.tiles.gz",
+   "sha1": "6863ff6c07b10791174b223d3cc7f8adb1480d6a",
+   "tile": 8,
+   "map": [
+    120,
+    81
+   ],
+   "tiles": 302
   },
   "rpmField": {
    "format": "rgba8",
    "w": 640,
-   "h": 586,
+   "h": 581,
    "sampling": "nearest",
    "file": "sample.rpm.field.gz",
-   "sha1": "adb7b5416a5edfb75b0bff062f4f1e2585899bed"
+   "sha1": "c3b3e5c50e26e4c2235123570ad84f0abca82cc0"
   },
   "bigFont": {
    "format": "r8",
    "w": 744,
-   "h": 130,
+   "h": 86,
    "sampling": "bilinear",
    "file": "sample.big.font.gz",
-   "sha1": "30347f1765e257b380f8851010d5aee47922ab56"
+   "sha1": "5b68f402d33ae010b780df6352fc608d1a4a3418"
   },
   "smallFont": {
    "format": "r8",
    "w": 600,
-   "h": 48,
+   "h": 33,
    "sampling": "bilinear",
    "file": "sample.small.font.gz",
-   "sha1": "22184a0fd98f42d71436a1203a41cc75939a158f"
+   "sha1": "c4cd547dbbf7aab0cacd928ddf456770173343d4"
   }
  },
  "layers": [
@@ -118,8 +124,14 @@
     "u_area": [
      0,
      0,
-     1,
-     1
+     240,
+     80.75
+    ],
+    "u_tile": [
+     144,
+     208,
+     8,
+     0
     ]
    }
   },
@@ -129,7 +141,7 @@
    "shader": "gauge",
    "z": 0,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      1225.2091065108345,
      0.875,
@@ -184,10 +196,16 @@
      1
     ],
     "u_area": [
-     0.3333333333333333,
-     0.09287925696594428,
-     0.3333333333333333,
-     0.9071207430340558
+     80,
+     7.5,
+     80,
+     72.625
+    ],
+    "u_tile": [
+     144,
+     208,
+     8,
+     0
     ],
     "u_look": [
      0.25,
@@ -203,7 +221,7 @@
    "x": 640,
    "y": 60,
    "w": 640,
-   "h": 586
+   "h": 581
   },
   {
    "name": "kmh",
@@ -264,9 +282,10 @@
     "u_font": "bigFont"
    },
    "x": 867,
-   "y": 300,
+   "y": 328,
    "w": 186,
-   "h": 130,
+   "h": 86,
+   "dy": 28,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -345,9 +364,10 @@
     "u_font": "smallFont"
    },
    "x": 938,
-   "y": 450,
+   "y": 457,
    "w": 180,
-   "h": 48,
+   "h": 33,
+   "dy": 7,
    "glyphs": "0123456789 -.MDSNPR°",
    "cells": 6,
    "align": "center",
@@ -468,6 +488,6 @@
    "h": 40
   }
  ],
- "upload": 6586960,
- "fill": 1663540
+ "upload": 1690952,
+ "fill": 1649456
 }

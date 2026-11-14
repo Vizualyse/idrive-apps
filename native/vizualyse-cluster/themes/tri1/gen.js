@@ -141,7 +141,7 @@ const C = {
 function layers() {
     const nb = needle;
     const ribU = (red) => ({
-        u_v: [0, 0, red, 0],
+        u_val: [0, 0, red, 0],
         u_band: [r2(dOf(ribs.r1 + ribs.lit / 2) - 0.6), r2(dOf(ribs.r0 - ribs.lit / 2) + 0.6),
             r2(dOf(nb.r1 + nb.w / 2)), r2(dOf(nb.r0 - nb.w / 2))],
         /* the needle's half width in px along the field's path (at R): wider at its inner end */
@@ -155,7 +155,7 @@ function layers() {
      * is the bezel's flash. */
     const segT0 = tOfDeg(segs.a0);
     const segU = {
-        u_v: [segT0, 0, r5(tOfDeg(segs.a0 + 4 * segs.cell)), 0],
+        u_val: [segT0, 0, r5(tOfDeg(segs.a0 + 4 * segs.cell)), 0],
         u_band: [r2(dOf(segs.r + segs.w / 2)), r2(dOf(segs.r - segs.w / 2)),
             r2(dOf(bezel.r + bezel.flashW / 2)), r2(dOf(bezel.r - bezel.flashW / 2))],
         u_shape: [1, 9999, 9999, 0],
@@ -163,7 +163,7 @@ function layers() {
         u_seg: [1, r2(degPx(segs.gap)), r5(segT0), r5(segT0 + segs.cell / HALF)], u_pool: [0, 0, 0, 0],
     };
     const barU = (col) => ({
-        u_v: [0, 0, 2, 0], u_band: [-RING.fill / 2, RING.fill / 2, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [0, 0, 2, 0], u_band: [-RING.fill / 2, RING.fill / 2, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: col, u_red: col, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0],
     });
     const L = [

@@ -56,18 +56,18 @@ module.exports = {
         /* the speed band and needle (as tri1's rev band, without a red zone) */
         if (ok(mph)) {
             const tl = 1 - mph / half, tr = mph / half - 1;
-            out.ribsL = { needle: C.ink, uniforms: { u_v: [tl, len, 2, 0], u_seg: [0, 0, Math.min(0, tl), 1] } };
-            out.ribsR = { needle: C.ink, uniforms: { u_v: [tr, len, 2, 0], u_seg: [0, 0, 1, 1] } };
+            out.ribsL = { needle: C.ink, uniforms: { u_val: [tl, len, 2, 0], u_seg: [0, 0, Math.min(0, tl), 1] } };
+            out.ribsR = { needle: C.ink, uniforms: { u_val: [tr, len, 2, 0], u_seg: [0, 0, 1, 1] } };
         } else {
-            out.ribsL = { needle: a(C.ink, 0), uniforms: { u_v: [1, len, 2, 0], u_seg: [0, 0, 0, 1] } };
-            out.ribsR = { needle: a(C.ink, 0), uniforms: { u_v: [0, len, 2, 0], u_seg: [0, 0, 1, 1] } };
+            out.ribsL = { needle: a(C.ink, 0), uniforms: { u_val: [1, len, 2, 0], u_seg: [0, 0, 0, 1] } };
+            out.ribsR = { needle: a(C.ink, 0), uniforms: { u_val: [0, len, 2, 0], u_seg: [0, 0, 1, 1] } };
         }
         /* the limit arc and the set mark: each half drawn only when the mark is in it */
         const mark = (name, v, deg) => {
             if (!ok(v)) { out[name + 'L'] = { visible: false }; out[name + 'R'] = { visible: false }; return; }
             const h = halves(v), m = deg / 135;
-            out[name + 'L'] = { visible: h[0] > -m, uniforms: { u_v: [h[0], len, 2, 0] } };
-            out[name + 'R'] = { visible: h[1] > -m, uniforms: { u_v: [h[1], len, 2, 0] } };
+            out[name + 'L'] = { visible: h[0] > -m, uniforms: { u_val: [h[0], len, 2, 0] } };
+            out[name + 'R'] = { visible: h[1] > -m, uniforms: { u_val: [h[1], len, 2, 0] } };
         };
         const limit = ok(sig.limitKmh) ? Math.round(sig.limitKmh * MPH) : null;
         const cruise = ok(sig.cruiseKmh) ? Math.round(sig.cruiseKmh * MPH) : null;
@@ -104,9 +104,9 @@ module.exports = {
         const chg = ok(el) && el < -1;
         const f = ok(el) ? clamp(Math.abs(el) / p.elMaxHp, 0, 1) : 0;
         /* driving fills up from the bottom stop; charging down from the top stop, green */
-        out.elec = chg ? { color: C.charge, uniforms: { u_v: [1 - f, 0, 2, 0], u_seg: [0, 0, 1, 1] } }
-            : { color: C.elec, uniforms: { u_v: [f, 0, 2, 0], u_seg: [0, 0, 0, 1] } };
-        out.elec.uniforms.u_v[1] = p.len.arc;
+        out.elec = chg ? { color: C.charge, uniforms: { u_val: [1 - f, 0, 2, 0], u_seg: [0, 0, 1, 1] } }
+            : { color: C.elec, uniforms: { u_val: [f, 0, 2, 0], u_seg: [0, 0, 0, 1] } };
+        out.elec.uniforms.u_val[1] = p.len.arc;
         const pct = ok(el) ? Math.round(f * 100) : null;
         out.elV = { text: pct == null ? '--' : String(pct), color: pct == null || pct === 0 ? C.ink2 : chg ? C.charge : C.elec };
         out.elLabel = { text: !ok(el) ? 'Electric' : chg ? 'Charging' : ok(eng) && eng < 1 ? 'Drive' : 'Assist' };

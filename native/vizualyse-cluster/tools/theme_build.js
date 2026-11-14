@@ -4,9 +4,10 @@
  * Builds a theme from its source (THEMES.md "Building a theme") into the
  * kit's flat files in themes/built/:
  *   <id>.theme.json        the layers, assets and numbers the tool and the preview read
- *   <id>.art.rgba.gz       the static art, RGBA 1920 x bottom, from art.html (headless Chrome)
- *   <id>.<name>.field.gz   each path's field (tools/field.js)
- *   <id>.<name>.font.gz    each font's glyph atlas, R8 (headless Chrome)
+ *   <id>.art.tiles.gz      the static art (1920 x bottom, from art.html, headless Chrome)
+ *                          as its distinct tiles and their map, RGBA (tools/tiles.js)
+ *   <id>.<name>.field.gz   each path's field (tools/field.js), cropped to its pixels
+ *   <id>.<name>.font.gz    each font's glyph atlas, R8 (headless Chrome), cropped to its ink's rows
  *   <id>.logic.js          the theme's logic, as written
  * and, with --list, lists every built theme in component.json's files.
  * Refuses a theme that breaks theme_core.check (the strip at y 646, the
@@ -25,7 +26,7 @@
  *                         "rect": [x,y,w,h], "maxd": 110 } },
  *   "layers": [
  *     { "name": "speed", "shader": "gauge", "field": "speed", "z": 1,
- *       "uniforms": { "u_band": [...], ... } },        rect and u_v.y come from the path
+ *       "uniforms": { "u_band": [...], ... } },        rect and u_val.y come from the path
  *     { "name": "speedText", "shader": "text", "font": "big", "x": 300, "y": 220,
  *       "cells": 3, "align": "right", "uniforms": { "u_color": [1,1,1,1] } },
  *     { "name": "shift", "shader": "leds", "x": .., "y": .., "w": .., "h": .., "uniforms": {...} },
@@ -44,6 +45,7 @@ const sha1 = (b) => crypto.createHash('sha1').update(b).digest('hex');
 const { spawnSync } = require('child_process');
 const { readPng, writePng } = require('./png.js');
 const { makeField } = require('./field.js');
+const tiles = require('./tiles.js');
 const core = require('../src/theme_core.js');
 
 const HERE = path.resolve(__dirname, '..');
@@ -101,8 +103,14 @@ function fontAtlas(src, f, tmp) {
     /* Chrome's window is at least ~500 px wide: shoot wider, keep the atlas */
     const shotW = Math.max(w, 600), shotH = Math.max(h + 8, 100);
     const img = shoot(file, shotW, shotH, tmp);
-    const out = Buffer.alloc(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out[y * w + x] = img.rgba[(y * shotW + x) * 4];
+    /* only the rows with ink: the text layer is moved down by the rows cut
+     * from the top (its "dy") and made as tall as what is left */
+    let top = h, bottom = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (img.rgba[(y * shotW + x) * 4]) { top = Math.min(top, y); bottom = y; break; }
+    if (bottom < 0) { top = 0; bottom = 0; }
+    const th = bottom - top + 1;
+    const out = Buffer.alloc(w * th);
+    for (let y = 0; y < th; y++) for (let x = 0; x < w; x++) out[y * w + x] = img.rgba[((y + top) * shotW + x) * 4];
     const adv = glyphs.split('').map((c, i) => {
         let n = 0;
         while (n < cw && img.rgba[((h + 4) * shotW + i * cw + n) * 4] > 127) n++;
@@ -110,7 +118,21 @@ function fontAtlas(src, f, tmp) {
         return n;
     });
     if (adv.every((n) => n === 0)) throw new Error('font ' + f.file + ': no advances measured (did the font load?)');
-    return { w, h, r8: out, adv };
+    return { w, h: th, top, r8: out, adv };
+}
+
+/* A field cut to the bounds of its pixels (A > 0): the rest draws nothing
+ * (gauge.frag returns transparent there) and needs no upload or fill. */
+function cropField(f) {
+    let x0 = f.w, y0 = f.h, x1 = -1, y1 = -1;
+    for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) {
+        if (!f.rgba[(y * f.w + x) * 4 + 3]) continue;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return Object.assign({}, f, { x0: 0, y0: 0, x2: 0 });
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, rgba = Buffer.alloc(w * h * 4);
+    for (let y = 0; y < h; y++) f.rgba.copy(rgba, y * w * 4, ((y + y0) * f.w + x0) * 4, ((y + y0) * f.w + x1 + 1) * 4);
+    return Object.assign({}, f, { w, h, rgba, x0, y0, x2: f.w - 1 - x1 });
 }
 
 function gz(buf) { return zlib.gzipSync(buf, { level: 9, mtime: 0 }); }
@@ -140,13 +162,23 @@ function build(src) {
         fs.writeFileSync(path.join(OUT, name), buf); written.push(name); return name;
     };
     const theme = { id, title: spec.title, family: spec.family || id, mode: spec.mode || 'sport', version: spec.version || 2, ship: spec.ship !== false, bottom, params: spec.params || {}, signals: spec.signals || [], fonts: {}, assets: {}, layers: [] };
+    /* the map slot a design marks (tools/design_build.js), for a later map layer */
+    if (spec.map) theme.map = spec.map;
 
-    /* the art: an asset (the gauges add their glow to it), drawn by art.frag */
+    /* the art: an asset (the gauges add their glow to it), drawn by art.frag
+     * through its tile map: its distinct tiles, no black one, and the map in
+     * one texture (tools/tiles.js), the tile size whichever of 4 and 8 px
+     * makes it smaller (4 for nearly every theme); checked against the art */
     const art = shoot(path.resolve(src, spec.art || 'art.html'), 1920, bottom, tmp);
-    theme.assets.art = { format: 'rgba8', w: 1920, h: bottom, sampling: 'nearest', file: put(id + '.art.rgba.gz', gz(art.rgba)), sha1: sha1(art.rgba) };
+    const tiled = [4, 8].map((T) => tiles.tile(art.rgba, 1920, bottom, T)).sort((a, b) => a.rgba.length - b.rgba.length)[0];
+    if (!tiles.untile(tiled, 1920, bottom).equals(art.rgba)) throw new Error('the art\'s tiles do not give the art back');
+    const T = tiled.T;
+    theme.assets.art = { format: 'rgba8', w: tiled.w, h: tiled.h, sampling: 'nearest', file: put(id + '.art.tiles.gz', gz(tiled.rgba)), sha1: sha1(tiled.rgba),
+        tile: T, map: [tiled.mapW, tiled.mapH], tiles: tiled.distinct };
+    const artTile = [tiled.w, tiled.h, T, 0];
     theme.layers.push({ name: 'art', kind: 'effect', shader: 'art', x: 0, y: 0, w: 1920, h: bottom, z: -100,
-        binds: { u_img: 'art' }, uniforms: { u_area: [0, 0, 1, 1] } });
-    let upload = art.rgba.length;
+        binds: { u_img: 'art' }, uniforms: { u_area: [0, 0, 1920 / T, bottom / T], u_tile: artTile } });
+    let upload = tiled.rgba.length;
     if (process.argv.indexOf('--keep') > 0) fs.writeFileSync(path.join(src, 'art.preview.png'), writePng(1920, bottom, art.rgba));
 
     /* fields; a path { "mirror": "<other path>" } reuses that path's field
@@ -161,10 +193,12 @@ function build(src) {
     });
     Object.keys(paths).filter((n) => !paths[n].mirror && !paths[n].copy).forEach((name) => {
         const p = paths[name];
-        const f = makeField(p);
+        const f = cropField(makeField(p));
         const asset = name + 'Field';
         theme.assets[asset] = { format: 'rgba8', w: f.w, h: f.h, sampling: 'nearest', file: put(id + '.' + name + '.field.gz', gz(f.rgba)), sha1: sha1(f.rgba) };
-        fields[name] = { rect: p.rect, length: f.length, asset, flip: 0 };
+        /* crop: where the cropped field sits in the path's rectangle (x0, y0) and
+         * how much was cut on the right (x2), for a mirrored copy */
+        fields[name] = { rect: [p.rect[0] + f.x0, p.rect[1] + f.y0, f.w, f.h], length: f.length, asset, flip: 0, crop: [f.x0, f.y0, f.x2] };
         upload += f.rgba.length;
     });
     Object.keys(paths).filter((n) => paths[n].mirror).forEach((name) => {
@@ -177,7 +211,8 @@ function build(src) {
         const o = fields[paths[name].copy], at = paths[name].at;
         if (!Array.isArray(at) || at.length !== 2) throw new Error('path ' + name + ': "at": [x, y] (the copy\'s top-left)');
         /* "flip": true mirrors the copy too (a mirror image anywhere, not only about the screen's middle) */
-        fields[name] = { rect: [at[0], at[1], o.rect[2], o.rect[3]], length: o.length, asset: o.asset, flip: paths[name].flip ? 1 : 0 };
+        const flip = paths[name].flip ? 1 : 0;
+        fields[name] = { rect: [at[0] + (flip ? o.crop[2] : o.crop[0]), at[1] + o.crop[1], o.rect[2], o.rect[3]], length: o.length, asset: o.asset, flip };
     });
 
     /* fonts */
@@ -187,7 +222,7 @@ function build(src) {
         const a = fontAtlas(src, f, tmp);
         const asset = name + 'Font';
         theme.assets[asset] = { format: 'r8', w: a.w, h: a.h, sampling: 'bilinear', file: put(id + '.' + name + '.font.gz', gz(a.r8)), sha1: sha1(a.r8) };
-        fonts[name] = { glyphs: f.glyphs, cell: f.cell, adv: a.adv, asset };
+        fonts[name] = { glyphs: f.glyphs, cell: f.cell, adv: a.adv, asset, top: a.top, h: a.h };
         theme.fonts[name] = { glyphs: f.glyphs, cell: f.cell, adv: a.adv };
         upload += a.r8.length;
     });
@@ -201,15 +236,16 @@ function build(src) {
             const f = fields[l.field];
             if (!f) throw new Error('layer ' + l.name + ': no path ' + l.field);
             [L.x, L.y, L.w, L.h] = f.rect;
-            const v = L.uniforms.u_v || [0, 0, 2, 0.2];
+            const v = L.uniforms.u_val || [0, 0, 2, 0.2];
             v[1] = f.length;
-            L.uniforms.u_v = v;
+            L.uniforms.u_val = v;
             L.uniforms.u_seg = L.uniforms.u_seg || [0, 0, 0, 1];
             const pool = L.uniforms.u_pool || [0, 0, 0, 0];
             pool[3] = f.flip;
             L.uniforms.u_pool = pool;
             /* the glow added to the art under it, unless "art": false */
-            L.uniforms.u_area = l.art === false ? [0, 0, 0, 0] : [L.x / 1920, L.y / bottom, L.w / 1920, L.h / bottom];
+            L.uniforms.u_area = l.art === false ? [0, 0, 0, 0] : [L.x / T, L.y / T, L.w / T, L.h / T];
+            L.uniforms.u_tile = artTile;
             L.binds.u_field = f.asset;
             L.binds.u_art = 'art';
             L.uniforms.u_look = L.uniforms.u_look || [0.25, 0, 2, 0];
@@ -218,7 +254,10 @@ function build(src) {
             if (!f) throw new Error('layer ' + l.name + ': no font ' + l.font);
             const cells = l.cells || 3;
             if (cells > 16) throw new Error('layer ' + l.name + ': at most 16 glyphs');
-            L.x = l.x; L.y = l.y; L.w = l.w || f.cell[0] * cells; L.h = f.cell[1];
+            /* the atlas keeps only its ink's rows: the layer starts f.top
+             * lower and is that tall; the logic's y is moved by it too (dy) */
+            L.x = l.x; L.y = l.y + f.top; L.w = l.w || f.cell[0] * cells; L.h = f.h;
+            if (f.top) L.dy = f.top;
             L.glyphs = f.glyphs; L.cells = cells; L.align = l.align || 'right'; L.adv = f.adv; L.cellW = f.cell[0];
             const t = core.layoutText(l.text || '', L);
             L.uniforms.u_text = t.codes;
@@ -226,6 +265,17 @@ function build(src) {
             L.uniforms.u_meta = [L.w, f.glyphs.length, f.cell[0], t.count];
             L.uniforms.u_color = L.uniforms.u_color || [1, 1, 1, 1];
             L.binds.u_font = f.asset;
+        } else if (l.shader === 'art') {
+            /* a sprite (tools/design_build.js): its own small RGBA texture from
+             * a PNG beside the source, drawn as art and shown or hidden */
+            const img = readPng(fs.readFileSync(path.resolve(src, l.image)));
+            if (img.w !== l.w || img.h !== l.h) throw new Error('layer ' + l.name + ': ' + l.image + ' is ' + img.w + 'x' + img.h + ', wanted ' + l.w + 'x' + l.h);
+            const asset = l.name + 'Img';
+            theme.assets[asset] = { format: 'rgba8', w: img.w, h: img.h, sampling: 'nearest', file: put(id + '.' + l.name + '.sprite.gz', gz(img.rgba)), sha1: sha1(img.rgba) };
+            upload += img.rgba.length;
+            L.x = l.x; L.y = l.y; L.w = l.w; L.h = l.h;
+            L.binds.u_img = asset;
+            L.uniforms.u_area = [0, 0, 1, 1];
         } else {
             L.x = l.x; L.y = l.y; L.w = l.w; L.h = l.h;
             if (l.shader === 'leds') {
@@ -242,6 +292,10 @@ function build(src) {
         }
         theme.layers.push(L);
     });
+
+    /* an art layer over a texture of its own, not the tiled art (a sprite),
+     * draws it as it is: u_tile.z 0 (art.frag) */
+    theme.layers.forEach((L) => { if (L.shader === 'art' && !L.uniforms.u_tile) L.uniforms.u_tile = [0, 0, 0, 0]; });
 
     const problems = core.check(theme);
     if (problems.length) throw new Error('theme ' + id + ':\n  ' + problems.join('\n  '));

@@ -1,0 +1,12 @@
+{
+ "id": "calib",
+ "title": "Calibration grid (not shipped)",
+ "ship": false,
+ "bottom": 720,
+ "art": "art.html",
+ "signals": [],
+ "params": {},
+ "fonts": {},
+ "paths": {},
+ "layers": []
+}

@@ -32,12 +32,12 @@ module.exports = {
         const mph = ok(sig.kmh) ? sig.kmh * MPH : null;
         const vMph = st.kmh.step(mph, ctx.dt);
         const vRpm = st.rpm.step(sig.rpm, ctx.dt);
-        const trail = (f) => ({ u_v: [f, len, f * 0.5, Math.max(f, 0.01)] });
+        const trail = (f) => ({ u_val: [f, len, f * 0.5, Math.max(f, 0.01)] });
         out.speed = ok(vMph) ? { visible: true, uniforms: trail(clamp(vMph / p.maxMph, 0, 1)) } : { visible: false };
         out.tach = ok(vRpm) ? { visible: true, uniforms: trail(clamp(vRpm / p.maxRpm, 0, 1)) } : { visible: false };
         /* cruise: the notch at the set speed while it is on; null is off */
         const cruise = ok(sig.cruiseKmh) && sig.cruiseKmh > 0 ? sig.cruiseKmh * MPH : null;
-        out.cruise = ok(cruise) ? { visible: true, uniforms: { u_v: [clamp(cruise / p.maxMph, 0, 1), len, 2, 0] } } : { visible: false };
+        out.cruise = ok(cruise) ? { visible: true, uniforms: { u_val: [clamp(cruise / p.maxMph, 0, 1), len, 2, 0] } } : { visible: false };
         out.cruiseText = ok(cruise) ? { text: Math.round(cruise) + ' mph', color: C.ink } : { text: 'off', color: C.ink3 };
         out.limitText = { text: ok(sig.limitKmh) ? String(Math.round(sig.limitKmh * MPH / 5) * 5) : '--' };
 
@@ -59,12 +59,12 @@ module.exports = {
         const t0 = td(0);
         if (ok(d) && d < -0.004) {
             /* charging: blue in 6 px stripes with 3 px gaps, left of zero */
-            out.demand = { color: C.blue, uniforms: { u_v: [td(d), B.len, 2, 0], u_seg: [60, 3, t0, t0 + 540 / B.len] } };
+            out.demand = { color: C.blue, uniforms: { u_val: [td(d), B.len, 2, 0], u_seg: [60, 3, t0, t0 + 540 / B.len] } };
         } else if (ok(d)) {
             /* the electric share of the demand continues the engine's in blue */
             const eShare = ok(ele) && ele > 0 && dRaw > 0 ? clamp(ele / ((eng || 0) + ele), 0, 1) : 0;
-            out.demand = { color: C.cool, red: C.blue, uniforms: { u_v: [td(d), B.len, td(d * (1 - eShare)), 0], u_seg: [0, 0, t0, 1] } };
-        } else out.demand = { uniforms: { u_v: [t0, B.len, 2, 0], u_seg: [0, 0, t0, 1] } };
+            out.demand = { color: C.cool, red: C.blue, uniforms: { u_val: [td(d), B.len, td(d * (1 - eShare)), 0], u_seg: [0, 0, t0, 1] } };
+        } else out.demand = { uniforms: { u_val: [t0, B.len, 2, 0], u_seg: [0, 0, t0, 1] } };
         const zone = !ok(d) ? -1 : d < -0.02 ? 0 : d <= p.eco ? 1 : 2;
         out.zoneC = { text: 'CHARGE', color: zone === 0 ? C.blue : C.ink3 };
         out.zoneE = { text: 'ECO', color: zone === 1 ? C.ink : C.ink3 };

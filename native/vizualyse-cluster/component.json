@@ -88,8 +88,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1.art.rgba.gz",
-      "from": "themes/built/g20i1.art.rgba.gz",
+      "path": "g20i1.art.tiles.gz",
+      "from": "themes/built/g20i1.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -148,8 +148,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i1c.art.rgba.gz",
-      "from": "themes/built/g20i1c.art.rgba.gz",
+      "path": "g20i1c.art.tiles.gz",
+      "from": "themes/built/g20i1c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -203,8 +203,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2.art.rgba.gz",
-      "from": "themes/built/g20i2.art.rgba.gz",
+      "path": "g20i2.art.tiles.gz",
+      "from": "themes/built/g20i2.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -283,8 +283,8 @@
       "mode": "0644"
     },
     {
-      "path": "g20i2c.art.rgba.gz",
-      "from": "themes/built/g20i2c.art.rgba.gz",
+      "path": "g20i2c.art.tiles.gz",
+      "from": "themes/built/g20i2c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -318,8 +318,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci1.art.rgba.gz",
-      "from": "themes/built/lci1.art.rgba.gz",
+      "path": "lci1.art.tiles.gz",
+      "from": "themes/built/lci1.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -388,8 +388,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci1c.art.rgba.gz",
-      "from": "themes/built/lci1c.art.rgba.gz",
+      "path": "lci1c.art.tiles.gz",
+      "from": "themes/built/lci1c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -443,8 +443,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci2.art.rgba.gz",
-      "from": "themes/built/lci2.art.rgba.gz",
+      "path": "lci2.art.tiles.gz",
+      "from": "themes/built/lci2.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -518,8 +518,8 @@
       "mode": "0644"
     },
     {
-      "path": "lci2c.art.rgba.gz",
-      "from": "themes/built/lci2c.art.rgba.gz",
+      "path": "lci2c.art.tiles.gz",
+      "from": "themes/built/lci2c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -573,8 +573,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf1.art.rgba.gz",
-      "from": "themes/built/perf1.art.rgba.gz",
+      "path": "perf1.art.tiles.gz",
+      "from": "themes/built/perf1.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -643,8 +643,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf1c.art.rgba.gz",
-      "from": "themes/built/perf1c.art.rgba.gz",
+      "path": "perf1c.art.tiles.gz",
+      "from": "themes/built/perf1c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -693,8 +693,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2.art.rgba.gz",
-      "from": "themes/built/perf2.art.rgba.gz",
+      "path": "perf2.art.tiles.gz",
+      "from": "themes/built/perf2.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -768,8 +768,8 @@
       "mode": "0644"
     },
     {
-      "path": "perf2c.art.rgba.gz",
-      "from": "themes/built/perf2c.art.rgba.gz",
+      "path": "perf2c.art.tiles.gz",
+      "from": "themes/built/perf2c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -833,8 +833,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri1.art.rgba.gz",
-      "from": "themes/built/tri1.art.rgba.gz",
+      "path": "tri1.art.tiles.gz",
+      "from": "themes/built/tri1.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -898,8 +898,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri1c.art.rgba.gz",
-      "from": "themes/built/tri1c.art.rgba.gz",
+      "path": "tri1c.art.tiles.gz",
+      "from": "themes/built/tri1c.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -953,8 +953,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri2.art.rgba.gz",
-      "from": "themes/built/tri2.art.rgba.gz",
+      "path": "tri2.art.tiles.gz",
+      "from": "themes/built/tri2.art.tiles.gz",
       "mode": "0644"
     },
     {
@@ -1028,8 +1028,8 @@
       "mode": "0644"
     },
     {
-      "path": "tri2c.art.rgba.gz",
-      "from": "themes/built/tri2c.art.rgba.gz",
+      "path": "tri2c.art.tiles.gz",
+      "from": "themes/built/tri2c.art.tiles.gz",
       "mode": "0644"
     },
     {

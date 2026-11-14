@@ -104,6 +104,21 @@ class ThemeRuntime {
             if (!ref) throw new Error('layer ' + l.name + ' refused by the client');
             this.refs.layers[l.name] = ref;
         });
+        /* The bottom cover (setting "cover"): black over the car's own strip,
+         * y bottom..720, so nothing of BMW's cluster shows below the theme.
+         * The panel is under the KOMBI's telltales, so warning lights still
+         * show over it; the strip's own readings (range, clock, road) do not. */
+        if (this.cover) {
+            const h = 720 - (theme.bottom || core.LIMITS.bottom);
+            const ref = cr.effect({ target: TARGET, klass: 'content', z: 999, x: 0, y: 720 - h, w: 1920, h: h, fs: shaders.rect ||
+                fs.readFileSync(path.join(this.dir, 'fs_rect.frag'), 'utf8') });
+            if (ref) {
+                this._uniform(ref, 'u_color', [0, 0, 0, 1]);
+                this._uniform(ref, 'u_shape', [1920, h, 0, 0]);
+                this._uniform(ref, 'u_ring', [0, 0, 0, 0]);
+                this.refs.layers.__cover = ref;
+            }
+        }
         this.theme = theme;
         this.logic = logic;
         this.differ = new core.Differ(theme);

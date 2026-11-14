@@ -36,6 +36,23 @@ fs.readdirSync(OUT).filter((n) => /\.theme\.json$/.test(n)).sort().forEach((n) =
         if (px.length !== a.w * a.h * (a.format === 'r8' ? 1 : 4)) fail(id, 'asset ' + k + ' is ' + px.length + ' bytes');
         if (!a.sha1) fail(id, 'asset ' + k + ' has no sha1 (rebuild)');
         else if (crypto.createHash('sha1').update(px).digest('hex') !== a.sha1) fail(id, 'asset ' + k + ' (' + a.file + ') is not what it was built with');
+        /* the tiled art (THEMES.md "Static art"): the map covers the drawn
+         * area, every tile it names is a slot of the texture off the map, and
+         * the layers reading it know its size and tile */
+        if (a.tile) {
+            const T = a.tile, mw = a.map[0], mh = a.map[1];
+            if (mw * 2 * T < 1920 || mh * T < theme.bottom) fail(id, 'the art\'s map is ' + mw + 'x' + mh + ' for tiles of ' + T + ' px');
+            let off = 0;
+            for (let y = 0; y < mh; y++) for (let x = 0; x < mw * 2; x++) {
+                const o = (y * a.w + (x >> 1)) * 4 + (x & 1) * 2, sx = px[o], sy = px[o + 1];
+                if ((sx + 1) * T > a.w || (sy + 1) * T > a.h || (sx * T < mw && sy * T < mh)) off++;
+            }
+            if (off) fail(id, off + ' tiles of the art\'s map name a slot outside its texture or on the map');
+            theme.layers.filter((l) => l.binds && (l.binds.u_img === k || l.binds.u_art === k) && !(l.shader === 'gauge' && !(l.uniforms.u_area[2] > 0))).forEach((l) => {
+                const u = l.uniforms.u_tile;
+                if (!u || u[0] !== a.w || u[1] !== a.h || u[2] !== T) fail(id, 'layer ' + l.name + '\'s u_tile does not match the art\'s texture');
+            });
+        }
     });
     const logicFile = path.join(OUT, id + '.logic.js');
     if (!fs.existsSync(logicFile)) return fail(id, 'no logic');

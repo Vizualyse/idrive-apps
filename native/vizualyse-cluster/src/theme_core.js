@@ -103,8 +103,8 @@
         if (!said) return out;
         if (said.uniforms) Object.keys(said.uniforms).forEach((k) => { out[k] = said.uniforms[k]; });
         if (layer.shader === 'gauge') {
-            /* value sets u_v.x, on top of a u_v the logic sent in uniforms this tick if it did */
-            if (said.value != null && isFinite(said.value)) out.u_v = vec4(out.u_v || u.u_v, 0, Math.max(0, Math.min(1, said.value)));
+            /* value sets u_val.x, on top of a u_val the logic sent in uniforms this tick if it did */
+            if (said.value != null && isFinite(said.value)) out.u_val = vec4(out.u_val || u.u_val, 0, Math.max(0, Math.min(1, said.value)));
             if (said.color) out.u_fill = said.color;
             if (said.glow) out.u_glow = said.glow;
             if (said.needle) out.u_needle = said.needle;
@@ -161,7 +161,9 @@
             let set = null;
             ['visible', 'x', 'y'].forEach((k) => {
                 if (s[k] == null) return;
-                const v = k === 'visible' ? (s[k] ? 1 : 0) : Math.round(s[k]);
+                /* a text layer whose atlas lost its blank top rows starts dy
+                 * lower than the logic's y (theme_build.js) */
+                const v = k === 'visible' ? (s[k] ? 1 : 0) : Math.round(s[k]) + (k === 'y' && l.dy ? l.dy : 0);
                 if (v !== last[k]) { set = set || {}; set[k] = v; last[k] = v; }
             });
             if (any || set) out.push({ layer: l, uniforms: changed, set: set });
@@ -186,7 +188,11 @@
             if (names[l.name]) p.push('two layers named ' + l.name);
             names[l.name] = true;
             if (!(l.w > 0 && l.h > 0) || l.x < 0 || l.y < 0 || l.x + l.w > 1920) p.push('layer ' + l.name + ' is outside the panel');
-            if (l.y + l.h > LIMITS.bottom) p.push('layer ' + l.name + ' reaches y ' + (l.y + l.h) + ' (the car\'s strip starts at ' + LIMITS.bottom + ')');
+            /* a theme drawn to 646 leaves the car's strip to it; one that
+             * declares "bottom": 720 covers the strip itself (the panel is under
+             * the KOMBI's telltales, so warning lights still show over it) */
+            const bottom = theme.bottom >= LIMITS.bottom && theme.bottom <= 720 ? theme.bottom : LIMITS.bottom;
+            if (l.y + l.h > bottom) p.push('layer ' + l.name + ' reaches y ' + (l.y + l.h) + ' (the theme ends at ' + bottom + ')');
             Object.keys(l.binds || {}).forEach((s) => { if (!theme.assets[l.binds[s]]) p.push('layer ' + l.name + ' binds a missing asset ' + l.binds[s]); });
             if (l.kind === 'effect') {
                 const vectors = Object.keys(l.uniforms || {}).reduce((n, k) => n + Math.ceil(l.uniforms[k].length / 4), 0);

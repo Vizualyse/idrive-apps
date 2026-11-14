@@ -26,6 +26,28 @@ Measured on one unit (head unit software `I_21w12.2-1-4`) unless a line says oth
   until a full car restart** (a head-unit reboot did not fix it). Not yet
   understood; suspected: the take-over colliding with the cluster changing
   its content. Treat take-over as risky.
+- **The whole-cluster panel works** (2026-11-13, vizualyse-cluster on the
+  car, cluster-render 0.5.9): a theme of ~37 effect layers drew over BMW's
+  gauges at once (scene 0x10004f8 on slot 0x203), effect shaders compiled
+  by the unit's glslang, layers to y 720 covered the bottom strip and the
+  car's own telltales (P, seatbelt) still showed over it.
+- **cluster-render's matrix uniforms are reserved:** a fragment shader that
+  declares `u_mvp`, `u_mv`, `u_m`, `u_v`, `u_p` or `u_normal` as anything but
+  `mat4` is refused on the car ("effect did not compile"); WebGL accepts it.
+  A `vec4 u_v` refused every gauge layer until renamed.
+- **A black box that outlives our layers** (seen twice: a 1080p H.264
+  video streamed to the cluster, and a cluster theme): a black rectangle at about x 1520-1720,
+  y 320-430 of the panel (inside the stock rev counter), showing while ours
+  showed and **staying after our layers were gone**, until it cleared by
+  itself after a while or the cluster restarted. So it is the KOMBI's own
+  content, not ours. Suspected, not shown: memory pressure on the KOMBI's
+  GPU (both kept several MB of textures on it: a 1080p video layer's
+  persistent Y/U/V and packed-block buffers, a theme's ~6-7 MB) evicting a
+  stock element's image. To test: the same theme with far smaller
+  textures; a large texture alone (the calibration grid, 5 MB).
+- The cluster's visible area: the frame and glass hide part of the panel's
+  top (our shift lights at y ~30-60 showed only as specks); measured
+  exactly with the calibration grid (`themes/calib`), still to do.
 - The cluster map's top and bottom are dimmed by the gauge surround (about
   y 72-440 of 480 is clean).
 - The HUD: its top is clipped and its own speed sits at the bottom. The

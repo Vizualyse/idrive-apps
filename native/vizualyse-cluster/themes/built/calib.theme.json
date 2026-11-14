@@ -1,0 +1,59 @@
+{
+ "id": "calib",
+ "title": "Calibration grid (not shipped)",
+ "family": "calib",
+ "mode": "sport",
+ "version": 2,
+ "ship": false,
+ "bottom": 720,
+ "params": {},
+ "signals": [],
+ "fonts": {},
+ "assets": {
+  "art": {
+   "format": "rgba8",
+   "w": 428,
+   "h": 200,
+   "sampling": "nearest",
+   "file": "calib.art.tiles.gz",
+   "sha1": "b7c427252e762fce03b9aae151169d05eb5f703e",
+   "tile": 4,
+   "map": [
+    240,
+    180
+   ],
+   "tiles": 2646
+  }
+ },
+ "layers": [
+  {
+   "name": "art",
+   "kind": "effect",
+   "shader": "art",
+   "x": 0,
+   "y": 0,
+   "w": 1920,
+   "h": 720,
+   "z": -100,
+   "binds": {
+    "u_img": "art"
+   },
+   "uniforms": {
+    "u_area": [
+     0,
+     0,
+     480,
+     180
+    ],
+    "u_tile": [
+     428,
+     200,
+     4,
+     0
+    ]
+   }
+  }
+ ],
+ "upload": 342400,
+ "fill": 1382400
+}

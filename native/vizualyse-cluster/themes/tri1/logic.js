@@ -53,18 +53,18 @@ module.exports = {
         const redT = p.red / half - 1;
         if (ok(rpm)) {
             const tl = 1 - rpm / half, tr = rpm / half - 1;
-            out.ribsL = { needle: C.sport, uniforms: { u_v: [tl, len, 2, 0], u_seg: [0, 0, Math.min(0, tl), 1] } };
-            out.ribsR = { needle: C.sport, uniforms: { u_v: [tr, len, redT, 0], u_seg: [0, 0, 1, 1] } };
+            out.ribsL = { needle: C.sport, uniforms: { u_val: [tl, len, 2, 0], u_seg: [0, 0, Math.min(0, tl), 1] } };
+            out.ribsR = { needle: C.sport, uniforms: { u_val: [tr, len, redT, 0], u_seg: [0, 0, 1, 1] } };
         } else {
-            out.ribsL = { needle: a(C.sport, 0), uniforms: { u_v: [1, len, 2, 0], u_seg: [0, 0, 0, 1] } };
-            out.ribsR = { needle: a(C.sport, 0), uniforms: { u_v: [0, len, redT, 0], u_seg: [0, 0, 1, 1] } };
+            out.ribsL = { needle: a(C.sport, 0), uniforms: { u_val: [1, len, 2, 0], u_seg: [0, 0, 0, 1] } };
+            out.ribsR = { needle: a(C.sport, 0), uniforms: { u_val: [0, len, redT, 0], u_seg: [0, 0, 1, 1] } };
         }
 
         /* shift segments: six ranks from the outer ends in, the last two red;
          * at the cue all red, the bezel white and the gear red (held, as the mockup holds it) */
         const cue = ok(rpm) && rpm >= p.cue;
         const n = cue ? 6 : ok(rpm) ? clamp(Math.floor((rpm - p.segFrom) / (p.cue - p.segFrom) * 6 + 0.001), 0, 6) : 0;
-        const seg = { visible: n > 0, uniforms: { u_v: [p.segT0 - n * p.segStep, len, p.segT0 - 4 * p.segStep, 0] },
+        const seg = { visible: n > 0, uniforms: { u_val: [p.segT0 - n * p.segStep, len, p.segT0 - 4 * p.segStep, 0] },
             red: cue ? C.sport : C.ink, needle: a(C.ink, cue ? 1 : 0) };
         out.segsL = seg;
         out.segsR = seg;

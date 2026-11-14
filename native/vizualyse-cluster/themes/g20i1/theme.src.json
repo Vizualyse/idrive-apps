@@ -297,7 +297,7 @@
    "shader": "gauge",
    "field": "speed",
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      0,
      2,
@@ -364,7 +364,7 @@
    "shader": "gauge",
    "field": "tach",
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      0,
      2,
@@ -432,7 +432,7 @@
    "field": "fuel",
    "art": false,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      0,
      2,
@@ -488,7 +488,7 @@
    "field": "oil",
    "art": false,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      0,
      2,
@@ -544,7 +544,7 @@
    "field": "engine",
    "art": false,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      -0.01,
      0,
      2,
@@ -600,7 +600,7 @@
    "field": "electric",
    "art": false,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.25,
      0,
      2,

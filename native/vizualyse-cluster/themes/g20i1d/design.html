@@ -1,0 +1,371 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Yousaf Khan
+     g20i1d "G20 inspired 1 (HTML)": the G20 Sport mockup as a design
+     (DESIGNS.md), re-laid out for the whole 1920 x 720 panel: the brackets,
+     the centre column and the info line use the old bottom strip; nothing
+     important in the top 40 px. Build: node tools/design_build.js themes/g20i1d -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="theme-id" content="g20i1d">
+<meta name="theme-title" content="G20 inspired 1 (HTML)">
+<meta name="theme-family" content="g20i1d">
+<meta name="theme-mode" content="sport">
+<meta name="theme-ship" content="false">
+<meta name="theme-bottom" content="720">
+<meta name="safe-top" content="40">
+
+<!-- shared values the bindings use -->
+<meta name="let:vMph" content="smooth(mph(kmh), 14)">
+<meta name="let:vRpm" content="smooth(rpm, 16)">
+<meta name="let:ele" content="smooth(elecHp, 12)">
+<meta name="let:cue" content="rpm >= P.shiftRpm && !(throttle <= 0.5) && !(gear >= P.topGear)">
+<script type="application/json" id="theme-params">
+{ "maxMph": 160, "maxKrpm": 7, "glow": 0.85, "glowFade": 125,
+  "shiftRpm": 6000, "shiftFrom": 4700, "topGear": 8,
+  "engineMaxHp": 184, "electricMaxHp": 113, "regenMaxHp": 38, "barGap": 0.006,
+  "psiGap": "       ", "tempGap": "       " }
+</script>
+
+<style>
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 400; src: url(../fonts/BarlowSemiCondensed-400.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; src: url(../fonts/BarlowSemiCondensed-500.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 600; src: url(../fonts/BarlowSemiCondensed-600.woff2) format("woff2"); }
+:root {
+  --ground: #000000; --ink: #f6efe8; --dim: #a89d95; --line: #ffd2ad; --sport: #ff2b1c;
+  --ember: #6b0e08; --amber: #ffa033; --volt: #4db8ff; --track: #2c2624;
+  --face: "Barlow Semi Condensed", sans-serif;
+}
+html, body { margin: 0; background: #000; }
+svg { display: block; }
+svg text { font-family: var(--face); font-variant-numeric: tabular-nums; fill: var(--ink); }
+.big { font-size: 170px; font-weight: 500; letter-spacing: -0.02em; }
+.dim { fill: var(--dim); }
+.lbl { font-size: 22px; font-weight: 500; letter-spacing: 0.06em; fill: var(--dim); }
+.val { font-size: 30px; font-weight: 500; }
+.small { font-size: 24px; font-weight: 500; }
+.unit { font-size: 22px; font-weight: 500; fill: var(--dim); }
+.g-outline { fill: none; stroke: var(--line); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.g-halo { fill: none; stroke: var(--sport); stroke-width: 14; opacity: 0.22; stroke-linecap: round; }
+.g-band { fill: none; stroke: var(--ember); stroke-width: 22; opacity: 0.55; }
+.g-red { fill: none; stroke: var(--sport); stroke-width: 7; }
+.g-tick { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
+.g-tick.minor { stroke-width: 2; opacity: 0.7; }
+.g-num { font-size: 34px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
+.bar-track { fill: none; stroke: var(--track); stroke-width: 14; stroke-linecap: butt; }
+.bar-fill { fill: none; stroke-width: 14; stroke-linecap: butt; }
+.mini-track { stroke: var(--track); stroke-width: 7; stroke-linecap: round; fill: none; }
+.mini-fill { stroke: var(--line); stroke-width: 7; fill: none; }
+.mini-mark { stroke: var(--sport); stroke-width: 3; stroke-linecap: round; fill: none; }
+.car { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.car.glass { stroke-width: 1.5; opacity: 0.7; }
+.tyre { fill: var(--track); stroke: var(--ground); stroke-width: 2; }
+.icon { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mode { font-size: 30px; font-weight: 600; letter-spacing: 0.3em; fill: var(--sport); text-anchor: middle; }
+.gforce-ring { fill: none; stroke: var(--dim); stroke-width: 1.5; opacity: 0.7; }
+.chev { fill: none; stroke: var(--sport); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.light { fill: var(--track); }
+.cell { fill: var(--track); }
+</style>
+</head>
+<body>
+<svg id="cluster" width="1920" height="720" viewBox="0 0 1920 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="wash" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" style="stop-color:var(--sport);stop-opacity:0.36"/>
+      <stop offset="1" style="stop-color:var(--sport);stop-opacity:0"/>
+    </radialGradient>
+    <linearGradient id="ruleL" x1="0" x2="1">
+      <stop offset="0" style="stop-color:var(--ink);stop-opacity:0"/>
+      <stop offset="0.25" style="stop-color:var(--ink);stop-opacity:1"/>
+      <stop offset="1" style="stop-color:var(--ink);stop-opacity:0.5"/>
+    </linearGradient>
+    <linearGradient id="ruleR" x1="1" x2="0">
+      <stop offset="0" style="stop-color:var(--ink);stop-opacity:0"/>
+      <stop offset="0.25" style="stop-color:var(--ink);stop-opacity:1"/>
+      <stop offset="1" style="stop-color:var(--ink);stop-opacity:0.5"/>
+    </linearGradient>
+    <pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#3a6" stroke-width="3"/>
+    </pattern>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+
+  <!-- a guide (not drawn by the theme): the top keep-clear zone -->
+  <rect data-guide x="0" y="0" width="1920" height="40" fill="url(#hatch)" opacity="0.5"/>
+
+  <!-- the washes behind the brackets (they bleed off the panel's edges and top on purpose) -->
+  <ellipse data-bleed cx="250" cy="470" rx="330" ry="240" fill="url(#wash)"/>
+  <ellipse data-bleed cx="1670" cy="470" rx="330" ry="240" fill="url(#wash)"/>
+
+  <!-- the bracket gauges: the outline is kept in the art (data-keep) and is
+       the gauge's path; the scale runs from 290 px along it to 40 px before
+       its end. Halo, unlit band, ticks and numerals are drawn by the script. -->
+  <g id="gSpeed"></g>
+  <path id="speedOutline" class="g-outline" data-gauge="speed" data-keep
+        data-start="290" data-end="40" data-maxd="112"
+        data-value="vMph / P.maxMph"
+        data-band="5 27" data-band-color="alpha(C.sport, 0.82)" data-segments="16 2.5"
+        data-needle="0 40 5" data-needle-color="C.ink"
+        data-glow="240 70" data-glow-color="alpha(C.sport, P.glow * clamp(vMph / P.maxMph * P.glowFade))"
+        data-pool="16 0.9 20" data-look="0 3 2"/>
+  <g id="gTach"></g>
+  <path id="tachOutline" class="g-outline" data-gauge="tach" data-keep data-reuse="speed" data-maxd="112"
+        data-start="290" data-end="40"
+        data-value="vRpm / 1000 / P.maxKrpm"
+        data-band="5 27" data-band-color="alpha(C.sport, 0.82)" data-segments="14 2.5"
+        data-needle="0 40 5" data-needle-color="C.ink"
+        data-glow="240 70" data-glow-color="alpha(C.sport, P.glow * clamp(vRpm / 1000 / P.maxKrpm * P.glowFade))"
+        data-pool="16 0.9 20" data-look="0 3 2"/>
+
+  <!-- fuel and oil: mini bars outside the brackets' lower diagonals (placed by the script) -->
+  <g id="miniFuel"></g>
+  <path id="fuelBar" class="mini-fill" data-gauge="fuel" data-ends data-maxd="6" data-art="off"
+        data-value="clamp(fuelPct / 100, 0.02, 1)"/>
+  <g id="miniOil"></g>
+  <path id="oilBar" class="mini-fill" data-gauge="oil" data-reuse="fuel" data-ends data-art="off"
+        data-value="clamp((oilC - 70) / 80, 0.02, 1)"
+        data-band-color="step(oilC, C.dim, 85, C.line, 134, C.sport)"/>
+  <g id="fuelIcon" class="icon"><rect x="0" y="2" width="13" height="20" rx="2"/><path d="M3 9 h7"/><path d="M13 8 l5 4 v8 a2.5 2.5 0 0 0 5 0 v-11 l-4 -4"/></g>
+  <g id="oilIcon" class="icon"><path d="M6 8 h12 l3 3 v9 h-17 v-9 z"/><path d="M9 8 v-4 h6 v4"/><path d="M21 13 l9 -5"/><path d="M4 12 l-3 -3"/><path d="M31 13 v4"/></g>
+
+  <!-- shift lights: seven pairs from the outside in, leaning as a chevron -->
+  <g id="shiftLights" data-leds="shift" data-count="14" data-mode="ends" data-light="22 20" data-split="4 4"
+     data-radius="0.8" data-lean="15.4 12 1" data-c0="C.amber" data-c1="C.amber" data-c2="C.sport" data-off="C.track"
+     data-lit="when(ok(rpm), when(cue, 7, floor(clamp((rpm - P.shiftFrom) / (P.shiftRpm - P.shiftFrom), 0, 0.999) * 7)), 0)"
+     data-flash="cue">
+    <rect x="750" y="48" width="420" height="22" fill="none"/>
+  </g>
+
+  <!-- speed readout -->
+  <text class="big" x="640" y="392" text-anchor="end" data-text="speedText" data-text-expr="fmt(mph(kmh))">118</text>
+  <text class="unit" x="654" y="392" style="font-size:28px">mph</text>
+  <rect x="372" y="413" width="348" height="2" fill="url(#ruleL)"/>
+  <text class="val" x="584" y="458" text-anchor="end" data-text="kmhText" data-text-expr="fmt(kmh)" data-rate="10">190</text>
+  <text class="unit" x="592" y="458">km/h</text>
+
+  <!-- gear and revs readout -->
+  <text class="dim" x="1250" y="392" style="font-size:64px;font-weight:400" data-text="prefixText" data-glyphs="MDS"
+        data-text-expr="when(/^[MDS]$/.test(gearMode) &amp;&amp; gear > 0, gearMode, '')">M</text>
+  <text class="big" x="1300" y="392" data-text="gearText" data-glyphs="PRND"
+        data-text-expr="when(/^[PRN]$/.test(gearMode), gearMode, when(gear === 0, 'N', fmt(gear)))"
+        data-color="when(cue, C.sport, C.ink)">4</text>
+  <rect x="1200" y="413" width="348" height="2" fill="url(#ruleR)"/>
+  <text class="val" x="1318" y="458" text-anchor="end" data-text="rpmText" data-text-expr="fmt(round(rpm, 50))" data-rate="10">6250</text>
+  <text class="unit" x="1326" y="458">rpm</text>
+  <text class="lbl" x="1392" y="458">BOOST</text>
+  <text class="val" x="1512" y="458" text-anchor="end" data-text="boostText" data-text-expr="fmt(psi(max(0, boostBar)))" data-rate="10">22</text>
+  <text class="unit" x="1518" y="458">psi</text>
+
+  <!-- power bars: tracks and labels are art, the fills are gauges (electric mirrors engine's field) -->
+  <text class="lbl" x="800" y="116" text-anchor="middle">184</text>
+  <path id="engineTrack" class="bar-track" d="M800 470 Q758 300 800 130"/>
+  <path class="bar-fill" style="stroke:var(--line)" d="M800 470 Q758 300 800 130" data-gauge="engine" data-art="off"
+        data-value="clamp(smooth(max(0, engineHp), 12) / P.engineMaxHp)"/>
+  <text class="val" x="806" y="508" text-anchor="end" data-text="engineText" data-text-expr="fmt(max(0, engineHp))" data-rate="10">184</text>
+  <text class="unit" x="812" y="508">hp</text>
+  <text class="lbl" x="800" y="536" text-anchor="middle">ENGINE</text>
+  <text class="lbl" x="1120" y="116" text-anchor="middle">113</text>
+  <path id="electricTrack" class="bar-track" d="M1120 470 Q1162 300 1120 130"/>
+  <line id="electricZero" stroke-width="2" style="stroke:var(--ink)"/>
+  <path class="bar-fill" style="stroke:var(--volt)" d="M1120 470 Q1162 300 1120 130" data-gauge="electric" data-reuse="engine" data-art="off"
+        data-value="when(ele > 0.5, 0.25 + clamp(ele / P.electricMaxHp) * 0.75, when(ele &lt; -0.5, 0.25 - clamp(-ele / P.regenMaxHp) * 0.25, 0.25))"
+        data-from="when(ele &lt; -0.5, 0.25 - P.barGap, 0.25 + P.barGap)"
+        data-band-color="alpha(C.volt, when(abs(ele) > 0.5, 1, 0))"/>
+  <text class="val" x="1126" y="508" text-anchor="end" data-text="electricText" data-text-expr="fmt(abs(elecHp))" data-rate="10">113</text>
+  <text class="unit" x="1132" y="508">hp</text>
+  <text class="lbl" x="1120" y="536" text-anchor="middle" data-text="electricLabel"
+        data-text-expr="when(elecHp &lt; -1, 'CHARGING', 'ELECTRIC')" data-rate="10">ELECTRIC</text>
+
+  <!-- the map slot (a later map integration shows the cluster map here) -->
+  <rect data-map x="846" y="150" width="228" height="330" rx="14" fill="none"/>
+
+  <!-- car plan, tyres, g-force -->
+  <g transform="translate(0 30)">
+    <path class="car" d="M934 152 C946 147 974 147 986 152 C1000 157 1006 170 1007 186 L1009 238 L1010 256 L1010 362 C1010 386 1004 398 990 402 C974 407 946 407 930 402 C916 398 910 386 910 362 L910 256 L911 238 L913 186 C914 170 920 157 934 152 Z"/>
+    <path class="car" d="M1009 240 l11 -4 l2 7 l-12 3"/>
+    <path class="car" d="M911 240 l-11 -4 l-2 7 l12 3"/>
+    <path class="car glass" d="M921 240 Q960 224 999 240 L992 266 Q960 257 928 266 Z"/>
+    <path class="car glass" d="M928 352 Q960 359 992 352 L997 372 Q960 383 923 372 Z"/>
+    <path class="car glass" d="M928 266 L928 352 M992 266 L992 352"/>
+    <path class="car glass" d="M926 176 Q960 166 994 176"/>
+    <circle class="gforce-ring" cx="960" cy="309" r="26"/>
+    <line class="gforce-ring" x1="960" y1="277" x2="960" y2="341"/>
+    <line class="gforce-ring" x1="928" y1="309" x2="992" y2="309"/>
+  </g>
+  <!-- tyres: hollow when cold, then dim, amber from 54 °C, red from 70 -->
+  <rect class="tyre" x="899" y="206" width="18" height="50" rx="6" data-rect="tyreFL" data-ring="1.5" data-show="ok(tyres[0].c)"
+        data-color="step(tyres[0].c, C.track, 30, C.dim, 54, C.amber, 70, C.sport)" data-ring-color="when(tyres[0].c &lt; 30, C.dim, '#000')" data-rate="10"/>
+  <rect class="tyre" x="1003" y="206" width="18" height="50" rx="6" data-rect="tyreFR" data-ring="1.5" data-show="ok(tyres[1].c)"
+        data-color="step(tyres[1].c, C.track, 30, C.dim, 54, C.amber, 70, C.sport)" data-ring-color="when(tyres[1].c &lt; 30, C.dim, '#000')" data-rate="10"/>
+  <rect class="tyre" x="899" y="360" width="18" height="50" rx="6" data-rect="tyreRL" data-ring="1.5" data-show="ok(tyres[2].c)"
+        data-color="step(tyres[2].c, C.track, 30, C.dim, 54, C.amber, 70, C.sport)" data-ring-color="when(tyres[2].c &lt; 30, C.dim, '#000')" data-rate="10"/>
+  <rect class="tyre" x="1003" y="360" width="18" height="50" rx="6" data-rect="tyreRR" data-ring="1.5" data-show="ok(tyres[3].c)"
+        data-color="step(tyres[3].c, C.track, 30, C.dim, 54, C.amber, 70, C.sport)" data-ring-color="when(tyres[3].c &lt; 30, C.dim, '#000')" data-rate="10"/>
+  <circle cx="960" cy="339" r="6" style="fill:var(--line)" data-rect="gDot"
+          data-dx="clamp(gLat, -1.2, 1.2) * 21" data-dy="clamp(gLon, -1.2, 1.2) * 21"/>
+  <text class="small" x="964" y="244" text-anchor="end" data-text="gText" data-text-expr="fmt(Math.hypot(gLat, gLon), 1)" data-rate="10">0.8</text>
+  <text class="unit" x="969" y="244" style="font-size:20px">g</text>
+  <!-- both front (rear) tyres on one text layer: P.psiGap / P.tempGap keep 148 px between them -->
+  <text class="val" x="856" y="229" data-text="psiFront" data-rate="10"
+        data-text-expr="fmt(psi(tyres[0].bar)) + P.psiGap + fmt(psi(tyres[1].bar))">35&#8195;&#8195;&#8195;&#8195;&#8194;  35</text>
+  <text class="val" x="856" y="383" data-text="psiRear" data-rate="10"
+        data-text-expr="fmt(psi(tyres[2].bar)) + P.psiGap + fmt(psi(tyres[3].bar))">38&#8195;&#8195;&#8195;&#8195;&#8194;  36</text>
+  <text class="small dim" x="853" y="256" data-text="tempFront" data-rate="10"
+        data-text-expr="fmt(tyres[0].c) + '°' + P.tempGap + fmt(tyres[1].c) + '°'">61°&#8195;&#8195;&#8195;&#8195;&#8195;&#8195; 65°</text>
+  <text class="small dim" x="853" y="410" data-text="tempRear" data-rate="10"
+        data-text-expr="fmt(tyres[2].c) + '°' + P.tempGap + fmt(tyres[3].c) + '°'">58°&#8195;&#8195;&#8195;&#8195;&#8195;&#8195; 62°</text>
+  <text class="lbl" x="960" y="470" text-anchor="middle">TYRES  psi / °C</text>
+
+  <!-- battery -->
+  <g class="icon" transform="translate(800 577)"><rect x="0" y="0" width="30" height="16" rx="2"/><path d="M30 5 h4 v6 h-4"/></g>
+  <text class="lbl" x="846" y="594">BATTERY</text>
+  <text class="val" x="1022" y="595" text-anchor="end" data-text="socText" data-text-expr="fmt(socPct)" data-rate="10">100</text>
+  <text class="unit" x="1027" y="595">%</text>
+  <text class="val" x="1090" y="595" text-anchor="end" data-text="evRangeText" data-text-expr="fmt(miles(evRangeKm))" data-rate="10">35</text>
+  <text class="unit" x="1096" y="595">mi</text>
+  <g id="socCells" data-leds="socCells" data-count="20" data-light="13 9" data-c0="C.volt" data-off="C.track"
+     data-lit="round(socPct / 5)" data-rate="10">
+    <rect x="798" y="606" width="323" height="13" fill="none"/>
+  </g>
+
+  <!-- info line, in the old bottom strip -->
+  <text class="val" x="282" y="690" text-anchor="end" data-text="rangeText" data-text-expr="fmt(miles(rangeKm))" data-rate="10">312</text>
+  <text class="unit" x="289" y="690">mi</text>
+  <text class="val" x="390" y="690" data-text="clockText" data-text-expr="when(/^\d{1,2}:\d{2}$/.test(clock), clock, '--:--')" data-rate="10">14:32</text>
+  <text class="lbl" x="530" y="690">0–60</text>
+  <!-- 0-60 mph is timed in logic.extra.js -->
+  <text class="val" x="632" y="690" text-anchor="end" data-text="z60Text" data-text-expr="'--'" data-glyphs="0123456789.">12.5</text>
+  <text class="unit" x="638" y="690">s</text>
+  <text class="mode" x="960" y="690">SPORT</text>
+  <text class="lbl" x="1232" y="690">COOLANT</text>
+  <text class="val" x="1386" y="690" text-anchor="end" data-text="coolantText" data-text-expr="fmt(coolantC)" data-rate="10">120</text>
+  <text class="unit" x="1392" y="690">°C</text>
+  <text class="val" x="1540" y="690" text-anchor="end" data-text="outsideText" data-text-expr="fmt(outsideC, 1, '+')" data-rate="10">+11.5</text>
+  <text class="unit" x="1546" y="690">°C</text>
+  <text class="val" x="1656" y="690" text-anchor="end" data-text="oilText" data-text-expr="fmt(oilC)" data-rate="10">104</text>
+  <text class="unit" x="1662" y="690">°C</text>
+
+  <!-- the shift chevrons beside the gear: shown at the shift point only -->
+  <g data-sprite="chev" data-show="cue">
+    <polyline class="chev" points="1420,342 1450,310 1480,342"/>
+    <polyline class="chev" points="1420,378 1450,346 1480,378"/>
+  </g>
+</svg>
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(name, attrs, parent, before) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.insertBefore(e, before || null);
+    return e;
+  }
+  function $(id) { return document.getElementById(id); }
+  function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+  function unit(x, y) { var m = Math.hypot(x, y) || 1; return [x / m, y / m]; }
+  function roundedPath(pts, r) {
+    var d = 'M' + pts[0][0] + ' ' + pts[0][1];
+    for (var i = 1; i < pts.length - 1; i++) {
+      var p = pts[i], a = unit(pts[i - 1][0] - p[0], pts[i - 1][1] - p[1]), b = unit(pts[i + 1][0] - p[0], pts[i + 1][1] - p[1]);
+      d += ' L' + (p[0] + a[0] * r) + ' ' + (p[1] + a[1] * r) + ' Q' + p[0] + ' ' + p[1] + ' ' + (p[0] + b[0] * r) + ' ' + (p[1] + b[1] * r);
+    }
+    var l = pts[pts.length - 1];
+    return d + ' L' + l[0] + ' ' + l[1];
+  }
+
+  /* The bracket gauge's static parts: halo, unlit band, redline, ticks,
+   * numerals (at the mockup's resting 0.58); the outline is the marked path. */
+  function Gauge(g, path, o) {
+    var d = roundedPath(o.pts, 70);
+    path.setAttribute('d', d);
+    el('path', { d: d, 'class': 'g-halo', filter: 'url(#soft)' }, g);
+    var bandEl = el('polyline', { 'class': 'g-band' }, g);
+    var total = path.getTotalLength();
+    var STEP = 2, S = [];
+    for (var L = 0; L <= total; L += STEP) {
+      var p = path.getPointAtLength(L), q = path.getPointAtLength(Math.min(total, L + 1)), q0 = path.getPointAtLength(Math.max(0, L - 1));
+      var t = unit(q.x - q0.x, q.y - q0.y), nx = -t[1], ny = t[0];
+      if (nx * (o.C[0] - p.x) + ny * (o.C[1] - p.y) < 0) { nx = -nx; ny = -ny; }
+      S.push([p.x, p.y, nx, ny]);
+    }
+    function at(L) {
+      var f = clamp(L, 0, total - STEP) / STEP, i = Math.floor(f), k = f - i, a = S[i], b = S[Math.min(S.length - 1, i + 1)];
+      return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k];
+    }
+    var La = o.startAt, Lb = total - o.endPad;
+    function lenOf(v) { return La + (clamp(v, o.min, o.max) - o.min) / (o.max - o.min) * (Lb - La); }
+    var pts = [];
+    for (var L2 = La; L2 <= Lb + 0.01; L2 += STEP) {
+      var s = at(L2);
+      pts.push((s[0] + s[2] * 16).toFixed(1) + ',' + (s[1] + s[3] * 16).toFixed(1));
+    }
+    bandEl.setAttribute('points', pts.join(' '));
+    if (o.red != null) {
+      var a0 = lenOf(o.red);
+      el('path', { d: d, 'class': 'g-red', 'stroke-dasharray': '0 ' + a0.toFixed(1) + ' ' + (Lb - a0 + 6).toFixed(1) + ' 9999' }, g);
+    }
+    for (var v = o.min; v <= o.max + 1e-6; v += o.minor) {
+      var major = Math.abs(v / o.major - Math.round(v / o.major)) < 1e-6;
+      var s2 = at(lenOf(v)), len = major ? 20 : 10;
+      el('line', { 'class': 'g-tick' + (major ? '' : ' minor'), x1: s2[0], y1: s2[1], x2: s2[0] + s2[2] * len, y2: s2[1] + s2[3] * len }, g);
+      if (major) {
+        var tx = el('text', { 'class': 'g-num', x: s2[0] + s2[2] * 64, y: s2[1] + s2[3] * 64, opacity: o.numOpacity }, g);
+        tx.textContent = String(Math.round(v));
+      }
+    }
+  }
+  /* taller than the 646 px original (the outline reaches y 628), the same
+   * width and the same 70 px corner radius: nothing stretched */
+  var SPEED = [[690, 628], [300, 628], [120, 370], [270, 104], [720, 76]];
+  var TACH = SPEED.map(function (p) { return [1920 - p[0], p[1]]; });
+  Gauge($('gSpeed'), $('speedOutline'), { pts: SPEED, C: [480, 350], min: 0, max: 160, major: 20, minor: 10, startAt: 290, endPad: 40, numOpacity: 0.58 });
+  Gauge($('gTach'), $('tachOutline'), { pts: TACH, C: [1440, 350], min: 0, max: 7, major: 1, minor: 0.5, startAt: 290, endPad: 40, red: 6.5, numOpacity: 0.58 });
+
+  /* the mini bars 36 px outside the lower diagonal, 0.14..0.84 of it: track,
+   * ticks, the red mark at the end that matters, the marked fill, the icon */
+  function Mini(g, bar, icon, a, b, mark, iconAt) {
+    var dir = unit(b[0] - a[0], b[1] - a[1]), out = [dir[1], -dir[0]];
+    var C = [a[0] < 960 ? 480 : 1440, 350];
+    if (out[0] * (C[0] - a[0]) + out[1] * (C[1] - a[1]) > 0) out = [-out[0], -out[1]];
+    var A = [a[0] + out[0] * 36, a[1] + out[1] * 36], B = [b[0] + out[0] * 36, b[1] + out[1] * 36];
+    function along(k) { return [A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k]; }
+    var p0 = along(0.14), p1 = along(0.84);
+    function on(k) { return [p0[0] + (p1[0] - p0[0]) * k, p0[1] + (p1[1] - p0[1]) * k]; }
+    el('line', { 'class': 'mini-track', x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1] }, g);
+    [0, 0.5, 1].forEach(function (k) {
+      var p = on(k);
+      el('line', { 'class': 'g-tick minor', x1: p[0] + out[0] * 8, y1: p[1] + out[1] * 8, x2: p[0] + out[0] * 18, y2: p[1] + out[1] * 18 }, g);
+    });
+    var m0 = on(mark[0]), m1 = on(mark[1]);
+    el('line', { 'class': 'mini-mark', x1: m0[0] + out[0] * 10, y1: m0[1] + out[1] * 10, x2: m1[0] + out[0] * 10, y2: m1[1] + out[1] * 10 }, g);
+    var r = function (v) { return Math.round(v * 100) / 100; };
+    bar.setAttribute('d', 'M' + r(p0[0]) + ' ' + r(p0[1]) + ' L' + r(p1[0]) + ' ' + r(p1[1]));
+    icon.setAttribute('transform', 'translate(' + Math.round(p0[0] + iconAt[0]) + ' ' + Math.round(p0[1] + iconAt[1]) + ')');
+  }
+  Mini($('miniFuel'), $('fuelBar'), $('fuelIcon'), SPEED[1], SPEED[2], [0, 0.14], [-11, 16]);
+  Mini($('miniOil'), $('oilBar'), $('oilIcon'), TACH[1], TACH[2], [0.8, 1], [-19, 18]);
+
+  /* the electric bar's zero tick, a quarter of the way up */
+  var et = $('electricTrack'), el25 = et.getTotalLength() * 0.25, z = et.getPointAtLength(el25), z1 = et.getPointAtLength(el25 + 1);
+  var tn = unit(z1.x - z.x, z1.y - z.y), zn = [-tn[1], tn[0]];
+  if (zn[0] < 0) zn = [-zn[0], -zn[1]];
+  var zl = $('electricZero');
+  zl.setAttribute('x1', z.x + zn[0] * 7); zl.setAttribute('y1', z.y + zn[1] * 7);
+  zl.setAttribute('x2', z.x + zn[0] * 31); zl.setAttribute('y2', z.y + zn[1] * 31);
+
+  /* the design's view of the shift lights (the leds layer draws the real ones) */
+  var sl = $('shiftLights');
+  for (var i = 0; i < 14; i++) {
+    var right = i >= 7, x = 750 + 7.7 + i * 28 + (right ? 12 : 0), lean = right ? -7.7 : 7.7;
+    el('polygon', { 'class': 'light', points: [x - lean, 69, x + 22 - lean, 69, x + 22 + lean, 49, x + lean, 49].join(' '),
+      style: i < 2 || i > 11 ? 'fill:var(--amber)' : '' }, sl);
+  }
+  var sc = $('socCells');
+  for (var j = 0; j < 20; j++) el('rect', { 'class': 'cell', x: 798 + 1.6 + j * 16.15, y: 608, width: 13, height: 9, style: j < 14 ? 'fill:var(--volt)' : '' }, sc);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<meta charset="utf-8">
+<style>html, body { margin: 0; background: #000; } canvas { display: block; }</style>
+<canvas id="c" width="1920" height="720"></canvas>
+<script>
+/* Nested 10 px frames from the screen's edge inward, each its own colour
+ * and labelled with its inset, so a photo of the cluster shows how many
+ * pixels the glass and the frame hide at every edge and corner. */
+const c = document.getElementById('c').getContext('2d');
+const COLS = ['#ff2a2a', '#ff8c1a', '#ffe11a', '#4dff4d', '#1affe1', '#1a8cff', '#b44dff', '#ff4dc4', '#ffffff', '#ff2a2a', '#ff8c1a', '#ffe11a'];
+for (let k = 0; k < 12; k++) {
+    const i = k * 10;
+    c.strokeStyle = COLS[k];
+    c.lineWidth = 10;
+    c.strokeRect(i + 5, i + 5, 1920 - 2 * i - 10, 720 - 2 * i - 10);
+}
+c.font = 'bold 22px sans-serif';
+c.textBaseline = 'middle';
+c.textAlign = 'center';
+const label = (x, y, t) => { c.fillStyle = '#000'; c.fillRect(x - 22, y - 13, 44, 26); c.fillStyle = '#fff'; c.fillText(t, x, y); };
+/* inset labels on each frame at the top centre, bottom centre, left and right middle, and the corners */
+for (let k = 0; k < 12; k += 1) {
+    const i = k * 10 + 5;
+    if (k % 2 === 0) {
+        label(960 + (k - 6) * 60, i, String(k * 10));
+        label(960 + (k - 6) * 60, 720 - i, String(k * 10));
+        label(i, 360 + (k - 6) * 30, String(k * 10));
+        label(1920 - i, 360 + (k - 6) * 30, String(k * 10));
+    }
+}
+c.fillStyle = '#fff';
+c.font = 'bold 48px sans-serif';
+c.fillText('CALIBRATION 1920 x 720', 960, 300);
+c.font = '28px sans-serif';
+c.fillText('each frame 10 px; its number is the inset from the screen edge', 960, 360);
+c.fillText('the first frame you can see at each edge and corner is the visible area', 960, 400);
+/* a ruler across the middle every 50 px */
+for (let x = 0; x <= 1920; x += 50) { c.fillStyle = x % 100 ? '#666' : '#fff'; c.fillRect(x - 1, 450, 2, x % 100 ? 12 : 24); if (x % 200 === 0) { c.font = '18px sans-serif'; c.fillText(String(x), Math.min(1895, Math.max(25, x)), 490); } }
+for (let y = 150; y <= 700; y += 50) { c.fillStyle = '#fff'; c.fillRect(940, y - 1, 40, 2); c.font = '18px sans-serif'; c.fillText(String(y), 1010, y); }
+</script>

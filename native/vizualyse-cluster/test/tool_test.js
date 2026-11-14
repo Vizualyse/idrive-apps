@@ -129,10 +129,16 @@ function send(c) { ctl.write(JSON.stringify(c) + '\n'); }
         assert.ok(l.y + l.h <= 646, 'layer ' + l.ref + ' stays above the car\'s strip');
         if (l.kind === 'effect') assert.ok(/#version 100/.test(l.fs), 'an effect carries its shader');
     });
-    const art = assets.filter((a) => a.w === 1920 && a.h === 646 && a.format === 'rgba8')[0];
+    /* the art goes as its tiles and their map (THEMES.md "Static art"): one
+     * RGBA asset, whole, far smaller than the 1920 x 646 picture */
+    const A = theme.assets.art;
+    assert.ok(A.tile > 0 && A.map, 'the built art is tiled');
+    const art = assets.filter((a) => a.w === A.w && a.h === A.h && a.format === 'rgba8')[0];
     assert.ok(art, 'the art is an asset');
+    assert.ok(art.w <= 2048 && art.h <= 2048, 'the art\'s tiles fit a texture');
     const artFrame = ops.filter((m) => m.op === 'frame' && m.ref === art.ref)[0];
-    assert.strictEqual(artFrame.bytes, 1920 * 646 * 4, 'the art goes whole');
+    assert.strictEqual(artFrame.bytes, A.w * A.h * 4, 'the art goes whole');
+    assert.ok(artFrame.bytes < 1920 * 646 * 4 / 2, 'the tiled art is under half the picture: ' + artFrame.bytes + ' bytes');
     ops.filter((m) => m.op === 'bind').forEach((b) => assert.ok(assets.some((a) => a.ref === b.asset), 'bind to a known asset'));
 
     /* the demo: only at a standstill (bench is off) */
@@ -147,7 +153,7 @@ function send(c) { ctl.write(JSON.stringify(c) + '\n'); }
     const before = ops.length, b0 = bytes;
     await wait(2000);
     const during = ops.slice(before);
-    assert.ok(during.some((m) => m.op === 'uniform' && m.name === 'u_v'), 'the gauge moves');
+    assert.ok(during.some((m) => m.op === 'uniform' && m.name === 'u_val'), 'the gauge moves');
     assert.ok(during.every((m) => m.op === 'uniform' || m.op === 'set'), 'only uniforms and sets while it runs');
     const rate = (bytes - b0) / 2 / 1024;
     assert.ok(rate < 30, 'uniform traffic ' + rate.toFixed(1) + ' KB/s');

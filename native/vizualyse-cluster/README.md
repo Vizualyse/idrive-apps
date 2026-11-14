@@ -28,22 +28,22 @@ typefaces (THIRD-PARTY.md).
 
 | Theme | Id | Mode | Layers | Textures | MB at start | MB on a mode switch | Mpx a frame |
 |---|---|---|---|---|---|---|---|
-| G20 inspired 1 | `g20i1` | sport | 37 | 10 | 6.20 | 6.02 | 2.00 |
-| G20 inspired 1 · Comfort | `g20i1c` | comfort | 36 | 12 | 6.47 | 6.29 | 2.36 |
-| G20 inspired 2 | `g20i2` | sport | 37 | 12 | 7.05 | 5.27 | 2.37 |
-| G20 inspired 2 · Comfort | `g20i2c` | comfort | 31 | 12 | 6.65 | 4.86 | 2.60 |
-| LCI inspired 1 | `lci1` | sport | 38 | 12 | 6.29 | 5.62 | 2.56 |
-| LCI inspired 1 · Comfort | `lci1c` | comfort | 38 | 12 | 6.28 | 5.62 | 2.74 |
-| LCI inspired 2 | `lci2` | sport | 40 | 12 | 5.99 | 4.91 | 2.43 |
-| LCI inspired 2 · Comfort | `lci2c` | comfort | 34 | 12 | 5.88 | 4.81 | 2.10 |
-| Performance 1 | `perf1` | sport | 38 | 11 | 6.21 | 6.08 | 2.17 |
-| Performance 1 · Comfort | `perf1c` | comfort | 40 | 11 | 6.17 | 6.04 | 2.40 |
-| Performance 2 | `perf2` | sport | 37 | 12 | 6.15 | 6.05 | 2.15 |
-| Performance 2 · Comfort | `perf2c` | comfort | 36 | 12 | 6.07 | 5.97 | 2.19 |
-| Three-dial 1 | `tri1` | sport | 37 | 12 | 5.84 | 5.49 | 2.26 |
-| Three-dial 1 · Comfort | `tri1c` | comfort | 37 | 12 | 5.91 | 5.56 | 2.67 |
-| Three-dial 2 | `tri2` | sport | 39 | 12 | 6.69 | 5.63 | 1.96 |
-| Three-dial 2 · Comfort | `tri2c` | comfort | 29 | 12 | 6.50 | 5.44 | 1.91 |
+| G20 inspired 1 | `g20i1` | sport | 37 | 10 | 2.99 | 2.82 | 1.98 |
+| G20 inspired 1 · Comfort | `g20i1c` | comfort | 36 | 12 | 2.99 | 2.81 | 2.33 |
+| G20 inspired 2 | `g20i2` | sport | 37 | 12 | 3.11 | 1.43 | 2.29 |
+| G20 inspired 2 · Comfort | `g20i2c` | comfort | 31 | 12 | 2.60 | 0.92 | 2.51 |
+| LCI inspired 1 | `lci1` | sport | 38 | 12 | 2.09 | 1.44 | 2.52 |
+| LCI inspired 1 · Comfort | `lci1c` | comfort | 38 | 12 | 2.09 | 1.43 | 2.70 |
+| LCI inspired 2 | `lci2` | sport | 40 | 12 | 2.27 | 1.22 | 2.40 |
+| LCI inspired 2 · Comfort | `lci2c` | comfort | 34 | 12 | 2.04 | 0.98 | 2.09 |
+| Performance 1 | `perf1` | sport | 38 | 11 | 1.71 | 1.62 | 2.09 |
+| Performance 1 · Comfort | `perf1c` | comfort | 40 | 11 | 1.72 | 1.63 | 2.32 |
+| Performance 2 | `perf2` | sport | 37 | 12 | 2.52 | 2.43 | 2.12 |
+| Performance 2 · Comfort | `perf2c` | comfort | 36 | 12 | 2.39 | 2.31 | 2.16 |
+| Three-dial 1 | `tri1` | sport | 37 | 12 | 1.69 | 1.36 | 2.22 |
+| Three-dial 1 · Comfort | `tri1c` | comfort | 37 | 12 | 1.74 | 1.41 | 2.63 |
+| Three-dial 2 | `tri2` | sport | 39 | 12 | 2.85 | 1.80 | 1.94 |
+| Three-dial 2 · Comfort | `tri2c` | comfort | 29 | 12 | 2.66 | 1.61 | 1.89 |
 
 (`node tools/theme_table.js` prints this from the built themes.) While
 driving, a theme sends 4-20 KB/s of uniforms (`test/themes_test.js`), next to
@@ -85,6 +85,7 @@ not shipped.
 | `themes/built/` | the built themes (committed; the kit ships them flat) |
 | `themes/fonts/` | Barlow Semi Condensed (OFL), shared |
 | `tools/theme_build.js` | builds a theme (headless Chrome for the art and fonts); `--list --prune` keeps component.json's files in step |
+| `tools/tiles.js` | the static art as its distinct tiles and their map, one texture (THEMES.md "Static art") |
 | `tools/theme_table.js` | the themes' numbers |
 | `tools/preview.html`, `preview_serve.js`, `preview_shot.js` | the off-car preview in WebGL 1 |
 
@@ -105,12 +106,20 @@ node test/tool_test.js                          # the tool against a fake cluste
 ## On the car, still to find out
 
 - Everything: no theme has been on a KOMBI yet. First: the panel shown, a
-  theme's start upload (about 6-7 MB) through the governor, and how the
+  theme's start upload (about 1.7-3.1 MB) through the governor, and how the
   KOMBI's GPU copes with about 40 effect layers and 2-2.7 Mpx a frame
   (THEMES.md "Not known yet").
-- Which readings the head unit can give the app on iDrive 7 (rpm, gear,
-  drive mode, temperatures, tyres, power, battery, limit, cruise,
-  guidance): until then a theme on `car` shows the speed and the clock.
+- Which readings the car actually sends. Our firmware's SOME/IP catalog has
+  these, the same fields idrive7-apps reads on its cars
+  (`knowledge/vehicle-signals.md`): speed, rpm, gear (P R N, 1-9), gear mode
+  (S / M), drive mode, oil, coolant and outside temperatures, fuel (litres)
+  and range, odometer, boost, tyre pressures and temperatures, g, engine
+  power, trip averages, and BMW navigation's next turn, road, distance and
+  ETA. Their scaling still needs checking on the car: battery charge,
+  electric range and power, instant consumption. Speed limit and cruise set
+  speed are only candidates, not read by any app yet; the 12 V voltage isn't
+  a signal (only its charge %). Until the app reads them, a theme on `car`
+  shows the speed and the clock.
 - Where the glass and the driver camera's cowl hide the screen's edges.
 
 Not yet: the iDrive app (on/off, theme, mode, the readings, the speed) and a

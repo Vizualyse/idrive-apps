@@ -378,99 +378,105 @@
  "assets": {
   "art": {
    "format": "rgba8",
-   "w": 1920,
-   "h": 646,
+   "w": 248,
+   "h": 1004,
    "sampling": "nearest",
-   "file": "g20i2.art.rgba.gz",
-   "sha1": "0f9afbb78ab89843449e55f056ec64cbff467c18"
+   "file": "g20i2.art.tiles.gz",
+   "sha1": "0060a3d3f76d2a93d14d67894be984b14644c275",
+   "tile": 4,
+   "map": [
+    240,
+    162
+   ],
+   "tiles": 13101
   },
   "speedField": {
    "format": "rgba8",
-   "w": 665,
+   "w": 628,
    "h": 588,
    "sampling": "nearest",
    "file": "g20i2.speed.field.gz",
-   "sha1": "3c6e1c71c586d4fca3e929485cf41cf091d3a30f"
+   "sha1": "d5ce687907390872db40e1a9fc1d88bd88bb60fd"
   },
   "lampsField": {
    "format": "rgba8",
-   "w": 315,
-   "h": 175,
+   "w": 306,
+   "h": 170,
    "sampling": "nearest",
    "file": "g20i2.lamps.field.gz",
-   "sha1": "a662dd004e8d8099799898e8743af4c3379447ab"
+   "sha1": "8b2367b65ebaebb24061ffe21383131d77a1300b"
   },
   "barsField": {
    "format": "rgba8",
-   "w": 125,
-   "h": 327,
+   "w": 122,
+   "h": 314,
    "sampling": "nearest",
    "file": "g20i2.bars.field.gz",
-   "sha1": "ccc5084b8332aed35b02c7d28dc1b0f246163541"
+   "sha1": "f1c892fed8e2866ca0117e0f8b60b89722c9aeec"
   },
   "fuelField": {
    "format": "rgba8",
-   "w": 25,
-   "h": 158,
+   "w": 22,
+   "h": 148,
    "sampling": "nearest",
    "file": "g20i2.fuel.field.gz",
-   "sha1": "012e51926e5f7353abda9542f0f79802de93a0ab"
+   "sha1": "5d72ee226db96009782317df6d95bec70e4502b5"
   },
   "speedFont": {
    "format": "r8",
    "w": 960,
-   "h": 124,
+   "h": 112,
    "sampling": "bilinear",
    "file": "g20i2.speed.font.gz",
-   "sha1": "27cdf984de3fcfb532f2bb2bfc41c86283d3d883"
+   "sha1": "03d294509fa9bbd496f988bfe1578c501c59a128"
   },
   "gearFont": {
    "format": "r8",
    "w": 1920,
-   "h": 160,
+   "h": 143,
    "sampling": "bilinear",
    "file": "g20i2.gear.font.gz",
-   "sha1": "24adca2e7e83e856219a1ecf79822ee7b0f70c02"
+   "sha1": "213c24fac61f8c4d7830c40b9450d3c0bfe41ecc"
   },
   "modeFont": {
    "format": "r8",
    "w": 240,
-   "h": 48,
+   "h": 31,
    "sampling": "bilinear",
    "file": "g20i2.mode.font.gz",
-   "sha1": "e5e0bffcb9446f50f7d5ea07a4a05103c5904fc8"
+   "sha1": "08253029dbd6eed994b984c3a6604e40fe5836a8"
   },
   "psiFont": {
    "format": "r8",
    "w": 192,
-   "h": 34,
+   "h": 22,
    "sampling": "bilinear",
    "file": "g20i2.psi.font.gz",
-   "sha1": "4beb150eb40c5dccba07208767630081f0a87624"
+   "sha1": "d9c0f303ce6742ce2f8117aeebf76f43cdf4fb98"
   },
   "midFont": {
    "format": "r8",
    "w": 462,
-   "h": 30,
+   "h": 22,
    "sampling": "bilinear",
    "file": "g20i2.mid.font.gz",
-   "sha1": "b6ed03f1921f348ece2a5afe7c831a6488aab95a"
+   "sha1": "13029bf99f444709ea868ec4b58d19102832ad9c"
   },
   "smallFont": {
    "format": "r8",
    "w": 256,
-   "h": 24,
+   "h": 16,
    "sampling": "bilinear",
    "file": "g20i2.small.font.gz",
-   "sha1": "58d2a241f9ff77eebd0b0b499f39e582e109813f"
+   "sha1": "e78437279600480d414a47335c1bfdd39e52a8a5"
   },
   "capFont": {
    "format": "r8",
    "w": 384,
-   "h": 20,
+   "h": 11,
    "sampling": "bilinear",
    "file": "g20i2.cap.font.gz",
-   "sha1": "f32d4f810bc41985c3cb24cfa8fa20295bd81f7f"
+   "sha1": "194b41bc03b7c7ae1a86a96294942a7239a055ac"
   }
  },
  "layers": [
@@ -490,8 +496,14 @@
     "u_area": [
      0,
      0,
-     1,
-     1
+     480,
+     161.5
+    ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
     ]
    }
   },
@@ -501,7 +513,7 @@
    "shader": "gauge",
    "z": 0,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      1292.3363308879402,
      2,
@@ -562,10 +574,16 @@
      0
     ],
     "u_area": [
-     0.0765625,
-     0.05417956656346749,
-     0.3463541666666667,
-     0.9102167182662538
+     36.75,
+     8.75,
+     157,
+     147
+    ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
     ]
    },
    "binds": {
@@ -574,7 +592,7 @@
    },
    "x": 147,
    "y": 35,
-   "w": 665,
+   "w": 628,
    "h": 588
   },
   {
@@ -583,7 +601,7 @@
    "shader": "gauge",
    "z": 1,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      1292.3363308879402,
      2,
@@ -644,19 +662,25 @@
      0
     ],
     "u_area": [
-     0.5770833333333333,
-     0.05417956656346749,
-     0.3463541666666667,
-     0.9102167182662538
+     286.25,
+     8.75,
+     157,
+     147
+    ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
     ]
    },
    "binds": {
     "u_field": "speedField",
     "u_art": "art"
    },
-   "x": 1108,
+   "x": 1145,
    "y": 35,
-   "w": 665,
+   "w": 628,
    "h": 588
   },
   {
@@ -665,7 +689,7 @@
    "shader": "gauge",
    "z": 2,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      584.9701403418944,
      0.19964,
@@ -725,6 +749,12 @@
      0,
      0
     ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -736,10 +766,10 @@
     "u_field": "lampsField",
     "u_art": "art"
    },
-   "x": 1269,
-   "y": 69,
-   "w": 315,
-   "h": 175
+   "x": 1271,
+   "y": 72,
+   "w": 306,
+   "h": 170
   },
   {
    "name": "lampsB",
@@ -747,7 +777,7 @@
    "shader": "gauge",
    "z": 3,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      584.9701403418944,
      0.34938,
@@ -807,6 +837,12 @@
      0,
      0
     ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -818,10 +854,10 @@
     "u_field": "lampsField",
     "u_art": "art"
    },
-   "x": 1269,
-   "y": 69,
-   "w": 315,
-   "h": 175
+   "x": 1271,
+   "y": 72,
+   "w": 306,
+   "h": 170
   },
   {
    "name": "chevron",
@@ -829,7 +865,7 @@
    "shader": "gauge",
    "z": 4,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      1,
      584.9701403418944,
      2,
@@ -889,6 +925,12 @@
      0,
      0
     ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -900,10 +942,10 @@
     "u_field": "lampsField",
     "u_art": "art"
    },
-   "x": 1269,
-   "y": 69,
-   "w": 315,
-   "h": 175
+   "x": 1271,
+   "y": 72,
+   "w": 306,
+   "h": 170
   },
   {
    "name": "eng",
@@ -911,7 +953,7 @@
    "shader": "gauge",
    "z": 5,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      644.8762714618244,
      2,
@@ -971,6 +1013,12 @@
      0,
      0
     ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -982,10 +1030,10 @@
     "u_field": "barsField",
     "u_art": "art"
    },
-   "x": 1169,
-   "y": 201,
-   "w": 125,
-   "h": 327
+   "x": 1171,
+   "y": 203,
+   "w": 122,
+   "h": 314
   },
   {
    "name": "ele",
@@ -993,7 +1041,7 @@
    "shader": "gauge",
    "z": 6,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      644.8762714618244,
      2,
@@ -1053,6 +1101,12 @@
      0,
      0
     ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -1064,10 +1118,10 @@
     "u_field": "barsField",
     "u_art": "art"
    },
-   "x": 1169,
-   "y": 201,
-   "w": 125,
-   "h": 327
+   "x": 1171,
+   "y": 203,
+   "w": 122,
+   "h": 314
   },
   {
    "name": "fuel",
@@ -1075,7 +1129,7 @@
    "shader": "gauge",
    "z": 7,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      147.23400454933736,
      2,
@@ -1135,6 +1189,12 @@
      0,
      0
     ],
+    "u_tile": [
+     248,
+     1004,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -1146,10 +1206,10 @@
     "u_field": "fuelField",
     "u_art": "art"
    },
-   "x": 104,
-   "y": 353,
-   "w": 25,
-   "h": 158
+   "x": 105,
+   "y": 358,
+   "w": 22,
+   "h": 148
   },
   {
    "name": "soc",
@@ -1426,9 +1486,10 @@
     "u_font": "speedFont"
    },
    "x": 380,
-   "y": 274,
+   "y": 281,
    "w": 240,
-   "h": 124,
+   "h": 112,
+   "dy": 7,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -1507,9 +1568,10 @@
     "u_font": "gearFont"
    },
    "x": 1390,
-   "y": 240,
+   "y": 250,
    "w": 120,
-   "h": 160,
+   "h": 143,
+   "dy": 10,
    "glyphs": "0123456789NRPD- ",
    "cells": 1,
    "align": "center",
@@ -1592,9 +1654,10 @@
     "u_font": "modeFont"
    },
    "x": 1342,
-   "y": 258,
+   "y": 268,
    "w": 30,
-   "h": 48,
+   "h": 31,
+   "dy": 10,
    "glyphs": "MDSNRP -",
    "cells": 1,
    "align": "right",
@@ -1669,9 +1732,10 @@
     "u_font": "midFont"
    },
    "x": 1440,
-   "y": 437,
+   "y": 440,
    "w": 80,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 6,
    "align": "right",
@@ -1759,9 +1823,10 @@
     "u_font": "midFont"
    },
    "x": 1166,
-   "y": 223,
+   "y": 226,
    "w": 60,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 4,
    "align": "center",
@@ -1849,9 +1914,10 @@
     "u_font": "midFont"
    },
    "x": 1242,
-   "y": 206,
+   "y": 209,
    "w": 60,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 4,
    "align": "center",
@@ -1939,9 +2005,10 @@
     "u_font": "midFont"
    },
    "x": 712,
-   "y": 438,
+   "y": 441,
    "w": 64,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 5,
    "align": "left",
@@ -2029,9 +2096,10 @@
     "u_font": "capFont"
    },
    "x": 712,
-   "y": 474,
+   "y": 479,
    "w": 80,
-   "h": 20,
+   "h": 11,
+   "dy": 5,
    "glyphs": "COLDTYRES0123456789 Emi-",
    "cells": 8,
    "align": "left",
@@ -2122,9 +2190,10 @@
     "u_font": "psiFont"
    },
    "x": 828,
-   "y": 235,
+   "y": 242,
    "w": 48,
-   "h": 34,
+   "h": 22,
+   "dy": 7,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -2203,9 +2272,10 @@
     "u_font": "psiFont"
    },
    "x": 1044,
-   "y": 235,
+   "y": 242,
    "w": 48,
-   "h": 34,
+   "h": 22,
+   "dy": 7,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "left",
@@ -2284,9 +2354,10 @@
     "u_font": "psiFont"
    },
    "x": 828,
-   "y": 381,
+   "y": 388,
    "w": 48,
-   "h": 34,
+   "h": 22,
+   "dy": 7,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -2365,9 +2436,10 @@
     "u_font": "psiFont"
    },
    "x": 1044,
-   "y": 381,
+   "y": 388,
    "w": 48,
-   "h": 34,
+   "h": 22,
+   "dy": 7,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "left",
@@ -2446,9 +2518,10 @@
     "u_font": "smallFont"
    },
    "x": 812,
-   "y": 272,
+   "y": 275,
    "w": 64,
-   "h": 24,
+   "h": 16,
+   "dy": 3,
    "glyphs": "0123456789 -°Cmi",
    "cells": 6,
    "align": "right",
@@ -2531,9 +2604,10 @@
     "u_font": "smallFont"
    },
    "x": 1044,
-   "y": 272,
+   "y": 275,
    "w": 64,
-   "h": 24,
+   "h": 16,
+   "dy": 3,
    "glyphs": "0123456789 -°Cmi",
    "cells": 6,
    "align": "left",
@@ -2616,9 +2690,10 @@
     "u_font": "smallFont"
    },
    "x": 812,
-   "y": 418,
+   "y": 421,
    "w": 64,
-   "h": 24,
+   "h": 16,
+   "dy": 3,
    "glyphs": "0123456789 -°Cmi",
    "cells": 6,
    "align": "right",
@@ -2701,9 +2776,10 @@
     "u_font": "smallFont"
    },
    "x": 1044,
-   "y": 418,
+   "y": 421,
    "w": 64,
-   "h": 24,
+   "h": 16,
+   "dy": 3,
    "glyphs": "0123456789 -°Cmi",
    "cells": 6,
    "align": "left",
@@ -2786,9 +2862,10 @@
     "u_font": "capFont"
    },
    "x": 880,
-   "y": 482,
+   "y": 487,
    "w": 160,
-   "h": 20,
+   "h": 11,
+   "dy": 5,
    "glyphs": "COLDTYRES0123456789 Emi-",
    "cells": 10,
    "align": "center",
@@ -2879,9 +2956,10 @@
     "u_font": "smallFont"
    },
    "x": 1781,
-   "y": 578,
+   "y": 581,
    "w": 70,
-   "h": 24,
+   "h": 16,
+   "dy": 3,
    "glyphs": "0123456789 -°Cmi",
    "cells": 6,
    "align": "center",
@@ -2964,9 +3042,10 @@
     "u_font": "midFont"
    },
    "x": 238,
-   "y": 599,
+   "y": 602,
    "w": 100,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 7,
    "align": "left",
@@ -3054,9 +3133,10 @@
     "u_font": "midFont"
    },
    "x": 480,
-   "y": 599,
+   "y": 602,
    "w": 80,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 5,
    "align": "center",
@@ -3144,9 +3224,10 @@
     "u_font": "smallFont"
    },
    "x": 900,
-   "y": 604,
+   "y": 607,
    "w": 120,
-   "h": 24,
+   "h": 16,
+   "dy": 3,
    "glyphs": "0123456789 -°Cmi",
    "cells": 9,
    "align": "center",
@@ -3229,9 +3310,10 @@
     "u_font": "midFont"
    },
    "x": 1574,
-   "y": 599,
+   "y": 602,
    "w": 110,
-   "h": 30,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 -−+.:%°Cmi",
    "cells": 8,
    "align": "right",
@@ -3261,6 +3343,6 @@
    "cellW": 22
   }
  ],
- "upload": 7397132,
- "fill": 2369091
+ "upload": 3259588,
+ "fill": 2292542
 }

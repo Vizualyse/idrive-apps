@@ -85,7 +85,7 @@ function gen(V) {
     /* the dials: a 12 px trail on the track (d -6..6), the glow inward over ticks and numerals
      * (added, and brightening the art), the needle from 46 in to 12 out */
     const dialU = (fill) => ({
-        u_v: [0, 0, 2, 0.01], u_band: [-6, 6, -12, 46], u_shape: [92, 3, 1.2, 0.8],
+        u_val: [0, 0, 2, 0.01], u_band: [-6, 6, -12, 46], u_shape: [92, 3, 1.2, 0.8],
         u_fill: fill, u_red: C.none, u_glow: C.glow, u_needle: C.none,
         u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0], u_look: [0.25, 2, 1, 0],
     });
@@ -121,13 +121,13 @@ function gen(V) {
             { name: 'tach', shader: 'gauge', field: 'tach', uniforms: Object.assign(dialU(hex(PAL.cool, 0.45)), { u_red: C.amber }) },
             /* the red stage of the trail, the bezel when the row flashes, and the needle on top */
             { name: 'tachRed', shader: 'gauge', field: 'tach', art: false, uniforms: Object.assign({}, off, {
-                u_v: [0, 0, 2, 0], u_band: [-6, 6, -12, 46], u_shape: [1, 3, 1.2, 0], u_fill: C.none, u_red: C.red, u_needle: C.red,
+                u_val: [0, 0, 2, 0], u_band: [-6, 6, -12, 46], u_shape: [1, 3, 1.2, 0], u_fill: C.none, u_red: C.red, u_needle: C.red,
                 u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0] }) },
             /* power split (engine then electric deploy; regen hatched left of zero) and boost */
             { name: 'power', shader: 'gauge', field: 'bars', uniforms: Object.assign({}, off, {
-                u_v: [0, 0, 2, 0], u_band: [-6, 6, 0, 0], u_fill: C.cool, u_red: C.blue, u_seg: [0, 0, 0, 1] }) },
+                u_val: [0, 0, 2, 0], u_band: [-6, 6, 0, 0], u_fill: C.cool, u_red: C.blue, u_seg: [0, 0, 0, 1] }) },
             { name: 'boost', shader: 'gauge', field: 'bars', art: false, uniforms: Object.assign({}, off, {
-                u_v: [0, 0, 2, 0], u_band: [-3, 3, 0, 0], u_fill: C.cool, u_red: C.cool, u_seg: [0, 0, 0, 1] }) },
+                u_val: [0, 0, 2, 0], u_band: [-3, 3, 0, 0], u_fill: C.cool, u_red: C.cool, u_seg: [0, 0, 0, 1] }) },
             /* 15 lamps 18 px on a 24 px pitch, filling from both ends, halo 12 */
             leds('shift', 780, 21, 360, 42, { u_led: [15, 0, 0, 1], u_geom: [0, 0, 18, 18], u_split: [3, 6, 3, 12],
                 u_c0: C.cool, u_c1: C.amber, u_c2: C.red, u_off: C.trackDim }),
@@ -205,14 +205,14 @@ function gen(V) {
                 { u_red: hex(PAL.cool, 0.7), u_needle: C.ink, u_look: [0.25, 1.6, 1, 0], u_shape: [92, 3, 1.2, 0.6] }) },
             /* the cruise set speed: a wedge outside the bezel (r 262..278), the gauge's needle tapering inward */
             { name: 'cruise', shader: 'gauge', field: 'speed', art: false, uniforms: Object.assign({}, off, {
-                u_v: [0, 0, 2, 0], u_band: [0, 0, -38, -22], u_shape: [1, 5.6, 0.3, 0], u_fill: C.none, u_red: C.none, u_needle: C.cool,
+                u_val: [0, 0, 2, 0], u_band: [0, 0, -38, -22], u_shape: [1, 5.6, 0.3, 0], u_fill: C.none, u_red: C.none, u_needle: C.cool,
                 u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0] }) },
             { name: 'tach', shader: 'gauge', field: 'tach', uniforms: Object.assign(dialU(hex(PAL.cool, 0.2)),
                 { u_red: hex(PAL.cool, 0.7), u_needle: C.ink, u_look: [0.25, 1.6, 1, 0], u_shape: [92, 3, 1.2, 0.6] }) },
             { name: 'demand', shader: 'gauge', field: 'bars', uniforms: Object.assign({}, off, {
-                u_v: [0, 0, 2, 0], u_band: [-6, 6, 0, 0], u_fill: C.cool, u_red: C.blue, u_seg: [0, 0, 0, 1] }) },
+                u_val: [0, 0, 2, 0], u_band: [-6, 6, 0, 0], u_fill: C.cool, u_red: C.blue, u_seg: [0, 0, 0, 1] }) },
             { name: 'arrowTurn', shader: 'gauge', field: 'arrow', art: false, uniforms: Object.assign({}, off, {
-                u_v: [1, 0, 2, 0], u_band: [-3.5, 3.5, 0, 0], u_fill: C.ink, u_red: C.ink, u_seg: [0, 0, 0, 1] }) },
+                u_val: [1, 0, 2, 0], u_band: [-3.5, 3.5, 0, 0], u_fill: C.ink, u_red: C.ink, u_seg: [0, 0, 0, 1] }) },
             /* the straight-on arrow: a stem and a chevron head (two leaning lamps) */
             rect('arrowStem', 694.5, 284, 7, 61.5, 0, C.ink),
             leds('arrowHead', 674, 279, 54, 24, { u_led: [2, 2, 0, 0], u_geom: [0, 0, 9.9, 24], u_split: [99, 99, 0, 0],

@@ -199,14 +199,14 @@ const C = {
 /* the wake: added to the art (ticks and numerals brighten under it), a pool of light at the pointer */
 const TRAIL = 360;
 const gaugeU = (trail) => ({
-    u_v: [0, 0, 2, trail], u_band: [0, 0, 2, 46], u_shape: [GLOW, 4.5, 2, 0.06],
+    u_val: [0, 0, 2, trail], u_band: [0, 0, 2, 46], u_shape: [GLOW, 4.5, 2, 0.06],
     u_fill: C.none, u_red: C.none, u_glow: [1, 0.3, 0.07, 1.2], u_needle: C.needle,
     u_pool: [90, 0.6, 40, 0], u_seg: [0, 0, SPEED_T0, 1],
     /* a flatter falloff than squared reaches further in (the mockup's broad wake); the art brightens under it */
     u_look: [0.38, 0.35, 1.4, 0],
 });
 const bandU = (b, fill, red, z, seg, glow) => ({
-    u_v: [0, 0, z, 1], u_band: [-b, b, 0, 0], u_shape: [glow ? glow[0] : 1, 0, 0, 1],
+    u_val: [0, 0, z, 1], u_band: [-b, b, 0, 0], u_shape: [glow ? glow[0] : 1, 0, 0, 1],
     u_fill: fill, u_red: red, u_glow: glow ? glow[1] : C.none, u_needle: C.none, u_seg: seg || [0, 0, 0, 1],
 });
 const LSEG = [LAMPS, 6, 0, lampT1];
@@ -220,7 +220,7 @@ const layers = [
     { name: 'lampsB', shader: 'gauge', field: 'lamps', art: false,
       uniforms: bandU(6.5, C.none, C.red, +(lampT1 * 7 / LAMPS).toFixed(5), LSEG) },
     { name: 'chevron', shader: 'gauge', field: 'lamps', art: false,
-      uniforms: Object.assign(bandU(2.5, C.red, C.red, 2, [0, 0, chevT, 1]), { u_v: [1, 0, 2, 1] }) },
+      uniforms: Object.assign(bandU(2.5, C.red, C.red, 2, [0, 0, chevT, 1]), { u_val: [1, 0, 2, 1] }) },
     { name: 'eng', shader: 'gauge', field: 'bars', art: false, uniforms: bandU(11, C.sport, C.sport, 2, [0, 0, barT.eng0, 1]) },
     { name: 'ele', shader: 'gauge', field: 'bars', art: false, uniforms: bandU(11, C.edrive, C.edrive, 2, [0, 0, eleZero, 1]) },
     { name: 'fuel', shader: 'gauge', field: 'fuel', art: false, uniforms: bandU(3.5, C.ink, C.ink, 2) },

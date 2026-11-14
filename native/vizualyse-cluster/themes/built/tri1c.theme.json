@@ -481,99 +481,105 @@
  "assets": {
   "art": {
    "format": "rgba8",
-   "w": 1920,
-   "h": 646,
+   "w": 316,
+   "h": 504,
    "sampling": "nearest",
-   "file": "tri1c.art.rgba.gz",
-   "sha1": "f78d1db9e6db247e5b380591f37dacb13dd96b8f"
+   "file": "tri1c.art.tiles.gz",
+   "sha1": "935560fd61c0a12234079f799387798a319e1b4f",
+   "tile": 4,
+   "map": [
+    240,
+    162
+   ],
+   "tiles": 7491
   },
   "ribsField": {
    "format": "rgba8",
-   "w": 320,
-   "h": 548,
+   "w": 319,
+   "h": 544,
    "sampling": "nearest",
    "file": "tri1c.ribs.field.gz",
-   "sha1": "6e6a6c6815705edb83b2f0f352f5cc47834b2913"
+   "sha1": "579515e97cd04330a1ee8cbd299fba9d3a376a8a"
   },
   "arcLField": {
    "format": "rgba8",
-   "w": 128,
-   "h": 420,
+   "w": 125,
+   "h": 418,
    "sampling": "nearest",
    "file": "tri1.arcL.field.gz",
-   "sha1": "12851dcb12aec34fe7778991f8b04fd81c3aca08"
+   "sha1": "a5d34013351e2bb39a090f510b9b0f108a1a66f9"
   },
   "speedFont": {
    "format": "r8",
    "w": 1122,
-   "h": 124,
+   "h": 117,
    "sampling": "bilinear",
    "file": "tri1.speed.font.gz",
-   "sha1": "7e2b3216ad57dd791095d02fed2ae5588d4702e7"
+   "sha1": "e3b20a22cc6706095a960e0251d8e35620746a15"
   },
   "modeFont": {
    "format": "r8",
    "w": 536,
-   "h": 64,
+   "h": 59,
    "sampling": "bilinear",
    "file": "tri1c.mode.font.gz",
-   "sha1": "b3f650962f6174d77f9d72f4bf63824a5fa64571"
+   "sha1": "6aedd30056b5892c4f638bd5ba6803724a90ae7a"
   },
   "gearFont": {
    "format": "r8",
    "w": 392,
-   "h": 32,
+   "h": 26,
    "sampling": "bilinear",
    "file": "tri1c.gear.font.gz",
-   "sha1": "259179010308078efd9a51a822f650cf8b78d8b5"
+   "sha1": "d724b7a1a3ca15a155e82b540db0a408d62ac923"
   },
   "totalFont": {
    "format": "r8",
    "w": 600,
-   "h": 60,
+   "h": 56,
    "sampling": "bilinear",
    "file": "tri1c.total.font.gz",
-   "sha1": "e64ad113856b66668d071f98f96250d58b1e062a"
+   "sha1": "219b452cea3bc86294d6243de393ba406f432432"
   },
   "bigFont": {
    "format": "r8",
    "w": 378,
-   "h": 35,
+   "h": 28,
    "sampling": "bilinear",
    "file": "tri1c.big.font.gz",
-   "sha1": "4126e3612f6f4e856875f523bfe72f306de3b05a"
+   "sha1": "17d6c08e9b9a69c33c0e312ea67957b981cace00"
   },
   "valFont": {
    "format": "r8",
    "w": 288,
-   "h": 31,
+   "h": 24,
    "sampling": "bilinear",
    "file": "tri1c.val.font.gz",
-   "sha1": "ae5b8835b5db6578ec0b31552614a26b693c1e9d"
+   "sha1": "13dfed3f4d31d2e1d2bc782eb79ea6945c248af1"
   },
   "clockFont": {
    "format": "r8",
    "w": 308,
-   "h": 29,
+   "h": 23,
    "sampling": "bilinear",
    "file": "tri1.mid.font.gz",
-   "sha1": "a612c9aec8d9f0a0b87eca2b7b244fa3dca833f7"
+   "sha1": "0dd04cb6b0efd4ef8b67ccc7dfbc958a7c07832a"
   },
   "midFont": {
    "format": "r8",
    "w": 399,
-   "h": 33,
+   "h": 21,
    "sampling": "bilinear",
    "file": "tri1c.mid.font.gz",
-   "sha1": "d89847c6924b384f38e2830121d3d60d19f38e46"
+   "sha1": "dba4fcee7e467bbf169dbd1a207c9f3e2013aa32"
   },
   "smallFont": {
    "format": "r8",
    "w": 1825,
-   "h": 27,
+   "h": 23,
    "sampling": "bilinear",
    "file": "tri1c.small.font.gz",
-   "sha1": "2301aa28cc4e8c5317cf7382ef355cdb2f3fbf5f"
+   "sha1": "b59d6064c5278445ac4bc9274055912812a4fcc0"
   }
  },
  "layers": [
@@ -593,8 +599,14 @@
     "u_area": [
      0,
      0,
-     1,
-     1
+     480,
+     161.5
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ]
    }
   },
@@ -604,7 +616,7 @@
    "shader": "gauge",
    "z": 0,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      622.0338672672871,
      2,
@@ -659,10 +671,16 @@
      0
     ],
     "u_area": [
-     0.3333333333333333,
-     0.015479876160990712,
-     0.16666666666666666,
-     0.848297213622291
+     160.25,
+     2.75,
+     79.75,
+     136
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ],
     "u_look": [
      0.25,
@@ -675,10 +693,10 @@
     "u_field": "ribsField",
     "u_art": "art"
    },
-   "x": 640,
-   "y": 10,
-   "w": 320,
-   "h": 548
+   "x": 641,
+   "y": 11,
+   "w": 319,
+   "h": 544
   },
   {
    "name": "ribsR",
@@ -686,7 +704,7 @@
    "shader": "gauge",
    "z": 1,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      622.0338672672871,
      2,
@@ -741,10 +759,16 @@
      1
     ],
     "u_area": [
-     0.5,
-     0.015479876160990712,
-     0.16666666666666666,
-     0.848297213622291
+     240,
+     2.75,
+     79.75,
+     136
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ],
     "u_look": [
      0.25,
@@ -758,9 +782,9 @@
     "u_art": "art"
    },
    "x": 960,
-   "y": 10,
-   "w": 320,
-   "h": 548
+   "y": 11,
+   "w": 319,
+   "h": 544
   },
   {
    "name": "limitL",
@@ -768,7 +792,7 @@
    "shader": "gauge",
    "z": 2,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      622.0338672672871,
      2,
@@ -828,6 +852,12 @@
      0,
      0
     ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -839,10 +869,10 @@
     "u_field": "ribsField",
     "u_art": "art"
    },
-   "x": 640,
-   "y": 10,
-   "w": 320,
-   "h": 548
+   "x": 641,
+   "y": 11,
+   "w": 319,
+   "h": 544
   },
   {
    "name": "limitR",
@@ -850,7 +880,7 @@
    "shader": "gauge",
    "z": 3,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      622.0338672672871,
      2,
@@ -910,6 +940,12 @@
      0,
      0
     ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
+    ],
     "u_look": [
      0.25,
      0,
@@ -922,9 +958,9 @@
     "u_art": "art"
    },
    "x": 960,
-   "y": 10,
-   "w": 320,
-   "h": 548
+   "y": 11,
+   "w": 319,
+   "h": 544
   },
   {
    "name": "setL",
@@ -932,7 +968,7 @@
    "shader": "gauge",
    "z": 4,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      622.0338672672871,
      2,
@@ -990,6 +1026,12 @@
      0,
      0,
      0,
+     0
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
      0
     ],
     "u_look": [
@@ -1003,10 +1045,10 @@
     "u_field": "ribsField",
     "u_art": "art"
    },
-   "x": 640,
-   "y": 10,
-   "w": 320,
-   "h": 548
+   "x": 641,
+   "y": 11,
+   "w": 319,
+   "h": 544
   },
   {
    "name": "setR",
@@ -1014,7 +1056,7 @@
    "shader": "gauge",
    "z": 5,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      622.0338672672871,
      2,
@@ -1072,6 +1114,12 @@
      0,
      0,
      0,
+     0
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
      0
     ],
     "u_look": [
@@ -1086,9 +1134,9 @@
     "u_art": "art"
    },
    "x": 960,
-   "y": 10,
-   "w": 320,
-   "h": 548
+   "y": 11,
+   "w": 319,
+   "h": 544
   },
   {
    "name": "eng",
@@ -1096,7 +1144,7 @@
    "shader": "gauge",
    "z": 6,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      494.2757753303325,
      2,
@@ -1151,10 +1199,16 @@
      0
     ],
     "u_area": [
-     0.06770833333333333,
-     0.18575851393188855,
-     0.06666666666666667,
-     0.6501547987616099
+     32.75,
+     30.25,
+     31.25,
+     104.5
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ],
     "u_look": [
      0.25,
@@ -1167,10 +1221,10 @@
     "u_field": "arcLField",
     "u_art": "art"
    },
-   "x": 130,
-   "y": 120,
-   "w": 128,
-   "h": 420
+   "x": 131,
+   "y": 121,
+   "w": 125,
+   "h": 418
   },
   {
    "name": "elec",
@@ -1178,7 +1232,7 @@
    "shader": "gauge",
    "z": 7,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      494.2757753303325,
      2,
@@ -1233,10 +1287,16 @@
      1
     ],
     "u_area": [
-     0.253125,
-     0.18575851393188855,
-     0.06666666666666667,
-     0.6501547987616099
+     122,
+     30.25,
+     31.25,
+     104.5
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ],
     "u_look": [
      0.25,
@@ -1249,10 +1309,10 @@
     "u_field": "arcLField",
     "u_art": "art"
    },
-   "x": 486,
-   "y": 120,
-   "w": 128,
-   "h": 420
+   "x": 488,
+   "y": 121,
+   "w": 125,
+   "h": 418
   },
   {
    "name": "fuel",
@@ -1260,7 +1320,7 @@
    "shader": "gauge",
    "z": 8,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      494.2757753303325,
      2,
@@ -1315,10 +1375,16 @@
      0
     ],
     "u_area": [
-     0.6802083333333333,
-     0.18575851393188855,
-     0.06666666666666667,
-     0.6501547987616099
+     326.75,
+     30.25,
+     31.25,
+     104.5
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ],
     "u_look": [
      0.25,
@@ -1331,10 +1397,10 @@
     "u_field": "arcLField",
     "u_art": "art"
    },
-   "x": 1306,
-   "y": 120,
-   "w": 128,
-   "h": 420
+   "x": 1307,
+   "y": 121,
+   "w": 125,
+   "h": 418
   },
   {
    "name": "bat",
@@ -1342,7 +1408,7 @@
    "shader": "gauge",
    "z": 9,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      494.2757753303325,
      2,
@@ -1397,10 +1463,16 @@
      1
     ],
     "u_area": [
-     0.865625,
-     0.18575851393188855,
-     0.06666666666666667,
-     0.6501547987616099
+     416,
+     30.25,
+     31.25,
+     104.5
+    ],
+    "u_tile": [
+     316,
+     504,
+     4,
+     0
     ],
     "u_look": [
      0.25,
@@ -1413,10 +1485,10 @@
     "u_field": "arcLField",
     "u_art": "art"
    },
-   "x": 1662,
-   "y": 120,
-   "w": 128,
-   "h": 420
+   "x": 1664,
+   "y": 121,
+   "w": 125,
+   "h": 418
   },
   {
    "name": "turnCover",
@@ -1508,9 +1580,10 @@
     "u_font": "speedFont"
    },
    "x": 807,
-   "y": 279,
+   "y": 284,
    "w": 306,
-   "h": 124,
+   "h": 117,
+   "dy": 5,
    "glyphs": "0123456789-",
    "cells": 3,
    "align": "center",
@@ -1588,9 +1661,10 @@
     "u_font": "modeFont"
    },
    "x": 905,
-   "y": 196,
+   "y": 198,
    "w": 67,
-   "h": 64,
+   "h": 59,
+   "dy": 2,
    "glyphs": "DMSPRN- ",
    "cells": 1,
    "align": "right",
@@ -1665,9 +1739,10 @@
     "u_font": "gearFont"
    },
    "x": 978,
-   "y": 228,
+   "y": 230,
    "w": 56,
-   "h": 32,
+   "h": 26,
+   "dy": 2,
    "glyphs": "0123456789NRP-",
    "cells": 2,
    "align": "left",
@@ -1748,9 +1823,10 @@
     "u_font": "midFont"
    },
    "x": 838,
-   "y": 220,
+   "y": 223,
    "w": 63,
-   "h": 33,
+   "h": 21,
+   "dy": 3,
    "glyphs": "0123456789-– Elctri",
    "cells": 3,
    "align": "center",
@@ -1836,9 +1912,10 @@
     "u_font": "bigFont"
    },
    "x": 1010,
-   "y": 210,
+   "y": 213,
    "w": 81,
-   "h": 35,
+   "h": 28,
+   "dy": 3,
    "glyphs": "0123456789-–+ ",
    "cells": 3,
    "align": "center",
@@ -1919,9 +1996,10 @@
     "u_font": "midFont"
    },
    "x": 880,
-   "y": 467,
+   "y": 470,
    "w": 160,
-   "h": 33,
+   "h": 21,
+   "dy": 3,
    "glyphs": "0123456789-– Elctri",
    "cells": 16,
    "align": "right",
@@ -2007,9 +2085,10 @@
     "u_font": "smallFont"
    },
    "x": 976,
-   "y": 471,
+   "y": 473,
    "w": 75,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 3,
    "align": "left",
@@ -2149,9 +2228,10 @@
     "u_font": "midFont"
    },
    "x": 919,
-   "y": 588,
+   "y": 591,
    "w": 84,
-   "h": 33,
+   "h": 21,
+   "dy": 3,
    "glyphs": "0123456789-– Elctri",
    "cells": 4,
    "align": "right",
@@ -2237,9 +2317,10 @@
     "u_font": "clockFont"
    },
    "x": 150,
-   "y": 44,
+   "y": 47,
    "w": 110,
-   "h": 29,
+   "h": 23,
+   "dy": 3,
    "glyphs": "0123456789:-− ",
    "cells": 5,
    "align": "left",
@@ -2320,9 +2401,10 @@
     "u_font": "clockFont"
    },
    "x": 1674,
-   "y": 44,
+   "y": 47,
    "w": 66,
-   "h": 29,
+   "h": 23,
+   "dy": 3,
    "glyphs": "0123456789:-− ",
    "cells": 3,
    "align": "right",
@@ -2403,9 +2485,10 @@
     "u_font": "smallFont"
    },
    "x": 150,
-   "y": 592,
+   "y": 594,
    "w": 250,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 16,
    "align": "right",
@@ -2545,9 +2628,10 @@
     "u_font": "smallFont"
    },
    "x": 1440,
-   "y": 592,
+   "y": 594,
    "w": 325,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 16,
    "align": "right",
@@ -2687,9 +2771,10 @@
     "u_font": "smallFont"
    },
    "x": 1570,
-   "y": 592,
+   "y": 594,
    "w": 200,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 8,
    "align": "right",
@@ -2829,9 +2914,10 @@
     "u_font": "totalFont"
    },
    "x": 272,
-   "y": 211,
+   "y": 213,
    "w": 200,
-   "h": 60,
+   "h": 56,
+   "dy": 2,
    "glyphs": "0123456789.-",
    "cells": 4,
    "align": "center",
@@ -2910,9 +2996,10 @@
     "u_font": "bigFont"
    },
    "x": 205,
-   "y": 332,
+   "y": 335,
    "w": 81,
-   "h": 35,
+   "h": 28,
+   "dy": 3,
    "glyphs": "0123456789-–+ ",
    "cells": 3,
    "align": "right",
@@ -2993,9 +3080,10 @@
     "u_font": "bigFont"
    },
    "x": 371,
-   "y": 332,
+   "y": 335,
    "w": 81,
-   "h": 35,
+   "h": 28,
+   "dy": 3,
    "glyphs": "0123456789-–+ ",
    "cells": 3,
    "align": "right",
@@ -3076,9 +3164,10 @@
     "u_font": "smallFont"
    },
    "x": 354,
-   "y": 370,
+   "y": 372,
    "w": 200,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 8,
    "align": "center",
@@ -3218,9 +3307,10 @@
     "u_font": "valFont"
    },
    "x": 190,
-   "y": 434,
+   "y": 437,
    "w": 322,
-   "h": 31,
+   "h": 24,
+   "dy": 3,
    "glyphs": "0123456789.-",
    "cells": 16,
    "align": "right",
@@ -3299,9 +3389,10 @@
     "u_font": "valFont"
    },
    "x": 1528,
-   "y": 352,
+   "y": 355,
    "w": 96,
-   "h": 31,
+   "h": 24,
+   "dy": 3,
    "glyphs": "0123456789.-",
    "cells": 4,
    "align": "left",
@@ -3380,9 +3471,10 @@
     "u_font": "smallFont"
    },
    "x": 1556,
-   "y": 360,
+   "y": 362,
    "w": 144,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 16,
    "align": "right",
@@ -3522,9 +3614,10 @@
     "u_font": "smallFont"
    },
    "x": 1348,
-   "y": 388,
+   "y": 390,
    "w": 400,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 16,
    "align": "center",
@@ -3664,9 +3757,10 @@
     "u_font": "valFont"
    },
    "x": 1382,
-   "y": 440,
+   "y": 443,
    "w": 96,
-   "h": 31,
+   "h": 24,
+   "dy": 3,
    "glyphs": "0123456789.-",
    "cells": 4,
    "align": "right",
@@ -3745,9 +3839,10 @@
     "u_font": "smallFont"
    },
    "x": 1341,
-   "y": 474,
+   "y": 476,
    "w": 250,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 10,
    "align": "center",
@@ -3887,9 +3982,10 @@
     "u_font": "valFont"
    },
    "x": 1561,
-   "y": 440,
+   "y": 443,
    "w": 72,
-   "h": 31,
+   "h": 24,
+   "dy": 3,
    "glyphs": "0123456789.-",
    "cells": 3,
    "align": "right",
@@ -3968,9 +4064,10 @@
     "u_font": "smallFont"
    },
    "x": 1480,
-   "y": 474,
+   "y": 476,
    "w": 300,
-   "h": 27,
+   "h": 23,
+   "dy": 2,
    "glyphs": "j 0123456789.,-−·/:%&'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz",
    "cells": 12,
    "align": "center",
@@ -4052,6 +4149,6 @@
    "cellW": 25
   }
  ],
- "upload": 6193268,
- "fill": 2666506
+ "upload": 1821824,
+ "fill": 2626790
 }

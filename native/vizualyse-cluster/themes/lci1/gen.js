@@ -217,7 +217,7 @@ function build(opts) {
     const TEXT = {};   /* layer -> its x, for the logic's placements in layer coordinates */
     const tl = (name, font, baseline, x0, x1, color, extra) => { TEXT[name] = { x: Math.round(x0), w: Math.round(x1 - x0), font }; return text(name, font, baseline, x0, x1 - x0, color, extra); };
 
-    const T = (f, extra) => Object.assign({ u_v: [0, 0, 2, 1], u_seg: [0, 0, 0, 1], u_glow: COL.none, u_needle: COL.none, u_look: [0.25, 0, 2, 0] }, f, extra || {});
+    const T = (f, extra) => Object.assign({ u_val: [0, 0, 2, 1], u_seg: [0, 0, 0, 1], u_glow: COL.none, u_needle: COL.none, u_look: [0.25, 0, 2, 0] }, f, extra || {});
     /* a side's three layers: tint and trace (on the art), band and needle, numerals */
     const scaleLayers = (pre, fieldName, numField, colBand, colTint, tintA, traceRgb) => [
         { name: pre + 'Tint', shader: 'gauge', field: fieldName, uniforms: T({ u_band: [tint[0], tint[1], 0, 0], u_shape: [4, 0, 0, 1],
@@ -229,7 +229,7 @@ function build(opts) {
     ];
     /* the slanted bars: the first two on the left (up, then down the path), the others their mirror */
     const barLayers = (names, colors) => names.map((n, i) => ({ name: n, shader: 'gauge', field: i < 2 ? 'bars' : 'barsR', art: false,
-        uniforms: T({ u_v: [i % 2, 0, 2, 1], u_band: [-barHalf, barHalf, 0, 0], u_shape: [1, 0, 0, 0], u_fill: colors[i], u_red: colors[i], u_seg: [0, 0, i % 2, 1] }) }));
+        uniforms: T({ u_val: [i % 2, 0, 2, 1], u_band: [-barHalf, barHalf, 0, 0], u_shape: [1, 0, 0, 0], u_fill: colors[i], u_red: colors[i], u_seg: [0, 0, i % 2, 1] }) }));
     /* a horizontal bar as a row of thin lights, no field (the logic's hbar()) */
     const hbar = (name, x, y, w, h, cell, color) => ({ name, shader: 'leds', x, y, w, h, uniforms: { u_led: [Math.round(w / cell), 0, 0, 0],
         u_geom: [0, 0, cell, h], u_split: [999, 999, 0, 0], u_lean: [0, 0, 0, 0], u_c0: color, u_c1: color, u_c2: color, u_off: COL.none } });
@@ -314,9 +314,9 @@ const SPORT = {
                 /* shift lights: 9 a side of 40 x 18 on a 46 pitch from x 532, filling from the ends */
                 { name: 'shift', shader: 'leds', x: 529, y: 39, w: 862, h: 18, uniforms: { u_led: [18, 0, 0, 1], u_geom: [0, 0, 40, 18],
                     u_split: [4, 7, 0, 0], u_lean: [0, 34, 0, 0], u_c0: COL.text, u_c1: COL.amber, u_c2: COL.red, u_off: COL.track } },
-                { name: 'gearOutline', shader: 'gauge', field: 'gear', art: false, uniforms: T({ u_v: [1, 0, 2, 1], u_band: [-1.5, 1.5, 0, 0], u_shape: [1, 0, 0, 0],
+                { name: 'gearOutline', shader: 'gauge', field: 'gear', art: false, uniforms: T({ u_val: [1, 0, 2, 1], u_band: [-1.5, 1.5, 0, 0], u_shape: [1, 0, 0, 0],
                     u_fill: COL.none, u_red: COL.none, u_seg: [0, 0, outlineStart, 1] }) },
-                { name: 'chevrons', shader: 'gauge', field: 'gear', art: false, uniforms: T({ u_v: [chevEnd, 0, 2, 1], u_band: [-2, 2, 0, 0], u_shape: [1, 0, 0, 0],
+                { name: 'chevrons', shader: 'gauge', field: 'gear', art: false, uniforms: T({ u_val: [chevEnd, 0, 2, 1], u_band: [-2, 2, 0, 0], u_shape: [1, 0, 0, 0],
                     u_fill: COL.none, u_red: COL.none, u_seg: [2, R2(GAP), 0, R4(2 * (CH + GAP) / gearLen)] }) },
                 /* boost 470..630 (rows 178..183); engine 950 leftward to 730 and electric 970 rightward (rows 172..179) */
                 c.hbar('boostBar', 470, 178, 160, 6, 2, COL.text),

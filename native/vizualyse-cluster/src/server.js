@@ -45,7 +45,8 @@ function writeJson(f, obj) {
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json');
 /* theme: a family (its Sport and Comfort themes share it); mode: 'auto'
  * (the car's drive mode picks Sport or Comfort), 'sport' or 'comfort' */
-const settings = Object.assign({ enabled: false, theme: 'g20i1', mode: 'auto', source: 'car', bench: false }, readJson(SETTINGS_FILE));
+/* cover: black over the car's own strip under the theme (its readings hidden; its warning lights still show) */
+const settings = Object.assign({ enabled: false, theme: 'g20i1', mode: 'auto', source: 'car', bench: false, cover: false }, readJson(SETTINGS_FILE));
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
 
 /* ---- the car's signals (from the app) ---- */
@@ -96,6 +97,7 @@ function variant() {
 /* ---- the cluster ---- */
 const cr = new ClusterRender('vizualyse-cluster', RENDER_SOCKET);
 const runtime = new ThemeRuntime(cr, HERE, log);
+runtime.cover = !!settings.cover;
 let lastError = null, layerStates = {}, target = null, started = 0, last = 0;
 cr.on('layer', (ref, state, reason) => { layerStates[ref] = state; if (state === 'error') log('render: layer ' + ref + ' ' + state + (reason ? ': ' + reason : '')); });
 cr.on('target', (name, state, holder, reason) => { if (name === 'panel') { target = state; log('render: panel ' + state + (reason ? ' (' + reason + ')' : '')); } });
@@ -126,7 +128,7 @@ const timer = setInterval(() => {
 
 function status() {
     const themes = (() => { try { return runtime.list(); } catch (e) { return []; } })();
-    return { enabled: settings.enabled, theme: settings.theme, mode: settings.mode, showing: runtime.theme ? runtime.theme.id : null,
+    return { enabled: settings.enabled, theme: settings.theme, mode: settings.mode, cover: !!settings.cover, showing: runtime.theme ? runtime.theme.id : null,
         source: settings.source, demo: settings.source === 'demo' && demoAllowed(), bench: settings.bench, panel: target,
         moving: moving(), speed: car.kmh, themes: themes.map((x) => ({ id: x.id, title: x.title, family: x.family, mode: x.mode })),
         signals: Object.keys(car.values).sort(), error: lastError };
@@ -147,6 +149,11 @@ function command(c) {
     if (c.cmd === 'mode') {
         if (['auto', 'sport', 'comfort'].indexOf(c.mode) < 0) return 'mode is auto, sport or comfort';
         settings.mode = c.mode; saveSettings();
+        return runtime.theme ? show() : null;
+    }
+    if (c.cmd === 'cover') {
+        settings.cover = !!c.on; saveSettings();
+        runtime.cover = settings.cover;
         return runtime.theme ? show() : null;
     }
     if (c.cmd === 'source') {

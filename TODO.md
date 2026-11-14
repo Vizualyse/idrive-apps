@@ -748,6 +748,14 @@ iDrive app yet. How it works: [native/vizualyse-cluster/THEMES.md](native/vizual
 - [ ] **The iDrive app** `vizualyse_cluster`: on/off, the family, the mode,
   demo on the bench; the speed for the parked gate; the readings it can
   get, sent as `signals` (with `driveMode` for the switch).
+- [ ] **A cluster picker with previews.** In that app (or its own page): a
+  list of the themes where each shows a preview before you choose it: a
+  picture of the theme in Sport and Comfort (the preview's own screenshots,
+  `tools/preview_shot.js`, shipped as small PNGs), and how the HUD will look
+  with it, shown on the central screen (the app area, through mgu-render,
+  as Browser and Steam draw there), not on the cluster. Choosing one sends
+  `theme`; a "Try" shows it on the cluster for a few seconds, parked. Touch
+  and the iDrive controller both work (see "All apps: touch" below).
 - [ ] **Which readings iDrive 7 gives an app** (rpm, gear, drive mode, oil
   and coolant, tyres, power, battery, limit, cruise, guidance, economy):
   `someip-interfaces.json` on the unit. A theme shows `--` for any it
@@ -762,11 +770,55 @@ iDrive app yet. How it works: [native/vizualyse-cluster/THEMES.md](native/vizual
   in fields (smooth diagonals), a separate glow value, corner (mitred) paths,
   a second needle, hollow needles, a colour stop along the band, text with
   a second colour or a y scale (fewer fonts), padded glyph cells (`j`).
+- [ ] **Designs (`tools/design_build.js`, [DESIGNS.md](native/vizualyse-cluster/DESIGNS.md))**:
+  `themes/g20i1d` (G20 Sport as one HTML page, 1920x720, `ship: false`)
+  matches the hand port in the preview; port the other themes to designs
+  and ship them. Not expressible yet: a text with two colours or two
+  values far apart (two tyres share a layer through em spaces), a text's
+  width from values the bench never shows (the placeholder must be the
+  widest), state across ticks beyond smooth/latch (0-60 is in
+  `logic.extra.js`), a gauge whose path runs against the value (draw it the
+  other way), gradients along a band, HTML-only (non-SVG) gauges.
 - [ ] **Renderer-side smoothing** (`animate` on uniforms between ticks):
   fewer sends, once the KOMBI's clock is known to drive animations.
+- [ ] **Steering wheel and BC button controls.** Switch theme, Sport/Comfort
+  and pages from the wheel (the BC button on the indicator stalk, the
+  steering wheel's arrows/OK) instead of only the iDrive app. First find
+  out how an app or tool sees those presses on iDrive 7 (SOME/IP input or
+  KombiIF events; the iDrive controller only reaches RHMI states,
+  [knowledge/input.md](knowledge/input.md)) and what the cluster does with
+  them while our panel shows. Careful: **pressing BC while our layer held
+  the cluster's centre once broke the cluster until a full car restart**
+  ([knowledge/cluster-and-hud.md](knowledge/cluster-and-hud.md)); test BC
+  with the panel up on the bench, parked, ready to turn the theme off.
+- [ ] **The cluster map in every layout.** Show the map we already put on
+  the cluster (Cast's CarPlay second screen through hook111, and the Waze
+  map, as cluster-render's `map` target or a video layer of our own on
+  the panel) inside each theme: Comfort's map area, and a place in Sport
+  where the layout has one (or a toggle). Each theme says where its map
+  sits (a `data-map` rect in its design), the tool hands that rect to the
+  map source, and the map's frames stay within the link budget beside the
+  theme (start with Cast's 512x288 at 15 fps). Watch the texture footprint:
+  a video layer is the other case that left the KOMBI's black box.
 - [ ] **A phone page** (theme, source, the readings arriving).
 - [ ] **`tool/cluster_render_client` 1.1.0**: upstream's newer client
   (the target event's guide/disabled fields).
+
+## All apps: touch
+
+- [ ] **Better touch control on the central screen in every app** (Cast,
+  Moonlight, Browser, Steam, Cluster themes). Today the RHMI pages are made
+  for the iDrive controller: rows and buttons, small targets, nothing you
+  can drag. Each app's page should work well by touch too: large targets
+  (at least 44 px, more while driving is not allowed anyway), direct
+  actions on the picture where it is ours (the passive touch reader,
+  platform `native/touch`, as Browser and Steam use), swipes where they
+  help (themes, pages), and the same actions still on the controller.
+  Find what RHMI lets an app's page do by touch first
+  ([knowledge/idrive-app-ui.md](knowledge/idrive-app-ui.md),
+  [knowledge/input.md](knowledge/input.md)); where it can't, draw our own
+  page in the app area through mgu-render. A shared module for it in the
+  platform once two apps need it.
 
 ## Platform (platform/<side>/<module>/<version>)
 

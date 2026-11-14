@@ -34,7 +34,7 @@ const R_PATH = 258;                      /* the swept band's outer edge: the glo
 const dS = dialPath(SX, CY, R_PATH, 2, 32, 190), dT = dialPath(TX, CY, R_PATH, 2, 32, 190);
 const dialU = (d) => ({
     /* trail: the brighter last 40 degrees of the swept band */
-    u_v: [d.t0, 0, 2, +(40 / 244).toFixed(4)],
+    u_val: [d.t0, 0, 2, +(40 / 244).toFixed(4)],
     /* value arc r 268..276 (d -18..-10); needle r 232..284 (d 26..-26) */
     u_band: [-18, -10, -26, 26],
     /* glow 100 px deep, linear, from the path inward (cut at the numerals' inner edge); 35% of it along the swept part */

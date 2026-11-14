@@ -404,11 +404,17 @@
  "assets": {
   "art": {
    "format": "rgba8",
-   "w": 1920,
-   "h": 646,
+   "w": 520,
+   "h": 536,
    "sampling": "nearest",
-   "file": "lci2.art.rgba.gz",
-   "sha1": "a9eb70ba2b23c90e62848bd285be1569908e635b"
+   "file": "lci2.art.tiles.gz",
+   "sha1": "e4f9f82c7ac5871c27d5e5c7d7fe6fa5e67063d7",
+   "tile": 4,
+   "map": [
+    240,
+    162
+   ],
+   "tiles": 14957
   },
   "bandField": {
    "format": "rgba8",
@@ -420,83 +426,83 @@
   },
   "chevronField": {
    "format": "rgba8",
-   "w": 44,
-   "h": 25,
+   "w": 38,
+   "h": 21,
    "sampling": "nearest",
    "file": "lci2.chevron.field.gz",
-   "sha1": "bd53661c7097d227b526ea078e7404d85a264011"
+   "sha1": "38da76e40dbf3fab613f067e977d48473a9eb1e3"
   },
   "displayFont": {
    "format": "r8",
    "w": 912,
-   "h": 110,
+   "h": 93,
    "sampling": "bilinear",
    "file": "lci2.display.font.gz",
-   "sha1": "4a880e14bf0be9d92b72e3d2fa397c81e6303a03"
+   "sha1": "7cb443e1273e47520c70ee341d20747b94866490"
   },
   "gearFont": {
    "format": "r8",
    "w": 1152,
-   "h": 124,
+   "h": 107,
    "sampling": "bilinear",
    "file": "lci2.gear.font.gz",
-   "sha1": "6d6264724dfdf0b050be0fc2b5c3f4554a9810b0"
+   "sha1": "52ce9a319ae1d73a6b568925b7ffc80911b7ad1b"
   },
   "powerFont": {
    "format": "r8",
    "w": 288,
-   "h": 36,
+   "h": 29,
    "sampling": "bilinear",
    "file": "lci2.power.font.gz",
-   "sha1": "d7def66e9c07cbf85d5eba9444b9baf79a5f778d"
+   "sha1": "b243f10afac4c330902eac1cbfc43fb16435a070"
   },
   "midFont": {
    "format": "r8",
    "w": 558,
-   "h": 28,
+   "h": 22,
    "sampling": "bilinear",
    "file": "lci2.mid.font.gz",
-   "sha1": "362866201270d9e3698d8ce8a1ab1313693209ee"
+   "sha1": "dc2855f7da5e4772a5956756ff758c0b0ae758c0"
   },
   "clockFont": {
    "format": "r8",
    "w": 208,
-   "h": 25,
+   "h": 19,
    "sampling": "bilinear",
    "file": "lci2.clock.font.gz",
-   "sha1": "f1693138f1bb565f90fb876bd709b4e303c73380"
+   "sha1": "11510fa8975e12a9ac53409da304e6d7fa9ad5b7"
   },
   "bodyFont": {
    "format": "r8",
    "w": 288,
-   "h": 18,
+   "h": 15,
    "sampling": "bilinear",
    "file": "lci2.body.font.gz",
-   "sha1": "4255e3b52a9c0d68ef2d6040552c2fdf67976234"
+   "sha1": "d75e77e967a46fffae24f28416d1c50075628195"
   },
   "stripFont": {
    "format": "r8",
    "w": 96,
-   "h": 18,
+   "h": 13,
    "sampling": "bilinear",
    "file": "lci2.strip.font.gz",
-   "sha1": "c040fde7ea6b236d1e8619feefc40e0422e0fcc7"
+   "sha1": "1871cda9f894d46f313f22c02419d1b83c7964fd"
   },
   "unitFont": {
    "format": "r8",
    "w": 255,
-   "h": 16,
+   "h": 13,
    "sampling": "bilinear",
    "file": "lci2.unit.font.gz",
-   "sha1": "562cbf4353d191312a8697e4decd7dde3c8126dc"
+   "sha1": "d92c6a990cc1276051a8d73183ef59e870f671a3"
   },
   "labelFont": {
    "format": "r8",
    "w": 135,
-   "h": 14,
+   "h": 10,
    "sampling": "bilinear",
    "file": "lci2.label.font.gz",
-   "sha1": "a8e2b148c86d982de6c4d42ba2bc3f1d32a98a1b"
+   "sha1": "72a435b70bcdbe7b85401580e2ddc376bb698f36"
   }
  },
  "layers": [
@@ -516,8 +522,14 @@
     "u_area": [
      0,
      0,
-     1,
-     1
+     480,
+     161.5
+    ],
+    "u_tile": [
+     520,
+     536,
+     4,
+     0
     ]
    }
   },
@@ -527,7 +539,7 @@
    "shader": "gauge",
    "z": 0,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      933.5777772109134,
      2,
@@ -588,10 +600,16 @@
      0
     ],
     "u_area": [
-     0.13854166666666667,
+     66.5,
      0,
-     0.20625,
-     1
+     99,
+     161.5
+    ],
+    "u_tile": [
+     520,
+     536,
+     4,
+     0
     ]
    },
    "binds": {
@@ -609,7 +627,7 @@
    "shader": "gauge",
    "z": 1,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      933.5777772109134,
      2,
@@ -670,10 +688,16 @@
      0
     ],
     "u_area": [
-     0.6552083333333333,
+     314.5,
      0,
-     0.20625,
-     1
+     99,
+     161.5
+    ],
+    "u_tile": [
+     520,
+     536,
+     4,
+     0
     ]
    },
    "binds": {
@@ -691,7 +715,7 @@
    "shader": "gauge",
    "z": 2,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.99893,
      933.5777772109134,
      2,
@@ -755,6 +779,12 @@
      0,
      0,
      0,
+     0
+    ],
+    "u_tile": [
+     520,
+     536,
+     4,
      0
     ]
    },
@@ -773,7 +803,7 @@
    "shader": "gauge",
    "z": 3,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.99893,
      933.5777772109134,
      2,
@@ -837,6 +867,12 @@
      0,
      0,
      0,
+     0
+    ],
+    "u_tile": [
+     520,
+     536,
+     4,
      0
     ]
    },
@@ -978,7 +1014,7 @@
    "shader": "gauge",
    "z": 7,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      1,
      46.690470119715,
      2,
@@ -1043,16 +1079,22 @@
      0,
      0,
      0
+    ],
+    "u_tile": [
+     520,
+     536,
+     4,
+     0
     ]
    },
    "binds": {
     "u_field": "chevronField",
     "u_art": "art"
    },
-   "x": 1381,
-   "y": 215,
-   "w": 44,
-   "h": 25
+   "x": 1384,
+   "y": 217,
+   "w": 38,
+   "h": 21
   },
   {
    "name": "modeMask",
@@ -1510,9 +1552,10 @@
     "u_font": "displayFont"
    },
    "x": 403,
-   "y": 244,
+   "y": 252,
    "w": 228,
-   "h": 110,
+   "h": 93,
+   "dy": 8,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "center",
@@ -1591,9 +1634,10 @@
     "u_font": "gearFont"
    },
    "x": 1388,
-   "y": 243,
+   "y": 251,
    "w": 192,
-   "h": 124,
+   "h": 107,
+   "dy": 8,
    "glyphs": "0123456789-N",
    "cells": 2,
    "align": "left",
@@ -1672,9 +1716,10 @@
     "u_font": "stripFont"
    },
    "x": 1397,
-   "y": 383,
+   "y": 386,
    "w": 12,
-   "h": 18,
+   "h": 13,
+   "dy": 3,
    "glyphs": "12345678",
    "cells": 1,
    "align": "center",
@@ -1749,9 +1794,10 @@
     "u_font": "bodyFont"
    },
    "x": 560,
-   "y": 452,
+   "y": 453,
    "w": 80,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 5,
    "align": "right",
@@ -1836,9 +1882,10 @@
     "u_font": "bodyFont"
    },
    "x": 528,
-   "y": 526,
+   "y": 527,
    "w": 112,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 7,
    "align": "right",
@@ -1923,9 +1970,10 @@
     "u_font": "bodyFont"
    },
    "x": 1352,
-   "y": 452,
+   "y": 453,
    "w": 96,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 6,
    "align": "right",
@@ -2010,9 +2058,10 @@
     "u_font": "bodyFont"
    },
    "x": 1352,
-   "y": 526,
+   "y": 527,
    "w": 96,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 6,
    "align": "right",
@@ -2097,9 +2146,10 @@
     "u_font": "powerFont"
    },
    "x": 707,
-   "y": 128,
+   "y": 131,
    "w": 72,
-   "h": 36,
+   "h": 29,
+   "dy": 3,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -2178,9 +2228,10 @@
     "u_font": "powerFont"
    },
    "x": 868,
-   "y": 128,
+   "y": 131,
    "w": 72,
-   "h": 36,
+   "h": 29,
+   "dy": 3,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -2259,9 +2310,10 @@
     "u_font": "powerFont"
    },
    "x": 1112,
-   "y": 128,
+   "y": 131,
    "w": 72,
-   "h": 36,
+   "h": 29,
+   "dy": 3,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "right",
@@ -2340,9 +2392,10 @@
     "u_font": "labelFont"
    },
    "x": 896,
-   "y": 111,
+   "y": 112,
    "w": 120,
-   "h": 14,
+   "h": 10,
+   "dy": 1,
    "glyphs": "ELCTRIGN ",
    "cells": 8,
    "align": "left",
@@ -2418,9 +2471,10 @@
     "u_font": "midFont"
    },
    "x": 800,
-   "y": 276,
+   "y": 279,
    "w": 496,
-   "h": 28,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 .-−LR  ",
    "cells": 16,
    "align": "left",
@@ -2505,9 +2559,10 @@
     "u_font": "midFont"
    },
    "x": 800,
-   "y": 392,
+   "y": 395,
    "w": 496,
-   "h": 28,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 .-−LR  ",
    "cells": 16,
    "align": "left",
@@ -2592,9 +2647,10 @@
     "u_font": "bodyFont"
    },
    "x": 788,
-   "y": 313,
+   "y": 314,
    "w": 96,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 6,
    "align": "right",
@@ -2679,9 +2735,10 @@
     "u_font": "bodyFont"
    },
    "x": 1036,
-   "y": 313,
+   "y": 314,
    "w": 96,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 6,
    "align": "left",
@@ -2766,9 +2823,10 @@
     "u_font": "bodyFont"
    },
    "x": 788,
-   "y": 429,
+   "y": 430,
    "w": 96,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 6,
    "align": "right",
@@ -2853,9 +2911,10 @@
     "u_font": "bodyFont"
    },
    "x": 1036,
-   "y": 429,
+   "y": 430,
    "w": 96,
-   "h": 18,
+   "h": 15,
+   "dy": 1,
    "glyphs": "0123456789 -%°Cmi−",
    "cells": 6,
    "align": "left",
@@ -2940,9 +2999,10 @@
     "u_font": "midFont"
    },
    "x": 652,
-   "y": 524,
+   "y": 527,
    "w": 93,
-   "h": 28,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 .-−LR  ",
    "cells": 3,
    "align": "right",
@@ -3027,9 +3087,10 @@
     "u_font": "midFont"
    },
    "x": 754,
-   "y": 524,
+   "y": 527,
    "w": 155,
-   "h": 28,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 .-−LR  ",
    "cells": 5,
    "align": "right",
@@ -3114,9 +3175,10 @@
     "u_font": "midFont"
    },
    "x": 871,
-   "y": 524,
+   "y": 527,
    "w": 186,
-   "h": 28,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 .-−LR  ",
    "cells": 6,
    "align": "right",
@@ -3201,9 +3263,10 @@
     "u_font": "midFont"
    },
    "x": 1002,
-   "y": 524,
+   "y": 527,
    "w": 155,
-   "h": 28,
+   "h": 22,
+   "dy": 3,
    "glyphs": "0123456789 .-−LR  ",
    "cells": 5,
    "align": "right",
@@ -3288,9 +3351,10 @@
     "u_font": "clockFont"
    },
    "x": 150,
-   "y": 605,
+   "y": 608,
    "w": 80,
-   "h": 25,
+   "h": 19,
+   "dy": 3,
    "glyphs": "0123456789:- ",
    "cells": 5,
    "align": "left",
@@ -3370,9 +3434,10 @@
     "u_font": "unitFont"
    },
    "x": 226,
-   "y": 613,
+   "y": 614,
    "w": 90,
-   "h": 16,
+   "h": 13,
+   "dy": 1,
    "glyphs": "0123456789 -°Cmi−",
    "cells": 6,
    "align": "left",
@@ -3456,9 +3521,10 @@
     "u_font": "unitFont"
    },
    "x": 1620,
-   "y": 587,
+   "y": 588,
    "w": 150,
-   "h": 16,
+   "h": 13,
+   "dy": 1,
    "glyphs": "0123456789 -°Cmi−",
    "cells": 10,
    "align": "right",
@@ -3484,6 +3550,6 @@
    "cellW": 15
   }
  ],
- "upload": 6276186,
- "fill": 2427424
+ "upload": 2384229,
+ "fill": 2404940
 }

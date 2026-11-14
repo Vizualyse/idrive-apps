@@ -314,99 +314,105 @@
  "assets": {
   "art": {
    "format": "rgba8",
-   "w": 1920,
-   "h": 646,
+   "w": 380,
+   "h": 908,
    "sampling": "nearest",
-   "file": "g20i1c.art.rgba.gz",
-   "sha1": "b34a1e48e1d452406c1609793c1ea7a96af48895"
+   "file": "g20i1c.art.tiles.gz",
+   "sha1": "0d20b0a751e0afd3ed9c0e58e9bc369174070d88",
+   "tile": 4,
+   "map": [
+    240,
+    162
+   ],
+   "tiles": 19101
   },
   "speedField": {
    "format": "rgba8",
-   "w": 577,
+   "w": 572,
    "h": 540,
    "sampling": "nearest",
    "file": "g20i1c.speed.field.gz",
-   "sha1": "25110e8b3c7fa204c10d90ac65d79cd97ec029e5"
+   "sha1": "42171af8c24886a8832acdbf2e5267a4aee2126e"
   },
   "fuelField": {
    "format": "rgba8",
-   "w": 139,
-   "h": 174,
+   "w": 138,
+   "h": 173,
    "sampling": "nearest",
    "file": "g20i1.fuel.field.gz",
-   "sha1": "e4950d90658196cc80039e102e4bd44205336564"
+   "sha1": "63e5756d044a1474560f45c6b61112b32c75dd97"
   },
   "ecoField": {
    "format": "rgba8",
-   "w": 38,
-   "h": 306,
+   "w": 37,
+   "h": 304,
    "sampling": "nearest",
    "file": "g20i1.engine.field.gz",
-   "sha1": "d3b35a888568e8c386a4b1f2adee450da4236407"
+   "sha1": "78de1bd6e36c53eaaadba4632ecabd5f88e32320"
   },
   "powerField": {
    "format": "rgba8",
-   "w": 38,
-   "h": 306,
+   "w": 37,
+   "h": 304,
    "sampling": "nearest",
    "file": "g20i1.electric.field.gz",
-   "sha1": "ad042b14d034a1ad19271ee0a355fe7d80cc725f"
+   "sha1": "1d38c9976b28845ecc2a1dc88a947e03e9971ef8"
   },
   "bigFont": {
    "format": "r8",
    "w": 1980,
-   "h": 136,
+   "h": 121,
    "sampling": "bilinear",
    "file": "g20i1c.big.font.gz",
-   "sha1": "a56e227ac0ff85d6e7e13229b0d7e69651d45cdf"
+   "sha1": "2f9963ab698f2a1447f69c64b3cb51543e375ac4"
   },
   "valFont": {
    "format": "r8",
    "w": 384,
-   "h": 28,
+   "h": 22,
    "sampling": "bilinear",
    "file": "g20i1c.val.font.gz",
-   "sha1": "77a0b138b8fee6de7b7d3bffc419763d355692a8"
+   "sha1": "7737db65e96961b5c349d8e3a4a33331da835de0"
   },
   "labelFont": {
    "format": "r8",
    "w": 320,
-   "h": 20,
+   "h": 18,
    "sampling": "bilinear",
    "file": "g20i1c.label.font.gz",
-   "sha1": "a02e875b25cbd97ba0387fde597e79389a08e8b2"
+   "sha1": "441d2195c25e454ffd05b6a768f118584c7354fe"
   },
   "gearNumFont": {
    "format": "r8",
    "w": 432,
-   "h": 52,
+   "h": 47,
    "sampling": "bilinear",
    "file": "g20i1c.gearNum.font.gz",
-   "sha1": "c6d92df9f5612b09e9b706b544c80c07715b3eee"
+   "sha1": "67a503d6c16ff46e012c53b1977d594bbb55ad8a"
   },
   "distFont": {
    "format": "r8",
    "w": 312,
-   "h": 36,
+   "h": 27,
    "sampling": "bilinear",
    "file": "g20i1c.dist.font.gz",
-   "sha1": "d12a3dafd89d9ac70e486ec5c805f6c27d4551c7"
+   "sha1": "05ebb9109ad13c31aa4486d63f27365eb42bdf0c"
   },
   "limitFont": {
    "format": "r8",
    "w": 288,
-   "h": 40,
+   "h": 26,
    "sampling": "bilinear",
    "file": "g20i1c.limit.font.gz",
-   "sha1": "36391fb843f34ad409419fef6446b04b5e2aee24"
+   "sha1": "4e76dc302c6ec3ca907d298298cf394ea5f5b79d"
   },
   "roadFont": {
    "format": "r8",
    "w": 1768,
-   "h": 30,
+   "h": 24,
    "sampling": "bilinear",
    "file": "g20i1c.road.font.gz",
-   "sha1": "8a84524b8c8766fe277378d935bdee50c77fffb6"
+   "sha1": "31cdba7aba90a2922834151589a40d75e094a169"
   }
  },
  "layers": [
@@ -426,8 +432,14 @@
     "u_area": [
      0,
      0,
-     1,
-     1
+     480,
+     161.5
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    }
   },
@@ -437,7 +449,7 @@
    "shader": "gauge",
    "z": 0,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      1114.5014259617158,
      2,
@@ -498,10 +510,16 @@
      0
     ],
     "u_area": [
-     0.059375,
-     0.07120743034055728,
-     0.30052083333333335,
-     0.8359133126934984
+     28.5,
+     11.5,
+     143,
+     135
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    },
    "binds": {
@@ -510,7 +528,7 @@
    },
    "x": 114,
    "y": 46,
-   "w": 577,
+   "w": 572,
    "h": 540
   },
   {
@@ -519,7 +537,7 @@
    "shader": "gauge",
    "z": 1,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      1114.5014259617158,
      2,
@@ -580,19 +598,25 @@
      0
     ],
     "u_area": [
-     0.6401041666666667,
-     0.07120743034055728,
-     0.30052083333333335,
-     0.8359133126934984
+     308.5,
+     11.5,
+     143,
+     135
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    },
    "binds": {
     "u_field": "speedField",
     "u_art": "art"
    },
-   "x": 1229,
+   "x": 1234,
    "y": 46,
-   "w": 577,
+   "w": 572,
    "h": 540
   },
   {
@@ -601,7 +625,7 @@
    "shader": "gauge",
    "z": 2,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.062808,
      1114.5014259617158,
      2,
@@ -666,6 +690,12 @@
      0,
      0,
      0
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    },
    "binds": {
@@ -674,7 +704,7 @@
    },
    "x": 114,
    "y": 46,
-   "w": 577,
+   "w": 572,
    "h": 540
   },
   {
@@ -683,7 +713,7 @@
    "shader": "gauge",
    "z": 3,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      204.4431461311433,
      2,
@@ -747,6 +777,12 @@
      0,
      0,
      0,
+     0
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
      0
     ]
    },
@@ -755,9 +791,9 @@
     "u_art": "art"
    },
    "x": 114,
-   "y": 382,
-   "w": 139,
-   "h": 174
+   "y": 383,
+   "w": 138,
+   "h": 173
   },
   {
    "name": "oil",
@@ -765,7 +801,7 @@
    "shader": "gauge",
    "z": 4,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      204.4431461311433,
      2,
@@ -830,16 +866,22 @@
      0,
      0,
      0
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    },
    "binds": {
     "u_field": "fuelField",
     "u_art": "art"
    },
-   "x": 1667,
-   "y": 382,
-   "w": 139,
-   "h": 174
+   "x": 1668,
+   "y": 383,
+   "w": 138,
+   "h": 173
   },
   {
    "name": "eco",
@@ -847,7 +889,7 @@
    "shader": "gauge",
    "z": 5,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      -0.01,
      303.17817343429834,
      2,
@@ -912,6 +954,12 @@
      0,
      0,
      0
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    },
    "binds": {
@@ -919,9 +967,9 @@
     "u_art": "art"
    },
    "x": 772,
-   "y": 117,
-   "w": 38,
-   "h": 306
+   "y": 118,
+   "w": 37,
+   "h": 304
   },
   {
    "name": "power",
@@ -929,7 +977,7 @@
    "shader": "gauge",
    "z": 6,
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0.25,
      303.1781734342981,
      2,
@@ -994,16 +1042,22 @@
      0,
      0,
      0
+    ],
+    "u_tile": [
+     380,
+     908,
+     4,
+     0
     ]
    },
    "binds": {
     "u_field": "powerField",
     "u_art": "art"
    },
-   "x": 1110,
-   "y": 117,
-   "w": 38,
-   "h": 306
+   "x": 1111,
+   "y": 118,
+   "w": 37,
+   "h": 304
   },
   {
    "name": "turnCoverL",
@@ -1249,9 +1303,10 @@
     "u_font": "bigFont"
    },
    "x": 370,
-   "y": 222,
+   "y": 230,
    "w": 270,
-   "h": 136,
+   "h": 121,
+   "dy": 8,
    "glyphs": "0123456789 -DMSPRN",
    "cells": 3,
    "align": "right",
@@ -1336,9 +1391,10 @@
     "u_font": "bigFont"
    },
    "x": 1262,
-   "y": 222,
+   "y": 230,
    "w": 110,
-   "h": 136,
+   "h": 121,
+   "dy": 8,
    "glyphs": "0123456789 -DMSPRN",
    "cells": 1,
    "align": "left",
@@ -1423,9 +1479,10 @@
     "u_font": "gearNumFont"
    },
    "x": 1378,
-   "y": 300,
+   "y": 303,
    "w": 72,
-   "h": 52,
+   "h": 47,
+   "dy": 3,
    "glyphs": "0123456789 -",
    "cells": 2,
    "align": "left",
@@ -1504,9 +1561,10 @@
     "u_font": "limitFont"
    },
    "x": 382,
-   "y": 400,
+   "y": 408,
    "w": 60,
-   "h": 40,
+   "h": 26,
+   "dy": 8,
    "glyphs": "0123456789 -",
    "cells": 3,
    "align": "center",
@@ -1585,9 +1643,10 @@
     "u_font": "valFont"
    },
    "x": 550,
-   "y": 406,
+   "y": 408,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 3,
    "align": "right",
@@ -1670,9 +1729,10 @@
     "u_font": "valFont"
    },
    "x": 1216,
-   "y": 390,
+   "y": 392,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 4,
    "align": "right",
@@ -1755,9 +1815,10 @@
     "u_font": "valFont"
    },
    "x": 1406,
-   "y": 390,
+   "y": 392,
    "w": 70,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 4,
    "align": "right",
@@ -1840,9 +1901,10 @@
     "u_font": "distFont"
    },
    "x": 834,
-   "y": 28,
+   "y": 33,
    "w": 80,
-   "h": 36,
+   "h": 27,
+   "dy": 5,
    "glyphs": "0123456789 -.",
    "cells": 4,
    "align": "right",
@@ -1922,9 +1984,10 @@
     "u_font": "labelFont"
    },
    "x": 922,
-   "y": 42,
+   "y": 44,
    "w": 30,
-   "h": 20,
+   "h": 18,
+   "dy": 2,
    "glyphs": "ACEGHILNRT -dimy",
    "cells": 2,
    "align": "left",
@@ -2007,9 +2070,10 @@
     "u_font": "roadFont"
    },
    "x": 972,
-   "y": 35,
+   "y": 40,
    "w": 300,
-   "h": 30,
+   "h": 24,
+   "dy": 5,
    "glyphs": " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-'.&/",
    "cells": 16,
    "align": "left",
@@ -2144,9 +2208,10 @@
     "u_font": "valFont"
    },
    "x": 740,
-   "y": 434,
+   "y": 436,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 3,
    "align": "right",
@@ -2229,9 +2294,10 @@
     "u_font": "valFont"
    },
    "x": 1062,
-   "y": 434,
+   "y": 436,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 3,
    "align": "right",
@@ -2314,9 +2380,10 @@
     "u_font": "labelFont"
    },
    "x": 1055,
-   "y": 468,
+   "y": 470,
    "w": 130,
-   "h": 20,
+   "h": 18,
+   "dy": 2,
    "glyphs": "ACEGHILNRT -dimy",
    "cells": 8,
    "align": "center",
@@ -2399,9 +2466,10 @@
     "u_font": "valFont"
    },
    "x": 890,
-   "y": 401,
+   "y": 403,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 5,
    "align": "left",
@@ -2484,9 +2552,10 @@
     "u_font": "valFont"
    },
    "x": 976,
-   "y": 401,
+   "y": 403,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 5,
    "align": "right",
@@ -2569,9 +2638,10 @@
     "u_font": "valFont"
    },
    "x": 972,
-   "y": 501,
+   "y": 503,
    "w": 50,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 3,
    "align": "right",
@@ -2654,9 +2724,10 @@
     "u_font": "valFont"
    },
    "x": 1040,
-   "y": 501,
+   "y": 503,
    "w": 50,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 3,
    "align": "right",
@@ -2739,9 +2810,10 @@
     "u_font": "valFont"
    },
    "x": 222,
-   "y": 592,
+   "y": 594,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 4,
    "align": "right",
@@ -2824,9 +2896,10 @@
     "u_font": "valFont"
    },
    "x": 390,
-   "y": 592,
+   "y": 594,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 5,
    "align": "left",
@@ -2909,9 +2982,10 @@
     "u_font": "valFont"
    },
    "x": 560,
-   "y": 592,
+   "y": 594,
    "w": 90,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 6,
    "align": "right",
@@ -2994,9 +3068,10 @@
     "u_font": "valFont"
    },
    "x": 1306,
-   "y": 592,
+   "y": 594,
    "w": 90,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 7,
    "align": "left",
@@ -3079,9 +3154,10 @@
     "u_font": "valFont"
    },
    "x": 1460,
-   "y": 592,
+   "y": 594,
    "w": 80,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 5,
    "align": "right",
@@ -3164,9 +3240,10 @@
     "u_font": "valFont"
    },
    "x": 1596,
-   "y": 592,
+   "y": 594,
    "w": 60,
-   "h": 28,
+   "h": 22,
+   "dy": 2,
    "glyphs": "0123456789 -+.:/",
    "cells": 3,
    "align": "right",
@@ -3191,6 +3268,6 @@
    "cellW": 24
   }
  ],
- "upload": 6782056,
- "fill": 2356931
+ "upload": 3133596,
+ "fill": 2331407
 }

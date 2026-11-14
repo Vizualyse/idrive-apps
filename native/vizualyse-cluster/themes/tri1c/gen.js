@@ -43,7 +43,7 @@ function layers() {
     const R = G.ring().R;
     const nb = needle;
     const ribU = {
-        u_v: [0, 0, 2, 0],
+        u_val: [0, 0, 2, 0],
         u_band: [r2(dOf(ribs.r1 + ribs.lit / 2) - 0.6), r2(dOf(ribs.r0 - ribs.lit / 2) + 0.6),
             r2(dOf(nb.r1 + nb.w / 2)), r2(dOf(nb.r0 - nb.w / 2))],
         u_shape: [1, r2(nb.w / 2 * R / (nb.r1 + nb.w / 2)), r2(nb.w / 2 * R / (nb.r0 - nb.w / 2)), 0],
@@ -52,18 +52,18 @@ function layers() {
     /* the limit arc: a needle 7 degrees wide (its half width the same angle at either end) */
     const hw = r2(degPx(limitArc.deg));
     const limU = {
-        u_v: [0, 0, 2, 0], u_band: [0, 0, r2(dOf(limitArc.r + limitArc.w / 2)), r2(dOf(limitArc.r - limitArc.w / 2))],
+        u_val: [0, 0, 2, 0], u_band: [0, 0, r2(dOf(limitArc.r + limitArc.w / 2)), r2(dOf(limitArc.r - limitArc.w / 2))],
         u_shape: [1, hw, hw, 0], u_fill: C.none, u_red: C.none, u_glow: C.none, u_needle: CC.limit, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0],
     };
     /* the cruise set mark: a needle tapering from the base (outside) to the tip (inside), filled */
     const so = setMark.base + setMark.stroke / 2, si = setMark.tip - setMark.stroke / 2;
     const setU = {
-        u_v: [0, 0, 2, 0], u_band: [0, 0, r2(dOf(so)), r2(dOf(si))],
+        u_val: [0, 0, 2, 0], u_band: [0, 0, r2(dOf(so)), r2(dOf(si))],
         u_shape: [1, r2((setMark.half + setMark.stroke / 2) * R / so), r2(setMark.stroke / 2 * R / si), 0],
         u_fill: C.none, u_red: C.none, u_glow: C.none, u_needle: C.ink, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0],
     };
     const barU = (col) => ({
-        u_v: [0, 0, 2, 0], u_band: [-4, 4, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [0, 0, 2, 0], u_band: [-4, 4, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: col, u_red: col, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0],
     });
     return [

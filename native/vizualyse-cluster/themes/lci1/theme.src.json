@@ -560,7 +560,7 @@
    "shader": "gauge",
    "field": "speed",
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0, 1],
     "u_glow": [0.9608, 0.9725, 1, 4],
     "u_needle": [0, 0, 0, 0],
@@ -577,7 +577,7 @@
    "field": "speed",
    "art": false,
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0.0145, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0.9608, 0.9725, 1, 1],
@@ -593,7 +593,7 @@
    "shader": "gauge",
    "field": "nums",
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0, 1],
     "u_glow": [-0.0073, -0.011, -0.0292, 1],
     "u_needle": [0, 0, 0, 0],
@@ -609,7 +609,7 @@
    "shader": "gauge",
    "field": "tach",
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0, 1],
     "u_glow": [0.9608, 0.9725, 1, 4],
     "u_needle": [0, 0, 0, 0],
@@ -626,7 +626,7 @@
    "field": "tach",
    "art": false,
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0.0145, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0.9608, 0.9725, 1, 1],
@@ -642,7 +642,7 @@
    "shader": "gauge",
    "field": "numsR",
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0, 1],
     "u_glow": [-0.0073, -0.011, -0.0292, 1],
     "u_needle": [0, 0, 0, 0],
@@ -677,7 +677,7 @@
    "field": "gear",
    "art": false,
    "uniforms": {
-    "u_v": [1, 0, 2, 1],
+    "u_val": [1, 0, 2, 1],
     "u_seg": [0, 0, 0.2092, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0, 0, 0, 0],
@@ -694,7 +694,7 @@
    "field": "gear",
    "art": false,
    "uniforms": {
-    "u_v": [0.1478, 0, 2, 1],
+    "u_val": [0.1478, 0, 2, 1],
     "u_seg": [2, 33.29, 0, 0.166],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0, 0, 0, 0],
@@ -765,7 +765,7 @@
    "field": "bars",
    "art": false,
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0, 0, 0, 0],
@@ -782,7 +782,7 @@
    "field": "bars",
    "art": false,
    "uniforms": {
-    "u_v": [1, 0, 2, 1],
+    "u_val": [1, 0, 2, 1],
     "u_seg": [0, 0, 1, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0, 0, 0, 0],
@@ -799,7 +799,7 @@
    "field": "barsR",
    "art": false,
    "uniforms": {
-    "u_v": [0, 0, 2, 1],
+    "u_val": [0, 0, 2, 1],
     "u_seg": [0, 0, 0, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0, 0, 0, 0],
@@ -816,7 +816,7 @@
    "field": "barsR",
    "art": false,
    "uniforms": {
-    "u_v": [1, 0, 2, 1],
+    "u_val": [1, 0, 2, 1],
     "u_seg": [0, 0, 1, 1],
     "u_glow": [0, 0, 0, 0],
     "u_needle": [0, 0, 0, 0],

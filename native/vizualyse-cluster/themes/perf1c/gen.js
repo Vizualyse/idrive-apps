@@ -34,7 +34,7 @@ const R_PATH = 258;
 const dS = dialPath(SX, CY, R_PATH, 2, 47, 190), dT = dialPath(TX, CY, R_PATH, 2, 32, 190);
 const dialU = (d, dim) => ({
     /* the trail: two steps over the last 30 degrees */
-    u_v: [d.t0, 0, 2, +(30 / 244).toFixed(4)],
+    u_val: [d.t0, 0, 2, +(30 / 244).toFixed(4)],
     /* value arc 6 wide on r 272 (d -17..-11); needle r 234..282 (d 24..-24) */
     u_band: [-17, -11, -24, 24],
     u_shape: [100, 2, 2, 0.44],
@@ -59,14 +59,14 @@ const layers = [
     { name: 'tachDial', shader: 'gauge', field: 'tachDial', uniforms: dialU(dT, 0.55) },
     /* the cruise set speed: a pointer outside the scale (solid; the mockup's is hollow) */
     { name: 'cruisePtr', shader: 'gauge', field: 'speedDial', art: false, uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [0, 0, -45, -23], u_shape: [1, 9, 0.8, 0], u_fill: C.none, u_red: C.none,
+        u_val: [0, 0, 2, 0], u_band: [0, 0, -45, -23], u_shape: [1, 9, 0.8, 0], u_fill: C.none, u_red: C.none,
         u_glow: [0, 0, 0, 0], u_needle: C.ink, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0], u_look: [0, 0, 1, 0] } },
 
     /* top row: time, outside, guidance (arrow, distance, road) */
     text('clock', F.s24, 's24', 5, 'end', 640, 53, C.ink),
     text('outside', F.s24, 's24', 6, 'end', 722, 53, C.ink2),
     { name: 'arrow', shader: 'gauge', field: 'arrow', art: false, uniforms: {
-        u_v: [1, 0, 2, 0], u_band: [-2.55, 2.55, 0, 0], u_shape: [1, 0, 0, 0], u_fill: C.ink, u_red: C.ink,
+        u_val: [1, 0, 2, 0], u_band: [-2.55, 2.55, 0, 0], u_shape: [1, 0, 0, 0], u_fill: C.ink, u_red: C.ink,
         u_glow: [0, 0, 0, 0], u_needle: C.none, u_seg: [0, 0, 0, 1], u_pool: [0, 0, 0, 0], u_look: [0, 0, 1, 0] } },
     text('gDist', F.r31, 'r31', 7, 'start', 832, 56, C.ink),
     textRow('road', F.u20, 'u20', 956, 1190, 56, C.ink2),

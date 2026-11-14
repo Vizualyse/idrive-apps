@@ -61,7 +61,7 @@
    "shader": "gauge",
    "field": "rpm",
    "uniforms": {
-    "u_v": [
+    "u_val": [
      0,
      0,
      0.875,

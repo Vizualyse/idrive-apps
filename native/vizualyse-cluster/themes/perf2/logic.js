@@ -44,23 +44,23 @@ module.exports = {
         if (ok(vMph)) {
             const f = clamp(vMph / p.maxMph, 0, 1);
             /* the mockup's trail brightens toward the needle: the first half of the swept part dim, the rest bright */
-            out.speed = { visible: true, uniforms: { u_v: [f, len, f * 0.5, Math.max(f, 0.01)] } };
+            out.speed = { visible: true, uniforms: { u_val: [f, len, f * 0.5, Math.max(f, 0.01)] } };
         } else out.speed = { visible: false };
 
         const tAmber = p.amberRpm / p.maxRpm, tRed = p.redStageRpm / p.maxRpm;
         if (ok(vRpm)) {
             const f = clamp(vRpm / p.maxRpm, 0, 1);
-            const u = { u_v: [f, len, tAmber, Math.max(f, 0.01)] };
+            const u = { u_val: [f, len, tAmber, Math.max(f, 0.01)] };
             if (cue) {
                 const a = flashOn ? 1 : 0.25;
                 /* the whole trail red (or dim), the needle on this layer while tachRed lights the whole bezel */
                 out.tach = { visible: true, color: col(C.red, a), red: col(C.red, a), glow: col(C.glowRed, flashOn ? 1 : 0.3), needle: C.red, uniforms: u };
                 out.tachRed = { visible: flashOn, color: col(C.red, 0.85), red: col(C.red, 0.85), needle: C.none,
-                    uniforms: { u_v: [1, len, 2, 0], u_band: [-19.5, -16.5, -12, 46], u_seg: [0, 0, 0, 1] } };
+                    uniforms: { u_val: [1, len, 2, 0], u_band: [-19.5, -16.5, -12, 46], u_seg: [0, 0, 0, 1] } };
             } else {
                 out.tach = { visible: true, color: col(C.cool, 0.45), red: C.amber, glow: C.glow, needle: C.none, uniforms: u };
                 out.tachRed = { visible: true, color: C.none, red: C.red, needle: C.red,
-                    uniforms: { u_v: [f, len, tRed, 0], u_band: [-6, 6, -12, 46], u_seg: [0, 0, 0, 1] } };
+                    uniforms: { u_val: [f, len, tRed, 0], u_band: [-6, 6, -12, 46], u_seg: [0, 0, 0, 1] } };
             }
         } else {
             out.tach = { visible: false };
@@ -96,11 +96,11 @@ module.exports = {
             if (L < -0.5) {
                 /* regen: blue in 6 px stripes with 3 px gaps from zero to the regen; engine (if any) on the right */
                 const start = E > 0.5 ? tp(L) : t0, value = E > 0.5 ? tp(E) : tp(L);
-                out.power = { color: C.blue, red: C.cool, uniforms: { u_v: [value, B.len, E > 0.5 ? t0 : 2, 0], u_seg: [60, 3, start, start + 540 / B.len] } };
+                out.power = { color: C.blue, red: C.cool, uniforms: { u_val: [value, B.len, E > 0.5 ? t0 : 2, 0], u_seg: [60, 3, start, start + 540 / B.len] } };
             } else {
-                out.power = { color: C.cool, red: C.blue, uniforms: { u_v: [tp(E + L), B.len, tp(E), 0], u_seg: [0, 0, t0, 1] } };
+                out.power = { color: C.cool, red: C.blue, uniforms: { u_val: [tp(E + L), B.len, tp(E), 0], u_seg: [0, 0, t0, 1] } };
             }
-        } else out.power = { uniforms: { u_v: [t0, B.len, 2, 0], u_seg: [0, 0, t0, 1] } };
+        } else out.power = { uniforms: { u_val: [t0, B.len, 2, 0], u_seg: [0, 0, t0, 1] } };
         const total = ok(eng) || ok(ele) ? (ok(eng) ? eng : 0) + (ok(ele) ? ele : 0) : null;
         out.powerText = { text: ok(total) && ok(eng) ? signed(total) : '--' };
         out.engText = { text: ok(eng) ? String(Math.round(eng)) : '--' };
@@ -108,7 +108,7 @@ module.exports = {
 
         const boost = st.boost.step(sig.boostBar, ctx.dt);
         const tb = (b) => B.bT0 + (B.bMax - clamp(b, B.bMin, B.bMax)) / (B.bMax - B.bMin) * (B.bT1 - B.bT0);
-        out.boost = ok(boost) ? { visible: true, uniforms: { u_v: [tb(boost), B.len, 2, 0], u_seg: [0, 0, tb(0), 1] } } : { visible: false };
+        out.boost = ok(boost) ? { visible: true, uniforms: { u_val: [tb(boost), B.len, 2, 0], u_seg: [0, 0, tb(0), 1] } } : { visible: false };
         out.boostText = { text: ok(boost) ? (boost < -0.005 ? MINUS : '') + Math.abs(boost).toFixed(2) : '--' };
 
         /* ---- chassis: tyres by temperature (cold hollow, warm frost, hot amber), the g dot ---- */

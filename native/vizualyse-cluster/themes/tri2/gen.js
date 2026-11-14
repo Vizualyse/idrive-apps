@@ -164,27 +164,27 @@ const tint = C.electric.slice(0, 3).map((c, i) => R2((c - LIT[i]) / 1.5)).concat
 function sportLayers() {
 const layers = [
     { name: 'tach', shader: 'gauge', field: 'tach', uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [-17, 17, -22, TACH_MAXD], u_shape: [127, 2, 2, 0],
+        u_val: [0, 0, 2, 0], u_band: [-17, 17, -22, TACH_MAXD], u_shape: [127, 2, 2, 0],
         u_fill: TACH_DIM.concat([DIM_A]), u_red: TACH_DIM.concat([DIM_A]), u_glow: C.none, u_needle: C.z10,
         u_seg: [0, 0, 1, 1], u_look: [0, 0, 1, 0] } },
     { name: 'pwTint', shader: 'gauge', field: 'power', uniforms: {
-        u_v: [0, 0, 2, 1], u_band: [-12, 12, 0, 0], u_shape: [127, 0, 0, 1],
+        u_val: [0, 0, 2, 1], u_band: [-12, 12, 0, 0], u_shape: [127, 0, 0, 1],
         u_fill: C.none, u_red: C.none, u_glow: [0, 0, 0, 0], u_needle: C.none,
         u_seg: [0, 0, 0, 1], u_look: [1, 0, 1, 0] } },
     { name: 'pwDim', shader: 'gauge', field: 'power', art: false, uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [-12, 12, 0, 0], u_shape: [127, 0, 0, 0],
+        u_val: [0, 0, 2, 0], u_band: [-12, 12, 0, 0], u_shape: [127, 0, 0, 0],
         u_fill: PW_DIM.concat([DIM_A]), u_red: PW_DIM.concat([DIM_A]), u_glow: PW_DIM.concat([0]), u_needle: C.none,
         u_seg: [0, 0, 0, 1], u_look: [0, 0, 1, 0] } },
     ...['ladderL', 'ladderR'].map((name) => ({ name, shader: 'gauge', field: name === 'ladderL' ? 'ladder' : 'ladderR', uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [-4.5, 4.5, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [0, 0, 2, 0], u_band: [-4.5, 4.5, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: C.shift, u_red: C.shift, u_glow: C.none, u_needle: C.none,
         u_seg: [L.n, R2(L.gap * Math.PI / 180 * L.r), 0, R2(ladCell * L.n * 1000) / 1000], u_look: [0, 0, 1, 0] } })),
     /* the columns: one band from the fuel's level down, round the turn, up the battery to its level */
     { name: 'stores', shader: 'gauge', field: 'stores', art: false, uniforms: {
-        u_v: [colT.t2, 0, R2((colT.t1 + colT.t2) / 2 * 1e4) / 1e4, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [colT.t2, 0, R2((colT.t1 + colT.t2) / 2 * 1e4) / 1e4, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: C.z9, u_red: C.electric, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, colT.t1, 1], u_look: [0, 0, 1, 0] } },
     { name: 'temps', shader: 'gauge', field: 'temps', art: false, uniforms: {
-        u_v: [colT.t2, 0, 2, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [colT.t2, 0, 2, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: C.z9, u_red: C.z9, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, colT.t1, 1], u_look: [0, 0, 1, 0] } },
     /* the art's mode letter hidden when the gearbox is not in M */
     { name: 'gmMask', shader: 'rect', x: 836, y: 328, w: 88, h: 76, uniforms: { u_shape: [0, 0, 0, 0], u_color: FACE_MID.concat([1]) } },
@@ -226,25 +226,25 @@ return layers;
 function comfortLayers() {
 const layers = [
     { name: 'tach', shader: 'gauge', field: 'tach', uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [-17, 17, -22, 22], u_shape: [127, 1.5, 1.5, 0],
+        u_val: [0, 0, 2, 0], u_band: [-17, 17, -22, 22], u_shape: [127, 1.5, 1.5, 0],
         u_fill: TACH_DIM.concat([DIM_A]), u_red: TACH_DIM.concat([DIM_A]), u_glow: C.none, u_needle: C.z9,
         u_seg: [0, 0, 1, 1], u_look: [0, 0, 1, 0] } },
     { name: 'pwTint', shader: 'gauge', field: 'power', uniforms: {
-        u_v: [0, 0, 2, 1], u_band: [-12, 12, 0, 0], u_shape: [127, 0, 0, 1],
+        u_val: [0, 0, 2, 1], u_band: [-12, 12, 0, 0], u_shape: [127, 0, 0, 1],
         u_fill: C.none, u_red: C.none, u_glow: [0, 0, 0, 0], u_needle: C.none,
         u_seg: [0, 0, 0, 1], u_look: [1, 0, 1, 0] } },
     { name: 'pwDim', shader: 'gauge', field: 'power', art: false, uniforms: {
-        u_v: [0, 0, 2, 0], u_band: [-12, 12, -16, 14], u_shape: [127, 1.5, 1.5, 0],
+        u_val: [0, 0, 2, 0], u_band: [-12, 12, -16, 14], u_shape: [127, 1.5, 1.5, 0],
         u_fill: PW_DIM.concat([DIM_A]), u_red: PW_DIM.concat([DIM_A]), u_glow: PW_DIM.concat([0]), u_needle: C.z10,
         u_seg: [0, 0, 0, 1], u_look: [0, 0, 1, 0] } },
     { name: 'stores', shader: 'gauge', field: 'stores', art: false, uniforms: {
-        u_v: [colT.t2, 0, R2((colT.t1 + colT.t2) / 2 * 1e4) / 1e4, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [colT.t2, 0, R2((colT.t1 + colT.t2) / 2 * 1e4) / 1e4, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: C.z9, u_red: C.electric, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, colT.t1, 1], u_look: [0, 0, 1, 0] } },
     { name: 'temps', shader: 'gauge', field: 'temps', art: false, uniforms: {
-        u_v: [colT.t2, 0, 2, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [colT.t2, 0, 2, 0], u_band: [-9, 9, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: C.z7, u_red: C.z7, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, colT.t1, 1], u_look: [0, 0, 1, 0] } },
     { name: 'arrow', shader: 'gauge', field: 'arrow', art: false, uniforms: {
-        u_v: [1, 0, 2, 0], u_band: [-2.25, 2.25, 0, 0], u_shape: [1, 0, 0, 0],
+        u_val: [1, 0, 2, 0], u_band: [-2.25, 2.25, 0, 0], u_shape: [1, 0, 0, 0],
         u_fill: C.z10, u_red: C.z10, u_glow: C.none, u_needle: C.none, u_seg: [0, 0, 0, 1], u_look: [0, 0, 1, 0] } },
     /* the art's D hidden when the gearbox is not in D */
     { name: 'gmMask', shader: 'rect', x: 962, y: 454, w: 46, h: 44, uniforms: { u_shape: [0, 0, 0, 0], u_color: FACE_MID.concat([1]) } },
