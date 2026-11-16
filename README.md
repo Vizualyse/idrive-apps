@@ -1,5 +1,7 @@
 # Cast to cluster
 
+[简体中文](README.zh-CN.md)
+
 Cast to cluster for the BMW iDrive 7 head unit (MGU): a stream URL from your
 phone on the instrument cluster, the HUD or the media console, with its
 sound through the speakers; or CarPlay's own cluster map (its second screen,

@@ -1,0 +1,377 @@
+Settings	设置
+Themes	主题
+Theme	主题
+Cast	投射
+Cast to cluster	仪表投射
+Cast to iDrive	iDrive 投射控制
+Cluster themes	仪表主题
+Browser	浏览器
+Browse	浏览
+Moonlight on iDrive	Moonlight 串流控制
+Steam on the car	车载 Steam
+Steam account	Steam 账号
+Info	信息
+List	列表
+Touch screen	触控界面
+Touch screen (only while parked)	触控界面（仅停车时可用）
+Touch screen (needs mgu-render)	触控界面（需要 mgu-render）
+The touch screen is up. List (top right) or Back shows the list.	触控界面已打开，点右上角“列表”或返回键可查看列表。
+The touch screen or the browser is up. List (top right) or Back shows the list.	触控界面或浏览器已打开，点“列表”或返回键可查看列表。
+The touch screen or the game is up. List (top right) or Back shows the list.	触控界面或游戏已打开，点“列表”或返回键可查看列表。
+The touch screen is up - List (top right) or the back arrow returns here	触控界面已打开，点右上角“列表”或返回箭头可回到此页
+Stop	停止
+Play	播放
+Pause	暂停
+Show	显示
+Hide	隐藏
+Start	启动
+Back	返回
+Forward	前进
+Home	主页
+Home page	主页
+Reload	重新加载
+Refresh	刷新
+Save	保存
+Send	发送
+Cancel	取消
+Close	关闭
+Add	添加
+Go	前往
+Enter	回车
+Install	安装
+Remove	移除
+Delete	删除
+Forget this PC	取消与此电脑的配对
+Restart the browser	重启浏览器
+Make home	设为主页
+Show on the screen	在车机屏幕显示
+On the screen	正在车机屏幕显示
+On the screen - the back arrow on the left returns here	正在车机屏幕显示，点左侧返回箭头回到此页
+Shown once the browser runs	浏览器启动后显示
+Ready	就绪
+Ready - pick a game	已就绪，请选择游戏
+Ready - scan the QR code to pair and pick a game	已就绪，请扫码配对并选择游戏
+Ready - scan the QR code with your phone	已就绪，请用手机扫描二维码
+Ready: scan the QR code with your phone	已就绪，请用手机扫描二维码
+Ready: scan the QR code to pair a PC and pick a game	已就绪，请扫码配对电脑并选择游戏
+Ready, waiting for the phone	已就绪，等待手机连接
+Ready. Show puts the page on the screen	已就绪，点“显示”将网页放到车机屏幕
+Ready - Show puts it on the screen; scan the QR code to type addresses	已就绪，点“显示”打开画面；扫码可输入网址
+Connecting...	正在连接…
+Connecting…	正在连接…
+Starting	正在启动
+Starting the browser	正在启动浏览器
+Waiting	等待中
+Waiting for the hotspot	等待热点连接
+Waiting for the phone's hotspot	等待手机热点连接
+Waiting for the phone's picture	等待手机画面
+Waiting for the PIN…	等待配对码…
+Loading the games…	正在加载游戏…
+Nothing streaming	暂无串流
+nothing streaming	暂无串流
+Nothing playing	暂无播放内容
+Nothing playing yet	尚未播放
+nothing played yet	尚未播放
+Nothing running	暂无运行内容
+Not playing	未播放
+Not ready	未就绪
+not ready	未就绪
+not running	未运行
+not installed	未安装
+not paired	未配对
+not checked yet	尚未检查
+not probed yet	尚未检测
+none yet	暂无
+No page	暂无网页
+No link yet	暂无连接地址
+no link yet	暂无连接地址
+No hotspot	未连接热点
+No phone connected	没有手机连接
+No game running	没有游戏运行
+No games yet	暂无游戏
+No games yet: install one below.	暂无游戏，请在下方安装。
+No games yet - scan the QR code to sign in to Steam and install one	暂无游戏，请扫码登录 Steam 并安装游戏
+No game has run since the tool started.	组件启动后尚未运行游戏。
+No account yet.	尚未登录账号。
+No controller connected to the car	未连接游戏手柄
+no controllers	无手柄
+Speed unknown	车速未知
+unknown (counts as parked)	未知（按停车处理）
+On	开启
+Off	关闭
+on	开启
+off	关闭
+Enabled	已启用
+Disabled	已停用
+Auto	自动
+always	始终
+Sport	运动
+Comfort	舒适
+Sport or Comfort	运动／舒适模式
+by the drive mode	随驾驶模式切换
+always Sport	始终使用运动模式
+always Comfort	始终使用舒适模式
+Sport or Comfort: by the drive mode	运动／舒适：随驾驶模式切换
+Preview	预览
+In use	正在使用
+In use: Sport or Comfort by the drive mode	正在使用：随驾驶模式切换运动／舒适主题
+Previewing: themes are off	正在预览：仪表主题已关闭
+Use this theme	使用此主题
+Turn on with this theme	启用并使用此主题
+Try on the cluster	在仪表上试用
+Trying a theme on the cluster...	正在仪表上试用主题…
+Trying it on the cluster, then back	正在仪表上试用，结束后自动恢复
+for 10 s, then back	试用 10 秒后恢复
+then back	随后恢复
+its theme	当前主题
+on the cluster	在仪表上
+On the cluster	仪表画面
+Cover the car's bottom strip	遮盖原车底部信息栏
+black under the theme	主题下方显示黑色遮罩
+the strip shows under the theme	主题下方保留原车信息栏
+covered (black)	已遮盖（黑色）
+off (the car's own cluster)	关闭（显示原车仪表）
+Off - the car's own cluster shows	已关闭，显示原车仪表
+On - starting the theme...	已开启，正在加载主题…
+on: the chosen theme shows	开启：显示所选主题
+off: the car's own cluster shows	关闭：显示原车仪表
+The cluster themes tool is not running - install Cluster themes (the tool) from the Store	仪表主题组件未运行，请在商店安装“仪表主题”后台组件
+The Browser tool is not running - install Browser (the tool) from the Store	浏览器组件未运行，请在商店安装“浏览器”后台组件
+The Moonlight tool is not running - install Moonlight (the tool) from the Store	Moonlight 组件未运行，请在商店安装 Moonlight 后台组件
+The Steam tool is not running - install Steam (the tool) from the Store	Steam 组件未运行，请在商店安装 Steam 后台组件
+Cast service not running - install Cast to cluster in the Store	投射服务未运行，请在商店安装“仪表投射”
+Phone page	手机控制页
+Scan with the phone whose hotspot the car is on	请用提供车机热点的手机扫码
+Scan with the phone whose hotspot the car is on, or open the link	请用提供车机热点的手机扫码，或打开连接地址
+Scan with the phone whose hotspot the car is on to pair and pick the PC and game	请用提供车机热点的手机扫码，配对并选择电脑和游戏
+Scan with the phone whose hotspot the car is on to type addresses and text	请用提供车机热点的手机扫码，输入网址和文字
+Scan with the phone whose hotspot the car is on: sign in to Steam, install games	请用提供车机热点的手机扫码，登录 Steam 并安装游戏
+Scan it with the phone on the car's hotspot,	请用连接车机热点的手机扫码，
+then cast from its page	然后在手机控制页开始投射
+Scan it to type addresses and text	扫码输入网址和文字
+Scan it: pair a PC, pick a game	扫码配对电脑并选择游戏
+Scan it: sign in, install games	扫码登录并安装游戏
+from the phone whose hotspot the car is on	使用提供车机热点的手机
+Turn on the phone's hotspot	请开启手机热点
+QR code on the cluster	仪表二维码
+QR code on the cluster while idle	空闲时在仪表显示二维码
+while nothing plays there	仪表未播放内容时显示
+while nothing streams	未进行串流时显示
+Cluster	仪表
+Cluster map	仪表地图
+cluster map	仪表地图
+the cluster map	仪表地图
+Map on Cluster	地图显示在仪表
+Map on HUD	地图显示在 HUD
+Media console	中控屏幕
+Centre console	中控屏幕
+This screen	此屏幕
+this screen	此屏幕
+the HUD	HUD 抬头显示
+the speakers only	仅通过扬声器播放
+Audio only	仅音频
+Video output	视频输出
+Picture on	画面输出位置
+Stream URL	串流地址
+Stream from the phone	手机串流
+Stream	串流
+Last stream	上次串流
+Play last on the cluster map	在仪表地图区域重播
+Play last on the HUD	在 HUD 上重播
+Play last on this screen	在此屏幕重播
+Play the last stream again on	选择上次串流的重播位置
+Turn Cast to cluster on	开启仪表投射
+Turn Cast to cluster on to play it	开启仪表投射后播放
+Cast is off	投射已关闭
+Cast to cluster is off: nothing plays	仪表投射已关闭，停止播放
+on: the phone page is open	开启：手机控制页已开放
+off: nothing plays, the page is closed	关闭：停止播放并关闭手机控制页
+Off - turn Cast to cluster on to use it	已关闭，请开启仪表投射后使用
+CarPlay second screen	CarPlay 副屏
+Directions card	转向指引卡片
+Time and distance card	时间与距离卡片
+Time / distance card	时间／距离卡片
+Centre the map	地图居中
+HUD alternate mode	HUD 替代显示模式
+Zoom the map	地图缩放
+CarPlay map on the cluster	CarPlay 地图显示在仪表
+CarPlay map on the HUD	CarPlay 地图显示在 HUD
+CarPlay map: zoom in	放大 CarPlay 地图
+CarPlay map: zoom out	缩小 CarPlay 地图
+CarPlay map	CarPlay 地图
+CarPlay directions card	CarPlay 转向指引卡片
+CarPlay time / distance card	CarPlay 时间／距离卡片
+CarPlay: centre the map	CarPlay 地图居中
+CarPlay HUD alternate mode	CarPlay HUD 替代显示模式
+needs hook111 (in the Store)	需要安装 hook111（可在商店获取）
+(hook111 is not installed)	（未安装 hook111）
+hook111 is not running	hook111 未运行
+Play the map on the cluster or the HUD to see it here	在仪表或 HUD 播放地图后，此处显示预览
+Maps' own layout	地图应用原有布局
+the car between the two cards	车辆位于两张卡片之间
+the cluster's picture, fitted	将仪表画面缩放以适应显示区域
+the phone's size	使用手机输出尺寸
+the wide picture fills the HUD	宽画面填满 HUD
+(wider, not centred)	（更宽，不居中）
+arrival time, time and miles left	到达时间、剩余时间与距离
+CarPlay's own cluster view (Google Maps or Apple Maps), next to the main CarPlay screen. The phone draws it at the size of the chosen output from its next connection; until then it is scaled to fit.	使用 CarPlay 自带的仪表视图（Google 地图或 Apple 地图），与 CarPlay 主屏同时显示。手机下次连接时按所选输出尺寸绘制；此前会缩放适应显示区域。
+Volume	音量
+Sound through the speakers	通过车载扬声器播放声音
+with sound	有声
+with sound through the speakers	通过车载扬声器播放声音
+without sound	无声
+no sound	无声
+Playing	正在播放
+Paused	已暂停
+Ended	已结束
+Stopped	已停止
+Failed	失败
+Error	错误
+ffmpeg ended	ffmpeg 已退出
+the stream failed	串流失败
+the command failed	命令执行失败
+see the log	请查看日志
+only while parked	仅停车时可用
+Only while parked: the car is moving	仅停车时可用，车辆正在行驶
+Only while parked. The iDrive back arrow (left of the page) hides it too.	仅停车时可用。点击页面左侧的 iDrive 返回箭头也可隐藏画面。
+Hidden: it keeps running until you stop it	画面已隐藏，后台继续运行，直到手动停止
+The car is moving: games are hidden until it stops.	车辆正在行驶，游戏画面会隐藏，停车后可恢复显示。
+Games	游戏
+Game	游戏
+A game	一款游戏
+a game	游戏
+Gaming PCs	游戏电脑
+Library	游戏库
+Running now	当前运行
+Play one from the library below	从下方游戏库选择游戏开始游玩
+Install a game	安装游戏
+Install games on	游戏安装位置
+Download from	下载来源
+Download cancelled	下载已取消
+No PC yet. Run	尚未添加电脑，请运行
+Add a PC first.	请先添加电脑。
+Pair a PC to see its games.	配对电脑后查看游戏。
+Pair with	配对
+and type:	然后输入：
+Close the game on the PC to start another.	请先关闭电脑上的游戏，再启动另一个游戏。
+closes it on the PC	同时关闭电脑上的游戏
+the game keeps running on the PC	游戏仍在电脑上运行
+Quit game	退出游戏
+Stop the game	停止游戏
+Resume last	继续上次游戏
+Play (once the game stops)	播放（请先停止当前游戏）
+The Moonlight switch turns it on	打开 Moonlight 开关后启用
+Moonlight is off	Moonlight 已关闭
+Moonlight is off: the phone page is closed	Moonlight 已关闭，手机控制页已关闭
+Off - turn Moonlight on to use it	已关闭，请开启 Moonlight 后使用
+when Moonlight is on	Moonlight 开启时
+off: the phone page is closed	关闭：手机控制页已关闭
+Let the PC change its resolution	允许电脑调整分辨率
+(Sunshine: optimise game settings)	（Sunshine：优化游戏设置）
+on the PC, put it on the same Wi-Fi as the car (the phone's hotspot), and add its address.	在电脑上运行，并将电脑与车机连接到同一 Wi-Fi（手机热点），然后添加电脑地址。
+(this phone; a real one connected to the car works too)	（使用此手机；也支持连接到车机的实体手柄）
+The picture covers the whole centre screen. To stop it: hold the screen for 2 s, or hold Start + Back + LB + RB on a controller for 2 s, or Stop here.	画面覆盖整个中控屏。停止播放：长按屏幕 2 秒，或同时按住手柄的 Start + Back + LB + RB 2 秒，也可在此页点“停止”。
+Controller	手柄
+Controllers	手柄
+Picture	画面
+Pictures	帧数
+Picture size	画面尺寸
+Frames a second	每秒帧数
+Frames per second	每秒帧数
+Bitrate	码率
+Bitrate: as the size and rate need	码率：根据画面尺寸和帧率调整
+GPU decoding	GPU 解码
+Software decoding	软件解码
+decoded in software	软件解码
+decoded on the GPU	GPU 解码
+Compatibility mode	兼容模式
+Compatibility mode: off	兼容模式：关闭
+The browser is off	浏览器已关闭
+The browser is not running	浏览器未运行
+Off - turn the browser on to use it	已关闭，请开启浏览器后使用
+Off: turn the browser on in Settings	已关闭，请在设置中开启浏览器
+off: Chromium is stopped	关闭：Chromium 已停止
+on: Chromium runs	开启：Chromium 正在运行
+Resolution	分辨率
+Resolution: full	分辨率：全尺寸
+Resolution (the page drawn with fewer pixels, scaled up)	分辨率（降低网页绘制尺寸后放大显示）
+Lower draws fewer pixels: faster on the car's processor and lighter on memory, a little blurrier. The page keeps its layout.	较低的分辨率会减少绘制像素，让车机运行更快、占用更少内存，画面会略微模糊。网页布局不变。
+Full	全尺寸
+Memory for the browser	浏览器内存上限
+More memory lets bigger pages and games load, but leaves less to the car's own screens, which may get slower while a big page runs. Only the browser itself can run out.	提高内存上限可加载更大的网页和游戏，但会减少原车界面可用内存，运行大型网页时原车界面可能变慢。该上限仅约束浏览器进程。
+GPU mode	GPU 模式
+GPU mode: off	GPU 模式：关闭
+Game mode	游戏模式
+Game mode: off	游戏模式：关闭
+Check the GPU again	重新检测 GPU
+GPU: checking...	GPU：正在检测…
+GPU mode (experimental): WebGL on the car's own graphics driver instead of the CPU. Chromium restarts for it, and it is off again whenever the tool starts. If the screen ever freezes or goes black, the car restarts and comes back without it.	GPU 模式（实验性）：WebGL 使用原车显卡驱动绘制，取代 CPU 软件绘制。切换时会重启 Chromium；后台组件每次启动后默认关闭。如果画面冻结或黑屏，车机会重启，并在恢复后关闭此模式。
+Game mode (experimental): WebGPU stops checking each command a page sends, which saves time in games. Only for sites you trust: a page with mistakes can crash the browser's graphics. Chromium restarts for it, and it is off again whenever the tool starts. While it is on, the other tools are asked to make way: a Steam game stops, and Cast pauses on the cluster and the HUD. A Steam game started later stops the browser until it ends.	游戏模式（实验性）：WebGPU 跳过网页命令检查，降低游戏开销。仅用于可信网站，网页错误可能导致浏览器图形进程崩溃。切换时会重启 Chromium；后台组件每次启动后默认关闭。开启时会停止 Steam 游戏并暂停仪表和 HUD 投射；之后启动 Steam 游戏会暂时停止浏览器，直到游戏退出。
+experimental: trusted games only	实验性：仅用于可信游戏
+on (experimental)	开启（实验性）
+on (trusted games only)	开启（仅限可信游戏）
+turn it on in Settings	请在设置中开启
+Turn it on in Settings	请在设置中开启
+Turn it on to open the page	开启后可打开手机控制页
+Installing the browser (about a minute, once)...	正在安装浏览器（首次安装约需一分钟）…
+Installing the tool on the car (a few minutes, once)...	正在车机上安装后台组件（首次安装约需几分钟）…
+Installing Steam on the car (a few minutes, once)...	正在车机上安装 Steam（首次安装约需几分钟）…
+the browser could not be installed	浏览器安装失败
+the tool could not be installed	后台组件安装失败
+Steam is installing itself on the car	正在车机上安装 Steam
+Steam is off	Steam 已关闭
+Off - turn Steam on to use it	已关闭，请开启 Steam 后使用
+off: no game, no download, no phone page	关闭：停止游戏、下载和手机控制页
+on: games and downloads run, the phone page is open	开启：允许运行游戏和下载，开放手机控制页
+Steam asks for the password - answer on the phone page	Steam 需要密码，请在手机控制页输入
+Steam Guard asks for a code - answer on the phone page	Steam 令牌需要验证码，请在手机控制页输入
+Steam Guard: approve the sign-in in the Steam app	Steam 令牌：请在 Steam 手机应用中批准登录
+Steam Guard code:	Steam 令牌验证码：
+Steam asks for the password and a Steam Guard code once, during the first install, right on this page. The car keeps only Steam's sign-in token, never the password.	首次安装时，Steam 会在本页要求输入密码和 Steam 令牌验证码。车机仅保存 Steam 登录令牌，不保存密码。
+Scan the QR code in Settings with your phone: sign in to Steam and install a game there	请用手机扫描设置页的二维码，登录 Steam 并安装游戏
+Remove this game and its files from the car? (Saves in the Windows prefix stay.)	是否从车机移除此游戏及文件？（Windows 兼容环境中的存档会保留。）
+Memory for the game	游戏内存上限
+The picture the game draws	游戏绘制画面
+The screen's shape	屏幕比例
+fills the screen	填满屏幕
+bars at the sides	两侧保留黑边
+Upscaling	画面放大
+Upscaling: off	画面放大：关闭
+Upscaling: not in this Steam tool (update it)	当前 Steam 组件不支持画面放大，请更新组件
+Upscaling (a smaller picture enlarged to the screen; at once)	画面放大（将较小画面放大至全屏，立即生效）
+no sharpening	不锐化
+FSR, no sharpening	FSR，不锐化
+Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens. Upscaling applies at once: FSR sharpens a small picture (896x320, say) as it is enlarged to the screen, for some of the graphics chip's time.	画面尺寸、帧率和内存设置在下次启动游戏时生效。提高内存上限可运行更大的游戏，但会减少原车界面可用内存。画面放大立即生效：FSR 会在小画面（如 896×320）放大至全屏时锐化图像，并占用部分 GPU 运算时间。
+Performance graphs	性能曲线
+The running game's (or the last one's) measurements, a point every 10 seconds, the last hour. Read only while this is open.	显示当前或上次游戏的测量结果，每 10 秒记录一次，保留最近一小时。仅在此页打开时读取。
+The car's memory	车机内存
+The hard disk	硬盘
+The last game	上次游戏
+Time a picture	单帧耗时
+GPU clock	GPU 频率
+GPU awake	GPU 活跃时间
+out of its idle state: not how full it is (the car's screens too)	离开空闲状态的时间占比，并非负载占用率（包括原车界面）
+the game (of one core)	游戏进程（按单核计）
+the unit (all 4 cores)	整台车机（全部 4 核）
+If the unit restarts during the game, Vulkan turns itself off for it.	如果车机在游戏中重启，此游戏的 Vulkan 会自动关闭。
+Only while parked. A hidden game keeps running; Stop ends it. Games can't be controlled yet (no touch or gamepad input in this version).	仅停车时可用。隐藏画面后游戏仍在运行，点“停止”才会退出。本版本尚不支持触控或手柄操作游戏。
+The game's pictures go straight to the car's own screen compositor (Winston), in full colour. Compatibility mode sends them through mgu-render instead, as older versions did; Steam does that by itself if Winston can't be reached. From the next Show.	游戏画面以全彩直接传给原车屏幕合成器 Winston。兼容模式改用 mgu-render；如果 Winston 无法连接，Steam 会自动使用兼容模式。下次点“显示”时生效。
+On the centre console the picture goes straight to the car's own screen compositor (Winston), converted by the graphics card. Compatibility mode sends it through mgu-render instead, as older versions did; Moonlight does that by itself if Winston can't be reached. From the next stream.	中控画面由显卡转换后直接传给原车屏幕合成器 Winston。兼容模式改用 mgu-render；如果 Winston 无法连接，Moonlight 会自动使用兼容模式。下次串流时生效。
+The pictures go straight to the car's own screen compositor (Winston): in full colour, and in the GPU mode without copying them back from the graphics card. Compatibility mode sends them through mgu-render instead, as older versions did; the browser does that by itself if Winston can't be reached.	画面以全彩直接传给原车屏幕合成器 Winston，GPU 模式无需将画面回读到 CPU。兼容模式改用 mgu-render；如果 Winston 无法连接，浏览器会自动使用兼容模式。
+Uplink	网络连接
+Renderer	渲染器
+Cluster renderer	仪表渲染器
+Host	主机
+Vehicle	车辆
+Source	来源
+Speed	车速
+Text	文字
+Picture: 1280x720	画面：1280×720
+Sound: on	声音：开启
+Browser: on	浏览器：开启
+Steam: on	Steam：开启
+Moonlight: on	Moonlight：开启
+Cast to cluster: on	仪表投射：开启
+Cluster themes: off	仪表主题：关闭
+QR code on the cluster: off	仪表二维码：关闭
+The car's strip under the theme: shown	主题下方原车信息栏：显示
