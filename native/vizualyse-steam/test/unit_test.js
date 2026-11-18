@@ -647,7 +647,7 @@ async function vulkan() {
         await api('/api/winston', { on: true });
         await api('/api/show', {});
         await sleep(3000);
-        await api('/api/settings', { upscale: 'fsr' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'fsr' });
         await sleep(3000);
         const f0 = (await status()).game;
         await sleep(3000);
@@ -656,7 +656,7 @@ async function vulkan() {
         ok('FSR on a Vulkan game\'s buffers, switched on while it runs', n1 - n0 > 20,
             (n1 - n0) + ' FSR pictures in 3 s; ' + (f1.fsrWhy ? 'not used: ' + f1.fsrWhy + '; ' : '') + JSON.stringify(f1.fsr) + ', ' + JSON.stringify(f1.buffers) +
             '; ' + (serverLog.split('\n').filter((l) => / wl-sink: (ready|fsr)| perf: fsr /.test(l)).slice(-3).join(' | ')));
-        await api('/api/settings', { upscale: 'off' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'off' });
         await api('/api/hide', {});
         await api('/api/winston', { on: false });
         /* full screen at the picture's size, as Slay the Spire 2 (Godot on
@@ -678,7 +678,7 @@ async function vulkan() {
         ok('full screen on Vulkan: its buffers go to Winston as they are, wl-sink\'s time under 3 ms a picture',
             /full screen 960x540/.test(ftl) && p1.buffers.fwd - p0.buffers.fwd > 20 && p1.buffers.ms < 3,
             JSON.stringify(p1.buffers) + '; ' + ftl.split(/\r?\n/).filter((l) => /full screen|FAIL/.test(l)).join(' | '));
-        await api('/api/settings', { upscale: 'fsr' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'fsr' });
         await sleep(3000);
         const q0 = (await status()).game;
         await sleep(3000);
@@ -686,7 +686,7 @@ async function vulkan() {
         const m0 = q0.fsr ? q0.fsr.pictures : 0, m1 = q1.fsr ? q1.fsr.pictures : 0;
         ok('full screen on Vulkan: FSR draws it', m1 - m0 > 20,
             (m1 - m0) + ' FSR pictures in 3 s; ' + (q1.fsrWhy ? 'not used: ' + q1.fsrWhy + '; ' : '') + JSON.stringify(q1.fsr) + ', ' + JSON.stringify(q1.buffers));
-        await api('/api/settings', { upscale: 'off' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'off' });
         await api('/api/hide', {});
         await api('/api/winston', { on: false });
         fs.unlinkSync('/tmp/t_fullscreen');
@@ -710,7 +710,7 @@ async function vulkan() {
         ok('a window wider than the picture (962 at -1): trimmed and passed on, not put together on the CPU',
             /popup 962x540 at -1,0/.test(wtl) && w1.buffers.fwd - w0.buffers.fwd > 20 && w1.buffers.ms < 3,
             JSON.stringify(w1.buffers) + '; ' + wtl.split(/\r?\n/).filter((l) => /popup|FAIL/.test(l)).join(' | '));
-        await api('/api/settings', { upscale: 'fsr' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'fsr' });
         await sleep(3000);
         const v0 = (await status()).game;
         await sleep(3000);
@@ -719,7 +719,7 @@ async function vulkan() {
         ok('a window wider than the picture: FSR draws its part inside the picture (1134x638 on the screen)',
             u1 - u0 > 20 && v1.fsr && String(v1.fsr.size) === '1134,638',
             (u1 - u0) + ' FSR pictures in 3 s; ' + (v1.fsrWhy ? 'not used: ' + v1.fsrWhy + '; ' : '') + JSON.stringify(v1.fsr) + ', ' + JSON.stringify(v1.buffers));
-        await api('/api/settings', { upscale: 'off' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'off' });
         await api('/api/hide', {});
         await api('/api/winston', { on: false });
         fs.unlinkSync('/tmp/t_popup');
@@ -871,17 +871,17 @@ async function winston() {
          * 1790x638 (x 638/540): 747x385. Then off: passed on as it is again. */
         const k = Math.min(1790 / 960, 638 / 540), want = [Math.round(632 * k), Math.round(326 * k)].join(',');
         if (!process.env.SKIP_FSR_CHECK) {
-        r = await api('/api/settings', { upscale: 'fsr' });
+        r = await api('/api/game', { appId: (await status()).game.appId, upscale: 'fsr' });
         await sleep(3000);
         const f0 = (await status()).game;
         await sleep(2000);
         s = await status();
         const f1 = s.game;
         ok('Upscaling FSR: pictures drawn by FSR at the size on the screen, shown by Winston, no read-back',
-            r.code === 200 && s.settings.upscale === 'fsr' && f1.fsr && f0.fsr && f1.fsr.pictures - f0.fsr.pictures > 20 &&
+            r.code === 200 && s.library.filter((x) => x.appId === s.game.appId)[0].upscale === 'fsr' && f1.fsr && f0.fsr && f1.fsr.pictures - f0.fsr.pictures > 20 &&
             String(f1.fsr.size) === want && f1.buffers.drm === f0.buffers.drm && f1.buffers.fwd === f0.buffers.fwd,
             JSON.stringify(f1.fsr) + ', ' + JSON.stringify(f1.buffers) + ', ' + f1.fps + ' pictures/s');
-        await api('/api/settings', { upscale: 'off' });
+        await api('/api/game', { appId: (await status()).game.appId, upscale: 'off' });
         await sleep(2500);
         const g0 = (await status()).game;
         await sleep(2000);

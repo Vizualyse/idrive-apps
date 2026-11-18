@@ -88,15 +88,11 @@
 
 <div class="card">
   <h2>Settings</h2>
-  <div class="row"><label for="res">Picture</label><select id="res"></select></div>
-  <div class="row"><label for="fps">Frames per second</label><select id="fps"></select></div>
-  <div class="row"><label for="ups">Upscaling</label><select id="ups"></select></div>
-  <div class="row"><label for="mem">Memory for the game</label><select id="mem"></select></div>
   <div class="row"><label for="where">Install games on</label><select id="where"></select></div>
   <div class="row"><label for="region">Download from</label><select id="region"></select></div>
   <p class="dim" id="whereNote"></p>
   <div class="row"><button id="sound">Sound: on</button><label for="vol">Volume</label><input id="vol" type="range" min="0" max="150" step="5"></div>
-  <p class="dim">Picture, frames and memory apply from the next game. More memory lets bigger games run but leaves less to the car's own screens. Upscaling applies at once: FSR sharpens a small picture (896x320, say) as it is enlarged to the screen, for some of the graphics chip's time.</p>
+  <p class="dim">The picture's size, frames, upscaling, memory, Detail, Vulkan and the Steam DRM switches are each game's own: its Options below, or tap the game on the car's touch screen.</p>
   <dl id="info" class="dim"></dl>
 </div>
 
@@ -122,6 +118,17 @@ function api(p, body) {
       body: body === undefined ? undefined : JSON.stringify(body) })
     .then((r) => r.json().then((j) => { if (!r.ok) { $('msg').textContent = j.error || r.status; if (j.status) render(j.status); throw new Error(j.error); } return j; }))
     .then((s) => { if (s && s.library) render(s); return s; });
+}
+
+/* a select's options as HTML */
+function choices(list, cur) {
+  return list.map((o) => '<option value="' + esc(o.v) + '"' + (String(o.v) === String(cur) ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('');
+}
+/* a game's profile in a line */
+function profileLine(x) {
+  return 'Starts at ' + x.resolution + ', ' + x.fps + ' fps' + (x.upscale !== 'off' ? ', FSR' + (x.upscale === 'fsr-soft' ? ' (no sharpening)' : '') : '') +
+    ', ' + (x.vulkan ? 'Vulkan' : 'OpenGL (' + (x.iris ? 'iris' : 'i965') + ')') + ', ' + (x.memMb / 1024).toFixed(1).replace('.0', '') + ' GB' +
+    (x.detail && x.detail !== 'normal' ? ', ' + x.detail : '') + (x.noDrm ? ', DRM removed' : '') + (x.noSteam ? ', without Steam' : '');
 }
 
 function opts(sel, list, cur) {
@@ -293,7 +300,13 @@ function render(s) {
         (x.drm && x.drm.why ? ' (' + esc(x.drm.why) + ')' : '') + ': it will most likely quit at once.</div>') +
       '<div class="dim">' + x.appId + (x.sizeMb ? ' - ' + (x.sizeMb / 1024).toFixed(1) + ' GB' : '') + (x.usb ? ' - USB ' + esc(x.usb) : '') + (x.engine ? ' - ' + esc(x.engine) : '') +
       ' - ' + (x.exe ? esc(x.exe) : '<span class="err">no program found</span>') + '</div>' +
+      '<div class="dim">' + esc(profileLine(x)) + '</div>' +
       '<details><summary>Options</summary>' +
+      '<div class="row"><label>Picture</label><select data-p="resolution">' + choices(s.choices.resolutions.map((r) => ({ v: r.id, t: r.name })), x.resolution) + '</select></div>' +
+      '<div class="row"><label>Frames per second</label><select data-p="fps">' + choices(s.choices.fps.map((f) => ({ v: f, t: f })), x.fps) + '</select></div>' +
+      '<div class="row"><label>Upscaling</label><select data-p="upscale">' + choices(s.choices.upscales.map((u) => ({ v: u.id, t: u.name })), x.upscale) + '</select></div>' +
+      '<div class="row"><label>Memory for the game</label><select data-p="memMb">' + choices(s.choices.memMb.map((m) => ({ v: m, t: (m / 1024).toFixed(1).replace('.0', '') + ' GB' })), x.memMb) + '</select></div>' +
+      '<p class="dim">Picture and frames from its next start; upscaling and memory at once while it runs. FSR sharpens a small picture (896x320, say) as it is enlarged to the screen, for some of the graphics chip's time. More memory lets bigger games run but leaves less to the car's own screens.</p>' +
       '<div class="row"><label>Program</label><select data-f="exe"><option>' + esc(x.exe || '') + '</option></select></div>' +
       '<div class="row"><input type="text" data-f="args" value="' + esc(x.args) + '" placeholder="Launch options" autocapitalize="off" spellcheck="false"><button data-act="save">Save</button></div>' +
       (x.steamApi === 0 ? '' :
@@ -313,6 +326,8 @@ function render(s) {
       '<p class="dim">Lite: no anti-aliasing or tessellation, and the game\'s own low settings where the tool knows its engine ' +
       '(Unity, Unreal, Source). Potato: also Direct3D 11 at 10.1, shader model 2 for Direct3D 9, less video memory reported: ' +
       'faster and plainer, and some games won\'t start (then Lite). From the next start.</p>' +
+      '<div class="row"><button data-act="reset">Reset to the defaults</button></div>' +
+      '<p class="dim">The picture, frames, upscaling, memory, Detail, Vulkan and the OpenGL driver back to the defaults; Remove Steam DRM and Run without Steam stay.</p>' +
       '<div class="row"><button data-act="validate">Check and update files</button><button class="bad" data-act="remove">Remove</button></div>' +
       '</details></div>').join('') : '<p class="dim">No games yet: install one below.</p>';
   }
@@ -345,10 +360,6 @@ function render(s) {
   $('acct').textContent = s.account.username ? 'Signed in to Steam on the car: ' + (s.account.remembered ? 'yes' : 'not yet (at the next install)') : 'No account yet.';
 
   const st = s.settings, ch = s.choices;
-  opts($('res'), ch.resolutions.map((r) => ({ v: r.id, t: r.name })), st.resolution);
-  opts($('fps'), ch.fps.map((f) => ({ v: f, t: f })), st.fps);
-  if (ch.upscales) opts($('ups'), ch.upscales.map((u) => ({ v: u.id, t: u.name })), st.upscale);
-  opts($('mem'), ch.memMb.map((m) => ({ v: m, t: (m / 1024).toFixed(1).replace('.0', '') + ' GB' })), st.memMb);
   if (ch.regions) opts($('region'), ch.regions.map((r) => ({ v: r.id, t: r.name })), st.cellId || 0);
   opts($('where'), [{ v: 'internal', t: 'The car\'s memory' + (s.space.internalMb !== null ? ' (' + (s.space.internalMb / 1024).toFixed(1) + ' GB free)' : '') }]
     .concat(ch.disk ? [{ v: 'disk', t: 'The hard disk' + (s.space.diskMb !== null ? ' (' + (s.space.diskMb / 1024).toFixed(1) + ' GB free)' : '') }] : [])
@@ -377,10 +388,14 @@ $('send').onclick = () => { const v = $('answer').value; $('answer').value = '';
 $('answer').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });
 $('cancel').onclick = () => api('/api/cancel', {}).catch(() => null);
 $('saveUser').onclick = () => api('/api/user', { username: $('user').value }).catch(() => null);
-$('res').onchange = () => api('/api/settings', { resolution: $('res').value }).then(() => $('res').blur(), () => null);
-$('fps').onchange = () => api('/api/settings', { fps: Number($('fps').value) }).then(() => $('fps').blur(), () => null);
-$('ups').onchange = () => api('/api/settings', { upscale: $('ups').value }).then(() => $('ups').blur(), () => null);
-$('mem').onchange = () => api('/api/settings', { memMb: Number($('mem').value) }).then(() => $('mem').blur(), () => null);
+/* a game's profile from its Options: at once */
+$('library').addEventListener('change', (e) => {
+  const sel = e.target.closest('select[data-p]');
+  if (!sel) return;
+  const appId = Number(sel.closest('.game').dataset.app), k = sel.dataset.p, b = { appId: appId };
+  b[k] = k === 'fps' || k === 'memMb' ? Number(sel.value) : sel.value;
+  api('/api/game', b).catch(() => null);
+});
 $('region').onchange = () => api('/api/settings', { cellId: Number($('region').value) }).then(() => $('region').blur(), () => null);
 $('where').onchange = () => api('/api/settings', { where: $('where').value }).then(() => $('where').blur(), () => null);
 $('sound').onclick = () => api('/api/settings', { sound: !(last && last.settings.sound) }).catch(() => null);
@@ -429,6 +444,7 @@ $('library').addEventListener('click', (e) => {
     api('/api/game', { appId: appId, detail: next }).catch(() => null);
   }
   if (act === 'validate') api('/api/validate', { appId: appId }).catch(() => null);
+  if (act === 'reset') api('/api/game', { appId: appId, reset: true }).then(() => { editing = false; }, () => null);
   if (act === 'remove' && confirm('Remove this game and its files from the car? (Saves in the Windows prefix stay.)')) {
     editing = false;
     api('/api/remove', { appId: appId }).catch(() => null);

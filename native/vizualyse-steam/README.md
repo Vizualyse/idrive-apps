@@ -28,9 +28,12 @@ rebuilt `ntdll.so`, below).
    address; **Slay the Spire 2** has a button: 2868840). Steam asks for the
    password and a Steam Guard code (or approval in the Steam app) right on
    the page, once: the car keeps only Steam's sign-in token.
-3. When it is installed, tap its tile on the touch screen (or **Play:
-   <game>** on the iDrive list, or Play on the phone). Starting takes a
-   while (Wine, then the game); the game shows by itself once it draws. The
+3. When it is installed, tap its tile on the touch screen: its **start
+   menu** opens (its picture size, upscaling, memory, Detail, frames,
+   Vulkan, Remove Steam DRM: kept for the game, below), then **Play** there
+   (or **Play: <game>** on the iDrive list, or Play on the phone). Starting
+   takes a while (Wine, then the game); the game shows by itself once it
+   draws. The
    back arrow on the left (or HOME, a pop-up, a call) hides it; it keeps
    running until **Stop the game**.
 
@@ -47,15 +50,34 @@ refused until parked, and the touch screen comes back in its place.
 - **The screen** (`src/touch_view.js`): two tabs in the kit's frame.
   *Library*: the running (or last) game's card (`Running · 28 pictures/s`,
   its name, **Show on the screen**, **Stop the game**), the download with a
-  progress bar, and the games as plain colour plates (their name and Play,
-  Running now, `(no program found)`, `(USB stick not plugged in)` or
-  Downloading), four a page with < > buttons, never scrolling; a game
-  played here goes on the screen by itself once it draws, if the touch
-  screen is still up. *Settings*: the picture's shape (16:9 or the
-  screen's) and its size (a drop-down of that shape's five), Upscaling (Off,
-  FSR, FSR without sharpening), Steam on / off, and the phone page's link
-  as a QR code (the platform's `common/qrcode`, made once a link). No cover
-  art: the plates need nothing downloaded or decoded.
+  progress bar, and the games as tiles (their picture or plate, their name
+  and their profile in a line, `960 × 540 · FSR · Vulkan`, or Running now,
+  `(no program found)`, `(USB stick not plugged in)`, Downloading), four a
+  page with < > buttons, never scrolling. *Settings*: the Steam client,
+  Steam on / off, and the phone page's link as a QR code (the platform's
+  `common/qrcode`, made once a link).
+- **A game's start menu (0.4.0)**: a tile opens it; to 0.3.2 a tap played
+  the game, and the picture's size, upscaling, frames and memory were the
+  tool's, for every game. Its own two tabs take the place of Library and
+  Settings: *Picture* (the shape, 16:9 or the screen's, and the size, a
+  drop-down of that shape's five; memory for the game; Upscaling Off / FSR /
+  FSR without sharpening; Detail Normal / Lite / Potato; 30 or 60 frames a
+  second) and *How it runs* (Vulkan, OpenGL on iris, Remove Steam DRM, Run
+  without Steam, and Reset to the defaults: everything but the two switches
+  that change the game's files). Above them its card: the back arrow, its
+  picture, name and profile in a line, and **Play**, or **Show** and
+  **Stop** while it runs. Play is greyed with the reason (another game
+  running, moving, no program, the stick out). A game played here goes on
+  the screen by itself once it draws, if the touch screen is still up; the
+  menu stays open under it. Each choice is kept in the game's
+  `library.json` entry at once (the profile: `resolution`, `fps`, `upscale`,
+  `memMb` beside `detail`, `vulkan`, `iris`, `noDrm`, `noSteam`); upscaling
+  and the memory cap change the running game at once, the rest its next
+  start. The phone page has the same per game (Options). Updating from
+  0.3.2, the tool's own picture, frames, upscaling and memory settings
+  become each installed game's, once, and are gone; a new game starts from
+  the defaults (960x540, 30, off, 2.5 GB). The iDrive app's **Picture** and
+  **Upscaling** buttons cycle the running (or last played) game's.
 - **One picture at a time** (`src/touch_screen.js`): the app's screen
   state holds the touch screen or the game, each its own mgu-render client
   (`vizualyse_steam_ui`, `vizualyse_steam`), never both connected. Showing
@@ -137,8 +159,9 @@ refused until parked, and the touch screen comes back in its place.
   tick set 33 ms after the last one ended gave 28 (and 17-22 when wl-sink
   put pictures together on the CPU).
 - **Upscaling (0.1.11, experimental):** a game drawn smaller than it is shown
-  is enlarged by Winston (bilinear, free) or, with **Upscaling: FSR** (phone
-  page, or the iDrive app's button; at once, off by default), by AMD's FSR 1
+  is enlarged by Winston (bilinear, free) or, with **Upscaling: FSR** (the
+  game's start menu or its Options on the phone page, or the iDrive app's
+  button; at once, off by default; each game's own from 0.4.0), by AMD's FSR 1
   in wl-sink (`src/fsr.c`: EASU, then RCAS sharpening, two GLES 3 passes on
   the unit's i965): the game's buffer, while it would be passed on as it is,
   is drawn at its size on the screen into one of three GPU buffers of
@@ -154,7 +177,8 @@ refused until parked, and the touch screen comes back in its place.
   phone page. It enlarges the HUD and text too; a game's own render scale
   keeps those sharp. Off the car: `test/run_fsr_test.sh` (the shaders on the
   unit's i965 compiler; pixels on llvmpipe, against bilinear).
-- **Detail (0.1.11, per game, experimental):** Options on the phone page,
+- **Detail (0.1.11, per game, experimental):** the game's start menu, or
+  Options on the phone page,
   Normal / Lite / Potato, from the game's next start, on top of its own
   settings and launch options (never saved into them). Lite: MSAA off and
   tessellation capped (DXVK: `d3d11.disableMsaa`, `d3d9.forceSwapchainMSAA`,

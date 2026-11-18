@@ -186,26 +186,52 @@ readLink();
 /* ---- settings, library ---------------------------------------------------- */
 
 const SETTINGS_FILE = path.join(env.STATE_DIR, 'settings.json');
-const settings = Object.assign({ enabled: true, username: '', where: 'internal', resolution: RES_DEFAULT, fps: 30,
-    memMb: MEM_DEFAULT, sound: true, volume: 100, cellId: 0, upscale: 'off' }, readJson(SETTINGS_FILE) || {});
-if (!UPSCALES.some((u) => u.id === settings.upscale)) settings.upscale = 'off';
-function upscaleArg() { return UPSCALES.filter((u) => u.id === settings.upscale)[0].arg; }
+const settings = Object.assign({ enabled: true, username: '', where: 'internal', sound: true, volume: 100, cellId: 0 }, readJson(SETTINGS_FILE) || {});
 /* where downloads come from: 0 Steam's choice by the car's location, or a
  * Steam cell (DepotDownloader -cellid): when that region's servers fail */
 const REGIONS = [{ id: 0, name: 'Automatic' }, { id: 15, name: 'Amsterdam' }, { id: 5, name: 'Frankfurt' },
     { id: 14, name: 'Paris' }, { id: 4, name: 'London' }];
-if (!RESOLUTIONS.some((r) => r.id === settings.resolution)) settings.resolution = RES_DEFAULT;
-/* 1280x720 was the default up to 0.1.9 and was saved with every other
- * setting, chosen or not: once, it becomes the new default */
-if (settings.resDefault !== 2) { if (settings.resolution === '1280x720') settings.resolution = RES_DEFAULT; settings.resDefault = 2; }
-if (FPS_CHOICES.indexOf(settings.fps) < 0) settings.fps = 30;
-if (MEM_CHOICES.indexOf(settings.memMb) < 0) settings.memMb = MEM_DEFAULT;
 function saveSettings() { try { writeJson(SETTINGS_FILE, settings); } catch (e) { log('settings: ' + e.message); } }
 
-/* the library: { appId: { name, dir, exe, args, engine, sizeMb, installedAt } } */
+/* the library: { appId: { name, dir, exe, args, engine, sizeMb, installedAt,
+ * and its profile (below) } } */
 const LIBRARY_FILE = path.join(env.STATE_DIR, 'library.json');
 const library = readJson(LIBRARY_FILE) || {};
 function saveLibrary() { try { writeJson(LIBRARY_FILE, library); } catch (e) { log('library: ' + e.message); } }
+
+/* ---- each game's profile ---------------------------------------------------
+ * How a game starts is its own (0.4.0; the tool's settings to 0.3.2): the
+ * picture's size, frames a second, upscaling and the memory cap here, kept
+ * in its library entry beside Detail, Vulkan, the OpenGL driver, Remove
+ * Steam DRM and Run without Steam (each its own since they came). Tapping a
+ * game on the touch screen opens its start menu: Play and all of these. A
+ * game without one of them has the default (PROFILE). */
+const PROFILE = { resolution: RES_DEFAULT, fps: 30, upscale: 'off', memMb: MEM_DEFAULT };
+const PROFILE_OK = {
+    resolution: (v) => RESOLUTIONS.some((r) => r.id === v),
+    fps: (v) => FPS_CHOICES.indexOf(v) >= 0,
+    upscale: (v) => UPSCALES.some((u) => u.id === v),
+    memMb: (v) => MEM_CHOICES.indexOf(v) >= 0,
+};
+/* a game's value of k (resolution, fps, upscale, memMb), its own or the default */
+function prof(g, k) { return g && PROFILE_OK[k](g[k]) ? g[k] : PROFILE[k]; }
+function upscaleArg(id) { return UPSCALES.filter((u) => u.id === id)[0].arg; }
+/* once: the tool's settings of 0.3.2 and before become each game's own, so
+ * nothing changes for a game already installed; then they are gone */
+(function () {
+    if (!['resolution', 'fps', 'upscale', 'memMb'].some((k) => settings[k] !== undefined)) return;
+    /* 1280x720 was the default up to 0.1.9 and was saved with every other
+     * setting, chosen or not: the new default instead (as 0.1.10 did) */
+    const was = { resolution: settings.resDefault !== 2 && settings.resolution === '1280x720' ? RES_DEFAULT : settings.resolution,
+        fps: settings.fps, upscale: settings.upscale, memMb: settings.memMb };
+    Object.keys(library).forEach((id) => {
+        Object.keys(PROFILE).forEach((k) => { if (!PROFILE_OK[k](library[id][k]) && PROFILE_OK[k](was[k])) library[id][k] = was[k]; });
+    });
+    ['resolution', 'fps', 'upscale', 'memMb', 'resDefault'].forEach((k) => { delete settings[k]; });
+    saveLibrary();
+    saveSettings();
+    log('profiles: the picture, frames, upscaling and memory settings are each game\'s now (kept for ' + Object.keys(library).length + ' games)');
+})();
 /* settings.where: 'internal', 'disk' or 'usb:<stick id>' (usb.js) */
 function gamesDir() { return settings.where === 'disk' ? env.DISK_GAMES : env.INTERNAL_GAMES; }
 function whereUsb() { return /^usb:/.test(settings.where) ? settings.where.slice(4) : null; }
@@ -299,12 +325,15 @@ function ensureBundles(done) {
 /* ---- the memory cgroup ----------------------------------------------------- */
 
 let cgroupDir = null;
-function cgroup() {
+/* the running game's cap (its profile's memMb), for the notes */
+let capMb = MEM_DEFAULT;
+function cgroup(mb) {
+    capMb = mb || MEM_DEFAULT;
     const dir = path.join(CGROUP_ROOT, 'vizualyse-steam');
     try {
         if (!fs.existsSync(CGROUP_ROOT)) return null;
         if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-        fs.writeFileSync(path.join(dir, 'memory.limit_in_bytes'), String(settings.memMb * 1024 * 1024));
+        fs.writeFileSync(path.join(dir, 'memory.limit_in_bytes'), String(capMb * 1024 * 1024));
         fs.chownSync(path.join(dir, 'cgroup.procs'), UID, UID);
         return dir;
     } catch (e) {
@@ -324,8 +353,8 @@ setInterval(() => {
     const n = Number(m[1]);
     if (mem.ooms !== null && n > mem.ooms) {
         mem.oomAt = new Date().toISOString();
-        mem.note = 'out of memory: the game needed more than the ' + settings.memMb + ' MB cap';
-        log('memory: the game hit its ' + settings.memMb + ' MB cap; the kernel ended one of its processes');
+        mem.note = 'out of memory: the game needed more than the ' + capMb + ' MB cap';
+        log('memory: the game hit its ' + capMb + ' MB cap; the kernel ended one of its processes');
     }
     mem.ooms = n;
 }, 2000);
@@ -462,7 +491,7 @@ const tap = new Tap({
     input: (k, x, y) => { if (game && game.state !== 'ended') game.input(k, x, y); },
     frameMs: () => {
         const f = game && game.stats && game.stats.fps;
-        return 1000 / (f > 0 ? f : settings.fps);
+        return 1000 / (f > 0 ? f : (game && game.o.fps) || PROFILE.fps);
     },
 });
 
@@ -526,7 +555,7 @@ function touchLine() {
     if (bundle.state === 'unpacking' || bundle.state === 'checking') return { tone: 'warn', text: 'Installing Steam on the car (a few minutes, once)...' };
     if (bundle.state === 'failed' || bundle.error) return { tone: 'bad', text: 'Error: ' + (bundle.error || 'the tool could not be installed') };
     if (mem.note && mem.oomAt && Date.now() - Date.parse(mem.oomAt) < 120000) {
-        return { tone: 'warn', text: 'Out of memory: the game needed more than ' + settings.memMb + ' MB (phone page: Memory)' };
+        return { tone: 'warn', text: 'Out of memory: the game needed more than ' + capMb + ' MB (its start menu: Memory)' };
     }
     if (clientState.step) return { tone: 'live', text: 'Steam client: ' + clientState.step };
     if (g && moving()) return { tone: 'warn', text: 'The game shows only while parked: the car is moving' };
@@ -563,10 +592,28 @@ function gameNow(id) {
     return { why: why, exe: here && x.exe && x.dir ? path.join(x.dir, x.exe) : null };
 }
 
+/* the drivers unpacked (Vulkan, iris), looked at every 5 s at most: the
+ * touch screen's model is read each frame, from memory */
+const drivers = { at: 0, vk: false, iris: false };
+function driversNow() {
+    if (Date.now() - drivers.at > 5000) { drivers.vk = env.vulkanMissing().length === 0; drivers.iris = env.irisMissing().length === 0; drivers.at = Date.now(); }
+    return drivers;
+}
+/* a game's profile as the touch screen and the phone page show it (Vulkan
+ * and iris as vulkanOn() and irisChosen() work them out) */
+function profileOf(x) {
+    const d = driversNow(), vDefault = gameArch(x) !== null && d.vk;
+    return { resolution: prof(x, 'resolution'), fps: prof(x, 'fps'), upscale: prof(x, 'upscale'), memMb: prof(x, 'memMb'),
+        detail: x.detail || 'normal', vulkan: x.vulkan === true || x.vulkan === false ? x.vulkan : vDefault, vulkanDefault: vDefault, vulkanCan: d.vk,
+        iris: x.iris !== false && d.iris, irisCan: d.iris,
+        noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
+        steamStub: gameStub(x), drm: x.drm || null, noDrm: !!x.noDrm };
+}
+
 function touchLibrary() {
     return Object.keys(library).map((id) => {
         const x = library[id], why = gameNow(id).why;
-        return { appId: Number(id), name: x.name || 'App ' + id, playable: !why, why: why };
+        return Object.assign({ appId: Number(id), name: x.name || 'App ' + id, playable: !why, why: why, engine: x.engine || null, arch: gameArch(x) }, profileOf(x));
     }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -599,7 +646,7 @@ function touchModel() {
         enabled: settings.enabled, ready: bundle.state === 'ready', line: touchLine(), right: speedText(),
         game: g ? { appId: g.o.appId, name: g.o.name, state: g.state, fps: g.stats.fps, gpuBuffers: !!g.gpuBuffers, note: g.note, shown: screen.shown() } : null,
         running: live, moving: moving(), library: touchLibrary(), download: touchDownload(),
-        resolution: settings.resolution, upscale: settings.upscale, resolutions: RES_TOUCH, link: settings.enabled ? linkNow : null,
+        resolutions: RES_TOUCH, fpsChoices: FPS_CHOICES, memChoices: MEM_CHOICES, link: settings.enabled ? linkNow : null,
         client: clientStatus(),
         art: touchArt,
     };
@@ -614,8 +661,8 @@ const touchUi = new SteamTouch({
         show: () => show(),
         stop: () => stopGame('stopped on the touch screen'),
         play: (appId) => play(appId),
-        resolution: (id) => setResolution(id),
-        upscale: (id) => setUpscale(id),
+        /* a game's profile from its start menu: setGameOptions's fields */
+        game: (appId, b) => setGameOptions(appId, b),
         enable: (on) => { setEnabled(!!on); return null; },
         client: (on) => clientSetting(on),
     },
@@ -934,6 +981,8 @@ function setGameOptions(appId, b) {
         if (String(b.detail) !== (g.detail || 'normal')) log('detail: ' + g.name + ' ' + b.detail + ' (from its next start)');
         g.detail = String(b.detail);
     }
+    if (['resolution', 'fps', 'upscale', 'memMb'].some((k) => b[k] !== undefined)) { const e = setProfile(appId, b); if (e) return e; }
+    if (b.reset) { const e = resetProfile(appId); if (e) return e; }
     saveLibrary();
     if (b.noSteam !== undefined && !!b.noSteam !== !!g.noSteam) { const e = noSteam(appId, !!b.noSteam); if (e) return e; }
     if (b.noDrm !== undefined && !!b.noDrm !== !!g.noDrm) return noDrm(appId, !!b.noDrm);
@@ -1103,7 +1152,8 @@ function play(appId) {
         const re = clientRoots();
         if (re) return re;
     }
-    const chosen = RESOLUTIONS.filter((r) => r.id === settings.resolution)[0];
+    const p = { resolution: prof(g, 'resolution'), fps: prof(g, 'fps'), upscale: prof(g, 'upscale'), memMb: prof(g, 'memMb') };
+    const chosen = RESOLUTIONS.filter((r) => r.id === p.resolution)[0];
     ensureInterfaces(g);
     const min = steam.minScreen(g.dir, g.exe);
     const res = steam.screenFor(chosen, min, RESOLUTIONS);
@@ -1112,8 +1162,8 @@ function play(appId) {
     const vulkan = vulkanOn(g);
     const iris = irisOn(g);
     const detail = g.detail || 'normal';
-    if (vulkan) { try { vulkanPrepare(settings.fps, detail); } catch (e) { vulkanEnd(); return 'Vulkan: ' + e.message; } }
-    cgroupDir = cgroup();
+    if (vulkan) { try { vulkanPrepare(p.fps, detail); } catch (e) { vulkanEnd(); return 'Vulkan: ' + e.message; } }
+    cgroupDir = cgroup(p.memMb);
     mem.ooms = null; mem.note = null; mem.oomAt = null; mem.peakMb = null;
     restartNote = null;
     /* written (fsynced) before Wine opens the GPU: found at the next start, the unit restarted during it */
@@ -1125,7 +1175,7 @@ function play(appId) {
         (vulkan ? ' (DXVK: ' + env.DETAIL_DXVK[detail].join(', ') + ')' : ' (WineD3D: ' + env.DETAIL_WINED3D[detail] + ')'));
     const x = new Game({ appId: appId, name: g.name, dir: viaClient ? client.dirOf(env.PREFIX) : g.dir, exe: viaClient ? client.exeOf(env.PREFIX) : g.exe,
         args: viaClient ? client.playArgs(appId, args) : args, launch: launch, detail: detail,
-        frame: { w: res.w, h: res.h }, fps: settings.fps, fsr: upscaleArg(), upscale: settings.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
+        frame: { w: res.w, h: res.h }, fps: p.fps, fsr: upscaleArg(p.upscale), upscale: p.upscale, uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: settings.sound, volume: () => settings.volume, speakers: speakers, log: log,
         vulkan: vulkan, iris: iris, engine: g.engine, crumbsFd: vulkan ? vulkanCrumbs : undefined,
         output: Array.isArray(g.output) ? g.output : undefined,
@@ -1190,7 +1240,7 @@ function play(appId) {
     swap.on(log);
     x.start();
     bus.ask(BUS_ASK, g.name + ' is running');
-    log('game: ' + g.name + ' (' + appId + ') at ' + res.w + 'x' + res.h + ', ' + settings.fps + ' fps, ' + settings.memMb + ' MB cap, upscaling ' + settings.upscale);
+    log('game: ' + g.name + ' (' + appId + ') at ' + res.w + 'x' + res.h + ', ' + p.fps + ' fps, ' + p.memMb + ' MB cap, upscaling ' + p.upscale + ' (its profile)');
     return null;
 }
 
@@ -1253,9 +1303,9 @@ function clientSession(name, dir, exe, args, then) {
     const re = clientRoots();
     if (re) return re;
     try { userDir(env.HOME); writeDns(); } catch (e) { return e.message; }
-    cgroupDir = cgroup();
+    cgroupDir = cgroup(MEM_DEFAULT);
     const x = new Game({ appId: 0, name: name, dir: dir, exe: exe, args: args, launch: launch, detail: 'normal',
-        frame: { w: 1280, h: 720 }, fps: settings.fps, fsr: 'off', upscale: 'off', uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
+        frame: { w: 1280, h: 720 }, fps: PROFILE.fps, fsr: 'off', upscale: 'off', uid: UID, gid: VIDEO_GID, cgroup: cgroupDir,
         sound: false, volume: () => settings.volume, log: log, vulkan: false, iris: false, engine: null,
         client: true, ended: () => (x.clientWhy || null) });
     game = x;
@@ -1384,29 +1434,47 @@ const CLIENT_FREEZE_MS = 20000;
 
 /* ---- settings from the phone or the app --------------------------------------------- */
 
-function setResolution(id) {
-    if (id === 'next') {
-        const i = RESOLUTIONS.findIndex((r) => r.id === settings.resolution);
-        id = RESOLUTIONS[(i + 1) % RESOLUTIONS.length].id;
+/* the game the iDrive app's Picture and Upscaling buttons change (and an
+ * /api/settings of 0.3.2's): the running one, else the last one played */
+function currentGame() { return game && game.o.appId && library[game.o.appId] ? game.o.appId : null; }
+
+/* a game's profile: resolution, fps, upscale, memMb; 'next' cycles (the
+ * app's buttons). Upscaling and the memory cap apply to the game at once
+ * if it is the one running, the rest from its next start. */
+function setProfile(appId, b) {
+    const g = library[appId];
+    if (!g) return 'not in the library';
+    const LISTS = { resolution: RESOLUTIONS.map((r) => r.id), fps: FPS_CHOICES, upscale: UPSCALES.map((u) => u.id), memMb: MEM_CHOICES };
+    const running = !!(game && game.state !== 'ended' && game.o.appId === Number(appId));
+    for (const k of Object.keys(LISTS)) {
+        if (b[k] === undefined) continue;
+        const list = LISTS[k];
+        const v = b[k] === 'next' ? list[(list.indexOf(prof(g, k)) + 1) % list.length] : typeof list[0] === 'number' ? Number(b[k]) : String(b[k]);
+        if (list.indexOf(v) < 0) return k + ': one of ' + list.join(', ');
+        if (v === prof(g, k)) continue;
+        g[k] = v;
+        log('profile: ' + g.name + ' ' + k + ' ' + v + (running && (k === 'upscale' || k === 'memMb') ? ' (now)' : ' (from its next start)'));
+        if (running && k === 'upscale') game.setFsr(upscaleArg(v), v);
+        if (running && k === 'memMb' && cgroupDir) {
+            capMb = v;
+            try { fs.writeFileSync(path.join(cgroupDir, 'memory.limit_in_bytes'), String(v * 1048576)); } catch (e) { /* from the next start */ }
+        }
     }
-    if (!RESOLUTIONS.some((r) => r.id === id)) return 'unknown resolution';
-    settings.resolution = id;
-    saveSettings();
-    log('settings: resolution ' + id + ' (from the next game)');
+    saveLibrary();
     return null;
 }
 
-/* 'next' cycles (the app's button); applies to a running game at once */
-function setUpscale(id) {
-    if (id === 'next') {
-        const i = UPSCALES.findIndex((u) => u.id === settings.upscale);
-        id = UPSCALES[(i + 1) % UPSCALES.length].id;
-    }
-    if (!UPSCALES.some((u) => u.id === id)) return 'upscaling: ' + UPSCALES.map((u) => u.id).join(', ');
-    settings.upscale = id;
-    saveSettings();
-    if (game && game.state !== 'ended') game.setFsr(upscaleArg(), settings.upscale);
-    log('settings: upscaling ' + id);
+/* a whole profile back to the defaults (Detail, Vulkan and the OpenGL driver
+ * too; Remove Steam DRM and Run without Steam stay as they are: they change
+ * the game's files) */
+function resetProfile(appId) {
+    const g = library[appId];
+    if (!g) return 'not in the library';
+    const e = setProfile(appId, PROFILE);
+    if (e) return e;
+    delete g.detail; delete g.vulkan; delete g.iris;
+    saveLibrary();
+    log('profile: ' + g.name + ' back to the defaults');
     return null;
 }
 
@@ -1418,11 +1486,12 @@ function setSetting(b) {
         if (/^usb:/.test(b.where) && !usb.find(b.where.slice(4))) return 'the USB stick ' + b.where.slice(4) + ' is not plugged in';
         settings.where = b.where;
     }
-    if (b.fps !== undefined) { if (FPS_CHOICES.indexOf(Number(b.fps)) < 0) return 'fps: ' + FPS_CHOICES.join(' or '); settings.fps = Number(b.fps); }
-    if (b.memMb !== undefined) {
-        if (MEM_CHOICES.indexOf(Number(b.memMb)) < 0) return 'memory: one of ' + MEM_CHOICES.join(', ') + ' MB';
-        settings.memMb = Number(b.memMb);
-        if (cgroupDir) { try { fs.writeFileSync(path.join(cgroupDir, 'memory.limit_in_bytes'), String(settings.memMb * 1048576)); } catch (e) { /* from the next game */ } }
+    /* 0.3.2's settings, each game's own now: the current game's */
+    if (['resolution', 'fps', 'upscale', 'memMb'].some((k) => b[k] !== undefined)) {
+        const id = currentGame();
+        if (id === null) return 'each game has its own now: tap the game (or its Options on this page)';
+        const e = setProfile(id, b);
+        if (e) return e;
     }
     if (b.sound !== undefined) settings.sound = !!b.sound;
     if (b.cellId !== undefined) {
@@ -1431,8 +1500,6 @@ function setSetting(b) {
         log('settings: downloads from ' + REGIONS.filter((r) => r.id === settings.cellId)[0].name + ' (from the next download)');
     }
     if (b.volume !== undefined) { const v = Number(b.volume); if (!(v >= 0 && v <= 150)) return 'volume 0-150'; settings.volume = Math.round(v); }
-    if (b.resolution !== undefined) { const e = setResolution(String(b.resolution)); if (e) return e; }
-    if (b.upscale !== undefined) { const e = setUpscale(String(b.upscale)); if (e) return e; }
     saveSettings();
     if (b.client !== undefined) return clientSetting(!!b.client);
     if (b.clientSignIn) return clientEnsure() || (client.account(env.PREFIX) ? 'already signed in' : null);
@@ -1467,14 +1534,15 @@ function status() {
         download: download ? Object.assign(download.status(), { name: (library[download.o.appId] && library[download.o.appId].name) || names[download.o.appId] || null }) : null,
         library: Object.keys(library).map((id) => {
             const x = library[id];
-            return { appId: Number(id), name: x.name, exe: x.exe, args: (x.args || []).join(' '), engine: x.engine, sizeMb: x.sizeMb,
+            return Object.assign({ appId: Number(id), name: x.name, exe: x.exe, args: (x.args || []).join(' '), engine: x.engine, sizeMb: x.sizeMb,
                 usb: gameStick(x), present: present(x),
-                /* steamApi: its steam_api DLLs (unknown for a game added before 0.1.4) */
-                noSteam: !!x.noSteam, steamApi: x.steamApi === undefined ? null : x.steamApi,
-                vulkan: vulkanOn(x), vulkanDefault: vulkanDefault(x), iris: irisChosen(x), irisDefault: env.irisMissing().length === 0, arch: gameArch(x), detail: x.detail || 'normal',
-                /* steamStub: Steam's DRM wrapper on its program as shipped; drm: its
-                 * variant and whether we can take it off; noDrm: taken off */
-                steamStub: gameStub(x), drm: x.drm || null, noDrm: !!x.noDrm };
+                arch: gameArch(x), irisDefault: env.irisMissing().length === 0 },
+                /* its profile (profileOf): resolution, fps, upscale, memMb, detail,
+                 * vulkan, iris; steamApi: its steam_api DLLs (unknown for a game
+                 * added before 0.1.4); steamStub: Steam's DRM wrapper on its program
+                 * as shipped; drm: its variant and whether we can take it off;
+                 * noDrm: taken off */
+                profileOf(x));
         }).sort((a, b) => a.name.localeCompare(b.name)),
         game: game ? { appId: game.o.appId, name: game.o.name, state: game.state, title: game.title, since: new Date(game.since).toISOString(),
             pictures: game.stats.pictures, fps: game.stats.fps, gpuBuffers: !!game.gpuBuffers, sinkMs: game.stats.ms,
@@ -1489,11 +1557,14 @@ function status() {
         ui: touchUi.shown(), uiWanted: touchUi.wanted,
         winston: { on: winstonOut, connected: !!(g && g.winston), via: screen.via, note: winstonNote },
         bus: bus.state(), busNote: askedOffNote,
-        settings: { where: settings.where, resolution: settings.resolution, fps: settings.fps, memMb: settings.memMb, sound: settings.sound, volume: settings.volume, cellId: settings.cellId || 0, upscale: settings.upscale },
+        /* resolution, upscale: the current game's (the iDrive app's buttons; 0.3.2's settings), profileOf: its name */
+        settings: Object.assign({ where: settings.where, sound: settings.sound, volume: settings.volume, cellId: settings.cellId || 0 },
+            (function () { const id = currentGame(), x = id !== null ? library[id] : null;
+                return { resolution: prof(x, 'resolution'), upscale: prof(x, 'upscale'), fps: prof(x, 'fps'), memMb: prof(x, 'memMb'), profileOf: x ? x.name : null }; })()),
         choices: { resolutions: RESOLUTIONS.map((r) => ({ id: r.id, name: r.name })), fps: FPS_CHOICES, memMb: MEM_CHOICES, regions: REGIONS, disk: diskAvailable(),
             upscales: UPSCALES.map((u) => ({ id: u.id, name: u.name })), details: env.DETAILS,
             usb: usb.sticks().map((s) => ({ id: s.id, fs: s.fs, fat32: s.fat32 })) },
-        space: space, memory: { capMb: settings.memMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
+        space: space, memory: { capMb: capMb, usedMb: g ? mem.usedMb : null, peakMb: mem.peakMb, note: mem.note, oomAt: mem.oomAt },
         swap: swap.status(),
         client: clientStatus(),
     };
@@ -1598,8 +1669,11 @@ function command(c) {
     if (c.cmd === 'hide') { hide('hidden on the iDrive page'); return null; }
     if (c.cmd === 'play') return play(c.appId);
     if (c.cmd === 'stop') return stopGame('stopped on the iDrive page');
-    if (c.cmd === 'resolution') return setResolution('next');
-    if (c.cmd === 'upscale') return setUpscale('next');
+    if (c.cmd === 'resolution' || c.cmd === 'upscale') {
+        const id = currentGame();
+        if (id === null) return 'each game has its own: tap the game on the touch screen';
+        return setProfile(id, { [c.cmd]: 'next' });
+    }
     if (c.cmd === 'winston') return setWinston(c.on);
     return 'unknown command';
 }

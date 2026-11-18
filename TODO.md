@@ -90,6 +90,17 @@ workflow (Actions > Release, the component ids).
   - A game with Steam's API needs Run without Steam here as on the car
     (no Steam client): Terraria says "Please launch the game from your
     Steam client" without it. Turn it on by itself for such a game?
+- [ ] **Steam 0.4.0: each game's start menu and profile** (branch
+  steam-game-profiles, not released). A tile on the touch screen opens the
+  game's start menu (Play there) with its profile: picture shape and size,
+  memory, upscaling (FSR), Detail, frames, Vulkan, OpenGL on iris, Remove
+  Steam DRM, Run without Steam, Reset to the defaults; the tool's own
+  picture / frames / upscaling / memory settings are gone (moved into each
+  installed game once). The phone page's Options carry the same. Off the
+  car: `test/touch_test.js` (look, taps, and the tool end to end on Node 8,
+  0.3.2's settings carried over) passes; `test/unit_test.js` (Wine, the
+  rootfs) not run yet. Still: the rootfs unit test; then on the car (asked
+  first): a tile, the menu, a profile change reaching the next start.
 - [ ] **Steam 0.3.2: Remove Steam DRM, variants 1 / 2 / 3** (our own
   SteamStub unwrapper, `src/steamstub.js`; not released). 0.3.2 adds
   variants 1.0, 2.0 and 2.1 (XOR header, XOR'd payload, XTEA SteamDRMP.dll,

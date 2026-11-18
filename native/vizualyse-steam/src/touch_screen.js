@@ -17,10 +17,14 @@
  *   QR code of the phone page's link is made once a link.
  * - The List corner: 'list' (the server tells the app, which goes back to
  *   its iDrive list, and closes the screen state).
+ * - A game's tile opens its start menu (this.open, kept while the touch
+ *   screen is hidden: back on it after the game): Play, and its profile
+ *   (the tool keeps it in the game's library entry); the back arrow closes
+ *   it, and so does the game leaving the library.
  * - A game played here shows by itself once it draws, if the touch screen
  *   is still up (onGame()).
- * - It only shows: Play, Show, Stop, the picture's size, upscaling and
- *   Steam on / off are the tool's (the actions server.js hands in).
+ * - It only shows: Play, Show, Stop, each game's profile and Steam on / off
+ *   are the tool's (the actions server.js hands in).
  */
 'use strict';
 const EventEmitter = require('events');
@@ -60,8 +64,9 @@ class SteamTouch extends EventEmitter {
     /* opts: dir (the kit), clientPath (mgu-render's client), log, touch
      * { python, iface, src, file, cmd }, state() (the tool's side of the
      * model, touch_view.js), gameShown(), actions { show(), stop(),
-     * play(appId), resolution(id), upscale(id), enable(on) } (each returns
-     * an error string or null) */
+     * play(appId), game(appId, { resolution, fps, upscale, memMb, detail,
+     * vulkan, iris, noDrm, noSteam, reset }) (its profile), enable(on),
+     * client(on) } (each returns an error string or null) */
     constructor(opts) {
         super();
         this.o = opts;
@@ -69,6 +74,8 @@ class SteamTouch extends EventEmitter {
         /* the app's screen state is open: the touch screen whenever the game is not up */
         this.wanted = false;
         this.page = 0;
+        /* the app id whose start menu is open, or null */
+        this.open = null;
         this.autoShow = null;
         this.qr = { text: null, matrix: null };
         this.ui = new TouchScreen({
@@ -93,6 +100,8 @@ class SteamTouch extends EventEmitter {
         const n = view.pages(m);
         if (this.page > n - 1) this.page = n - 1;
         m.page = this.page;
+        if (this.open !== null && !(m.library || []).some((g) => g.appId === this.open)) this.open = null;
+        m.open = this.open;
         if (m.link !== this.qr.text) {
             this.qr.text = m.link;
             try { this.qr.matrix = m.link ? qrMatrix(m.link) : null; } catch (e) { this.qr.matrix = null; this.log('ui: QR code: ' + e.message); }
@@ -151,20 +160,31 @@ class SteamTouch extends EventEmitter {
         if (id === 'stop') return a.stop();
         if (id === 'prev') { this.page = Math.max(0, this.page - 1); return null; }
         if (id === 'next') { this.page++; return null; }
-        const p = /^play:(\d+)$/.exec(id);
-        if (p) {
-            const appId = Number(p[1]);
+        const t = /^game:(\d+)$/.exec(id);
+        if (t) { this.open = Number(t[1]); return null; }
+        if (id === 'close') { this.open = null; return null; }
+        if (id === 'play') {
+            if (this.open === null) return null;
+            const appId = this.open;
             this.autoShow = appId;
             const e = a.play(appId);
             if (e) this.autoShow = null;
             return e;
         }
-        if (id === 'res') return a.resolution(String(value));
-        if (id === 'shape') {
-            const m = this.o.state(), r = nearest(m.resolutions || [], m.resolution, value);
-            return r ? a.resolution(r.id) : null;
+        const p = /^p:(\w+)$/.exec(id);
+        if (p && this.open !== null) {
+            const k = p[1], m = this.o.state(), g = (m.library || []).filter((x) => x.appId === this.open)[0];
+            if (!g || !a.game) return null;
+            if (k === 'shape') {
+                const r = nearest(m.resolutions || [], g.resolution, value);
+                return r && r.id !== g.resolution ? a.game(this.open, { resolution: r.id }) : null;
+            }
+            if (k === 'reset') return a.game(this.open, { reset: true });
+            if (k === 'resolution' || k === 'upscale' || k === 'detail') return a.game(this.open, { [k]: String(value) });
+            if (k === 'fps' || k === 'memMb') return a.game(this.open, { [k]: Number(value) });
+            if (k === 'vulkan' || k === 'iris' || k === 'noDrm' || k === 'noSteam') return a.game(this.open, { [k]: !!value });
+            return null;
         }
-        if (id === 'upscale') return a.upscale(String(value));
         if (id === 'enabled') return a.enable(!!value);
         if (id === 'client') return a.client ? a.client(!!value) : null;
         return null;
