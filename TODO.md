@@ -90,8 +90,8 @@ workflow (Actions > Release, the component ids).
   - A game with Steam's API needs Run without Steam here as on the car
     (no Steam client): Terraria says "Please launch the game from your
     Steam client" without it. Turn it on by itself for such a game?
-- [ ] **Steam 0.4.0: each game's start menu and profile** (branch
-  steam-game-profiles, not released). A tile on the touch screen opens the
+- [ ] **Steam 0.4.0: each game's start menu and profile** (released
+  2026-11-18, main 5c0629b). A tile on the touch screen opens the
   game's start menu (Play there) with its profile: picture shape and size,
   memory, upscaling (FSR), Detail, frames, Vulkan, OpenGL on iris, Remove
   Steam DRM, Run without Steam, Reset to the defaults; the tool's own
